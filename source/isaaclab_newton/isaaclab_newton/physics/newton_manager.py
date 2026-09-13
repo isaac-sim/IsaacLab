@@ -1938,6 +1938,26 @@ class NewtonManager(PhysicsManager):
         return resolvers
 
     @classmethod
+    def _import_usd(cls, builder: ModelBuilder, source: Any, **native_options) -> dict[str, Any]:
+        """Import USD with the configured callback or Newton's native importer.
+
+        Args:
+            builder: Newton builder populated by the import.
+            source: USD source accepted by ModelBuilder.add_usd.
+            **native_options: Options forwarded unchanged to the importer.
+
+        Returns:
+            The importer's result dictionary.
+        """
+        cfg = PhysicsManager._cfg
+        importer = cfg.usd_importer if isinstance(cfg, NewtonCfg) else None
+        return (
+            builder.add_usd(source, **native_options)
+            if importer is None
+            else importer(builder, source, **native_options)
+        )
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -1983,8 +2003,8 @@ class NewtonManager(PhysicsManager):
 
         if not env_paths:
             # No env Xforms — flat loading
-            import_result = builder.add_usd(
-                stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
+            import_result = cls._import_usd(
+                builder, stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
             )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
@@ -2001,14 +2021,17 @@ class NewtonManager(PhysicsManager):
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
             ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
-            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            import_result = cls._import_usd(
+                builder, stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers
+            )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
-            import_result = source_builders[proto_path].add_usd(
+            import_result = cls._import_usd(
+                source_builders[proto_path],
                 stage,
                 root_path=proto_path,
                 ignore_paths=solver_ignore_paths,
@@ -3401,6 +3424,24 @@ class NewtonManager(PhysicsManager):
         cls._adapter.finalize(cls._control)
 
     @classmethod
+    def _invalidate_callback_graph(cls) -> None:
+        """Discard captured hooks and defer recapture until the next physics step."""
+        NewtonManager._graph = None
+        cfg = PhysicsManager._cfg
+        device = PhysicsManager._device
+        sim = PhysicsManager._sim
+        NewtonManager._graph_capture_pending = bool(
+            cls._solver is not None
+            and cfg is not None
+            and cfg.use_cuda_graph
+            and device is not None
+            and "cuda" in device
+            and sim is not None
+            # Owners also mutate hooks through NewtonManager, bypassing solver overrides on cls.
+            and sim.physics_manager._supports_cuda_graph_capture()
+        )
+
+    @classmethod
     def register_post_actuator_callback(cls, callback: Callable[[], None]) -> None:
         """Append a hook to the list invoked after the actuator step on every iteration.
 
@@ -3410,16 +3451,25 @@ class NewtonManager(PhysicsManager):
         so kernel writes to ``state``/``control`` are visible to the
         integrator on the same iteration. Multiple articulations register
         their own implicit-DOF telemetry / FF-routing kernels here; all
-        registered callbacks fire in registration order each step.
+        registered callbacks fire in registration order each step. Changing hooks
+        invalidates any captured graph; recapture occurs on the next physics step.
         """
-        cls._post_actuator_callbacks.append(callback)
+        NewtonManager._post_actuator_callbacks.append(callback)
+        cls._invalidate_callback_graph()
+
+    @classmethod
+    def unregister_post_actuator_callback(cls, callback: Callable[[], None]) -> None:
+        """Remove a post-actuator callback; repeated removal is a safe no-op."""
+        with contextlib.suppress(ValueError):
+            NewtonManager._post_actuator_callbacks.remove(callback)
+            cls._invalidate_callback_graph()
 
     @classmethod
     def register_state_force_callback(cls, callback: Callable[[State], None]) -> None:
         """Register a graph-safe callback that applies forces before every solver substep.
 
-        Callbacks must be registered before solver initialization so they are
-        included in CUDA graph capture.
+        Changing hooks invalidates any captured graph; recapture occurs on the
+        next physics step. Register before solver initialization for initial capture.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
@@ -3427,6 +3477,14 @@ class NewtonManager(PhysicsManager):
         if callback in NewtonManager._state_force_callbacks:
             return
         NewtonManager._state_force_callbacks.append(callback)
+        cls._invalidate_callback_graph()
+
+    @classmethod
+    def unregister_state_force_callback(cls, callback: Callable[[State], None]) -> None:
+        """Remove a state-force callback; repeated removal is a safe no-op."""
+        with contextlib.suppress(ValueError):
+            NewtonManager._state_force_callbacks.remove(callback)
+            cls._invalidate_callback_graph()
 
     @classmethod
     def register_post_step_callback(cls, callback: Callable[[], None]) -> None:
@@ -3441,11 +3499,14 @@ class NewtonManager(PhysicsManager):
         decimation iterations (and their solver substeps) have completed -- not
         once per substep and not once per decimation iteration. Callbacks must be
         graph-safe (fixed shapes, no host branching on device data) and must be
-        registered before capture. Articulations with non-identity ordering
+        registered before initial capture when possible. Changing hooks invalidates
+        any captured graph; recapture occurs on the next physics step.
+        Articulations with non-identity ordering
         register their backend-to-user state republish here; all registered
         callbacks fire in registration order each step.
         """
-        cls._post_step_callbacks.append(callback)
+        NewtonManager._post_step_callbacks.append(callback)
+        cls._invalidate_callback_graph()
 
     @classmethod
     def unregister_post_step_callback(cls, callback: Callable[[], None]) -> None:
@@ -3459,7 +3520,8 @@ class NewtonManager(PhysicsManager):
         tolerant deregistration of other handles.
         """
         with contextlib.suppress(ValueError):
-            cls._post_step_callbacks.remove(callback)
+            NewtonManager._post_step_callbacks.remove(callback)
+            cls._invalidate_callback_graph()
 
     @classmethod
     def create_fixed_tendon_control(cls, articulation):

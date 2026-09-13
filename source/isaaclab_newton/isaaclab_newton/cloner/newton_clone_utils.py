@@ -118,6 +118,7 @@ def build_source_builders(
     ignore_paths: Sequence[str] | None = None,
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
+    usd_importer: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -135,6 +136,8 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
         skip_mesh_approximation: Whether to skip collision mesh approximation during import.
+        usd_importer: Optional callable receiving (builder, source,
+            **native_options). Defaults to the builder's native USD importer.
     """
     return {
         source: _build_source_builder(
@@ -145,6 +148,7 @@ def build_source_builders(
             ignore_paths,
             load_visual_shapes,
             skip_mesh_approximation,
+            usd_importer,
         )
         for source in sources
     }
@@ -158,11 +162,11 @@ def _build_source_builder(
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
+    usd_importer: Callable[..., dict[str, Any]] | None = None,
 ) -> ModelBuilder:
     """Build one source builder."""
     builder = create_builder()
-    import_result = builder.add_usd(
-        stage,
+    native_options = dict(
         root_path=source,
         load_visual_shapes=load_visual_shapes,
         hide_collision_shapes=True,
@@ -170,6 +174,10 @@ def _build_source_builder(
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
+    if usd_importer is None:
+        import_result = builder.add_usd(stage, **native_options)
+    else:
+        import_result = usd_importer(builder, stage, **native_options)
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )

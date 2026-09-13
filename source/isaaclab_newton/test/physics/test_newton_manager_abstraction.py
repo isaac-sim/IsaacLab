@@ -58,11 +58,11 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton import JointTargetMode, JointType, Model, ModelBuilder, ShapeFlags
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -872,6 +872,165 @@ def test_production_imports_scope_mujoco_joint_properties(
     assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
 
 
+def _make_usd_importer_stage(import_path):
+    """Create one articulated source plus a shared rigid body for importer tests."""
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    physics_prim_path = "/physicsScene"
+    UsdPhysics.Scene.Define(stage, physics_prim_path)
+
+    shared = UsdGeom.Cube.Define(stage, "/World/shared").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(shared)
+    shared.CreateAttribute("test:importMarker", Sdf.ValueTypeNames.Float, True).Set(11.0)
+
+    if import_path == "clone":
+        root_path = "/Sources/robot"
+    elif import_path == "flat":
+        root_path = "/World/robot"
+    else:
+        root_path = "/World/Env_0/robot"
+        UsdGeom.Xform.Define(stage, "/World/Env_1")
+
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    root.CreateAttribute("test:importMarker", Sdf.ValueTypeNames.Float, True).Set(17.0)
+
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    child.CreateAttribute("test:importMarker", Sdf.ValueTypeNames.Float, True).Set(19.0)
+
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+    return stage, physics_prim_path, root_path
+
+
+def _run_usd_importer_path(monkeypatch, import_path, usd_importer):
+    """Import one test stage through a selected production builder path."""
+    from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
+
+    stage, physics_prim_path, root_path = _make_usd_importer_stage(import_path)
+    monkeypatch.setattr(
+        PhysicsManager,
+        "_sim",
+        SimpleNamespace(physics_manager=NewtonMJWarpManager, cfg=SimpleNamespace(physics_prim_path=physics_prim_path)),
+    )
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(solver_cfg=MJWarpSolverCfg(), usd_importer=usd_importer))
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
+    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
+
+    if import_path == "clone":
+        builder, *_ = _build_newton_builder_from_mapping(
+            stage=stage,
+            sources=(root_path,),
+            destinations=("/World/envs/env_{}/robot",),
+            env_ids=np.array([3, 7], dtype=np.int64),
+            mapping=np.ones((1, 2), dtype=np.bool_),
+            load_visual_shapes=False,
+            global_paths=("/World/shared",),
+        )
+    else:
+        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
+        monkeypatch.setattr(
+            newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None
+        )
+        monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
+        monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
+        NewtonMJWarpManager.instantiate_builder_from_stage()
+        builder = NewtonManager._builder
+    return builder
+
+
+@pytest.mark.parametrize(
+    ("import_path", "expected_markers", "expected_joint_count"),
+    [
+        pytest.param("clone", [11.0, 17.0, 19.0, 17.0, 19.0], 2, id="clone"),
+        pytest.param("flat", [17.0, 19.0, 11.0], 1, id="flat-fallback"),
+        pytest.param("direct_env", [11.0, 17.0, 19.0, 17.0, 19.0], 2, id="direct-env-fallback"),
+    ],
+)
+@pytest.mark.parametrize("use_custom_importer", [False, True], ids=["native", "custom"])
+def test_usd_importer_preserves_real_builder_results(
+    monkeypatch, import_path, expected_markers, expected_joint_count, use_custom_importer
+):
+    """Native and custom importers produce finalized bodies and native joint properties."""
+
+    def importer(builder, source, **native_options):
+        builder.add_custom_attribute(
+            ModelBuilder.CustomAttribute(
+                name="marker",
+                namespace="import_test",
+                dtype=wp.float32,
+                frequency=Model.AttributeFrequency.BODY,
+                default=-1.0,
+                usd_attribute_name="test:importMarker",
+            )
+        )
+        return builder.add_usd(source, **native_options)
+
+    builder = _run_usd_importer_path(monkeypatch, import_path, importer if use_custom_importer else None)
+    model = builder.finalize(device="cpu")
+
+    assert model.body_count == len(expected_markers)
+    assert sum(joint_type == JointType.REVOLUTE for joint_type in builder.joint_type) == expected_joint_count
+    friction = model.joint_friction.numpy()
+    damping = model.joint_damping.numpy()
+    np.testing.assert_allclose(friction[friction != 0.0], np.full(expected_joint_count, 0.11))
+    np.testing.assert_allclose(damping[damping != 0.0], np.full(expected_joint_count, 0.23))
+    if use_custom_importer:
+        np.testing.assert_allclose(model.import_test.marker.numpy(), expected_markers)
+    else:
+        assert not builder.has_custom_attribute("import_test:marker")
+
+
+def test_usd_importer_dispatch_preserves_arguments_and_result(monkeypatch):
+    """The dispatcher forwards native arguments and returns the callback's dictionary unchanged."""
+    builder = object()
+    source = object()
+    native_options = {"root_path": "/World/robot", "ignore_paths": ["/World/ignored"]}
+    result = {"path_shape_map": {"/World/robot/shape": 2}}
+    received = []
+
+    def importer(actual_builder, actual_source, **actual_options):
+        received.append((actual_builder, actual_source, actual_options))
+        return result
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(usd_importer=importer))
+
+    actual = NewtonMJWarpManager._import_usd(builder, source, **native_options)
+
+    assert actual is result
+    assert received == [(builder, source, native_options)]
+
+
+def test_usd_importer_dispatch_preserves_exception(monkeypatch):
+    """The dispatcher propagates the callback's exception object unchanged."""
+    error = RuntimeError("custom USD import failed")
+
+    def importer(_builder, _source, **_native_options):
+        raise error
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(usd_importer=importer))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        NewtonMJWarpManager._import_usd(object(), object(), root_path="/World/robot")
+
+    assert exc_info.value is error
+
+
 @pytest.mark.parametrize(
     ("manager_cls", "imports_mujoco"),
     [
@@ -1143,6 +1302,65 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is False
+
+
+@pytest.mark.parametrize("hook_kind", ["post_actuator", "state_force", "post_step"])
+@pytest.mark.parametrize("mutation", ["register", "remove"])
+def test_base_callback_changes_preserve_unsupported_mpm_eager_execution(hook_kind, mutation):
+    """Base-class hook mutations must respect the active MPM solver's capture limits."""
+    if not wp.is_cuda_available():
+        pytest.skip("CUDA unavailable")
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        physics=NewtonCfg(
+            solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05),
+            use_cuda_graph=True,
+        ),
+    )
+    counters = wp.zeros(1, dtype=wp.int32, device="cuda:0")
+
+    def callback(*args):
+        wp.launch(_increment_callback_counter, 1, inputs=[counters, 0], device="cuda:0")
+
+    register = getattr(NewtonManager, f"register_{hook_kind}_callback")
+    unregister = getattr(NewtonManager, f"unregister_{hook_kind}_callback")
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.physics_manager.create_builder()
+        builder.add_particles(
+            pos=[(0.0, 0.0, 0.10), (0.05, 0.0, 0.10), (0.0, 0.05, 0.10)],
+            vel=[(0.0, 0.0, 0.0)] * 3,
+            mass=[0.01] * 3,
+            radius=[0.02] * 3,
+            custom_attributes={
+                "mpm:viscosity": 50.0,
+                "mpm:friction": 0.0,
+                "mpm:tensile_yield_ratio": 1.0,
+                "mpm:yield_pressure": 1.0e15,
+                "mpm:yield_stress": 0.0,
+                "mpm:young_modulus": 1.0e15,
+                "mpm:damping": 0.0,
+            },
+        )
+        NewtonManager.set_builder(builder)
+        if mutation == "remove":
+            register(callback)
+        sim.reset()
+        sim.step(render=False)
+        np.testing.assert_array_equal(counters.numpy(), [int(mutation == "remove")])
+        positions_before = NewtonManager.get_state_0().particle_q.numpy().copy()
+
+        if mutation == "register":
+            register(callback)
+        else:
+            unregister(callback)
+        sim.step(render=False)
+        sim.step(render=False)
+
+        np.testing.assert_array_equal(counters.numpy(), [2 if mutation == "register" else 1])
+        positions_after = NewtonManager.get_state_0().particle_q.numpy()
+        assert np.isfinite(positions_after).all()
+        assert np.all(positions_after[:, 2] < positions_before[:, 2])
 
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
@@ -1903,3 +2121,134 @@ def test_deterministic_mode_allows_those_sensors_without_a_guarantee(
     NewtonManager._validate_deterministic_solver_cfg(
         MJWarpSolverCfg(disable_sensors=True), wp.DeterministicMode.NOT_GUARANTEED
     )
+
+
+@wp.kernel
+def _increment_callback_counter(counters: wp.array(dtype=wp.int32), index: int):
+    counters[index] += 1
+
+
+@wp.kernel
+def _apply_callback_force(forces: wp.array(dtype=wp.spatial_vector), force: float):
+    i = wp.tid()
+    forces[i] += wp.spatial_vector(force, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize("device, use_cuda_graph", [("cpu", False), ("cuda:0", False), ("cuda:0", True)])
+@pytest.mark.parametrize("folded", [False, True], ids=["external-decimation", "folded-decimation"])
+@pytest.mark.parametrize("hook_kind", ["post_actuator", "state_force", "post_step"])
+@pytest.mark.parametrize("invalidate_before_replay", [False, True])
+def test_callback_changes_remove_captured_kernels_and_allow_rebind(
+    device, use_cuda_graph, folded, hook_kind, invalidate_before_replay
+):
+    """Removing hooks must remove their device operations, preserving unrelated hooks.
+
+    This manager-level fixture opts into folded decimation through the public
+    activation hook; the bodies themselves are imported from ordinary USD.
+    """
+    from pxr import Usd, UsdGeom, UsdPhysics
+
+    if device.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA unavailable")
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    prim = UsdGeom.Sphere.Define(stage, "/body").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    mass = UsdPhysics.MassAPI.Apply(prim)
+    mass.CreateMassAttr(1.0)
+    mass.CreateDiagonalInertiaAttr((0.4, 0.4, 0.4))
+    source = ModelBuilder()
+    source.add_usd(stage)
+    builder = ModelBuilder()
+    builder.replicate(source, 2)
+    counters = wp.zeros(6, dtype=wp.int32, device=device)
+
+    def count(index):
+        wp.launch(_increment_callback_counter, 1, inputs=[counters, index], device=device)
+
+    def command():
+        count(0)
+
+    def force(state):
+        count(1)
+        wp.launch(_apply_callback_force, 2, inputs=[state.body_f, 2.0], device=device)
+
+    def post_step():
+        count(2)
+
+    def retained_command():
+        count(3)
+
+    def retained_force(state):
+        count(4)
+
+    def retained_post_step():
+        count(5)
+
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=FeatherstoneSolverCfg(), num_substeps=5, use_cuda_graph=use_cuda_graph),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        manager = sim.physics_manager
+        manager.set_builder(builder)
+        manager.register_post_actuator_callback(command)
+        manager.register_state_force_callback(force)
+        manager.register_post_step_callback(post_step)
+        manager.register_post_actuator_callback(retained_command)
+        manager.register_state_force_callback(retained_force)
+        manager.register_post_step_callback(retained_post_step)
+        if folded:
+            manager.register_callback(lambda _: manager.activate_newton_actuator_path(), PhysicsEvent.PHYSICS_READY)
+        sim.reset()
+        manager.set_decimation(4)
+        if invalidate_before_replay:
+            manager.unregister_state_force_callback(force)
+            manager.register_state_force_callback(force)
+        np.testing.assert_array_equal(counters.numpy(), np.zeros(6))
+
+        def policy_step():
+            for _ in range(1 if manager.handles_decimation() else 4):
+                sim.step(render=False)
+
+        policy_step()
+        post_count = 1 if folded else 4
+        expected = np.array([4, 20, post_count, 4, 20, post_count])
+        np.testing.assert_array_equal(counters.numpy(), expected)
+        np.testing.assert_allclose(manager.get_state_0().body_qd.numpy()[:, 0], 0.04, atol=1e-6)
+
+        callback, counter_index = {
+            "post_actuator": (command, 0),
+            "state_force": (force, 1),
+            "post_step": (post_step, 2),
+        }[hook_kind]
+        unregister = getattr(manager, f"unregister_{hook_kind}_callback")
+        for _ in range(2):
+            unregister(callback)
+        # Topology changes schedule recapture without executing physics.
+        np.testing.assert_array_equal(counters.numpy(), expected)
+        policy_step()
+        per_step = expected.copy()
+        per_step[counter_index] = 0
+        expected += per_step
+        np.testing.assert_array_equal(counters.numpy(), expected)
+        velocity = 0.04 if hook_kind == "state_force" else 0.08
+        np.testing.assert_allclose(manager.get_state_0().body_qd.numpy()[:, 0], velocity, atol=1e-6)
+
+        new_counter = wp.zeros(1, dtype=wp.int32, device=device)
+
+        def replacement(*args):
+            wp.launch(_increment_callback_counter, 1, inputs=[new_counter, 0], device=device)
+            if args:
+                wp.launch(_apply_callback_force, 2, inputs=[args[0].body_f, -1.0], device=device)
+
+        getattr(manager, f"register_{hook_kind}_callback")(replacement)
+        policy_step()
+        expected += per_step
+        np.testing.assert_array_equal(counters.numpy(), expected)
+        assert new_counter.numpy().tolist() == [[4, 20, post_count][counter_index]]
+        velocity = 0.02 if hook_kind == "state_force" else 0.12
+        np.testing.assert_allclose(manager.get_state_0().body_qd.numpy()[:, 0], velocity, atol=1e-6)

@@ -74,6 +74,35 @@ onto its own :attr:`~isaaclab_newton.physics.NewtonCfg.class_type`, so task
 configuration never names the manager directly.
 
 
+Custom USD Importers
+--------------------
+
+NewtonCfg.usd_importer accepts an optional generic callable for extending
+physics-model USD imports. The callable receives the target Newton builder, the
+USD source, and the keyword options that Isaac Lab would pass to
+ModelBuilder.add_usd. It must return the native import result dictionary:
+
+.. code-block:: python
+
+   def import_usd(builder, source, **native_options):
+       register_project_attributes(builder)
+       return builder.add_usd(source, **native_options)
+
+   sim_cfg.physics = NewtonCfg(usd_importer=import_usd)
+
+The manager uses the callable for shared clone roots, clone prototypes, flat
+stages, and direct /World/Env_* fallback imports. It forwards each path's
+root, ignore paths, schema resolvers, visual-shape options, and other native
+options unchanged. Return values and exceptions also propagate unchanged.
+
+Register custom builder attributes before delegating to ModelBuilder.add_usd
+so imported entities receive their defaults or USD-authored values. Keep the
+callback generic: Isaac Lab does not import or initialize the project that
+provides it. Clone utilities continue to use the native importer by default
+for visualization and standalone probes; physics replication passes the
+configured callable explicitly.
+
+
 Lifecycle
 ---------
 

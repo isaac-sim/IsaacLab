@@ -139,6 +139,21 @@ class TestClonerCollisionApproximation:
 
         assert list(shapes.values()) == [GeoType.MESH]
 
+    def test_custom_importer_receives_skip_mesh_approximation(self):
+        """A custom importer receives the render-only mesh-approximation option."""
+        received_options = []
+
+        def importer(builder, stage, **native_options):
+            received_options.append(native_options)
+            return builder.add_usd(stage, **native_options)
+
+        shapes = _collision_shapes(
+            _build(_make_stage("convexDecomposition"), skip_mesh_approximation=True, usd_importer=importer)
+        )
+
+        assert received_options[0]["skip_mesh_approximation"] is True
+        assert list(shapes.values()) == [GeoType.MESH]
+
     @pytest.mark.parametrize(
         ("approximation", "expected"),
         [
