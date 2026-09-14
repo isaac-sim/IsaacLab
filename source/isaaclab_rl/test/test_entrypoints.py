@@ -750,3 +750,124 @@ def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
         namespace["main"]()
 
     assert not hasattr(skrl.config.jax, "backend")
+
+
+def test_deployment_export_precedes_events_and_preserves_training(tmp_path, monkeypatch):
+    """The real CLI construction path preserves same-seed training, including Direct setup assets."""
+    import copy
+    import pickle
+    import random
+
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    from pxr import Usd, UsdPhysics
+
+    from isaaclab.envs import DirectRLEnvCfg
+    from isaaclab.managers import EventTermCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.test.utils.usd_export import fixed_export_prestartup, fixed_export_startup, make_fixed_scene_cfg
+
+    from isaaclab_rl.entrypoints.common import create_isaaclab_env
+    from isaaclab_rl.entrypoints.deployment import export_training_scene
+
+    task = "Isaac-Fixed-Export-Probe-v0"
+    if task not in gym.registry:
+        gym.register(task, entry_point="isaaclab.test.utils.usd_export:FixedExportProbeEnv", disable_env_checker=True)
+    cfg = DirectRLEnvCfg(
+        decimation=1,
+        episode_length_s=1.0,
+        action_space=1,
+        observation_space=7,
+        scene=make_fixed_scene_cfg(tmp_path),
+        sim=SimulationCfg(device="cpu", physics=NewtonCfg(solver_cfg=XPBDSolverCfg())),
+        seed=713,
+        log_dir=str(tmp_path / "run"),
+    )
+    cfg.scene.num_envs = 1
+    cfg.scene.replicate_physics = False
+    cfg.scene.clone_in_fabric = False
+    cfg.events = SimpleNamespace(
+        pre=EventTermCfg(func=fixed_export_prestartup, mode="prestartup"),
+        start=EventTermCfg(func=fixed_export_startup, mode="startup"),
+    )
+    monkeypatch.setenv("RANK", "0")
+    args = SimpleNamespace(frontend="torch", export_deployment_usd=True)
+    before = pickle.dumps(cfg)
+    random.seed(111)
+    np.random.seed(222)
+    torch.manual_seed(333)
+    rng = (random.getstate(), np.random.get_state(), torch.get_rng_state().clone())
+    output = export_training_scene(task, cfg, args)
+    assert pickle.dumps(cfg) == before
+    assert random.getstate() == rng[0]
+    np.testing.assert_array_equal(np.random.get_state()[1], rng[1][1])
+    assert torch.equal(torch.get_rng_state(), rng[2])
+    stage = Usd.Stage.Open(str(output))
+    assert not stage.GetPrimAtPath("/World/envs/env_1")
+    assert stage.GetPrimAtPath("/World/SetupOnly")
+    assert UsdPhysics.MassAPI(stage.GetPrimAtPath("/World/envs/env_0/Box")).GetMassAttr().Get() == 2.5
+    monkeypatch.setenv("RANK", "1")
+    assert export_training_scene(task, cfg, args) is None
+    monkeypatch.setenv("RANK", "0")
+    runs = []
+    for enabled in (False, True):
+        args.export_deployment_usd = enabled
+        env = create_isaaclab_env(task, copy.deepcopy(cfg), args, convert_marl_to_single_agent=False)
+        try:
+            observations, _ = env.reset(seed=713)
+            samples = [observations["policy"].clone()]
+            for _ in range(3):
+                observations, *_ = env.step(torch.zeros((1, 1)))
+                samples.append(observations["policy"].clone())
+            runs.append((torch.stack(samples), torch.rand(8), np.random.rand(8), random.random()))
+        finally:
+            env.close()
+    assert torch.equal(runs[0][0], runs[1][0])
+    assert torch.equal(runs[0][1], runs[1][1])
+    np.testing.assert_array_equal(runs[0][2], runs[1][2])
+    assert runs[0][3] == runs[1][3]
+
+
+def test_deployment_export_preserves_direct_task_cloning(tmp_path, monkeypatch):
+    """A maintained Direct task builds its robot in _setup_scene; training still has two worlds."""
+    import copy
+
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    from pxr import Usd, UsdPhysics
+
+    from isaaclab_rl.entrypoints.common import create_isaaclab_env
+
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+
+    task = "Isaac-USD-Cartpole-Clone-Probe-v0"
+    if task not in gym.registry:
+        gym.register(
+            task, entry_point="isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv", disable_env_checker=True
+        )
+    cfg = CartpoleEnvCfg()
+    cfg.sim.physics = NewtonCfg(solver_cfg=XPBDSolverCfg())
+    cfg.sim.device = "cpu"
+    cfg.scene.num_envs = 2
+    cfg.seed = 42
+    cfg.log_dir = str(tmp_path)
+    monkeypatch.setenv("RANK", "0")
+    samples = []
+    for enabled in (False, True):
+        args = SimpleNamespace(frontend="torch", export_deployment_usd=enabled)
+        env = create_isaaclab_env(task, copy.deepcopy(cfg), args, convert_marl_to_single_agent=False)
+        try:
+            assert env.unwrapped.num_envs == 2
+            obs, _ = env.reset(seed=42)
+            run = [obs["policy"].clone()]
+            for _ in range(3):
+                obs, *_ = env.step(torch.zeros((2, 1)))
+                run.append(obs["policy"].clone())
+            samples.append(torch.stack(run))
+        finally:
+            env.close()
+    assert torch.equal(samples[0], samples[1])
+    stage = Usd.Stage.Open(str(tmp_path / "deployment.usda"))
+    assert stage.GetPrimAtPath("/World/envs/env_0/Robot")
+    assert not stage.GetPrimAtPath("/World/envs/env_1")
+    assert sum(p.HasAPI(UsdPhysics.RigidBodyAPI) for p in stage.Traverse()) == 3

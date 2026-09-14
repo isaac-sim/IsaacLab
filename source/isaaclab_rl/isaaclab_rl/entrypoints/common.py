@@ -402,6 +402,12 @@ def add_common_train_args(
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
     )
+    parser.add_argument(
+        "--export_deployment_usd",
+        action="store_true",
+        default=False,
+        help="Export a fixed single-environment deployment USD before training (rank 0 only).",
+    )
     parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
     parser.add_argument(
         "--ray-proc-id",
@@ -739,6 +745,12 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
+    if getattr(args_cli, "export_deployment_usd", False):
+        if args_cli.frontend != "torch":
+            raise NotImplementedError("Deployment USD export currently supports the torch task frontend.")
+        from isaaclab_rl.entrypoints.deployment import export_training_scene
+
+        export_training_scene(task, env_cfg, args_cli)
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:

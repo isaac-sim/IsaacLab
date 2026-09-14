@@ -104,39 +104,74 @@ def read_joint_properties(data: BaseArticulationData) -> dict[str, torch.Tensor]
 
 
 @dataclass(frozen=True)
-class BodyPhysicsProperties:
-    """One instance's rigid bodies, in public body order.
+class UsdProperty:
+    """Fixed buffer-to-USD mapping in the PhysX target dialect.
 
-    Attributes:
-        mass: Mass [kg], shape [B].
-        inertia: Inertia about COM in the body frame [kg*m^2], shape [B, 3, 3].
-        com_pose: Body-local COM pose [m, xyzw], shape [B, 7]. Inertia already
-            uses the body frame and must not be rotated again by this quaternion.
-        pose: Body-link world pose [m, xyzw], shape [B, 7].
-        velocity: COM world linear/angular velocity [m/s, rad/s], shape [B, 6].
+    ``source`` names public asset data; ``targets`` pairs an applied schema with
+    an attribute (``{axis}`` expands to angular/linear). Angular conversion is
+    an exponent of degrees per radian: 1 for state/limits, -1 for drive gains.
+    ``component`` selects one component of a vector property. All physical
+    source values use SI units; this contract requires a metre/kilogram stage.
     """
 
-    mass: np.ndarray
-    inertia: np.ndarray
-    com_pose: np.ndarray
+    source: str
+    targets: tuple[tuple[str, str], ...]
+    angular_power: int = 0
+    component: int | None = None
+    absent_value: float | None = None
+
+
+def _drive(name: str) -> tuple[tuple[str, str], ...]:
+    return (("PhysicsDriveAPI:{axis}", "drive:{axis}:physics:" + name),)
+
+
+def _axis(name: str) -> tuple[tuple[str, str], ...]:
+    return (("PhysxJointAxisAPI:{axis}", "physxJointAxis:{axis}:" + name),)
+
+
+# Real write targets, shared with actuator initialization's property sources above.
+# Additional physical fields need a mapping here, not a parallel exporter switch.
+JOINT_USD_PROPERTIES = {
+    "stiffness": UsdProperty(JOINT_PROPERTY_SOURCES["stiffness"], _drive("stiffness"), -1),
+    "damping": UsdProperty(JOINT_PROPERTY_SOURCES["damping"], _drive("damping"), -1),
+    "armature": UsdProperty(
+        JOINT_PROPERTY_SOURCES["armature"], _axis("armature") + (("PhysxJointAPI", "physxJoint:armature"),)
+    ),
+    "friction": UsdProperty(JOINT_PROPERTY_SOURCES["friction"], _axis("staticFrictionEffort")),
+    "dynamic_friction": UsdProperty(
+        JOINT_PROPERTY_SOURCES["dynamic_friction"], _axis("dynamicFrictionEffort"), absent_value=0.0
+    ),
+    "viscous_friction": UsdProperty(
+        JOINT_PROPERTY_SOURCES["viscous_friction"], _axis("viscousFrictionCoefficient"), -1, absent_value=0.0
+    ),
+    "joint_effort_limit": UsdProperty(JOINT_PROPERTY_SOURCES["joint_effort_limit"], _drive("maxForce")),
+    "joint_velocity_limit": UsdProperty(
+        JOINT_PROPERTY_SOURCES["joint_velocity_limit"],
+        _axis("maxJointVelocity") + (("PhysxJointAPI", "physxJoint:maxJointVelocity"),),
+        1,
+    ),
+    "lower_limit": UsdProperty("joint_pos_limits", (("", "physics:lowerLimit"),), 1, 0),
+    "upper_limit": UsdProperty("joint_pos_limits", (("", "physics:upperLimit"),), 1, 1),
+    "position": UsdProperty("joint_pos", (("PhysicsJointStateAPI:{axis}", "state:{axis}:physics:position"),), 1),
+    "velocity": UsdProperty("joint_vel", (("PhysicsJointStateAPI:{axis}", "state:{axis}:physics:velocity"),), 1),
+}
+
+
+@dataclass(frozen=True)
+class BodyInitialState:
+    """Public body-link world poses [m, xyzw] and COM velocities [m/s, rad/s], shape [B, 7/6]."""
+
     pose: np.ndarray
     velocity: np.ndarray
 
     @classmethod
     def from_data(
-        cls, data: BaseArticulationData | BaseRigidObjectData | BaseRigidObjectCollectionData, row: int
-    ) -> BodyPhysicsProperties:
-        """Copy an instance from any supported rigid asset's public data interface."""
-        sources = (
-            ("body_mass", (-1,)),
-            ("body_inertia", (-1, 3, 3)),
-            ("body_com_pose_b", (-1, 7)),
-            ("body_link_pose_w", (-1, 7)),
-            ("body_com_vel_w", (-1, 6)),
+        cls, data: BaseArticulationData | BaseRigidObjectData | BaseRigidObjectCollectionData
+    ) -> BodyInitialState:
+        """Copy the single environment's initialized state in public body order."""
+        return cls(
+            *(
+                getattr(data, name).torch[0].detach().cpu().numpy().reshape(-1, width).copy()
+                for name, width in (("body_link_pose_w", 7), ("body_com_vel_w", 6))
+            )
         )
-        arrays = [
-            getattr(data, name).torch[row].detach().cpu().numpy().reshape(shape).copy() for name, shape in sources
-        ]
-        if len({len(array) for array in arrays}) != 1:
-            raise RuntimeError("Rigid-body data properties disagree on body coverage.")
-        return cls(*arrays)

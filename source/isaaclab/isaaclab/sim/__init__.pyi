@@ -5,7 +5,6 @@
 
 __all__ = [
     "SceneExporter",
-    "export_environment_to_usd",
     "SimulationCfg",
     "SimulationContext",
     "build_simulation_context",
@@ -471,4 +470,4 @@ from .views import (
     XformPrimView,  # deprecated alias
 )
 
-from .usd_export import SceneExporter, export_environment_to_usd
+from .usd_export import SceneExporter

@@ -196,3 +196,57 @@ def make_fixed_scene_cfg(directory):
     )
     cfg.light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1200))
     return cfg
+
+
+# Importable fixtures let the isolated training worker construct the same Direct task.
+from isaaclab.envs import DirectRLEnv
+
+
+class FixedExportProbeEnv(DirectRLEnv):
+    """Direct fixture with extra setup assets and observable event/random-state effects."""
+
+    def _setup_scene(self):
+        from pxr import UsdGeom
+
+        prim = UsdGeom.Cube.Define(self.sim.stage, "/World/SetupOnly").GetPrim()
+        prim.GetAttribute("size").Set(0.05)
+        UsdPhysics.CollisionAPI.Apply(prim)
+
+    def _pre_physics_step(self, actions):
+        pass
+
+    def _apply_action(self):
+        pass
+
+    def _get_observations(self):
+        return {"policy": self.scene.rigid_objects["box"].data.root_pose_w.torch.clone()}
+
+    def _get_rewards(self):
+        import torch
+
+        return torch.zeros(self.num_envs, device=self.device)
+
+    def _get_dones(self):
+        import torch
+
+        value = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        return value, value
+
+
+def fixed_export_prestartup(env, env_ids):
+    """Visible authored randomization that must never reach the fixed artifact."""
+    import torch
+
+    prims = [p for p in env.sim.stage.Traverse() if p.GetName() == "Box" and p.HasAPI(UsdPhysics.RigidBodyAPI)]
+    assert prims
+    for prim in prims:
+        UsdPhysics.MassAPI(prim).GetMassAttr().Set(20.0 + float(torch.rand(())))
+
+
+def fixed_export_startup(env, env_ids):
+    """Visible backend randomization and RNG use in ordinary task startup."""
+    import torch
+
+    asset = env.scene.rigid_objects["box"]
+    velocity = torch.rand((env.num_envs, 6), device=env.device)
+    asset.write_root_velocity_to_sim_index(root_velocity=velocity)
