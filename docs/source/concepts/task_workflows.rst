@@ -10,8 +10,8 @@ Task Design Workflows
 
    This page is the source of truth for the ``isaaclab-building-environments`` and
    ``isaaclab-planning-manipulation-tasks`` agent skills
-   (`skills/user/create-environments/ <../../../../skills/user/create-environments/SKILL.md>`__,
-   `skills/user/plan-manipulation-tasks/ <../../../../skills/user/plan-manipulation-tasks/SKILL.md>`__).
+   (`skills/user/create-environments/ <../../../skills/user/create-environments/SKILL.md>`__,
+   `skills/user/plan-manipulation-tasks/ <../../../skills/user/plan-manipulation-tasks/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
@@ -37,12 +37,12 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-.. image:: ../../_static/task-workflows/manager-based-light.svg
+.. image:: ../_static/task-workflows/manager-based-light.svg
     :class: only-light
     :align: center
     :alt: Manager-based Task Workflow
 
-.. image:: ../../_static/task-workflows/manager-based-dark.svg
+.. image:: ../_static/task-workflows/manager-based-dark.svg
     :class: only-dark
     :align: center
     :alt: Manager-based Task Workflow
@@ -62,7 +62,7 @@ For reinforcement learning, much of this has been done for you already! In most 
     implementation, weight and additional parameters to be passed to the function. Users can define multiple
     reward terms and their weights to be used in the reward function.
 
-    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+    .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
         :language: python
         :pyobject: RewardsCfg
 
@@ -76,12 +76,12 @@ For reinforcement learning, much of this has been done for you already! In most 
 Direct Environments
 -------------------
 
-.. image:: ../../_static/task-workflows/direct-based-light.svg
+.. image:: ../_static/task-workflows/direct-based-light.svg
     :class: only-light
     :align: center
     :alt: Direct-based Task Workflow
 
-.. image:: ../../_static/task-workflows/direct-based-dark.svg
+.. image:: ../_static/task-workflows/direct-based-dark.svg
     :class: only-dark
     :align: center
     :alt: Direct-based Task Workflow
@@ -98,14 +98,14 @@ This workflow may be the most familiar for users migrating from the `IsaacGymEnv
 
     The following function is a part of the Cartpole environment class and is responsible for computing the rewards.
 
-    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+    .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
         :language: python
         :pyobject: CartpoleEnv._get_rewards
         :dedent: 4
 
     It calls the :meth:`compute_rewards` function which is Torch JIT compiled for performance benefits.
 
-    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+    .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
         :language: python
         :pyobject: compute_rewards
 

@@ -84,8 +84,8 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_newton_actuators: bool = False
-    """Use native actuators for supported explicit actuator configurations.
+    use_newton_actuators: bool = True
+    """Use native actuators for supported explicit actuator configurations. Default is True.
 
     When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
     and :class:`DCMotorCfg`, author ``NewtonActuator`` USD prims. Newton executes
@@ -94,7 +94,8 @@ class SimulationCfg:
 
     Config values take precedence over existing USD actuators for covered joints.
     Joints without a config keep their USD-authored actuators. Implicit actuators
-    are unchanged: the solver applies their drive gains.
+    are unchanged: the solver applies their drive gains. Set this flag to ``False``
+    to use the deprecated Isaac Lab actuator execution path.
     """
 
     physics: PhysicsCfg | None = None

@@ -121,6 +121,12 @@ How-to Guides
 
          Batch rigid objects and vary asset configurations across environments.
 
+      .. container:: guide-entry
+
+         :doc:`Preparing an asset for Newton with MJWarp </source/how-to/prepare_asset_for_newton>`
+
+         Prepare an asset and task to run with the Newton MJWarp physics preset.
+
    .. container:: guide-group
 
       .. rubric:: Scenes and Cloning
@@ -212,6 +218,12 @@ How-to Guides
          :doc:`Curriculum utilities </source/how-to/curriculums>`
 
          Change environment parameters dynamically during training.
+
+      .. container:: guide-entry
+
+         :doc:`Transferring policies between PhysX and Newton </source/how-to/transfer_policies_between_physx_and_newton>`
+
+         Validate and evaluate policy checkpoints across the PhysX and Newton backends.
 
    .. container:: guide-group
 

@@ -12,6 +12,7 @@ regression is caught before the Kit-dependent wrapper tests run.
 
 import inspect
 
+import pytest
 import torch
 from tensordict import TensorDict
 
@@ -26,6 +27,15 @@ class _FakeEnv:
     def __init__(self):
         self.unwrapped = self
         self.obs_buf = {"policy": torch.tensor([[1.0, 2.0], [3.0, 4.0]])}
+
+
+class _UnsupportedEnv:
+    pass
+
+
+class _OuterEnv:
+    def __init__(self):
+        self.unwrapped = _UnsupportedEnv()
 
 
 def _make_wrapper(env: _FakeEnv, num_envs: int = 2) -> RslRlVecEnvWrapper:
@@ -74,3 +84,12 @@ def test_direct_rl_env_stores_the_observation_buffer():
     """The environment side of the contract: reset and step both publish ``obs_buf``."""
     assert "self.obs_buf" in inspect.getsource(DirectRLEnv.reset)
     assert "self.obs_buf" in inspect.getsource(DirectRLEnv.step)
+
+
+def test_invalid_environment_error_reports_unwrapped_type():
+    """The validation error should identify the object that failed the type check."""
+    with pytest.raises(ValueError) as exc_info:
+        RslRlVecEnvWrapper(_OuterEnv())
+
+    assert "_UnsupportedEnv" in str(exc_info.value)
+    assert "_OuterEnv" not in str(exc_info.value)

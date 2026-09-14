@@ -1132,6 +1132,7 @@ class NewtonManager(PhysicsManager):
             callback.deregister()
         NewtonManager._use_fabric_gpu_hierarchy = None
         NewtonManager._newton_fabric_ready = False
+        NewtonManager._num_envs = None
         NewtonManager._builder = None
         NewtonManager._model = None
         NewtonManager._solver = None
@@ -1630,6 +1631,8 @@ class NewtonManager(PhysicsManager):
                 cls._model.soft_contact_kd = float(cfg.soft_contact_cfg.soft_contact_kd)
                 cls._model.soft_contact_mu = float(cfg.soft_contact_cfg.soft_contact_mu)
             cls._model.set_gravity(cls._gravity_vector)
+            if cls._num_envs is None:
+                NewtonManager._num_envs = cls._model.world_count
             cls._model.num_envs = cls._num_envs
 
         if cls._pending_extended_contact_attributes:
