@@ -13,16 +13,20 @@ import argparse
 import os
 import re
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
-from leapp import GraphConfigs
 
 # TorchScript must be disabled before importing task or environment modules because
 # ``@torch.jit.script`` compiles at decoration time.
 torch.jit._state.disable()
 
+if TYPE_CHECKING:
+    from leapp import GraphConfigs
+
+    from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
+
 from isaaclab.app import AppLauncher
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
 
 from isaaclab_tasks.utils import setup_preset_cli
 
@@ -91,7 +95,6 @@ def finalize_export_args(
     parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments with preset support and force headless mode."""
-
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
@@ -163,13 +166,14 @@ def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphC
         Graph metadata containing the policy frequency [Hz].
     """
 
+    from leapp import GraphConfigs
+
     policy_frequency = 1.0 / (env_cfg.sim.dt * env_cfg.decimation)
     return GraphConfigs(frequency=policy_frequency)
 
 
 def is_two_tensor_lstm_state(states: object) -> bool:
     """Return whether *states* looks like an LSTM ``[hidden, cell]`` state."""
-
     return (
         isinstance(states, (list, tuple))
         and len(states) == 2
