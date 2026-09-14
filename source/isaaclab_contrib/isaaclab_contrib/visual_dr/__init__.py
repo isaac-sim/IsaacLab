@@ -5,6 +5,6 @@
 
 """Experimental runtime visual DR. Cosmos and NIXL are imported only on demand."""
 
-from .runtime import DRBackend, DRFrame, DRObservation, VisualDRRuntime
+from .runtime import ActionChunkSchedule, DRBackend, DRFrame, DRObservation, VisualDRRuntime
 
-__all__ = ["DRBackend", "DRFrame", "DRObservation", "VisualDRRuntime"]
+__all__ = ["ActionChunkSchedule", "DRBackend", "DRFrame", "DRObservation", "VisualDRRuntime"]
