@@ -36,6 +36,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
@@ -1201,7 +1202,13 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(self._env_ids_to_mask(env_ids))
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                self._env_ids_to_mask(env_ids),
+            )
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1269,7 +1276,13 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(env_mask)
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                env_mask,
+            )
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -1324,7 +1337,13 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(self._env_ids_to_mask(env_ids))
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                self._env_ids_to_mask(env_ids),
+            )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1376,7 +1395,13 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(env_mask)
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                env_mask,
+            )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)

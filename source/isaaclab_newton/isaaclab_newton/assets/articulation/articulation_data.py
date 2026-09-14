@@ -133,20 +133,6 @@ class ArticulationData(BaseArticulationData):
         self.joint_acc
         self.body_com_acc_w
 
-    def _flush_joint_positions(self, env_mask: wp.array) -> None:
-        """Push DOF-space joint positions back into Newton's coordinate array.
-
-        Called after every write to ``_sim_bind_joint_pos``; a no-op when the two spaces coincide
-        and the buffer already is ``joint_q``.
-
-        Args:
-            env_mask: Per-environment boolean selection of the environments that were written.
-        """
-        if self._joint_coord_map.required:
-            scatter_joint_coordinates(
-                self._joint_coord_map, self._sim_bind_joint_pos, self._sim_bind_joint_coords, env_mask
-            )
-
     def _ensure_fk_fresh(self) -> None:
         """Run forward kinematics if joint state has changed since the last FK update.
 
