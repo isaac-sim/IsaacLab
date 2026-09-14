@@ -7,9 +7,10 @@
 # Command to run:
 # uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
 #
-# By default this measures the renderer alone. Pass --mode physics_render to drive the scene
-# through the physics solver instead and report physics, render, and total times:
-# uv run --no-sync python scripts/benchmarks/benchmark_renderer.py --mode physics_render [PROFILE]
+# Every run reports physics, render, and total times. By default the scene is posed directly, so
+# the physics column is only the cost of moving it. Set BENCHMARK_MODE=physics_render to drive the
+# same poses through the actuators and have the solver do an ordinary task's tracking work:
+# BENCHMARK_MODE=physics_render uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
 #
 
 import argparse
@@ -86,22 +87,12 @@ one ``"<name> took X.XX ms"`` line per call, which :func:`parse_log` regexes out
 PHYSICS_SCOPE = "IsaacLab::Physics::step"
 """Backend-agnostic timer name around one physics step, enabled by ``ISAACLAB_PHYSICS_PROFILE``.
 
-See :data:`isaaclab.sim.simulation_context.PHYSICS_PROFILE_SCOPE`. Only emitted in
-:data:`PHYSICS_RENDER_MODE`; a :data:`RENDER_MODE` run leaves the timer off so physics costs
-nothing it would not cost in a normal run.
+See :data:`isaaclab.sim.simulation_context.PHYSICS_PROFILE_SCOPE`. Turned on for every run, the
+same way :data:`RENDER_SCOPE` is, so a report never has to explain why a column is missing.
 """
 
 RENDER_SCOPE_PATTERN = re.compile(rf"{re.escape(RENDER_SCOPE)} took ([\d.]+) ms")
 PHYSICS_SCOPE_PATTERN = re.compile(rf"{re.escape(PHYSICS_SCOPE)} took ([\d.]+) ms")
-
-RENDER_MODE = "render"
-"""Benchmark mode that measures the renderer alone. See ``--mode``."""
-
-PHYSICS_RENDER_MODE = "physics_render"
-"""Benchmark mode that measures physics and the renderer together. See ``--mode``."""
-
-MODES = (RENDER_MODE, PHYSICS_RENDER_MODE)
-"""Values accepted by ``--mode``, mirroring the task's ``BenchmarkMode``."""
 
 log_stream = sys.stdout
 """Destination for progress and diagnostics. ``--json`` points it at stderr so stdout holds only JSON."""
@@ -155,9 +146,8 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
 
     Returns:
         A record carrying the profile's identity plus either its timings or the log to inspect.
-        ``physics_*_ms`` and ``total_*_ms`` are present only for a :data:`PHYSICS_RENDER_MODE` run;
-        ``pixels_per_second`` is always derived from the render time alone, so it stays comparable
-        between the two modes.
+        ``pixels_per_second`` is derived from the render time alone, so it stays comparable
+        between a run that posed the scene directly and one that solved for it.
     """
     record = {"name": profile["name"], "preset": profile["preset"], "settings": profile["settings"]}
     if not results:
@@ -170,18 +160,16 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
     }
     record |= {f"{key}_ms": results[key] for key in STAT_KEYS}
     for group in ("physics", "total"):
-        if results.get(group):
-            record |= {f"{group}_{key}_ms": results[group][key] for key in STAT_KEYS}
+        record |= {f"{group}_{key}_ms": results[group][key] for key in STAT_KEYS}
     return record
 
 
-def parse_frames(filename: str) -> list[tuple[float | None, float]]:
+def parse_frames(filename: str) -> list[tuple[float, float]]:
     """Read per-frame ``(physics_ms, render_ms)`` pairs out of a run's captured log, in order.
 
     A rendered frame is preceded by however many physics steps the task's decimation implies, so
     the physics timings are accumulated until the frame's render timing closes them out rather
-    than assumed to be one per frame. ``physics_ms`` is ``None`` when the run did not enable
-    physics profiling, which is every :data:`RENDER_MODE` run.
+    than assumed to be one per frame.
 
     Args:
         filename: Path to the captured run log.
@@ -189,19 +177,16 @@ def parse_frames(filename: str) -> list[tuple[float | None, float]]:
     Returns:
         One ``(physics_ms, render_ms)`` pair per rendered frame.
     """
-    frames: list[tuple[float | None, float]] = []
+    frames: list[tuple[float, float]] = []
     physics_ms = 0.0
-    saw_physics = False
 
     with open(filename) as file:
         for line in file:
             if match := PHYSICS_SCOPE_PATTERN.search(line):
                 physics_ms += float(match.group(1))
-                saw_physics = True
             elif match := RENDER_SCOPE_PATTERN.search(line):
-                frames.append((physics_ms if saw_physics else None, float(match.group(1))))
+                frames.append((physics_ms, float(match.group(1))))
                 physics_ms = 0.0
-                saw_physics = False
 
     return frames
 
@@ -214,17 +199,16 @@ def parse_log(filename: str, num_frames: int):
     device on both ends, so it covers completed rather than merely submitted work — including for
     the RTX backends, whose Vulkan render is consumed by warp extraction kernels inside the scope.
 
-    A :data:`PHYSICS_RENDER_MODE` run also sets ``ISAACLAB_PHYSICS_PROFILE``, which times
-    :data:`PHYSICS_SCOPE` the same way; those frames additionally report the physics time and the
-    two summed.
+    ``ISAACLAB_PHYSICS_PROFILE`` times :data:`PHYSICS_SCOPE` the same way, so every frame also
+    carries the physics time and the two summed.
 
     Args:
         filename: Path to the captured run log.
         num_frames: Number of frames to measure, after skipping :data:`FRAME_PADDING` warm-up frames.
 
     Returns:
-        Render timing statistics, plus ``physics`` and ``total`` sub-dicts when the log holds
-        physics timings, or ``None`` if the log holds no usable frames.
+        Render timing statistics plus ``physics`` and ``total`` sub-dicts, or ``None`` if the log
+        holds no usable frames.
     """
     frames = parse_frames(filename)
 
@@ -236,33 +220,28 @@ def parse_log(filename: str, num_frames: int):
     if not out:
         return None
 
-    results = {"size": len(out)} | summarize([render_ms for _, render_ms in out])
-
-    # Partial physics coverage would mix frames measured under different timers, so only report
-    # physics when every measured frame carries it.
-    if all(physics_ms is not None for physics_ms, _ in out):
-        results["physics"] = summarize([physics_ms for physics_ms, _ in out])
-        results["total"] = summarize([physics_ms + render_ms for physics_ms, render_ms in out])
-
-    return results
+    return {
+        "size": len(out),
+        **summarize([render_ms for _, render_ms in out]),
+        "physics": summarize([physics_ms for physics_ms, _ in out]),
+        "total": summarize([physics_ms + render_ms for physics_ms, render_ms in out]),
+    }
 
 
-def table_columns(records: list[dict]) -> list[tuple[str, str]]:
-    """Choose the report's timing columns from what the records actually carry.
+TABLE_COLUMNS = [
+    ("RENDER", "median_ms"),
+    ("MEAN", "mean_ms"),
+    ("MIN", "min_ms"),
+    ("MAX", "max_ms"),
+    ("STDEV", "stdev_ms"),
+    ("PHYSICS", "physics_median_ms"),
+    ("TOTAL", "total_median_ms"),
+]
+"""``(heading, record key)`` pairs for the report's timing columns, in display order.
 
-    A :data:`RENDER_MODE` sweep has no physics timings, so its table stays the render-only table
-    it has always been; a :data:`PHYSICS_RENDER_MODE` sweep gains the physics and total medians.
-
-    Args:
-        records: Records from :func:`build_record`.
-
-    Returns:
-        ``(heading, record key)`` pairs for the timing columns, in display order.
-    """
-    columns = [("MEDIAN", "median_ms"), ("MEAN", "mean_ms"), ("MIN", "min_ms"), ("MAX", "max_ms")]
-    if any("physics_median_ms" in record for record in records):
-        columns += [("PHYSICS", "physics_median_ms"), ("TOTAL", "total_median_ms")]
-    return columns + [("STDEV", "stdev_ms")]
+The unqualified statistics are the render ones, so ``RENDER`` leads and the physics and total
+medians close the row rather than interrupting the render spread.
+"""
 
 
 def format_table(records: list[dict]) -> list[str]:
@@ -274,24 +253,16 @@ def format_table(records: list[dict]) -> list[str]:
     Returns:
         The heading, separators, and one row per record.
     """
-    columns = table_columns(records)
     name_width = max([len("PROFILE")] + [len(record["name"]) for record in records])
-    separator = "|" + "-" * (name_width + 2) + "|------|--------------|" + "|".join(["-" * 14] * len(columns)) + "|"
+    separator = (
+        "|" + "-" * (name_width + 2) + "|------|--------------|" + "|".join(["-" * 14] * len(TABLE_COLUMNS)) + "|"
+    )
+    headings = "|".join(f"{heading:^14}" for heading, _ in TABLE_COLUMNS)
 
-    lines = [
-        "| "
-        + "PROFILE".ljust(name_width)
-        + " | SIZE |  PIXEL / SEC |"
-        + "|".join(f"{h:^14}" for h, _ in columns)
-        + "|",
-        separator,
-    ]
+    lines = ["| " + "PROFILE".ljust(name_width) + " | SIZE |  PIXEL / SEC |" + headings + "|", separator]
     for record in records:
         if record["status"] == "ok":
-            # A column can be absent for an individual record (a profile whose run emitted no
-            # physics timings alongside profiles that did); leave that cell blank rather than
-            # dropping the column for everyone.
-            cells = "|".join(f" {record[key]:>10.2f}ms " if key in record else " " * 14 for _, key in columns)
+            cells = "|".join(f" {record[key]:>10.2f}ms " for _, key in TABLE_COLUMNS)
             gpxs = record["pixels_per_second"] / 1e9
             lines.append(f"| {record['name']:<{name_width}} | {record['size']:>4} | {gpxs:>6.2f} Gpx/s |{cells}|")
         else:
@@ -315,10 +286,7 @@ def run_profile(profile: dict, args: argparse.Namespace):
     env = {
         "NEWTON_USE_CUDA_GRAPH": "0",
         "ISAACLAB_RENDER_PROFILE": "1",
-        # Left off in render mode so the physics timer's device synchronization does not serialize
-        # work around a step whose cost the run is deliberately not measuring.
-        "ISAACLAB_PHYSICS_PROFILE": "1" if args.mode == PHYSICS_RENDER_MODE else "0",
-        "BENCHMARK_MODE": args.mode,
+        "ISAACLAB_PHYSICS_PROFILE": "1",
         "BENCHMARK_SAVE_IMAGE": "1" if args.save_image else "0",
         "BENCHMARK_RENDER_RESOLUTION": f"{args.resolution}",
         "WARP_CACHE_PATH": warp_cache_path,
@@ -391,16 +359,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num_envs", type=int, default="1024", help="Number of environments to render")
     parser.add_argument("--resolution", type=int, default="256", help="Render resolution")
     parser.add_argument("--task", default=TASK_NAME, help="Gym task id to profile")
-    parser.add_argument(
-        "--mode",
-        choices=MODES,
-        default=RENDER_MODE,
-        help=(
-            "What to measure: 'render' times the renderer alone on a directly posed scene;"
-            " 'physics_render' drives the same poses through the actuators and reports physics,"
-            " render, and total times"
-        ),
-    )
     parser.add_argument(
         "--keep_warp_cache",
         action="store_true",
@@ -479,7 +437,9 @@ def main() -> None:
             json.dumps(
                 {
                     "task": args.task,
-                    "mode": args.mode,
+                    # Reported for provenance: it decides whether the physics times below are a
+                    # solver tracking targets or just the cost of posing the scene.
+                    "mode": os.environ.get("BENCHMARK_MODE", "render"),
                     "num_envs": args.num_envs,
                     "num_frames": args.num_frames,
                     "resolution": args.resolution,

@@ -29,19 +29,18 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 
 BenchmarkMode = Literal["render", "physics_render"]
-"""What a benchmark run is meant to measure.
+"""How much work the physics backend does to produce each frame a renderer is timed on.
 
 ``"render"`` isolates the renderer: every frame's pose is written straight into the simulation,
-so the scene is exactly the analytic sinusoid and no actuator has to be solved to reach it. The
-run reports render time alone.
+so the scene is exactly the analytic sinusoid and no actuator has to be solved to reach it.
 
-``"physics_render"`` measures the whole step: the same poses are requested as actuator targets,
-so the solver does the tracking work an ordinary task's solver does, and the run reports physics
-time, render time, and their total.
+``"physics_render"`` exercises the whole step: the same poses are requested as actuator targets,
+so the solver does the tracking work an ordinary task's solver does.
 
-Note that the physics backend still integrates in ``"render"`` mode -- an Isaac Lab environment
-has no way to skip its own physics step -- but nothing is actuated, and the reported render scope
-excludes physics either way.
+Both modes report physics, render, and total times -- the mode decides what the physics number
+means, not whether there is one. Note that the physics backend still integrates in ``"render"``
+mode, because an Isaac Lab environment has no way to skip its own physics step; that mode removes
+the actuation, not the step.
 """
 
 BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
@@ -51,9 +50,10 @@ BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
 def _read_benchmark_mode() -> BenchmarkMode:
     """Read the default benchmark mode from ``BENCHMARK_MODE``, rejecting unknown values.
 
-    Read from the environment rather than taken as a preset so ``benchmark_renderer.py`` can
-    sweep modes the same way it sweeps render resolution and the Newton BVH constructors. A typo
-    raises here instead of silently benchmarking the wrong thing for the whole sweep.
+    Read from the environment rather than taken as a preset so a sweep can be pointed at either
+    mode without touching ``benchmark_renderer.py``, the same way ``ISAACLAB_RENDER_PROFILE``
+    turns the render timer on. A typo raises here instead of silently benchmarking the wrong
+    thing for the whole sweep.
 
     Returns:
         The configured mode, or ``"render"`` when the variable is unset.
