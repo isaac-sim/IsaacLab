@@ -290,7 +290,7 @@ release version tag.
 
 .. code:: bash
 
-    docker pull nvcr.io/nvidia/isaac-lab:<version>-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Start a named container in the background. The ``--interactive`` and ``--tty`` options keep the image's Bash
 process running so that you can execute multiple commands in the same container:
@@ -298,7 +298,7 @@ process running so that you can execute multiple commands in the same container:
 .. code:: bash
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
-        nvcr.io/nvidia/isaac-lab:<version>-kitless
+        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Train a policy in the running container:
 
