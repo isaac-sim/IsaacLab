@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.envs import mdp as base_mdp
 
-from isaaclab_tasks.contrib.h2_sharpa.metadata import POLICY_58_ORDER
+from ..metadata import POLICY_58_ORDER
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

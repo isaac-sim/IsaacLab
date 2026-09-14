@@ -115,47 +115,6 @@ H2_SHARPA_HAND_JOINT_NAMES_ARTICULATION_ORDER: list[str] = [
 ]
 assert len(H2_SHARPA_HAND_JOINT_NAMES_ARTICULATION_ORDER) == 44
 
-# Runtime Isaac / PhysX BFS articulation order (``robot.data.joint_names``).
-_H2_ISAAC_BODY_BFS_ORDER: list[str] = [
-    "left_hip_pitch_joint",
-    "right_hip_pitch_joint",
-    "waist_yaw_joint",
-    "left_hip_roll_joint",
-    "right_hip_roll_joint",
-    "waist_roll_joint",
-    "left_hip_yaw_joint",
-    "right_hip_yaw_joint",
-    "waist_pitch_joint",
-    "left_knee_joint",
-    "right_knee_joint",
-    "head_pitch_joint",
-    "left_shoulder_pitch_joint",
-    "right_shoulder_pitch_joint",
-    "left_ankle_roll_joint",
-    "right_ankle_roll_joint",
-    "head_yaw_joint",
-    "left_shoulder_roll_joint",
-    "right_shoulder_roll_joint",
-    "left_ankle_pitch_joint",
-    "right_ankle_pitch_joint",
-    "left_shoulder_yaw_joint",
-    "right_shoulder_yaw_joint",
-    "left_elbow_joint",
-    "right_elbow_joint",
-    "left_wrist_roll_joint",
-    "right_wrist_roll_joint",
-    "left_wrist_pitch_joint",
-    "right_wrist_pitch_joint",
-    "left_wrist_yaw_joint",
-    "right_wrist_yaw_joint",
-]
-assert len(_H2_ISAAC_BODY_BFS_ORDER) == 31
-
-H2_ISAAC_ARTICULATION_ORDER: list[str] = _H2_ISAAC_BODY_BFS_ORDER + H2_SHARPA_HAND_JOINT_NAMES_ARTICULATION_ORDER
-assert len(H2_ISAAC_ARTICULATION_ORDER) == FULL_ARTICULATION_DOF
-
-# Backward-compatible alias.
-
 # 75-D action order. For Isaac BFS data, map through ``robot.data.joint_names``.
 H2_ACTION_JOINT_ORDER: list[str] = [
     "left_hip_pitch_joint",
@@ -237,107 +196,6 @@ POLICY_HAND_JOINT_NAMES: list[str] = [f"left_{n}" for n in _HAND_22] + [f"right_
 POLICY_58_ORDER: list[str] = POLICY_ARM_JOINT_NAMES + POLICY_HAND_JOINT_NAMES
 assert len(POLICY_58_ORDER) == ACTION_DIM
 
-# Unitree SDK "k" arm names used in LeRobot feature metadata (same order as POLICY_ARM_JOINT_NAMES).
-DATASET_ARM_JOINT_NAMES_K: list[str] = [
-    "kLeftShoulderPitch",
-    "kLeftShoulderRoll",
-    "kLeftShoulderYaw",
-    "kLeftElbow",
-    "kLeftWristRoll",
-    "kLeftWristPitch",
-    "kLeftWristYaw",
-    "kRightShoulderPitch",
-    "kRightShoulderRoll",
-    "kRightShoulderYaw",
-    "kRightElbow",
-    "kRightWristRoll",
-    "kRightWristPitch",
-    "kRightWristYaw",
-]
-assert len(DATASET_ARM_JOINT_NAMES_K) == len(POLICY_ARM_JOINT_NAMES)
-
-# LeRobot ``k*`` arm name -> Isaac arm joint name.
-ARM_K2JOINT: dict[str, str] = dict(zip(DATASET_ARM_JOINT_NAMES_K, POLICY_ARM_JOINT_NAMES, strict=True))
-
-# Full 58-D LeRobot feature names: k-convention arms + Isaac-style hands.
-DATASET_JOINT_NAMES_58: list[str] = DATASET_ARM_JOINT_NAMES_K + POLICY_HAND_JOINT_NAMES
-assert len(DATASET_JOINT_NAMES_58) == ACTION_DIM
-
-
-# pnp_apple_sim_new_bg_v1 episode_000027 frame 0, replayed from
-# apple_pick_and_place_05142000_filtered episode_000043, in POLICY_58_ORDER
-# (left_arm, right_arm, left_hand, right_hand).
-_H2_PNP_APPLE_EP027_FRAME0_POLICY_58_POS: tuple[float, ...] = (
-    0.2754,
-    0.0215,
-    -0.0674,
-    -0.0774,
-    0.0518,
-    -0.1481,
-    -0.0260,
-    0.1734,
-    -0.0544,
-    0.0165,
-    -0.0457,
-    0.0006,
-    0.0136,
-    0.1644,
-    0.2834,
-    0.0498,
-    -0.4345,
-    0.2344,
-    0.7783,
-    -0.1513,
-    -0.0731,
-    0.0373,
-    0.1479,
-    -0.1540,
-    0.0019,
-    0.0358,
-    0.1647,
-    -0.1514,
-    0.1047,
-    0.0385,
-    0.1432,
-    0.1048,
-    -0.1552,
-    0.1278,
-    0.0348,
-    0.0924,
-    -0.0452,
-    0.0498,
-    0.3536,
-    0.0689,
-    0.0869,
-    -0.1104,
-    0.1215,
-    0.0687,
-    0.1541,
-    -0.1028,
-    0.1457,
-    0.0810,
-    0.0946,
-    -0.1501,
-    0.1255,
-    0.0361,
-    0.0890,
-    0.1171,
-    -0.1064,
-    0.0177,
-    0.0611,
-    0.0884,
-)
-assert len(_H2_PNP_APPLE_EP027_FRAME0_POLICY_58_POS) == ACTION_DIM
-
-# Arm + Sharpa-hand start pose for the pnp_apple task, keyed by joint name.
-H2_PNP_APPLE_CUSTOM_JOINT_POS: dict[str, float] = dict(
-    zip(POLICY_58_ORDER, _H2_PNP_APPLE_EP027_FRAME0_POLICY_58_POS, strict=True)
-)
-H2_PNP_APPLE_CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
-assert "head_pitch_joint" not in POLICY_58_ORDER, (
-    "head must stay outside POLICY_58_ORDER so policy cannot lift the head"
-)
-
 
 # Cross-consumer camera identity; simulation mounts live in ``isaaclab``.
 @dataclass(frozen=True)
@@ -345,43 +203,28 @@ class CameraSpec:
     """Cross-consumer camera names."""
 
     name: str  # scene sensor
-    dataset_key: str  # LeRobot key
     video_view: str  # modality view
-    image_channel: str  # image-server channel
-
-    @property
-    def video_key(self) -> str:
-        return f"video.{self.video_view}"
-
-    @property
-    def lerobot_key(self) -> str:
-        return f"observation.images.{self.dataset_key}"
 
 
 H2_CAMERAS: tuple[CameraSpec, ...] = (
-    CameraSpec("front_camera", "cam_left_high", "high", "color_0"),
-    CameraSpec("left_wrist_camera", "cam_left_wrist", "left_wrist_view", "color_1"),
-    CameraSpec("right_wrist_camera", "cam_right_wrist", "right_wrist_view", "color_2"),
+    CameraSpec("front_camera", "high"),
+    CameraSpec("left_wrist_camera", "left_wrist_view"),
+    CameraSpec("right_wrist_camera", "right_wrist_view"),
 )
 CAMERA_BY_NAME: dict[str, CameraSpec] = {c.name: c for c in H2_CAMERAS}
 
 
 # LeRobot dataset schema shared by converters and policy data configs.
 
-# Shared H2 tri-camera modality keys.
-MODALITY_VIDEO_KEYS: list[str] = ["video.high", "video.left_wrist_view", "video.right_wrist_view"]
-assert set(MODALITY_VIDEO_KEYS) == {c.video_key for c in H2_CAMERAS}, "MODALITY_VIDEO_KEYS out of sync with H2_CAMERAS"
-MODALITY_STATE_KEYS: list[str] = ["state.left_arm", "state.right_arm", "state.left_hand", "state.right_hand"]
-MODALITY_ACTION_KEYS: list[str] = ["action.left_arm", "action.right_arm", "action.left_hand", "action.right_hand"]
 MODALITY_LANGUAGE_KEYS: list[str] = ["annotation.human.task_description"]
 
 # N1.7 nested-modality keys omit prefixes.
 MODALITY_VIDEO_KEYS_BARE: list[str] = ["high", "left_wrist_view", "right_wrist_view"]
+assert [c.video_view for c in H2_CAMERAS] == MODALITY_VIDEO_KEYS_BARE, "modality views out of sync with H2_CAMERAS"
 MODALITY_STATE_KEYS_BARE: list[str] = ["left_arm", "right_arm", "left_hand", "right_hand"]
 MODALITY_ACTION_KEYS_BARE: list[str] = ["left_arm", "right_arm", "left_hand", "right_hand"]
 
 OBSERVATION_DELTA_INDICES: list[int] = [0]
-ACTION_HORIZON_N15_INDICES: list[int] = list(range(16))
 ACTION_HORIZON_N17_INDICES: list[int] = list(range(32))
 
 # Pick-and-place apple task placement constants.
