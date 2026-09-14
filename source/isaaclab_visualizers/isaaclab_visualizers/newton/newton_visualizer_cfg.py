@@ -11,6 +11,7 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -160,8 +161,23 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
+    """OVRTX lighting environment. One of ``"default"`` (configured HDR dome),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+
+    dome_texture_file: str | None = f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr"
+    """Lat-long HDR texture used by the ``"default"`` OVRTX lighting environment.
+
+    The default is Isaac Lab's ``blue_sky`` preset. Set this to another local or remote HDR file,
+    or to ``None`` for an untextured dome. The texture is visible when
+    :attr:`~isaaclab.visualizers.VisualizerCfg.background_mode` is ``"sky"`` and continues to
+    provide lighting and reflections when the background is solid.
+    """
+
+    dome_intensity: float = 500.0
+    """Intensity of the ``"default"`` OVRTX dome light."""
+
+    dome_rotation: tuple[float, float, float] = (0.0, 0.0, 90.0)
+    """XYZ Euler rotation of the ``"default"`` OVRTX dome light [deg]."""
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.

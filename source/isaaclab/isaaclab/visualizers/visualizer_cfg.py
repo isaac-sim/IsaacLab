@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
@@ -54,11 +54,20 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
+    background_mode: Literal["solid", "sky"] = "solid"
+    """Visible scene background.
+
+    ``"solid"`` uses :attr:`background_color` without changing scene lighting. ``"sky"`` uses
+    the backend's native sky: the scene dome in Kit, the HDR dome in Newton RTX, and the
+    procedural gradient in Newton GL.
+    """
+
     background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
     """Solid background color as normalized RGB values in ``[0, 1]``.
 
-    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
-    backend's native background. Scene lighting remains independent of the visible background.
+    Kit, Newton GL, and Newton RTX honor this field when :attr:`background_mode` is ``"solid"``.
+    Setting it to ``None`` remains a backwards-compatible shortcut for ``background_mode="sky"``.
+    Scene lighting remains independent of the visible background.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
@@ -187,6 +196,10 @@ class VisualizerCfg:
     def __post_init__(self) -> None:
         import warnings
 
+        if self.background_mode not in ("solid", "sky"):
+            raise ValueError(f"Invalid background_mode {self.background_mode!r}. Expected one of: 'solid', 'sky'.")
+        if self.background_color is None:
+            self.background_mode = "sky"
         if self.background_color is not None:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
                 raise ValueError("background_color must contain three normalized RGB values in [0, 1].")

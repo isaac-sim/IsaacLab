@@ -636,6 +636,9 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         *args,
         metadata: dict | None = None,
         update_frequency: int = 1,
+        dome_texture_file: str | None = None,
+        dome_intensity: float = 500.0,
+        dome_rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         background_color: tuple[float, float, float] | None = None,
         render_settings: dict[str, Any] | None = None,
         **kwargs,
@@ -646,17 +649,23 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            dome_texture_file: Optional lat-long HDR texture for the default dome light.
+            dome_intensity: Intensity of the default dome light.
+            dome_rotation: XYZ Euler rotation of the default dome light [deg].
             background_color: Optional solid background color RGB [0, 1].
             render_settings: Extra RTX attributes to author on the render product. See
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        # Assigned before super().__init__(): ViewerRTX reaches
-        # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # these values. The render settings are copied so a caller cannot mutate them afterwards.
+        # Assigned before super().__init__(): ViewerRTX reaches the light and render-product
+        # authoring hooks during initialization, and the overrides read these values.
+        self._dome_texture_file = dome_texture_file
+        self._dome_intensity = float(dome_intensity)
+        self._dome_rotation = tuple(float(value) for value in dome_rotation)
         self._background_color = (
             tuple(float(value) for value in background_color) if background_color is not None else None
         )
+        # The render settings are copied so a caller cannot mutate them afterwards.
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
@@ -679,6 +688,21 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _add_default_lights(self) -> None:
+        """Author the configured dome as the default OVRTX environment light."""
+        from pxr import Gf, UsdGeom, UsdLux
+
+        dome = UsdLux.DomeLight.Define(self.stage, "/root/_RTXDomeLight")
+        dome.GetIntensityAttr().Set(self._dome_intensity)
+        if self._dome_texture_file:
+            from isaaclab.utils.assets import retrieve_file_path
+
+            dome.CreateTextureFileAttr().Set(retrieve_file_path(self._dome_texture_file))
+            dome.CreateTextureFormatAttr().Set("latlong")
+            dome_xform = UsdGeom.Xformable(dome.GetPrim())
+            dome_xform.ClearXformOpOrder()
+            dome_xform.AddRotateXYZOp().Set(Gf.Vec3f(*self._dome_rotation))
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
@@ -1139,6 +1163,7 @@ class NewtonVisualizer(BaseVisualizer):
                 ("eye", current_eye),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
+                ("background_mode", self.cfg.background_mode),
                 ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
@@ -2163,12 +2188,13 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
         self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
         # Accept list/tuple/array-like config colors; provide a stable tuple for nanobind conversion.
-        if self.cfg.background_color is None:
+        if self.cfg.background_mode == "sky":
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
             upper_color = self.cfg.sky_upper_color
             lower_color = self.cfg.sky_lower_color
         else:
             self._viewer.renderer.draw_sky = False
+            assert self.cfg.background_color is not None
             upper_color = lower_color = self.cfg.background_color
         self._viewer.renderer.sky_upper = self._viewer._coerce_color3(upper_color)
         self._viewer.renderer.sky_lower = self._viewer._coerce_color3(lower_color)
@@ -2323,6 +2349,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        background_color = self.cfg.background_color if self.cfg.background_mode == "solid" else None
         return NewtonViewerRTX(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
@@ -2331,7 +2358,10 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
-            background_color=self.cfg.background_color,
+            dome_texture_file=self.cfg.dome_texture_file,
+            dome_intensity=self.cfg.dome_intensity,
+            dome_rotation=self.cfg.dome_rotation,
+            background_color=background_color,
             render_settings=self.cfg.render_settings,
         )
 
