@@ -32,9 +32,10 @@ Cache lifecycle (assuming single-env play-mode export):
 
 from __future__ import annotations
 
+import copy
 import inspect
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
@@ -48,7 +49,7 @@ from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.array import convert_to_torch
 
 from .leapp_semantics import select_element_names
-from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
+from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy, _resolve_annotated_method
 from .utils import (
     TracedProxyArray,
     build_command_connection,
@@ -137,6 +138,8 @@ class ExportPatcher:
         ] = {}
         self._action_output_cache: list[TensorSemantics] = []
         self._captured_write_term_names: set[str] = set()
+        self._controller_owned_write_requirements: list[dict[str, Any]] = []
+        self._declared_controller_owned_writes: dict[tuple[str, str], str] = {}
         self._fallback_term_names: set[str] = set()
         self._pending_action_output_export: bool = False
         self._last_action_state_terms: dict[str, str | None] = {}
@@ -363,9 +366,50 @@ class ExportPatcher:
         scene = action_manager._env.scene
         for term_name, term in action_manager._terms.items():
             asset = getattr(term, "_asset", None)
+            controller_owned_write_methods = getattr(term, "controller_owned_write_methods", {})
+            if not isinstance(controller_owned_write_methods, Mapping):
+                raise TypeError(
+                    f"Action term '{term_name}' controller_owned_write_methods must be a method-to-capability mapping."
+                )
+            if controller_owned_write_methods and not isinstance(asset, BaseArticulation):
+                raise TypeError(
+                    f"Action term '{term_name}' declares controller-owned writes for a non-articulation asset."
+                )
             if isinstance(asset, BaseArticulation):
                 real_asset: BaseArticulation = asset
-                scene_key = self._resolve_scene_entity_key(scene, real_asset) or "ego"
+                resolved_scene_key = self._resolve_scene_entity_key(scene, real_asset)
+                if controller_owned_write_methods and resolved_scene_key is None:
+                    raise ValueError(
+                        f"Action term '{term_name}' controller-owned writes require an exact scene entity key."
+                    )
+                scene_key = resolved_scene_key or "ego"
+                for method_name, capability in controller_owned_write_methods.items():
+                    if not isinstance(method_name, str) or not method_name:
+                        raise ValueError(f"Action term '{term_name}' declares an invalid controller-owned method name.")
+                    if not isinstance(capability, str) or not capability:
+                        raise ValueError(
+                            f"Action term '{term_name}' controller-owned method '{method_name}' needs a "
+                            "capability name."
+                        )
+                    resolution = _resolve_annotated_method(self._write_method_resolution_cache, real_asset, method_name)
+                    if resolution is None:
+                        raise ValueError(
+                            f"Action term '{term_name}' controller-owned method '{method_name}' is missing or has no "
+                            "LEAPP output semantics."
+                        )
+                    if resolution[1].kind is None:
+                        raise ValueError(
+                            f"Action term '{term_name}' controller-owned method '{method_name}' has no output kind."
+                        )
+                    connection = build_write_connection(scene_key, method_name)["isaaclab_connection"]
+                    declaration_key = (term_name, connection)
+                    existing_capability = self._declared_controller_owned_writes.get(declaration_key)
+                    if existing_capability is not None and existing_capability != capability:
+                        raise ValueError(
+                            f"Controller-owned write '{connection}' has conflicting capabilities "
+                            f"'{existing_capability}' and '{capability}'."
+                        )
+                    self._declared_controller_owned_writes[declaration_key] = capability
                 data_proxy = _DataProxy(
                     real_asset.data,
                     scene_key,
@@ -381,12 +425,83 @@ class ExportPatcher:
                     output_cache=self._action_output_cache,
                     method_resolution_cache=self._write_method_resolution_cache,
                     captured_write_term_names=self._captured_write_term_names,
+                    controller_owned_write_requirements=self._controller_owned_write_requirements,
                     data_proxy=data_proxy,
-                    controller_owned_write_methods=getattr(term, "controller_owned_write_methods", ()),
+                    controller_owned_write_methods=controller_owned_write_methods,
                 )
                 self._action_term_scene_keys[term_name] = scene_key
 
         self._patch_action_manager_methods(action_manager)
+
+    @property
+    def controller_owned_write_requirements(self) -> tuple[dict[str, Any], ...]:
+        """Return validated controller capabilities required outside the policy graph."""
+        keys = [
+            (requirement["source_term"], requirement["isaaclab_connection"])
+            for requirement in self._controller_owned_write_requirements
+        ]
+        if len(keys) != len(set(keys)):
+            raise RuntimeError("Controller-owned writes must use a unique source-term and connection pair.")
+        seen = {
+            (requirement["source_term"], requirement["isaaclab_connection"]): requirement["capability"]
+            for requirement in self._controller_owned_write_requirements
+        }
+        missing = sorted(set(self._declared_controller_owned_writes) - set(seen))
+        if missing:
+            formatted = ", ".join(f"{term}:{connection}" for term, connection in missing)
+            raise RuntimeError(f"Controller-owned writes were declared but not observed during export: {formatted}")
+        if seen != self._declared_controller_owned_writes:
+            raise RuntimeError("Observed controller-owned write capabilities do not match their declarations.")
+        for requirement in self._controller_owned_write_requirements:
+            kind = requirement.get("kind")
+            connection = requirement.get("isaaclab_connection")
+            names = requirement.get("element_names")
+            if not isinstance(kind, str) or not kind:
+                raise RuntimeError("Controller-owned write requirements must define a semantic kind.")
+            if (
+                not isinstance(connection, str)
+                or len(connection.split(":")) != 3
+                or not connection.startswith("write:")
+            ):
+                raise RuntimeError("Controller-owned write requirements must define an exact write connection.")
+            if (
+                not isinstance(names, list)
+                or len(names) != 1
+                or not isinstance(names[0], list)
+                or not names[0]
+                or not all(isinstance(name, str) and name for name in names[0])
+                or len(set(names[0])) != len(names[0])
+            ):
+                raise RuntimeError(
+                    "Controller-owned write requirements must define one non-empty axis of unique joint names."
+                )
+        requirements = sorted(
+            self._controller_owned_write_requirements,
+            key=lambda requirement: (
+                requirement["source_term"],
+                requirement["isaaclab_connection"],
+                requirement["capability"],
+            ),
+        )
+        for index, requirement in enumerate(requirements):
+            _, entity_name, _ = requirement["isaaclab_connection"].split(":")
+            names = requirement.get("element_names")
+            joint_names = set(names[0]) if names else None
+            for other in requirements[index + 1 :]:
+                _, other_entity_name, _ = other["isaaclab_connection"].split(":")
+                other_names = other.get("element_names")
+                other_joint_names = set(other_names[0]) if other_names else None
+                if (
+                    entity_name == other_entity_name
+                    and requirement["kind"] == other["kind"]
+                    and (
+                        joint_names is None or other_joint_names is None or joint_names.intersection(other_joint_names)
+                    )
+                ):
+                    raise RuntimeError(
+                        f"Controller-owned {requirement['kind']} writes overlap on entity '{entity_name}'."
+                    )
+        return tuple(copy.deepcopy(requirement) for requirement in requirements)
 
     def _patch_action_manager_methods(self, action_manager):
         """Patch ``process_action`` and ``apply_action`` on the action manager instance.
@@ -436,6 +551,9 @@ class ExportPatcher:
 
             self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
+            fallback_terms = self._fallback_term_names
+            static_values = self._collect_action_static_outputs(action_manager, fallback_terms)
+            self._validate_controller_owned_output_conflicts((*self._action_output_cache, *static_values))
             if self._last_action_state_terms:
                 last_action_updates = {}
                 for state_name, action_name in self._last_action_state_terms.items():
@@ -444,8 +562,6 @@ class ExportPatcher:
                     else:
                         last_action_updates[state_name] = action_manager.get_term(action_name).raw_actions
                 annotate.update_state(task_name, last_action_updates)
-            fallback_terms = self._fallback_term_names
-            static_values = self._collect_action_static_outputs(action_manager, fallback_terms)
             annotate.output_tensors(
                 task_name,
                 self._action_output_cache,
@@ -459,6 +575,45 @@ class ExportPatcher:
 
         action_manager.process_action = patched_process_action
         action_manager.apply_action = patched_apply_action
+
+    def _validate_controller_owned_output_conflicts(self, outputs: Sequence[TensorSemantics]) -> None:
+        """Reject policy outputs that overlap a controller-owned write target.
+
+        Args:
+            outputs: Dynamic and static policy outputs to validate.
+        """
+        for requirement in self._controller_owned_write_requirements:
+            requirement_connection = requirement["isaaclab_connection"]
+            _, requirement_entity, _ = requirement_connection.split(":")
+            requirement_kind = requirement["kind"]
+            requirement_names = requirement.get("element_names")
+            requirement_joint_names = set(requirement_names[0]) if requirement_names else None
+            for output in outputs:
+                output_connection = (output.extra or {}).get("isaaclab_connection")
+                if output_connection is None:
+                    continue
+                connection_parts = output_connection.split(":")
+                output_kind = getattr(output.kind, "value", output.kind)
+                same_connection = output_connection == requirement_connection
+                same_typed_entity = (
+                    len(connection_parts) == 3
+                    and connection_parts[0] == "write"
+                    and connection_parts[1] == requirement_entity
+                    and output_kind == requirement_kind
+                )
+                if not same_connection and not same_typed_entity:
+                    continue
+                output_names = output.element_names
+                output_joint_names = set(output_names[0]) if output_names else None
+                if (
+                    requirement_joint_names is None
+                    or output_joint_names is None
+                    or requirement_joint_names.intersection(output_joint_names)
+                ):
+                    raise RuntimeError(
+                        f"Policy output '{output.name}' overlaps controller-owned {requirement_kind} write "
+                        f"'{requirement_connection}'."
+                    )
 
     # ── Observation term wrappers ─────────────────────────────────
 
@@ -756,7 +911,7 @@ def patch_env_for_export(
     env: ManagerBasedEnv,
     export_method: str,
     required_obs_groups: set[str] | None = None,
-) -> None:
+) -> ExportPatcher:
     """Patch the env's observation and action managers for LEAPP export.
 
     This is a thin public entry point around ``ExportPatcher``.  It mutates
@@ -790,6 +945,11 @@ def patch_env_for_export(
             :func:`annotate.output_tensors`.
         required_obs_groups: Observation groups that should be patched, or
             ``None`` to patch all groups.
+
+    Returns:
+        The active patcher, including controller-owned write requirements
+        collected while tracing the policy.
     """
     patcher = ExportPatcher(export_method, required_obs_groups=required_obs_groups)
     patcher.setup(env)
+    return patcher

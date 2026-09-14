@@ -21,7 +21,8 @@ Changed
 * Configured both stack robots for Newton physics with explicit contact
   materials, measured-state residual actions, gravity compensation, and
   manipulation-specific solver capacities. Marked only the Franka/FR3 gravity
-  feedforward as deployment-controller-owned.
+  feedforward as the deployment-controller-owned ``gravity_compensation``
+  capability.
 * Added an invisible contact surface aligned with the Seattle table's visible
   top and native colored cuboids with semantic labels for consistent physics
   and rendering.

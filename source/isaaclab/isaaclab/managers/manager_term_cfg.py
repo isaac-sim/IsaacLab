@@ -97,6 +97,14 @@ class ActionTermCfg:
     clip: dict[str, tuple] | None = None
     """Clip range for the action (dict of regex expressions). Defaults to None."""
 
+    controller_owned_write_methods: dict[str, str] = dict()
+    """Map simulator write methods to capabilities supplied by the deployment controller.
+
+    These writes are executed while tracing the simulator behavior but are excluded from
+    the exported policy outputs. Deployment adapters must explicitly provide every named
+    capability.
+    """
+
 
 ##
 # Command manager.

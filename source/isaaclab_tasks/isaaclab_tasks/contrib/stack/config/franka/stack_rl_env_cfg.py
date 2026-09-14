@@ -282,7 +282,9 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             workspace_upper=FRANKA_STACK_ARM_WORKSPACE_UPPER,
             gravity_compensation=True,
             # The deployed FR3 controller supplies gravity compensation itself.
-            controller_owns_gravity_compensation=True,
+            controller_owned_write_methods={
+                "set_joint_effort_target_index": "gravity_compensation",
+            },
         )
         self.actions.gripper_action = mdp.ResetBufferedGripperActionCfg(
             asset_name="robot",
@@ -428,7 +430,7 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             raise ValueError(
                 "actions.arm_action.scale cannot exceed max_delta; hidden saturation aliases distinct PPO actions."
             )
-        if arm_action.controller_owns_gravity_compensation and not arm_action.gravity_compensation:
+        if arm_action.controller_owned_write_methods and not arm_action.gravity_compensation:
             raise ValueError("Controller-owned gravity compensation requires gravity_compensation=True.")
         if len(arm_action.workspace_lower) != len(arm_action.workspace_upper) or not arm_action.workspace_lower:
             raise ValueError("The arm workspace bounds must have equal, non-zero lengths.")

@@ -210,6 +210,7 @@ def export_rsl_rl_agent(
     env_cfg.log_dir = log_dir
 
     env = None
+    export_patcher = None
     leapp_started = False
 
     try:
@@ -222,7 +223,7 @@ def export_rsl_rl_agent(
             export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             # Patch only the observation groups consumed by the actor policy.
             # This filters out the critic and teacher observation groups.
-            patch_env_for_export(
+            export_patcher = patch_env_for_export(
                 env,
                 export_method=export_method,
                 required_obs_groups=get_inference_observation_groups(agent_cfg),
@@ -294,7 +295,12 @@ def export_rsl_rl_agent(
             validate=validate,
             rtol=args_cli.validation_rtol,
             atol=args_cli.validation_atol,
-            graph_configs=create_graph_configs(env_cfg),
+            graph_configs=create_graph_configs(
+                env_cfg,
+                controller_owned_write_requirements=(
+                    export_patcher.controller_owned_write_requirements if export_patcher is not None else ()
+                ),
+            ),
         )
     finally:
         if leapp_started:

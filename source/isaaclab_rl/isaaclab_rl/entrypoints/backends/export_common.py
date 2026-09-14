@@ -13,7 +13,7 @@ import argparse
 import os
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 
@@ -168,20 +168,37 @@ def get_checkpoint_path(
     return os.path.join(run_path, model_checkpoints[-1])
 
 
-def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphConfigs:
+def create_graph_configs(
+    env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg,
+    *,
+    controller_owned_write_requirements: Sequence[dict[str, Any]] = (),
+) -> GraphConfigs:
     """Create LEAPP graph metadata from an Isaac Lab environment configuration.
 
     Args:
         env_cfg: Environment configuration that defines the policy period.
+        controller_owned_write_requirements: Controller capabilities that must
+            be provided outside the exported policy graph.
 
     Returns:
-        Graph metadata containing the policy frequency [Hz].
+        Graph metadata containing the policy frequency [Hz] and deployment
+        requirements.
     """
 
     from leapp import GraphConfigs
 
     policy_frequency = 1.0 / (env_cfg.sim.dt * env_cfg.decimation)
-    return GraphConfigs(frequency=policy_frequency)
+    extra = None
+    if controller_owned_write_requirements:
+        extra = {
+            "isaaclab": {
+                "controller_owned_writes": {
+                    "schema_version": 1,
+                    "requirements": list(controller_owned_write_requirements),
+                }
+            }
+        }
+    return GraphConfigs(frequency=policy_frequency, extra=extra)
 
 
 def is_two_tensor_lstm_state(states: object) -> bool:

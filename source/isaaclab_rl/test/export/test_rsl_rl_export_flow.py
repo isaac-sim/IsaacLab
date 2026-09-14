@@ -309,8 +309,8 @@ def test_export_hydra_resolution_uses_play_mode(monkeypatch: pytest.MonkeyPatch)
     def fake_launch_simulation(_env_cfg, _args_cli):
         yield
 
-    monkeypatch.setattr(export_module, "hydra_task_config", fake_hydra_task_config)
-    monkeypatch.setattr(export_module, "launch_simulation", fake_launch_simulation)
+    monkeypatch.setattr("isaaclab_tasks.utils.hydra.hydra_task_config", fake_hydra_task_config)
+    monkeypatch.setattr("isaaclab.app.launch_simulation", fake_launch_simulation)
     monkeypatch.setattr(export_module, "export_rsl_rl_agent", lambda *_args: True)
     args_cli = SimpleNamespace(task="Isaac-Test", agent="test_agent")
 

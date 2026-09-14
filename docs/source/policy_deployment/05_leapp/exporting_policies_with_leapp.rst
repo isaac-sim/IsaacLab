@@ -103,7 +103,25 @@ checkpoint (or at a custom path). The directory contains:
 The important outcome for Isaac deployment workflows is that the exported artifact preserves the
 same dataflow that was used during training and inference inside Isaac Lab. That means downstream
 consumers can run the policy without reconstructing observation ordering, command wiring, actuator
-targets, or policy feedback loops themselves.
+targets, or policy feedback loops themselves. The one explicit exception is behavior owned by the
+robot controller rather than the policy. Those responsibilities are recorded as required
+capabilities instead of being turned into model outputs.
+
+Controller-Owned Writes
+^^^^^^^^^^^^^^^^^^^^^^^
+
+An action term can declare an articulation write as controller-owned by mapping its method name to
+a stable capability name with
+:attr:`~isaaclab.managers.ActionTermCfg.controller_owned_write_methods`. The exporter still executes
+the write while tracing the simulation, but it does not create a policy output that a deployment
+runtime could accidentally command a second time. Instead, the generated YAML records the exact
+semantic kind, scene entity, joint names, source action term, and application cadence under
+``pipeline.configs.isaaclab.controller_owned_writes``.
+
+This metadata is part of the deployment contract. A declaration that is not observed during the
+export trace, overlaps a policy output, or conflicts with another controller owner makes export
+fail. Deployment also compares the task config to this metadata, so a legacy artifact missing a
+required controller-owned write is rejected with an instruction to re-export.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
 `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_.

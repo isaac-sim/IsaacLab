@@ -97,7 +97,9 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     assert cfg.sim.physics.collision_decimation == 1
     assert cfg.decimation == cfg.sim.render_interval == 2
     assert cfg.actions.arm_action.gravity_compensation
-    assert cfg.actions.arm_action.controller_owns_gravity_compensation
+    assert cfg.actions.arm_action.controller_owned_write_methods == {
+        "set_joint_effort_target_index": "gravity_compensation"
+    }
     assert cfg.actions.arm_action.scale == cfg.actions.arm_action.max_delta == 0.05
     assert isinstance(cfg.actions.gripper_action, mdp.ResetBufferedGripperActionCfg)
     assert cfg.events.reset_from_state_buffer.func is mdp.StackResetStateTable
@@ -303,7 +305,7 @@ def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
 
     assert cfg.events.reset_from_state_buffer.func is mdp.KukaAllegroResetStateTable
     assert cfg.actions.arm_action.gravity_compensation
-    assert not cfg.actions.arm_action.controller_owns_gravity_compensation
+    assert not cfg.actions.arm_action.controller_owned_write_methods
     assert cfg.actions.arm_action.scale == cfg.actions.arm_action.max_delta == 0.12
     assert isinstance(cfg.actions.gripper_action, mdp.ResetPreservingRelativeJointPositionActionCfg)
     assert tuple(cfg.actions.gripper_action.joint_names) == KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES

@@ -224,16 +224,9 @@ class WorkspaceBoundedRelativeJointPositionAction(JointAction):
 
     cfg: WorkspaceBoundedRelativeJointPositionActionCfg
 
-    @property
-    def controller_owned_write_methods(self) -> tuple[str, ...]:
-        """Exclude controller-owned gravity feedforward from policy outputs."""
-        if self.cfg.controller_owns_gravity_compensation:
-            return ("set_joint_effort_target_index",)
-        return ()
-
     def __init__(self, cfg: WorkspaceBoundedRelativeJointPositionActionCfg, env: ManagerBasedEnv) -> None:
         super().__init__(cfg, env)
-        if cfg.controller_owns_gravity_compensation and not cfg.gravity_compensation:
+        if cfg.controller_owned_write_methods and not cfg.gravity_compensation:
             raise ValueError("Controller-owned gravity compensation requires gravity_compensation=True.")
         # Newton exposes resolved indices as int32 for Warp kernels, while PyTorch/ONNX
         # advanced indexing requires int64 indices. Keep both representations explicit.
