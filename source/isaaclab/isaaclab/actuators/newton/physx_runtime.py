@@ -139,6 +139,12 @@ class PhysxActuatorRuntime:
         self.wrapper.joint_f_2d.assign(collection._joint_effort_target)
         if self.adapter is not None:
             self.adapter.step(self.wrapper, self.wrapper, dt)
+        if not collection.has_implicit_actuators:
+            # Explicit efforts are already in public joint order. Avoid fetching
+            # CPU-only OVPhysX drive properties used only by implicit PD telemetry.
+            collection._computed_effort.assign(articulation._data._sim_bind_joint_computed_effort)
+            collection._applied_effort.assign(self.wrapper.joint_f_2d)
+            return
         wp.launch(
             actuator_kernels.sync_torque_telemetry,
             dim=(articulation.num_instances, articulation.num_joints),

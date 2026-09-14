@@ -433,9 +433,11 @@ def generate_articulation(
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
+@pytest.mark.parametrize("actuator_effort_limit", [5.0, 80.0])
+@pytest.mark.parametrize("capture", [False, True])
+def test_newton_native_explicit_actuator_submits_ovphysx_effort(device, actuator_effort_limit, capture, monkeypatch):
     """Run a Newton-native explicit actuator through the current OVPhysX state and effort binding."""
-    stiffness, damping, actuator_effort_limit = 20.0, 1.0, 80.0
+    stiffness, damping = 20.0, 1.0
     with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=True) as sim:
         sim._app_control_on_stop_handle = None
         articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
@@ -451,10 +453,22 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
 
+        runtime = articulation._actuator_control._actuator_runtime
+        if not capture:
+            runtime.native_actuator_graphs = ()
+        binding_read = articulation.data._binding_read
+
+        def reject_unused_drive_properties(tensor_type, dst):
+            assert tensor_type not in (TT.DOF_STIFFNESS, TT.DOF_DAMPING, TT.DOF_MAX_FORCE)
+            return binding_read(tensor_type, dst)
+
+        monkeypatch.setattr(articulation.data, "_binding_read", reject_unused_drive_properties)
         initial_pos = articulation.data.joint_pos.torch.clone()
         target = initial_pos + 0.5
         articulation.actuators.target_command.set_position_index(value=target)
         articulation.write_data_to_sim()
+        if capture:
+            assert runtime.native_actuator_graphs
 
         assert articulation._actuator_control.native_actuator_path_active
         assert articulation.newton_actuator_adapter is not None
@@ -473,11 +487,13 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
         assert not torch.allclose(current_pos, initial_pos)
 
         articulation.write_data_to_sim()
+        expected_computed_effort = stiffness * (target - current_pos) - damping * current_vel
         expected_effort = torch.clamp(
-            stiffness * (target - current_pos) - damping * current_vel,
+            expected_computed_effort,
             -actuator_effort_limit,
             actuator_effort_limit,
         )
+        torch.testing.assert_close(articulation.actuators.computed_effort.torch, expected_computed_effort)
         torch.testing.assert_close(articulation.actuators.applied_effort.torch, expected_effort)
 
 
