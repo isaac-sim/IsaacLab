@@ -290,7 +290,7 @@ release version tag.
 
 .. code:: bash
 
-    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-ea-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Start a named container in the background. The ``--interactive`` and ``--tty`` options keep the image's Bash
 process running so that you can execute multiple commands in the same container:
@@ -298,7 +298,7 @@ process running so that you can execute multiple commands in the same container:
 .. code:: bash
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
-        nvcr.io/nvidia/isaac-lab:3.0.0-ea-kitless
+        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Train a policy in the running container:
 
@@ -402,7 +402,7 @@ To pull the minimal Isaac Lab container, run:
 
 .. code:: bash
 
-  docker pull nvcr.io/nvidia/isaac-lab:3.0.0-ea
+  docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 .. attention::
 
@@ -433,7 +433,7 @@ To run the Isaac Lab container with an interactive bash session, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-ea
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 To enable rendering through X11 forwarding, run:
 
@@ -452,7 +452,7 @@ To enable rendering through X11 forwarding, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-ea
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 To run an example within the container, run:
 
