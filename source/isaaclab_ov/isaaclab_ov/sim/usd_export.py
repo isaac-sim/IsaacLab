@@ -142,13 +142,17 @@ def export_articulation_to_usd(articulation: Articulation, usd_path: str, env_in
 
 
 def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
-    """Export one OVPhysX environment; see :func:`isaaclab.sim.usd_export.export_environment_to_usd`."""
-    from isaaclab.sim.usd_export import export_stage_environment
+    """Export one environment through the shared scene exporter."""
+    from isaaclab.sim.usd_export import SceneExporter
 
+    return SceneExporter(scene).export(usd_path, env_index)
+
+
+def export_scene(exporter, usd_path: str, env_index: int) -> str:
+    """Supply backend provenance and properties to the shared scene export flow."""
     from isaaclab_ov.physics import OvPhysxManager
 
-    return export_stage_environment(
-        scene,
+    return exporter._export_with_adapter(
         usd_path,
         env_index,
         lambda asset, row, stage: resolve_articulation_prim_paths(asset, row, stage=stage),

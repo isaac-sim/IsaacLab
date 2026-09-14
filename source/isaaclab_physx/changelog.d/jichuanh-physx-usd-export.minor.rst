@@ -7,3 +7,5 @@ Added
 
 * Added complete selected-environment snapshots with effective rigid-body and articulation
   properties, gravity and timestep, and a fresh PhysX round-trip regression with two environments.
+
+* Added fixed-scene export through ``SceneExporter`` and fresh Isaac Sim validation of configured initial state, multiple object families, and physical settings.

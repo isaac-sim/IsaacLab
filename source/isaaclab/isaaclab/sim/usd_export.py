@@ -3,36 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Write a running articulation's simulated state back onto its USD stage.
+"""Export complete authored scenes and their initialized physical configuration.
 
-Isaac Lab configures a scene in two places. Properties authored while spawning land on the stage,
-so they already describe the simulation; properties written afterwards go to the physics backend's
-buffers, which the stage never sees. Saving the stage of a running scene therefore emits a file that
-*looks* complete while silently carrying the spawn-time value of everything overridden since --
-gains re-tuned by an actuator model, masses replaced by an event term, limits narrowed by a
-curriculum.
+:class:`SceneExporter` owns environment selection, asset traversal, dependency and coverage
+checks, and atomic saving. Its fixed-config entry point uses normal scene construction,
+then exports the configured default state before stepping or task randomization. Authored
+USD carries geometry, materials, filtering and schema properties; public asset data supplies
+resolved actuator solver values and initial state. Backend adapters supply provenance and
+properties whose semantics are absent from the common data contract.
 
-This module authors the diverged properties back onto the prims they came from.
-
-Layering
---------
-
-Reading values is backend-independent: every backend implements
-:class:`~isaaclab.assets.BaseArticulationData`, so the same properties are available whatever is
-simulating. Recovering *prim paths* is not -- each backend records provenance its own way. The split
-follows that fault line: :class:`ArticulationExporter` owns the value-to-USD half and takes the
-backend's path resolution as a callable returning :class:`ArticulationPrimPaths`.
-
-The environment entry point uses the scene registry and ClonePlan to retain one environment plus
-shared USD resources. Newton uses the same selection, dependency handling, mass/inertia, materials
-and gravity writers; its adapter additionally handles model provenance and collision geometry.
-
-Ordering
---------
-
-Backends index links and DOFs in *backend* order, while the data arrays are in *public* API order,
-which :attr:`ArticulationCfg.body_ordering` may permute. The two are joined by name; joining by
-index silently mislabels every body of a reordered articulation.
+The legacy runtime entry points also capture supported buffer overrides. They retain their
+explicit support boundaries; neither export mode serializes a running policy or solver cache.
 """
 
 from __future__ import annotations
@@ -40,7 +21,7 @@ from __future__ import annotations
 import math
 import os
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -48,11 +29,17 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
+from isaaclab.assets.physics_properties import (
+    BodyPhysicsProperties,
+    read_joint_properties,
+    validate_configuration_coverage,
+)
 from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
-    from isaaclab.scene import InteractiveScene
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg
 
 # Drive token per joint type. UsdPhysics names the drive after the motion it actuates, so a
 # prismatic joint's gains live under "linear" and a revolute joint's under "angular"; reading the
@@ -116,7 +103,9 @@ class ArticulationExporter:
         """Prim paths of one environment's bodies and joints, in backend index order."""
         return self._resolver(self.articulation, env_index)
 
-    def write_to_stage(self, env_index: int = 0, *, stage: Usd.Stage | None = None) -> list[str]:
+    def write_to_stage(
+        self, env_index: int = 0, *, stage: Usd.Stage | None = None, fixed_configuration: bool = False
+    ) -> list[str]:
         """Author the simulated state onto the prims the articulation was spawned from.
 
         Body masses and joint drive gains, armature, friction and limits are read from the simulation
@@ -125,6 +114,8 @@ class ArticulationExporter:
 
         Args:
             env_index: Environment whose state to author. Defaults to ``0``.
+            fixed_configuration: Preserve authored mass/inertia and physical schemas while
+                writing initialized body/joint state and resolved solver drive properties.
             stage: Stage to author onto; it must hold the same prim paths as the live stage. Defaults
                 to the live stage itself, which the simulation keeps reading: on PhysX, applying a
                 schema to a prim that is an articulation root invalidates every articulation view on
@@ -157,20 +148,21 @@ class ArticulationExporter:
         joint_row = {name: index for index, name in enumerate(articulation.joint_names)}
 
         # One host transfer per array; indexing a device tensor per element would sync on every read.
-        masses = data.body_mass.torch[env_index].tolist()
-        inertias = data.body_inertia.torch[env_index].cpu().numpy().reshape(-1, 3, 3)
-        coms = data.body_com_pose_b.torch[env_index].cpu().numpy()
-        poses = data.body_link_pose_w.torch[env_index].cpu().numpy()
-        velocities = data.body_com_vel_w.torch[env_index].cpu().numpy()
-        stiffness = data.joint_stiffness.torch[env_index].tolist()
-        damping = data.joint_damping.torch[env_index].tolist()
-        armature = data.joint_armature.torch[env_index].tolist()
-        static_friction = data.joint_friction_coeff.torch[env_index].tolist()
-        dynamic_friction = data.joint_dynamic_friction_coeff.torch[env_index].tolist()
-        viscous_friction = data.joint_viscous_friction_coeff.torch[env_index].tolist()
+        bodies = BodyPhysicsProperties.from_data(data, env_index)
+        properties = {name: value[env_index].tolist() for name, value in read_joint_properties(data).items()}
+        expected = {
+            "stiffness",
+            "damping",
+            "armature",
+            "friction",
+            "dynamic_friction",
+            "viscous_friction",
+            "joint_effort_limit",
+            "joint_velocity_limit",
+        }
+        if set(properties) != expected:
+            raise NotImplementedError(f"Missing USD joint-property semantics: {set(properties) ^ expected}")
         limits = data.joint_pos_limits.torch[env_index].tolist()
-        effort_limits = data.joint_effort_limits.torch[env_index].tolist()
-        velocity_limits = data.joint_vel_limits.torch[env_index].tolist()
         positions = data.joint_pos.torch[env_index].tolist()
         joint_velocities = data.joint_vel.torch[env_index].tolist()
 
@@ -188,29 +180,40 @@ class ArticulationExporter:
         # with the writes fails on assets that did not already carry the schema.
         body_names = list(articulation.backend_body_names)
         joint_names = list(articulation.backend_joint_names)
+        if len(prim_paths.bodies) != len(body_names) or len(prim_paths.joints) != len(joint_names):
+            raise RuntimeError("Articulation provenance does not cover every backend body and DOF.")
         body_targets = [resolve(path, body_names[i], body_row, "Body") for i, path in enumerate(prim_paths.bodies)]
         joint_targets = [resolve(path, joint_names[i], joint_row, "Joint") for i, path in enumerate(prim_paths.joints)]
+        for prim, _ in joint_targets:
+            if prim.GetTypeName() not in _DRIVE_TOKEN:
+                raise NotImplementedError(
+                    f"No USD axis mapping for driven joint {prim.GetPath()} ({prim.GetTypeName()})."
+                )
 
         written: list[str] = []
-        for (prim, row), path in zip(body_targets, prim_paths.bodies):
-            author_mass_properties(prim, masses[row], inertias[row], coms[row])
-            written.append(path)
-        for prim, row in sorted(body_targets, key=lambda target: target[0].GetPath().pathElementCount):
-            author_body_state(prim, poses[row], velocities[row])
+        written.extend(
+            write_body_properties(
+                stage,
+                prim_paths.bodies,
+                bodies,
+                [row for _, row in body_targets],
+                preserve_authored_mass=fixed_configuration,
+            )
+        )
         for (prim, row), path in zip(joint_targets, prim_paths.joints):
             self._author_joint(
                 prim,
-                stiffness=stiffness[row],
-                damping=damping[row],
-                armature=armature[row],
-                friction=(static_friction[row], dynamic_friction[row], viscous_friction[row]),
+                stiffness=properties["stiffness"][row],
+                damping=properties["damping"][row],
+                armature=properties["armature"][row],
+                friction=tuple(properties[name][row] for name in ("friction", "dynamic_friction", "viscous_friction")),
                 lower_limit=limits[row][0],
                 upper_limit=limits[row][1],
             )
             token = _DRIVE_TOKEN.get(prim.GetTypeName())
             if token:
-                UsdPhysics.DriveAPI(prim, token).CreateMaxForceAttr().Set(float(effort_limits[row]))
-                velocity = float(velocity_limits[row])
+                UsdPhysics.DriveAPI(prim, token).CreateMaxForceAttr().Set(float(properties["joint_effort_limit"][row]))
+                velocity = float(properties["joint_velocity_limit"][row])
                 if token == "angular":
                     velocity = math.degrees(velocity)
                 safe_set_attribute_on_usd_prim(prim, "physxJoint:maxJointVelocity", velocity, camel_case=False)
@@ -227,10 +230,10 @@ class ArticulationExporter:
         return written
 
     def export(self, usd_path: str, env_index: int = 0) -> str:
-        """Export a stage copy with this articulation's effective values written back.
+        """Export this articulation and its required USD dependencies.
 
-        This legacy articulation-only writer does not select a complete environment. For deployment,
-        use :func:`export_environment_to_usd` with the scene registry.
+        Other scene assets are excluded. For a complete environment, use :class:`SceneExporter`
+        with the scene registry.
 
         The live stage is flattened first and the state is authored onto that snapshot, so the running
         simulation never sees the edits. The live stage's own file is not saved.
@@ -243,9 +246,26 @@ class ArticulationExporter:
             The path the stage was written to.
         """
         snapshot = Usd.Stage.Open(self.articulation.stage.Flatten())
+        paths = self.prim_paths(env_index)
+        root = Sdf.Path(paths.bodies[0])
+        for path in paths.bodies + paths.joints:
+            root = root.GetCommonPrefix(Sdf.Path(path))
+        # Include the asset scope containing controllers and articulation-root schemas.
+        from isaaclab.sim.utils import find_matching_prim_paths
+
+        asset_roots = [
+            Sdf.Path(path)
+            for path in find_matching_prim_paths(self.articulation.cfg.prim_path, stage=snapshot)
+            if root.HasPrefix(Sdf.Path(path))
+        ]
+        if len(asset_roots) == 1:
+            root = asset_roots[0]
+        if root == Sdf.Path.absoluteRootPath or root == Sdf.Path("/World"):
+            raise RuntimeError("Articulation prims have no isolated asset root; export the registered scene instead.")
+        retain_stage_objects(snapshot, [root])
         self.write_to_stage(env_index, stage=snapshot)
-        snapshot.Export(str(usd_path))
-        return str(usd_path)
+        _validate_dependencies(snapshot)
+        return save_environment_snapshot(snapshot, usd_path)
 
     @staticmethod
     def _author_joint(
@@ -382,6 +402,17 @@ def author_physics_material(prim: Usd.Prim, values: np.ndarray) -> None:
     )
 
 
+def copy_scene_stage(stage: Usd.Stage) -> Usd.Stage:
+    """Flatten composition and make instances writable without touching the source stage."""
+    snapshot = Usd.Stage.Open(stage.Flatten())
+    while True:
+        instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
+        if not instances:
+            return Usd.Stage.Open(snapshot.Flatten())
+        for prim in instances:
+            prim.SetInstanceable(False)
+
+
 def create_environment_snapshot(scene: InteractiveScene, env_index: int = 0) -> Usd.Stage:
     """Copy one environment's authored content and shared resources without editing the live stage.
 
@@ -403,23 +434,15 @@ def create_environment_snapshot(scene: InteractiveScene, env_index: int = 0) -> 
     from isaaclab.cloner import query
 
     plan = scene.clone_plan
-    if plan is None:
-        raise ValueError("Environment export requires the scene's ClonePlan.")
-    env_ids = list(range(plan.clone_mask.shape[1])) if plan.env_ids is None else plan.env_ids.tolist()
-    if env_index not in env_ids:
-        raise ValueError(f"Environment {env_index} is out of range for ClonePlan environments {env_ids}.")
     for family in ("deformable_objects", "cable_objects", "surface_grippers"):
         if getattr(scene, family):
             raise NotImplementedError(f"Environment export does not support {family}: {list(getattr(scene, family))}")
-    snapshot = Usd.Stage.Open(scene.sim.stage.Flatten())
-    # Make instance children writable on the copy, never on the live stage.
-    while True:
-        instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
-        if not instances:
-            break
-        for prim in instances:
-            prim.SetInstanceable(False)
-    snapshot = Usd.Stage.Open(snapshot.Flatten())
+    if plan is None:
+        return _snapshot_single_environment(scene, env_index)
+    env_ids = list(range(plan.clone_mask.shape[1])) if plan.env_ids is None else plan.env_ids.tolist()
+    if env_index not in env_ids:
+        raise ValueError(f"Environment {env_index} is out of range for ClonePlan environments {env_ids}.")
+    snapshot = copy_scene_stage(scene.sim.stage)
     layer = snapshot.GetRootLayer()
     selected = []
     for template in dict.fromkeys(plan.destinations):
@@ -476,10 +499,12 @@ def create_environment_snapshot(scene: InteractiveScene, env_index: int = 0) -> 
     for other, path in zip(env_ids, scene.env_prim_paths):
         if other != env_index:
             removed.append(Sdf.Path(path))
+    removed_roots = []
     for path in sorted(set(removed), key=lambda p: len(str(p)), reverse=True):
         if not any(p.HasPrefix(path) for p in selected):
             snapshot.RemovePrim(path)
-    _validate_dependencies(snapshot)
+            removed_roots.append(path)
+    _validate_dependencies(snapshot, removed_roots)
     snapshot.GetRootLayer().customLayerData = {
         **snapshot.GetRootLayer().customLayerData,
         "isaaclab:environment": env_index,
@@ -488,18 +513,69 @@ def create_environment_snapshot(scene: InteractiveScene, env_index: int = 0) -> 
     return snapshot
 
 
-def _validate_dependencies(stage: Usd.Stage) -> None:
+def _snapshot_single_environment(scene: InteractiveScene, env_index: int) -> Usd.Stage:
+    """Validate a normally constructed scene that did not require replication."""
+    if scene.num_envs != 1 or env_index != 0:
+        raise ValueError("Replicated environment export requires the scene's ClonePlan.")
+    snapshot = copy_scene_stage(scene.sim.stage)
+    from isaaclab.sim.utils import find_matching_prim_paths
+
+    for name in scene.keys():
+        obj = scene[name]
+        if obj is None or name in scene.sensors or name in scene.visual_materials:
+            continue
+        cfg = getattr(obj, "cfg", obj)
+        configs = getattr(cfg, "rigid_objects", None)
+        for cfg in configs.values() if configs is not None else (cfg,):
+            if not find_matching_prim_paths(cfg.prim_path, stage=snapshot):
+                raise RuntimeError(f"Registered object {name!r} is missing at {cfg.prim_path}.")
+    _validate_dependencies(snapshot)
+    return snapshot
+
+
+def retain_stage_objects(stage: Usd.Stage, roots: list[Sdf.Path]) -> None:
+    """Retain isolated asset roots, physics scenes and their transitive USD dependencies."""
+    retained = set(roots)
+    retained.update(prim.GetPath() for prim in stage.Traverse() if prim.IsA(UsdPhysics.Scene))
+    while True:
+        before = set(retained)
+        for prim in stage.Traverse():
+            if not any(prim.GetPath().HasPrefix(root) for root in retained):
+                continue
+            for prop in prim.GetProperties():
+                if prop.GetName() == "physics:filteredPairs" or prop.GetName().startswith("collection:"):
+                    continue
+                targets = prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.GetConnections()
+                retained.update(target.GetPrimPath() for target in targets)
+        if before == retained:
+            break
+    removed_roots = []
+    for prim in reversed(list(stage.Traverse())):
+        path = prim.GetPath()
+        if not any(path.HasPrefix(root) or root.HasPrefix(path) for root in retained):
+            stage.RemovePrim(path)
+            removed_roots.append(path)
+    _validate_dependencies(stage, removed_roots)
+
+
+def _validate_dependencies(stage: Usd.Stage, removed_roots: Sequence[Sdf.Path] = ()) -> None:
     """Prune deleted-replica filter memberships and reject broken physical or visual dependencies."""
     for prim in stage.Traverse():
         for prop in prim.GetProperties():
             paths = prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.GetConnections()
-            missing = [p for p in paths if not stage.GetPrimAtPath(p.GetPrimPath())]
+            missing = [
+                p for p in paths if not (stage.GetPropertyAtPath(p) if p.IsPropertyPath() else stage.GetPrimAtPath(p))
+            ]
             if not missing:
                 continue
             # Filter/collection membership in deleted replicas is intentionally discarded. Physical
             # joints and shader connections must never be silently severed.
             filtering = prop.GetName() == "physics:filteredPairs" or prop.GetName().startswith("collection:")
-            if filtering and isinstance(prop, Usd.Relationship):
+            if (
+                filtering
+                and isinstance(prop, Usd.Relationship)
+                and all(any(p.HasPrefix(root) for root in removed_roots) for p in missing)
+            ):
                 prop.SetTargets([p for p in paths if p not in missing])
             else:
                 raise RuntimeError(f"Unresolved export dependency {prop.GetPath()}: {missing}")
@@ -507,6 +583,13 @@ def _validate_dependencies(stage: Usd.Stage) -> None:
 
 def save_environment_snapshot(stage: Usd.Stage, usd_path: str) -> str:
     """Save a complete snapshot atomically, leaving an existing destination intact on failure."""
+    _validate_dependencies(stage)
+    _, _, unresolved = UsdUtils.ComputeAllDependencies(Sdf.AssetPath(stage.GetRootLayer().identifier))
+    # Isaac Sim supplies these MDL modules through its renderer's search path. Kitless
+    # USD cannot resolve them as files; their authored shader references remain intact.
+    unresolved = [path for path in unresolved if path not in {"OmniPBR.mdl", "OmniGlass.mdl", "OmniSurface.mdl"}]
+    if unresolved:
+        raise RuntimeError(f"Unresolved export asset dependencies: {unresolved}")
     destination = os.path.abspath(usd_path)
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     suffix = os.path.splitext(destination)[1]
@@ -526,20 +609,29 @@ def write_rigid_object_state_to_stage(
     asset: BaseRigidObject, body_paths: list[str], row: int, stage: Usd.Stage
 ) -> list[str]:
     """Write all registered rigid-object bodies through their public data interface."""
-    masses = asset.data.body_mass.torch[row].cpu().numpy().reshape(-1)
-    inertias = asset.data.body_inertia.torch[row].cpu().numpy().reshape(-1, 3, 3)
-    coms = asset.data.body_com_pose_b.torch[row].cpu().numpy().reshape(-1, 7)
-    poses = asset.data.body_link_pose_w.torch[row].cpu().numpy().reshape(-1, 7)
-    velocities = asset.data.body_com_vel_w.torch[row].cpu().numpy().reshape(-1, 6)
-    if len(body_paths) != len(masses):
-        raise RuntimeError(f"Body coverage mismatch for {asset.cfg.prim_path}: {body_paths}")
-    for path, mass, inertia, com, pose, velocity in zip(body_paths, masses, inertias, coms, poses, velocities):
+    return write_body_properties(stage, body_paths, BodyPhysicsProperties.from_data(asset.data, row))
+
+
+def write_body_properties(
+    stage: Usd.Stage,
+    paths: list[str],
+    properties: BodyPhysicsProperties,
+    rows: list[int] | None = None,
+    *,
+    preserve_authored_mass: bool = False,
+) -> list[str]:
+    """Author the common rigid-body contract for links, rigid objects and collection members."""
+    rows = list(range(len(properties.mass))) if rows is None else rows
+    if len(paths) != len(rows) or len(set(paths)) != len(paths):
+        raise RuntimeError(f"Body coverage mismatch: {paths}")
+    for path, row in sorted(zip(paths, rows), key=lambda item: Sdf.Path(item[0]).pathElementCount):
         prim = stage.GetPrimAtPath(path)
-        if not prim:
-            raise RuntimeError(f"Missing rigid object body {path}.")
-        author_mass_properties(prim, mass, inertia, com)
-        author_body_state(prim, pose, velocity)
-    return body_paths
+        if not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            raise RuntimeError(f"Missing rigid body {path}.")
+        if not preserve_authored_mass:
+            author_mass_properties(prim, properties.mass[row], properties.inertia[row], properties.com_pose[row])
+        author_body_state(prim, properties.pose[row], properties.velocity[row])
+    return paths
 
 
 def environment_asset_rows(scene: InteractiveScene, path_expr: str, roots: list[str], env_index: int) -> list[int]:
@@ -547,6 +639,14 @@ def environment_asset_rows(scene: InteractiveScene, path_expr: str, roots: list[
     from isaaclab.cloner import query
 
     plan = scene.clone_plan
+    if plan is None:
+        from isaaclab.sim.utils import find_matching_prim_paths
+
+        targets = [Sdf.Path(path) for path in find_matching_prim_paths(path_expr, stage=scene.sim.stage)]
+        rows = [i for i, root in enumerate(roots) if any(Sdf.Path(root).HasPrefix(target) for target in targets)]
+        if not rows:
+            raise RuntimeError(f"No backend instance for registered object {path_expr}.")
+        return rows
     source = query.path_to_source(plan, path_expr, env_index)
     if source is None:
         if any(query.iter_sources(plan, path_expr)):
@@ -578,14 +678,7 @@ def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index:
     Returns:
         The destination path after the complete export succeeds.
     """
-    from importlib import import_module
-
-    # ResolvableString exposes the resolved manager metadata without changing its string type.
-    module = scene.sim.physics_manager.__module__
-    package = module.split(".")[0]
-    if package not in {"isaaclab_physx", "isaaclab_ov", "isaaclab_newton"}:
-        raise NotImplementedError(f"Environment export is unavailable for {module}.")
-    return import_module(f"{package}.sim.usd_export").export_environment_to_usd(scene, usd_path, env_index)
+    return SceneExporter(scene).export(usd_path, env_index)
 
 
 def write_collision_properties(
@@ -659,6 +752,192 @@ class RigidBodyExportProperties:
     rest_offsets: np.ndarray
 
 
+class SceneExporter:
+    """Export a complete scene environment while preserving its authored USD content.
+
+    Args:
+        scene: Initialized scene; stepping must be paused during export.
+        fixed_configuration: Preserve spawn-time physical schemas and export initialized
+            state and resolved actuator solver properties. Requires one environment before
+            its first physics step. Use :meth:`export_from_cfg` to construct this snapshot
+            without training events or runtime randomization. Otherwise capture supported
+            effective runtime properties, as :func:`export_environment_to_usd` does.
+    """
+
+    def __init__(self, scene: InteractiveScene, *, fixed_configuration: bool = False) -> None:
+        self.scene = scene
+        self.fixed_configuration = fixed_configuration
+
+    @classmethod
+    def export_from_cfg(cls, scene_cfg: InteractiveSceneCfg, sim_cfg: SimulationCfg, usd_path: str) -> str:
+        """Construct and export a fixed single-environment deployment configuration.
+
+        Uses normal scene construction and asset initialization; no task events run. The
+        snapshot follows application of the configured default state and precedes stepping.
+        Launch the selected backend normally before calling this method; it owns a fresh
+        simulation context and cannot be nested in an existing one. Inputs are copied.
+
+        Args:
+            scene_cfg: Fixed scene configuration with ``num_envs=1``.
+            sim_cfg: Simulation configuration, including timestep [s] and gravity [m/s^2].
+            usd_path: Destination USD file.
+
+        Returns:
+            The destination after complete export succeeds.
+        """
+        from copy import deepcopy
+
+        from isaaclab.scene import InteractiveScene
+        from isaaclab.sim import SimulationContext, build_simulation_context
+
+        if scene_cfg.num_envs != 1:
+            raise ValueError("Fixed deployment export requires a single-environment scene configuration.")
+        if SimulationContext.instance() is not None:
+            raise RuntimeError("export_from_cfg owns a fresh simulation context; an active context already exists.")
+        with build_simulation_context(sim_cfg=deepcopy(sim_cfg)) as sim:
+            scene = InteractiveScene(deepcopy(scene_cfg))
+            sim.reset()
+            scene.reset_to_default()
+            sim.forward()
+            scene.update(0.0)
+            return cls(scene, fixed_configuration=True).export(usd_path)
+
+    def create_snapshot(self, env_index: int = 0) -> Usd.Stage:
+        """Copy the selected authored environment and validate its physical scope."""
+        if self.fixed_configuration:
+            if self.scene.num_envs != 1 or env_index != 0:
+                raise ValueError("Fixed deployment export requires exactly one environment (id 0).")
+            if self.scene.sim.get_physics_step_count() != 0:
+                raise ValueError("Fixed deployment export must precede the first physics step.")
+            from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+
+            for assets in (self.scene.articulations, self.scene.rigid_objects, self.scene.rigid_object_collections):
+                for asset in assets.values():
+                    validate_configuration_coverage(asset.cfg)
+                    for cfg in getattr(asset.cfg, "rigid_objects", {}).values():
+                        validate_configuration_coverage(cfg)
+            for asset in self.scene.articulations.values():
+                for name, cfg in asset.cfg.actuators.items():
+                    validate_configuration_coverage(cfg, actuator=True)
+                    if not _is_implicit_actuator_cfg(cfg) and name not in asset.actuators.usd_actuator_groups:
+                        raise NotImplementedError(
+                            f"Controller {name!r} on {asset.cfg.prim_path} has no USD representation. "
+                            "Enable native actuators or supply a supported deployment controller."
+                        )
+        snapshot = create_environment_snapshot(self.scene, env_index)
+        if self.fixed_configuration:
+            snapshot.GetRootLayer().customLayerData = {
+                **snapshot.GetRootLayer().customLayerData,
+                "isaaclab:snapshot": "fixed configuration after default-state initialization, before stepping",
+                "isaaclab:sensorRuntime": ", ".join(self.scene.sensors),
+            }
+        return snapshot
+
+    def export(self, usd_path: str, env_index: int = 0) -> str:
+        """Export one complete environment and shared resources without modifying the live stage."""
+        from importlib import import_module
+
+        module = self.scene.sim.physics_manager.__module__
+        package = module.split(".")[0]
+        if package not in {"isaaclab_physx", "isaaclab_ov", "isaaclab_newton"}:
+            raise NotImplementedError(f"Scene export is unavailable for {module}.")
+        adapter = import_module(f"{package}.sim.usd_export")
+        return adapter.export_scene(self, usd_path, env_index)
+
+    def _export_with_adapter(
+        self, usd_path, env_index, resolver, read_properties, gravity, root_paths=None, write_scene=None
+    ) -> str:
+        """Resolve backend identities, then use the common rigid-body/joint USD writers."""
+        scene = self.scene
+        root_paths = root_paths or (lambda asset: asset.root_view.prim_paths)
+        snapshot = self.create_snapshot(env_index)
+        if UsdGeom.GetStageMetersPerUnit(snapshot) != 1.0 or UsdPhysics.GetStageKilogramsPerUnit(snapshot) != 1.0:
+            raise NotImplementedError("Environment joint export currently requires SI stage units.")
+        written = set()
+        for articulation, assets in ((True, scene.articulations), (False, scene.rigid_objects)):
+            for asset in assets.values():
+                roots = root_paths(asset)
+                for row in environment_asset_rows(scene, asset.cfg.prim_path, roots, env_index):
+                    if articulation:
+                        if not self.fixed_configuration:
+                            check_articulation_export(asset)
+                        paths = resolver(asset, row, snapshot)
+                        ArticulationExporter(asset, lambda _asset, _row: paths).write_to_stage(
+                            row, stage=snapshot, fixed_configuration=self.fixed_configuration
+                        )
+                        bodies = paths.bodies
+                    else:
+                        bodies = [roots[row]]
+                        write_body_properties(
+                            snapshot,
+                            bodies,
+                            BodyPhysicsProperties.from_data(asset.data, row),
+                            preserve_authored_mass=self.fixed_configuration,
+                        )
+                    written.update(bodies)
+                    if self.fixed_configuration:
+                        continue
+                    properties = read_properties(asset, row, articulation)
+                    flags = np.asarray(properties.disable_gravity).reshape(-1)
+                    if len(flags) != len(bodies):
+                        raise RuntimeError(f"Backend body coverage differs for {asset.cfg.prim_path}.")
+                    for path, flag in zip(bodies, flags):
+                        prim = snapshot.GetPrimAtPath(path)
+                        prim.AddAppliedSchema("PhysxRigidBodyAPI")
+                        safe_set_attribute_on_usd_prim(
+                            prim, "physxRigidBody:disableGravity", bool(flag), camel_case=False
+                        )
+                    write_collision_properties(
+                        snapshot, bodies, properties.materials, properties.contact_offsets, properties.rest_offsets
+                    )
+                    written.update(bodies)
+        for asset in scene.rigid_object_collections.values():
+            roots = root_paths(asset)
+            for name in asset.body_names:
+                cfg = asset.cfg.rigid_objects[name]
+                for row in environment_asset_rows(scene, cfg.prim_path, roots, env_index):
+                    # RigidObjectCollection's public contract is body-major in the view, env-major in data.
+                    body, instance = divmod(row, asset.num_instances)
+                    prim = snapshot.GetPrimAtPath(roots[row])
+                    write_body_properties(
+                        snapshot,
+                        [roots[row]],
+                        BodyPhysicsProperties.from_data(asset.data, instance),
+                        [body],
+                        preserve_authored_mass=self.fixed_configuration,
+                    )
+                    written.add(roots[row])
+                    if self.fixed_configuration:
+                        continue
+                    properties = read_properties(asset, row, False)
+                    prim.AddAppliedSchema("PhysxRigidBodyAPI")
+                    safe_set_attribute_on_usd_prim(
+                        prim, "physxRigidBody:disableGravity", bool(properties.disable_gravity), camel_case=False
+                    )
+                    write_collision_properties(
+                        snapshot,
+                        [roots[row]],
+                        properties.materials,
+                        properties.contact_offsets,
+                        properties.rest_offsets,
+                    )
+                    written.add(roots[row])
+        if self.fixed_configuration:
+            author_fixed_root_frames(snapshot, written)
+        check_body_coverage(snapshot, written)
+        author_gravity(snapshot, scene.physics_scene_path, gravity)
+        physics_scene = snapshot.GetPrimAtPath(scene.physics_scene_path)
+        physics_scene.AddAppliedSchema("PhysxSceneAPI")
+        frequency = 1.0 / scene.sim.get_physics_dt()
+        if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
+            raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this simulation timestep exactly.")
+        physics_scene.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(round(frequency))
+        if write_scene is not None:
+            write_scene(snapshot)
+        _validate_dependencies(snapshot)
+        return save_environment_snapshot(snapshot, usd_path)
+
+
 def export_stage_environment(
     scene: InteractiveScene,
     usd_path: str,
@@ -669,72 +948,8 @@ def export_stage_environment(
     ],
     gravity: np.ndarray,
 ) -> str:
-    """Shared environment export for backends retaining their authored USD scene.
-
-    Backend hooks resolve paths and read properties missing from public object-data interfaces.
-    All selection, body/joint authoring, dependencies and completeness checks are shared.
-    """
-    snapshot = create_environment_snapshot(scene, env_index)
-    if UsdGeom.GetStageMetersPerUnit(snapshot) != 1.0 or UsdPhysics.GetStageKilogramsPerUnit(snapshot) != 1.0:
-        raise NotImplementedError("Environment joint export currently requires SI stage units.")
-    written = set()
-    for articulation, assets in ((True, scene.articulations), (False, scene.rigid_objects)):
-        for asset in assets.values():
-            view = asset.root_view
-            for row in environment_asset_rows(scene, asset.cfg.prim_path, view.prim_paths, env_index):
-                if articulation:
-                    check_articulation_export(asset)
-                    paths = resolver(asset, row, snapshot)
-                    ArticulationExporter(asset, lambda _asset, _row: paths).write_to_stage(row, stage=snapshot)
-                    bodies = paths.bodies
-                else:
-                    bodies = [view.prim_paths[row]]
-                    write_rigid_object_state_to_stage(asset, bodies, row, snapshot)
-                properties = read_properties(asset, row, articulation)
-                flags = np.asarray(properties.disable_gravity).reshape(-1)
-                if len(flags) != len(bodies):
-                    raise RuntimeError(f"Backend body coverage differs for {asset.cfg.prim_path}.")
-                for path, flag in zip(bodies, flags):
-                    prim = snapshot.GetPrimAtPath(path)
-                    prim.AddAppliedSchema("PhysxRigidBodyAPI")
-                    safe_set_attribute_on_usd_prim(prim, "physxRigidBody:disableGravity", bool(flag), camel_case=False)
-                write_collision_properties(
-                    snapshot, bodies, properties.materials, properties.contact_offsets, properties.rest_offsets
-                )
-                written.update(bodies)
-    for asset in scene.rigid_object_collections.values():
-        masses = asset.data.body_mass.torch.cpu().numpy()
-        inertias = asset.data.body_inertia.torch.cpu().numpy()
-        coms = asset.data.body_com_pose_b.torch.cpu().numpy()
-        poses = asset.data.body_link_pose_w.torch.cpu().numpy()
-        velocities = asset.data.body_com_vel_w.torch.cpu().numpy()
-        roots = asset.root_view.prim_paths
-        for name in asset.body_names:
-            cfg = asset.cfg.rigid_objects[name]
-            for row in environment_asset_rows(scene, cfg.prim_path, roots, env_index):
-                # RigidObjectCollection's public contract is body-major in the view, env-major in data.
-                body, instance = divmod(row, asset.num_instances)
-                prim = snapshot.GetPrimAtPath(roots[row])
-                author_mass_properties(prim, masses[instance, body], inertias[instance, body], coms[instance, body])
-                author_body_state(prim, poses[instance, body], velocities[instance, body])
-                properties = read_properties(asset, row, False)
-                prim.AddAppliedSchema("PhysxRigidBodyAPI")
-                safe_set_attribute_on_usd_prim(
-                    prim, "physxRigidBody:disableGravity", bool(properties.disable_gravity), camel_case=False
-                )
-                write_collision_properties(
-                    snapshot, [roots[row]], properties.materials, properties.contact_offsets, properties.rest_offsets
-                )
-                written.add(roots[row])
-    check_body_coverage(snapshot, written)
-    author_gravity(snapshot, scene.physics_scene_path, gravity)
-    physics_scene = snapshot.GetPrimAtPath(scene.physics_scene_path)
-    physics_scene.AddAppliedSchema("PhysxSceneAPI")
-    frequency = 1.0 / scene.sim.get_physics_dt()
-    if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
-        raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this simulation timestep exactly.")
-    physics_scene.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(round(frequency))
-    return save_environment_snapshot(snapshot, usd_path)
+    """Compatibility entry for stage-backed adapters; new callers can use :class:`SceneExporter`."""
+    return SceneExporter(scene)._export_with_adapter(usd_path, env_index, resolver, read_properties, gravity)
 
 
 def check_body_coverage(stage: Usd.Stage, written: set[str]) -> None:
@@ -748,6 +963,31 @@ def check_body_coverage(stage: Usd.Stage, written: set[str]) -> None:
         raise RuntimeError(
             f"Incomplete body export: missing={sorted(authored - written)}, extra={sorted(written - authored)}"
         )
+
+
+def author_fixed_root_frames(stage: Usd.Stage, body_paths: set[str]) -> None:
+    """Update world anchors moved by fixed-base default root-pose initialization."""
+    cache = UsdGeom.XformCache()
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdPhysics.FixedJoint):
+            continue
+        joint = UsdPhysics.Joint(prim)
+        body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+        if not body0 and len(body1) == 1 and str(body1[0]) in body_paths:
+            other, world = 1, 0
+            body = body1[0]
+        elif not body1 and len(body0) == 1 and str(body0[0]) in body_paths:
+            other, world = 0, 1
+            body = body0[0]
+        else:
+            continue
+        position = prim.GetAttribute(f"physics:localPos{other}").Get()
+        rotation = prim.GetAttribute(f"physics:localRot{other}").Get()
+        local = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(rotation))
+        local.SetTranslateOnly(Gf.Vec3d(position))
+        anchor = local * cache.GetLocalToWorldTransform(stage.GetPrimAtPath(body))
+        prim.GetAttribute(f"physics:localPos{world}").Set(Gf.Vec3f(anchor.ExtractTranslation()))
+        prim.GetAttribute(f"physics:localRot{world}").Set(Gf.Quatf(anchor.ExtractRotationQuat()))
 
 
 def author_body_state(prim: Usd.Prim, pose: np.ndarray, velocity: np.ndarray) -> None:

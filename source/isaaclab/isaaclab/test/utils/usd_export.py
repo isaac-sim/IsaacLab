@@ -81,3 +81,118 @@ def _value(value):
     if all(isinstance(v, (float, int)) for v in values):
         return np.asarray(values)
     return tuple(_value(v) for v in values)
+
+
+def make_fixed_scene_cfg(directory):
+    """Create a portable deployment fixture using locally authored assets and non-default cfg values."""
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.actuators import ImplicitActuatorCfg
+    from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+    from isaaclab.scene import InteractiveSceneCfg
+
+    source = directory / "fixed_robot.usda"
+    stage = Usd.Stage.CreateNew(str(source))
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdGeom.SetStageUpAxis(stage, "Z")
+    root = UsdGeom.Xform.Define(stage, "/Robot").GetPrim()
+    stage.SetDefaultPrim(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    for index, name in enumerate(("Base", "Link")):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}")
+        body.AddTranslateOp().Set(Gf.Vec3d(0, 0, 0.5 + index * 0.5))
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        body.GetPrim().AddAppliedSchema("PhysxRigidBodyAPI")
+        body.GetPrim().CreateAttribute("physxRigidBody:disableGravity", Sdf.ValueTypeNames.Bool).Set(index == 1)
+        mass = UsdPhysics.MassAPI.Apply(body.GetPrim())
+        mass.CreateMassAttr().Set(3.0 - index)
+        mass.CreateCenterOfMassAttr().Set(Gf.Vec3f(0.01, -0.02, 0.03))
+        mass.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(0.1, 0.2, 0.25))
+        mass.CreatePrincipalAxesAttr().Set(Gf.Quatf(0.9238795, Gf.Vec3f(0, 0, 0.3826834)))
+        shape = UsdGeom.Cube.Define(stage, f"/Robot/{name}/Collision")
+        shape.CreateSizeAttr().Set(0.2)
+        UsdPhysics.CollisionAPI.Apply(shape.GetPrim())
+        material = UsdShade.Material.Define(stage, f"/Robot/Materials/{name}")
+        physics_material = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+        physics_material.CreateStaticFrictionAttr().Set(0.5 + index * 0.2)
+        physics_material.CreateDynamicFrictionAttr().Set(0.4 + index * 0.1)
+        physics_material.CreateRestitutionAttr().Set(0.1 + index * 0.1)
+        UsdShade.MaterialBindingAPI.Apply(shape.GetPrim()).Bind(material, materialPurpose="physics")
+        shape.GetPrim().AddAppliedSchema("PhysxCollisionAPI")
+        shape.GetPrim().CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float).Set(
+            0.02 + 0.01 * index
+        )
+        shape.GetPrim().CreateAttribute("physxCollision:restOffset", Sdf.ValueTypeNames.Float).Set(0.001 * index)
+    fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/FixedRoot")
+    fixed.CreateBody1Rel().SetTargets(["/Robot/Base"])
+    fixed.CreateLocalPos0Attr().Set(Gf.Vec3f(0, 0, 0.5))
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge")
+    joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
+    joint.CreateBody1Rel().SetTargets(["/Robot/Link"])
+    joint.CreateAxisAttr().Set("Y")
+    joint.CreateLocalPos0Attr().Set(Gf.Vec3f(0, 0, 0.25))
+    joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0, 0, -0.25))
+    joint.CreateLowerLimitAttr().Set(-60)
+    joint.CreateUpperLimitAttr().Set(75)
+    drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
+    drive.CreateStiffnessAttr().Set(1)
+    drive.CreateDampingAttr().Set(1)
+    drive.CreateMaxForceAttr().Set(100)
+    UsdPhysics.FilteredPairsAPI.Apply(stage.GetPrimAtPath("/Robot/Base")).CreateFilteredPairsRel().SetTargets(
+        ["/Robot/Link"]
+    )
+    stage.GetRootLayer().Save()
+
+    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=3.0)
+    cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(source)),
+        init_state=ArticulationCfg.InitialStateCfg(joint_pos={"Hinge": 0.21}, joint_vel={"Hinge": 0.17}),
+        actuators={
+            "hinge": ImplicitActuatorCfg(
+                joint_names_expr=["Hinge"],
+                stiffness=83.0,
+                damping=4.5,
+                armature=0.023,
+                joint_effort_limit=19.0,
+                joint_velocity_limit=2.5,
+            )
+        },
+    )
+
+    def rigid(name, mass, position):
+        return RigidObjectCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/{name}",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.3, 0.4),
+                rigid_props=sim_utils.RigidBodyBaseCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=mass),
+                collision_props=sim_utils.CollisionBaseCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(
+                    static_friction=0.61, dynamic_friction=0.43, restitution=0.2
+                ),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(
+                pos=position, lin_vel=(0.12, -0.03, 0.02), ang_vel=(0.1, 0.2, 0.3)
+            ),
+        )
+
+    cfg.box = rigid("Box", 2.5, (1.0, 0, 1.0))
+    cfg.collection = RigidObjectCollectionCfg(
+        rigid_objects={
+            "first": rigid("CollectedFirst", 1.5, (2, 0, 1)),
+            "second": rigid("CollectedSecond", 3.5, (3, 0, 1)),
+        }
+    )
+    cfg.table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 0.1), collision_props=sim_utils.CollisionBaseCfg()),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 2, 0.5)),
+    )
+    cfg.ground = AssetBaseCfg(
+        prim_path="/World/Ground",
+        spawn=sim_utils.CuboidCfg(size=(10.0, 10.0, 0.1), collision_props=sim_utils.CollisionBaseCfg()),
+    )
+    cfg.light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1200))
+    return cfg

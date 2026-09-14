@@ -8,3 +8,5 @@ Added
 
 * Added complete selected-environment snapshots using the shared USD writer and effective
   OVPhysX buffers, with a fresh runtime round-trip regression covering multiple objects.
+
+* Added fixed-scene export through ``SceneExporter``, preserving authored per-collider settings and sharing body/joint initialization export.

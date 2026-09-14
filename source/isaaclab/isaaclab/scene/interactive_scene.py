@@ -554,6 +554,67 @@ class InteractiveScene:
     Operations: Scene State.
     """
 
+    def reset_to_default(
+        self, env_ids: Sequence[int] | torch.Tensor | None = None, *, reset_joint_targets: bool = False
+    ) -> None:
+        """Apply the configured default state to every physical asset, including collections.
+
+        Unlike :meth:`reset`, this writes poses and velocities to the backend. It does not
+        execute events or advance physics. Actuator and sensor histories remain unchanged.
+
+        Args:
+            env_ids: Environments to reset; ``None`` selects all.
+            reset_joint_targets: Also set articulation position/velocity targets to defaults.
+        """
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        # rigid bodies
+        for rigid_object in self.rigid_objects.values():
+            # obtain default and deal with the offset for env origins
+            default_root_pose = rigid_object.data.default_root_pose.torch[env_ids].clone()
+            default_root_vel = rigid_object.data.default_root_vel.torch[env_ids].clone()
+            default_root_pose[:, :3] += self.env_origins[env_ids]
+            # set into the physics simulation
+            rigid_object.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        # Collection data is env-major; each member retains its own configured initial state.
+        for collection in self.rigid_object_collections.values():
+            pose = collection.data.default_body_pose.torch[env_ids].clone()
+            velocity = collection.data.default_body_vel.torch[env_ids].clone()
+            pose[..., :3] += self.env_origins[env_ids, None, :]
+            collection.write_body_pose_to_sim_index(body_poses=pose, env_ids=env_ids)
+            collection.write_body_velocity_to_sim_index(body_velocities=velocity, env_ids=env_ids)
+        # articulations
+        for articulation_asset in self.articulations.values():
+            # obtain default and deal with the offset for env origins
+            default_root_pose = articulation_asset.data.default_root_pose.torch[env_ids].clone()
+            default_root_vel = articulation_asset.data.default_root_vel.torch[env_ids].clone()
+            default_root_pose[:, :3] += self.env_origins[env_ids]
+            # set into the physics simulation
+            articulation_asset.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+            articulation_asset.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+            # obtain default joint positions
+            default_joint_pos = articulation_asset.data.default_joint_pos.torch[env_ids].clone()
+            default_joint_vel = articulation_asset.data.default_joint_vel.torch[env_ids].clone()
+            # set into the physics simulation
+            articulation_asset.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
+            articulation_asset.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
+            # reset joint targets if required
+            if reset_joint_targets:
+                articulation_asset.set_joint_position_target_index(target=default_joint_pos, env_ids=env_ids)
+                articulation_asset.set_joint_velocity_target_index(target=default_joint_vel, env_ids=env_ids)
+        # cable objects
+        for cable_object in self.cable_objects.values():
+            segment_pose = cable_object.data.default_segment_pose_w.torch[env_ids].clone()
+            segment_velocity = cable_object.data.default_segment_velocity_w.torch[env_ids].clone()
+            cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+            cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
+        # deformable objects
+        for deformable_object in self.deformable_objects.values():
+            # obtain default and set into the physics simulation
+            nodal_state = deformable_object.data.default_nodal_state_w.torch[env_ids].clone()
+            deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
+
     def reset_to(
         self,
         state: dict[str, dict[str, dict[str, torch.Tensor]]],

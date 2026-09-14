@@ -20,3 +20,5 @@ Added
   while writing effective collision geometry, contact filtering, gravity, XPBD iterations and
   body/joint properties. Added a fresh-backend round-trip with heterogeneous sources and
   different runtime overrides in two environments.
+
+* Added fixed-scene export through the shared scene writer, preserving authored geometry while exporting initialized state, Newton joint/contact properties, and supported import/solver settings.

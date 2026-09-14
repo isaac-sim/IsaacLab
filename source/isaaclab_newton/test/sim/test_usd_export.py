@@ -147,8 +147,12 @@ def _load(path: str) -> tuple[newton.Model, dict]:
     them. Without that step the exported colour would not survive a reimport.
     """
     builder = newton.ModelBuilder()
-    stage_info = builder.add_usd(str(path))
-    replace_newton_builder_shape_colors(builder, Usd.Stage.Open(str(path)))
+    stage = Usd.Stage.Open(str(path))
+    options = stage.GetRootLayer().customLayerData.get("isaaclab:newtonImportOptions", {})
+    from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
+
+    stage_info = builder.add_usd(str(path), schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()], **options)
+    replace_newton_builder_shape_colors(builder, stage)
     return builder.finalize(), stage_info
 
 
@@ -898,3 +902,66 @@ def _capture_environment_physics(model, world, contact_pairs=None):
     result["filters"] = pairs
     result["gravity"] = model.gravity.numpy()[world if model.world_count else -1].copy()
     return result
+
+
+def test_fixed_scene_configuration_uses_shared_export(tmp_path):
+    """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    from isaaclab.sim import SceneExporter, SimulationCfg
+    from isaaclab.test.utils.usd_export import make_fixed_scene_cfg
+
+    cfg = make_fixed_scene_cfg(tmp_path)
+    simulation_cfg = SimulationCfg(
+        device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=XPBDSolverCfg())
+    )
+    output = tmp_path / "fixed_scene.usda"
+    expected = {}
+    expected_state = {}
+
+    class CaptureBeforeExport(SceneExporter):
+        def export(self, usd_path, env_index=0):
+            manager = self.scene.sim.physics_manager
+            pairs = manager._collision_pipeline.shape_pairs_filtered.numpy()
+            expected.update(_capture_environment_physics(manager.get_model(), 0, pairs))
+            state = manager.get_state_0()
+            for index, path in enumerate(manager.get_model().body_label):
+                expected_state[path] = (state.body_q.numpy()[index].copy(), state.body_qd.numpy()[index].copy())
+            return super().export(usd_path, env_index)
+
+    CaptureBeforeExport.export_from_cfg(cfg, simulation_cfg, str(output))
+    stage = Usd.Stage.Open(str(output))
+    bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
+    assert bodies == {
+        "/World/envs/env_0/Robot/Base",
+        "/World/envs/env_0/Robot/Link",
+        "/World/envs/env_0/Box",
+        "/World/envs/env_0/CollectedFirst",
+        "/World/envs/env_0/CollectedSecond",
+    }
+    joint = stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge")
+    assert UsdPhysics.DriveAPI(joint, "angular").GetStiffnessAttr().Get() == pytest.approx(83 * np.pi / 180)
+    assert joint.GetAttribute("state:angular:physics:position").Get() == pytest.approx(np.degrees(0.21))
+    for name, mass in (("Box", 2.5), ("CollectedFirst", 1.5), ("CollectedSecond", 3.5)):
+        prim = stage.GetPrimAtPath(f"/World/envs/env_0/{name}")
+        assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == mass
+    for path in ("/World/Ground", "/World/Light", "/World/envs/env_0/Table"):
+        assert stage.GetPrimAtPath(path)
+    fresh, info = _load(str(output))
+    actual = _capture_environment_physics(fresh, 0)
+    assert expected.keys() == actual.keys()
+    for key, value in expected.items():
+        if isinstance(value, np.ndarray):
+            if value.dtype.kind == "f":
+                np.testing.assert_allclose(actual[key], value, rtol=3e-5, atol=1e-6, err_msg=str(key))
+            else:
+                np.testing.assert_array_equal(actual[key], value, err_msg=str(key))
+        else:
+            assert actual[key] == value, key
+    state = fresh.state()
+    newton.eval_fk(fresh, fresh.joint_q, fresh.joint_qd, state)
+    assert set(fresh.body_label) == set(expected_state)
+    for index, path in enumerate(fresh.body_label):
+        pose, velocity = expected_state[path]
+        np.testing.assert_allclose(state.body_q.numpy()[index], pose, rtol=3e-5, atol=1e-6, err_msg=path)
+        np.testing.assert_allclose(state.body_qd.numpy()[index], velocity, rtol=3e-5, atol=1e-6, err_msg=path)

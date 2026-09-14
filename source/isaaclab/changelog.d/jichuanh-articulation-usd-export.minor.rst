@@ -19,3 +19,5 @@ Added
   and applying effective runtime body, joint and collision properties. Added full inertia/COM
   export and documented snapshot timing, supported physical semantics and deployment components
   that require separate restoration.
+
+* Added :class:`~isaaclab.sim.usd_export.SceneExporter` and its fixed-configuration construction entry point, shared asset property contracts, complete default-state initialization including collections, and dependency/atomic-save checks. Articulation-only export now retains only the articulation and its dependencies; use ``SceneExporter`` for a complete scene.

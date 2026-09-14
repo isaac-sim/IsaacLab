@@ -726,17 +726,34 @@ class _StageAuthor:
             if target_pos is not None:
                 drive.GetTargetPositionAttr().Set(float(target_pos) * angle_scale)
 
-        prim = joint.GetPrim()
-        armature = float(model.joint_armature.numpy()[dof_start])
-        prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(armature)
-        friction = float(model.joint_friction.numpy()[dof_start])
-        prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(friction)
-        for name, values, scale in (
-            ("newton:limitStiffness", model.joint_limit_ke, gain_scale),
-            ("newton:limitDamping", model.joint_limit_kd, gain_scale),
-            ("newton:velocityLimit", model.joint_velocity_limit, angle_scale),
-        ):
-            prim.CreateAttribute(name, Sdf.ValueTypeNames.Float).Set(float(values.numpy()[dof_start]) * scale)
+        _author_joint_extensions(joint.GetPrim(), model, dof_start, is_angular)
+
+
+def _author_joint_extensions(prim: Usd.Prim, model: Model, dof_start: int, is_angular: bool) -> None:
+    """Write Newton-only joint semantics without duplicating standard USD drive authoring."""
+    gain_scale = _DEGREES_TO_RADIANS if is_angular else 1.0
+    angle_scale = 1.0 / _DEGREES_TO_RADIANS if is_angular else 1.0
+    armature = float(model.joint_armature.numpy()[dof_start])
+    prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(armature)
+    friction = float(model.joint_friction.numpy()[dof_start])
+    prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(friction)
+    for name, values, scale in (
+        ("newton:limitStiffness", model.joint_limit_ke, gain_scale),
+        ("newton:limitDamping", model.joint_limit_kd, gain_scale),
+        ("newton:velocityLimit", model.joint_velocity_limit, angle_scale),
+    ):
+        prim.CreateAttribute(name, Sdf.ValueTypeNames.Float).Set(float(values.numpy()[dof_start]) * scale)
+    token = "angular" if is_angular else "linear"
+    # The pinned Newton importer reads angular position in degrees but initial angular
+    # velocity in radians. Preserve the standard PhysicsJointStateAPI values for Isaac Sim;
+    # the Newton-specific state attributes take precedence in Newton's resolver.
+    for name in ("position", "velocity"):
+        attribute = prim.GetAttribute(f"state:{token}:physics:{name}")
+        if attribute and attribute.HasAuthoredValue():
+            value = float(attribute.Get())
+            if name == "velocity" and is_angular:
+                value *= _DEGREES_TO_RADIANS
+            prim.CreateAttribute(f"newton:{token}:{name}", Sdf.ValueTypeNames.Float).Set(value)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -836,7 +853,7 @@ def _author_collision_filters(
         )
 
 
-def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
+def _export_runtime_environment(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
     """Export one Newton environment while retaining its authored scene content.
 
     Unlike :func:`export_model_to_usd`, this entry point retains the scene's visual assets,
@@ -991,3 +1008,106 @@ def _write_effective_geometry(stage: Usd.Stage, model: Model, paths: WorldPrimPa
     if body >= 0:
         transform = transform * matrix(model.body_q.numpy()[body])
     author_world_transform(prim, transform)
+
+
+def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
+    """Export one environment through the shared scene exporter."""
+    from isaaclab.sim.usd_export import SceneExporter
+
+    return SceneExporter(scene).export(usd_path, env_index)
+
+
+def export_scene(exporter, usd_path: str, env_index: int) -> str:
+    """Adapt Newton identities for a fixed scene; retain model reconstruction for runtime snapshots."""
+    if not exporter.fixed_configuration:
+        return _export_runtime_environment(exporter.scene, usd_path, env_index)
+    model = exporter.scene.sim.physics_manager.get_model()
+
+    from isaaclab.sim.usd_export import ArticulationPrimPaths
+
+    def paths(view, frequency, labels):
+        # Public Newton frequency layouts describe the model rows selected by the view.
+        layout = view.frequency_layouts[frequency]
+        selected = (
+            layout.indices.numpy().tolist()
+            if layout.indices is not None
+            else list(range(layout.slice.start, layout.slice.stop))
+        )
+        return [
+            [
+                labels[
+                    layout.offset
+                    + world * layout.stride_between_worlds
+                    + instance * layout.stride_within_worlds
+                    + index
+                ]
+                for index in selected
+            ]
+            for world in range(view.world_count)
+            for instance in range(view.count_per_world)
+        ]
+
+    def resolve(asset, row, stage):
+        view = asset.root_view
+        bodies = paths(view, model.get_attribute_frequency("body_mass"), model.body_label)[row]
+        joints = paths(view, model.get_attribute_frequency("joint_type"), model.joint_label)[row]
+        dofs = [path for path, count in zip(joints, view.joint_dof_counts) for _ in range(count)]
+        return ArticulationPrimPaths(bodies, dofs)
+
+    def roots(asset):
+        return [row[0] for row in paths(asset.root_view, model.get_attribute_frequency("body_mass"), model.body_label)]
+
+    def write_scene(stage):
+        from isaaclab_newton.physics import XPBDSolverCfg
+
+        cfg = exporter.scene.sim.cfg.physics
+        solver = cfg.solver_cfg
+        if not isinstance(solver, XPBDSolverCfg):
+            raise NotImplementedError("Fixed Newton scene export currently supports XPBD solver settings only.")
+        defaults = XPBDSolverCfg().to_dict()
+        unsupported = [
+            name
+            for name, value in solver.to_dict().items()
+            if name not in {"class_type", "solver_type", "iterations"} and value != defaults.get(name)
+        ]
+        if cfg.num_substeps != 1 or cfg.collision_decimation != 0 or unsupported:
+            raise NotImplementedError(
+                f"No USD representation for Newton substeps/decimation or solver fields: {unsupported}"
+            )
+        gains = zip(model.joint_target_ke.numpy(), model.joint_target_kd.numpy(), model.joint_target_mode.numpy())
+        modes = [(float(kp), float(kd), int(mode)) for kp, kd, mode in gains]
+        supported = []
+        for force_both in (False, True):
+            if all(
+                int(newton.JointTargetMode.from_gains(kp, kd, force_both, has_drive=mode != 0)) == mode
+                for kp, kd, mode in modes
+            ):
+                supported.append(force_both)
+        if not supported:
+            raise NotImplementedError("Newton's USD importer cannot represent mixed per-joint actuator modes.")
+        stage.GetRootLayer().customLayerData = {
+            **stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonImportOptions": {"force_position_velocity_actuation": supported[0]},
+        }
+        prim = stage.GetPrimAtPath(exporter.scene.physics_scene_path)
+        prim.CreateAttribute("newton:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(
+            round(1 / exporter.scene.sim.get_physics_dt())
+        )
+        prim.CreateAttribute("newton:maxSolverIterations", Sdf.ValueTypeNames.Int).Set(solver.iterations)
+        for index, path in enumerate(model.joint_label):
+            joint = stage.GetPrimAtPath(path)
+            kind = int(model.joint_type.numpy()[index])
+            if joint and kind in (int(newton.JointType.REVOLUTE), int(newton.JointType.PRISMATIC)):
+                _author_joint_extensions(
+                    joint, model, int(model.joint_qd_start.numpy()[index]), kind == int(newton.JointType.REVOLUTE)
+                )
+        # Preserve authored geometry and PhysX material semantics. Only bridge Newton-specific
+        # default contact properties that normal initialization applies outside USD.
+        for index, path in enumerate(model.shape_label):
+            shape = stage.GetPrimAtPath(path)
+            if shape and shape.HasAPI(UsdPhysics.CollisionAPI):
+                _author_shape_properties(shape, model, index)
+
+    return exporter._export_with_adapter(
+        usd_path, env_index, resolve, None, model.gravity.numpy()[0], roots, write_scene
+    )

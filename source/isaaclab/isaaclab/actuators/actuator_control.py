@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.assets.physics_properties import JOINT_PROPERTY_SOURCES, read_joint_properties
 from isaaclab.utils.warp import ProxyArray
 
 from .actuator_base_cfg import ActuatorBaseCfg
@@ -22,16 +23,7 @@ if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
     from .newton.adapter import NewtonActuatorSelection
 
-_JOINT_PROPERTY_KEYS = (
-    "stiffness",
-    "damping",
-    "armature",
-    "friction",
-    "dynamic_friction",
-    "viscous_friction",
-    "joint_effort_limit",
-    "joint_velocity_limit",
-)
+_JOINT_PROPERTY_KEYS = tuple(JOINT_PROPERTY_SOURCES)
 """Keys of the joint-property payload exchanged between the collection and backend control.
 
 Each key maps to a group-shaped ``torch.Tensor``:
@@ -410,21 +402,8 @@ class ArticulationActuatorControl(ActuatorControl):
     def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> dict[str, torch.Tensor]:
         if isinstance(joint_ids, wp.array):
             joint_ids = wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
-        data = self._articulation.data
-        stiffness = data.joint_stiffness.torch[:, joint_ids]
         return {
-            "stiffness": stiffness.clone(),
-            "damping": data.joint_damping.torch[:, joint_ids].clone(),
-            "armature": data.joint_armature.torch[:, joint_ids].clone(),
-            "friction": data.joint_friction_coeff.torch[:, joint_ids].clone(),
-            "dynamic_friction": self._joint_property_or_zeros(
-                "joint_dynamic_friction_coeff", joint_ids, stiffness
-            ).clone(),
-            "viscous_friction": self._joint_property_or_zeros(
-                "joint_viscous_friction_coeff", joint_ids, stiffness
-            ).clone(),
-            "joint_effort_limit": data.joint_effort_limits.torch[:, joint_ids].clone(),
-            "joint_velocity_limit": data.joint_vel_limits.torch[:, joint_ids].clone(),
+            name: value[:, joint_ids].clone() for name, value in read_joint_properties(self._articulation.data).items()
         }
 
     def write_resolved_joint_properties(
@@ -457,14 +436,3 @@ class ArticulationActuatorControl(ActuatorControl):
         else:
             articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=joint_ids)
             articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=joint_ids)
-
-    def _joint_property_or_zeros(
-        self,
-        attr_name: str,
-        joint_ids: torch.Tensor | wp.array | slice,
-        reference: torch.Tensor,
-    ) -> torch.Tensor:
-        joint_property = getattr(self._articulation.data, attr_name, None)
-        if joint_property is None:
-            return torch.zeros_like(reference)
-        return joint_property.torch[:, joint_ids]

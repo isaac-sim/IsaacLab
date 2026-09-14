@@ -128,6 +128,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def __len__(self) -> int:
         return len(self._groups)
 
+    @property
+    def usd_actuator_groups(self) -> frozenset[str]:
+        """Groups executed from authored NewtonActuator schemas rather than Python-only controllers."""
+        return frozenset(self._native_group_names)
+
     def __setitem__(self, name: str, actuator: ActuatorBase) -> None:
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
 
