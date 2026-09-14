@@ -577,7 +577,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
         # Bodies sync at render cadence, so after a ``render=False`` step the local derivation below
         # would read a stale parent. No-op when clean.
-        NewtonManager.sync_transforms_to_usd()
+        NewtonManager.sync_transforms_to_fabric()
 
         count = self._fabric_sel.count
         pos_ta, quat_ta = self._get_world_poses_impl(None)

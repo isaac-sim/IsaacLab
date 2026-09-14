@@ -1071,7 +1071,7 @@ def _force_newton_transforms_resync() -> None:
 
         if NewtonManager._usdrt_stage is not None and NewtonManager._state_0 is not None:
             NewtonManager._transforms_dirty = True
-            NewtonManager.sync_transforms_to_usd()
+            NewtonManager.sync_transforms_to_fabric()
             NewtonManager._particles_dirty = True
             NewtonManager.sync_particles_to_usd()
 
