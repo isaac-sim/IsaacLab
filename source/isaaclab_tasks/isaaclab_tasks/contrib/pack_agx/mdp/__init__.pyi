@@ -10,9 +10,7 @@ __all__ = [
     "agx_in_box_from_pose",
     "agx_is_horizontal_from_quat",
     "align_agx_reward",
-    "align_backdrop_radiance",
     "align_prop_material",
-    "align_robot_arm_material",
     "align_table_material",
     "get_pack_agx_state",
     "get_robot_joint_states",
@@ -28,9 +26,7 @@ __all__ = [
 
 from .actions import H2GravityCompensatedJointPositionAction
 from .events import (
-    align_backdrop_radiance,
     align_prop_material,
-    align_robot_arm_material,
     align_table_material,
     reset_task_stage,
 )

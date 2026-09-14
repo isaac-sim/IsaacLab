@@ -30,3 +30,12 @@ Changed
   container-specific path to ``.pretrained_checkpoints/rlinf/Assemble_Trocar``, the location that
   ``scripts/reinforcement_learning/rlinf/setup_rlinf.py`` downloads the checkpoint to. Pass
   ``--model_path`` to use a checkpoint stored elsewhere.
+* Changed the H2 + Sharpa robot USD to carry its own material bindings. The wrist camera brackets and
+  spacers are black plastic on the real robot but shipped without a material, so they fell back to the
+  renderer's default white surface; twelve further meshes had no material either. The bindings are now
+  authored in the asset, which removes ``align_robot_arm_material`` from the AGX Orin packing task and
+  gives every task the same robot appearance. Re-download the asset bundle to pick it up.
+* Changed the NuRec backdrop capture to carry its dimmed colour-correction matrix. The AGX Orin
+  packing task scaled it at startup so the back panel sat below the tabletop the way the real
+  recording shows; the scale is now baked into the capture, which removes
+  ``align_backdrop_radiance`` and gives the pick-and-place apple task the same backdrop.
