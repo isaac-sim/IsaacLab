@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
-from isaaclab_tasks.contrib.h2_sharpa.camera_config import CameraPresets
-from isaaclab_tasks.contrib.h2_sharpa.robot_config import H2RobotPresets
+from ..camera_config import CameraPresets
+from ..robot_config import H2RobotPresets
 
 TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256.usd"
 AGX_ORIN_USD = f"{PROP_ASSET_ROOT}/Assets/MiniPc001/MiniPc001.usd"

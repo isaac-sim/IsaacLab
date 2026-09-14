@@ -17,9 +17,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.contrib.h2_sharpa.metadata import H2_ACTION_JOINT_ORDER
-from isaaclab_tasks.contrib.h2_sharpa.robot_config import h2_body_joint_offsets
-
 from . import mdp
 from .config import (
     APPLE_USD,
@@ -32,6 +29,8 @@ from .config import (
     CameraPresets,
     H2RobotPresets,
 )
+from .metadata import H2_ACTION_JOINT_ORDER
+from .robot_config import h2_body_joint_offsets
 
 # Compatibility alias; action order differs from Isaac articulation order.
 h2_joint_names = H2_ACTION_JOINT_ORDER

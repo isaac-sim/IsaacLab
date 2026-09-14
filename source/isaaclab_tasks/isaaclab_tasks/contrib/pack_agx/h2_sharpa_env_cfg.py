@@ -20,13 +20,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.contrib.h2_sharpa.metadata import (
-    ACTION_DIM,
-    H2_ACTION_JOINT_ORDER,
-    POLICY_58_ORDER,
-)
-from isaaclab_tasks.contrib.h2_sharpa.robot_config import h2_body_joint_offsets
-
 from . import mdp
 from .config import (
     AGX_ORIN_USD,
@@ -36,6 +29,12 @@ from .config import (
     CameraPresets,
     H2RobotPresets,
 )
+from .metadata import (
+    ACTION_DIM,
+    H2_ACTION_JOINT_ORDER,
+    POLICY_58_ORDER,
+)
+from .robot_config import h2_body_joint_offsets
 
 # Reuse the proven bimanual, camera-facing H2 teleop pose until a pack-task
 # recording supplies a task-specific frame-zero pose.
