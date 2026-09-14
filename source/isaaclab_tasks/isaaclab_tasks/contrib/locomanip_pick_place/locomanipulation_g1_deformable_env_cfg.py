@@ -133,7 +133,7 @@ class PhysicsCfg(PresetCfg):
         # A humanoid's weight on two feet sinks into Newton's default ``ke=2.5e3``; see the rigid
         # task's preset.
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
-        num_substeps=4,
+        num_substeps=2,
     )
 
     default = newton_mjwarp_vbd_proxy
