@@ -14,15 +14,20 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import weakref
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import numpy as np
 import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
+from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
+import omni.physx
 import omni.timeline
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -908,6 +913,112 @@ def test_isaac_event_triggered_on_reset(event_type):
         # cleanup callback
         if callback_id is not None:
             PhysxManager.deregister_callback(callback_id)
+
+
+@pytest.mark.isaacsim_ci
+def test_forward_and_clean_render_do_not_emit_native_step_callbacks():
+    """Forward and clean renders must not emit native physics-step callbacks."""
+    sim = SimulationContext(SimulationCfg(dt=0.01))
+    sim.reset()
+
+    with (
+        _temporary_bool_setting(sim, "/isaaclab/video/enabled", False),
+        _native_step_callback_counts() as callback_counts,
+    ):
+        sim.forward()
+        sim.render()
+
+        assert sim.get_physics_step_count() == 0
+        assert callback_counts == {"pre": 0, "post": 0}
+
+        sim.step(render=False)
+
+        assert sim.get_physics_step_count() == 1
+        assert callback_counts == {"pre": 1, "post": 1}
+
+
+@pytest.mark.isaacsim_ci
+def test_forward_coalesces_pending_tensor_pose_writes():
+    """Forward must synchronize multiple same-step tensor pose writes exactly once."""
+    sim = SimulationContext(SimulationCfg(dt=0.01))
+    cube = RigidObject(
+        RigidObjectCfg(
+            prim_path="/World/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=PhysxRigidBodyPropertiesCfg(),
+                collision_props=PhysxCollisionPropertiesCfg(),
+            ),
+        )
+    )
+    sim.reset()
+
+    with _native_step_callback_counts() as callback_counts:
+        initial_scene_revision = sim.render_context.scene_state_revision
+        root_pose = cube.data.default_root_pose.torch.clone()
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        assert sim.render_context.scene_state_revision == initial_scene_revision + 1
+
+        sim.forward()
+
+        assert sim.get_physics_step_count() == 0
+        assert callback_counts == {"pre": 1, "post": 1}
+        assert sim.render_context.scene_state_revision == initial_scene_revision + 1
+
+        sim.forward()
+
+        assert callback_counts == {"pre": 1, "post": 1}
+
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        sim.step(render=False)
+        assert sim.render_context.scene_state_revision == initial_scene_revision + 2
+
+        assert sim.get_physics_step_count() == 1
+        assert callback_counts == {"pre": 2, "post": 2}
+
+        sim.forward()
+
+        assert callback_counts == {"pre": 2, "post": 2}
+        assert sim.render_context.scene_state_revision == initial_scene_revision + 2
+
+
+@contextmanager
+def _temporary_bool_setting(sim: SimulationContext, path: str, value: bool) -> Iterator[None]:
+    """Temporarily override a process-global simulation setting."""
+    previous_value = bool(sim.get_setting(path))
+    sim.set_setting(path, value)
+    try:
+        yield
+    finally:
+        sim.set_setting(path, previous_value)
+
+
+@contextmanager
+def _native_step_callback_counts() -> Iterator[dict[str, int]]:
+    """Count callbacks emitted directly by the native PhysX interface."""
+    callback_counts = {"pre": 0, "post": 0}
+
+    def on_pre_step(_dt: float):
+        callback_counts["pre"] += 1
+
+    def on_post_step(_dt: float):
+        callback_counts["post"] += 1
+
+    physx_interface = omni.physx.get_physx_interface()
+    subscriptions = [
+        physx_interface.subscribe_physics_on_step_events(on_pre_step, pre_step=True, order=0),
+        physx_interface.subscribe_physics_on_step_events(on_post_step, pre_step=False, order=0),
+    ]
+
+    try:
+        yield callback_counts
+    finally:
+        subscriptions.clear()
 
 
 @pytest.mark.isaacsim_ci

@@ -388,6 +388,7 @@ class PhysxManager(PhysicsManager):
     _stage_id: ClassVar[int] = -1
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
+    _pending_tensor_pose_write_step: ClassVar[int | None] = None
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
@@ -487,6 +488,8 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def forward(cls) -> None:
         """Update articulation kinematics and fabric for rendering."""
+        if cls._pending_tensor_pose_write_step is not None:
+            cls._sync_pending_tensor_pose_write()
         sim = PhysicsManager._sim
         if cls._fabric is not None and cls._update_fabric is not None:
             if cls._view is not None and sim is not None and sim.is_playing():
@@ -561,6 +564,37 @@ class PhysxManager(PhysicsManager):
             if cls._timeline.is_stopped():
                 break
         cls._sync_fabric_after_resume()
+
+    @classmethod
+    def _mark_tensor_pose_write(cls) -> None:
+        """Record a successful tensor pose write and invalidate rendered scene state."""
+        sim = PhysicsManager._sim
+        if sim is None:
+            return
+        write_step = sim.get_physics_step_count()
+        if cls._pending_tensor_pose_write_step == write_step:
+            return
+        cls._pending_tensor_pose_write_step = write_step
+        sim.render_context.mark_scene_state_dirty()
+
+    @classmethod
+    def _sync_pending_tensor_pose_write(cls) -> None:
+        """Synchronize a pending tensor pose write before forwarding to Fabric."""
+        pending_write_step = cls._pending_tensor_pose_write_step
+        if pending_write_step is None or not cls._view_created:
+            return
+
+        sim = PhysicsManager._sim
+        cls._pending_tensor_pose_write_step = None
+        if sim is None or sim.get_physics_step_count() != pending_write_step:
+            return
+
+        try:
+            omni.physx.get_physx_interface().update_simulation(cls.get_physics_dt(), 0.0)
+        except Exception:
+            if cls._pending_tensor_pose_write_step is None:
+                cls._pending_tensor_pose_write_step = pending_write_step
+            raise
 
     @classmethod
     def _sync_fabric_after_resume(cls) -> None:
@@ -949,6 +983,7 @@ class PhysxManager(PhysicsManager):
         physx.start_simulation()
         physx.update_simulation(cls.get_physics_dt(), 0.0)
         physx_sim.fetch_results()
+        cls._pending_tensor_pose_write_step = None
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
 
@@ -984,6 +1019,7 @@ class PhysxManager(PhysicsManager):
         cls._view = None
         cls._view_warp = None
         cls._view_created = False
+        cls._pending_tensor_pose_write_step = None
 
     @classmethod
     def _on_play(cls, event: Any) -> None:

@@ -236,6 +236,32 @@ def test_reset_scene_state_cadence_allows_repeat_update_scene_state_same_step():
     assert len(hits) == 2
 
 
+def test_scene_state_revision_tracks_dirty_and_rendered_state():
+    """Rendering an older revision must not clear a newer scene mutation."""
+    ctx = RenderContext()
+
+    assert ctx.scene_state_revision == 0
+    assert not ctx.scene_state_is_rendered
+
+    ctx.mark_scene_state_dirty()
+    first_revision = ctx.scene_state_revision
+
+    assert first_revision == 1
+    assert not ctx.scene_state_is_rendered
+
+    ctx.mark_scene_state_dirty()
+
+    assert ctx.scene_state_revision == 2
+
+    ctx.mark_scene_state_rendered(first_revision)
+
+    assert not ctx.scene_state_is_rendered
+
+    ctx.mark_scene_state_rendered(ctx.scene_state_revision)
+
+    assert ctx.scene_state_is_rendered
+
+
 def test_close_closes_every_backend_once_and_drops_them():
     """``close`` closes each registered backend exactly once and empties the context."""
     ctx = RenderContext()

@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 import time
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 # Stub ``omni`` / ``omni.usd`` in ``sys.modules`` before importing the module
 # under test so its top-level ``import omni.usd`` succeeds outside a running
@@ -46,7 +46,7 @@ MOCK_ITERATIONS_BEFORE_IDLE = 3
 @pytest.fixture(autouse=True)
 def _reset_globals(monkeypatch):
     """Restore module-level state so tests are isolated."""
-    monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1))
+    monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1, -1))
 
 
 @pytest.fixture()
@@ -225,6 +225,8 @@ class TestEnsureIsaacRtxRenderUpdate:
         sim.render_generation = 0
         sim.is_rendering = True
         sim.visualizers = []
+        sim.render_context.scene_state_revision = 0
+        sim.render_context.scene_state_is_rendered = True
         return sim
 
     @pytest.fixture()
@@ -263,6 +265,7 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_called_once()
+        mock_sim.render_context.mark_scene_state_rendered.assert_called_once_with(0)
 
     def test_second_call_with_visualizer_skips_pump(
         self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
@@ -284,6 +287,7 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
+        mock_sim.render_context.mark_scene_state_rendered.assert_called_once_with(0)
 
     def test_no_sim_is_noop(self, mock_sim_context, mock_omni_kit_app):
         """No-op when SimulationContext.instance() returns None."""
@@ -307,10 +311,36 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
             mock_app.update.assert_called_once()
             mock_app.update.reset_mock()
+            mock_sim.physics_manager.forward.reset_mock()
 
             rtx_utils.ensure_isaac_rtx_render_update()
 
+        mock_sim.physics_manager.forward.assert_not_called()
         mock_app.update.assert_not_called()
+        mock_sim.render_context.mark_scene_state_rendered.assert_called_once_with(0)
+
+    def test_scene_mutation_bypasses_same_step_dedup(
+        self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
+    ):
+        """A pose write after a frame must invalidate same-step frame deduplication."""
+        mock_app = MagicMock()
+        mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
+
+        with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
+            rtx_utils.ensure_isaac_rtx_render_update()
+            mock_app.update.reset_mock()
+            mock_sim.physics_manager.forward.reset_mock()
+            mock_sim.render_context.mark_scene_state_rendered.reset_mock()
+
+            mock_sim.render_context.scene_state_revision = 1
+            mock_sim.render_context.scene_state_is_rendered = False
+            mock_sim.visualizers = [pumping_visualizer]
+            rtx_utils.ensure_isaac_rtx_render_update()
+
+        mock_sim.physics_manager.forward.assert_called_once_with()
+        mock_app.update.assert_called_once_with()
+        mock_sim.render_context.mark_scene_state_rendered.assert_called_once_with(1)
 
     def test_not_rendering_skips(self, mock_sim, mock_sim_context, mock_omni_kit_app):
         """No ``app.update()`` when rendering is disabled."""
@@ -321,4 +351,22 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         rtx_utils.ensure_isaac_rtx_render_update()
 
+        mock_sim.physics_manager.forward.assert_not_called()
         mock_app.update.assert_not_called()
+
+    def test_restores_play_state_when_app_update_fails(self, mock_sim, mock_sim_context, mock_omni_kit_app):
+        """An app-update failure must not leak a changed Kit playback state."""
+        mock_sim.get_setting.return_value = False
+        mock_app = MagicMock()
+        mock_app.update.side_effect = RuntimeError("update failed")
+        mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
+
+        with pytest.raises(RuntimeError, match="update failed"):
+            rtx_utils.ensure_isaac_rtx_render_update()
+
+        assert mock_sim.set_setting.call_args_list == [
+            call(rtx_utils._PLAY_SIMULATIONS_SETTING, False),
+            call(rtx_utils._PLAY_SIMULATIONS_SETTING, False),
+        ]
+        mock_sim.render_context.mark_scene_state_rendered.assert_not_called()
