@@ -57,44 +57,6 @@ def align_table_material(
         UsdShade.MaterialBindingAPI.Apply(prim).Bind(material, bindingStrength=UsdShade.Tokens.strongerThanDescendants)
 
 
-def align_robot_arm_material(
-    env,
-    env_ids,
-    diffuse: float = 0.38,
-    hardware_diffuse: float = 0.013,
-) -> None:
-    """Give the robot's material-less meshes a surface to shade with.
-
-    The authored arm materials already land within ~10/255 of the real recording,
-    so they are left alone.  Retouching their constants was worse on both counts:
-    a high metallic reads uneven between the two hands (87 against 120) because a
-    metal shows only reflections, and their albedo comes from textures, which
-    ``diffuse_color_constant`` does not feed.
-
-    The forearm, camera-bracket and spacer meshes carry no material binding at
-    all; without one they fall back to the default white surface.  The brackets
-    and spacers are black plastic on the real robot, so they get their own dark
-    material instead of the arm metal.
-    """
-    del env_ids
-    stage = env.scene.stage
-    for index in range(env.scene.num_envs):
-        root = f"/World/envs/env_{index}/Robot"
-        fallback = _preview_material(stage, f"{root}/Looks/AlignedUnbound", diffuse, 0.25, 0.45)
-        hardware = _preview_material(stage, f"{root}/Looks/AlignedHardware", hardware_diffuse, 0.0, 0.6)
-        for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
-            path = str(prim.GetPath())
-            if prim.GetTypeName() != "Mesh" or "/visuals" not in path:
-                continue
-            black_plastic = "camera_bracket" in path or "spacer_cylinder" in path
-            bound, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()
-            if black_plastic or not bound or not bound.GetPrim().IsValid():
-                UsdShade.MaterialBindingAPI.Apply(prim).Bind(
-                    hardware if black_plastic else fallback,
-                    bindingStrength=UsdShade.Tokens.strongerThanDescendants,
-                )
-
-
 def align_prop_material(
     env,
     env_ids,
@@ -135,28 +97,6 @@ def align_prop_material(
             # be created before they can be driven.
             for name, (value_type, value) in inputs.items():
                 shader.CreateInput(name, value_type).Set(value)
-
-
-def align_backdrop_radiance(env, env_ids, scale: tuple[float, float, float] = (0.130, 0.132, 0.137)) -> None:
-    """Dim the baked NuRec backdrop through its color-correction matrix.
-
-    The backdrop is an emissive Gaussian volume, so scene lights cannot change
-    its brightness at all.  Scaling the CCM rows is the only way to make the back
-    panel darker than the tabletop the way the real recording shows, and it keeps
-    the baked texture detail intact.  The rows are scaled separately because a
-    single factor leaves the panel short of blue and it reads yellow.
-    """
-    del env_ids
-    stage = env.scene.stage
-    for index in range(env.scene.num_envs):
-        root = stage.GetPrimAtPath(f"/World/envs/env_{index}/background")
-        for prim in Usd.PrimRange(root):
-            if prim.GetAttribute("fieldRole").Get() != "emissiveColor":
-                continue
-            for channel, factor in zip(("ccmR", "ccmG", "ccmB"), scale, strict=True):
-                attr = prim.GetAttribute(f"omni:nurec:{channel}")
-                row = attr.Get()
-                attr.Set(type(row)(row[0] * factor, row[1] * factor, row[2] * factor, row[3]))
 
 
 def reset_task_stage(

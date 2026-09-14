@@ -53,9 +53,61 @@ class H2PnpAppleSceneCfg(InteractiveSceneCfg):
             usd_path=BACKGROUND_USD,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(-1.30, -0.30, 2.0),
+            pos=(-1.35, -0.45, 2.0),
             rot=(0.0, 0.0, 0.70710678, 0.70710678),
         ),
+    )
+
+    # The enclosing room keeps the rendered surroundings identical to the AGX Orin
+    # packing task instead of an open ground plane behind the capture.
+    room_left = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_left",
+        spawn=sim_utils.CuboidCfg(
+            size=(4.0, 0.05, 3.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 2.0, 1.5)),
+    )
+    room_right = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_right",
+        spawn=sim_utils.CuboidCfg(
+            size=(4.0, 0.05, 3.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, -2.0, 1.5)),
+    )
+    room_front = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_front",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.05, 4.0, 3.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.5, 0.0, 1.5)),
+    )
+    room_back = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_back",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.05, 4.0, 3.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-2.5, 0.0, 1.5)),
+    )
+    room_ceiling = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_ceiling",
+        spawn=sim_utils.CuboidCfg(
+            size=(4.0, 4.0, 0.05),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.44, 0.43), roughness=0.8, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 0.0, 3.0)),
+    )
+
+    room_floor = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/room_floor",
+        spawn=sim_utils.CuboidCfg(
+            size=(8.0, 8.0, 0.02),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.21), roughness=0.9, metallic=0.0),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.5, 0.0, 0.02)),
     )
 
     ground = AssetBaseCfg(
@@ -117,46 +169,14 @@ class H2PnpAppleSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # Dome and distant lights are infinite: a copy per env would light every other
-    # env as well, so N envs render brighter and flatter than the N=1 the SFT data
-    # was collected at. Only the local cylinder strip below is cloned per env.
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(
-            color=(1.0, 0.90, 0.80),
-            intensity=420.0,
-        ),
-    )
-
-    top_light_1 = AssetBaseCfg(
-        prim_path="/World/top_light_1",
-        spawn=sim_utils.DistantLightCfg(
-            color=(1.0, 0.92, 0.84),
-            intensity=1500.0,
-            angle=5.0,
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            rot=(0.8259431, 0.1503529, 0.4768585, 0.2604189),
-        ),
-    )
-
-    top_light_2 = AssetBaseCfg(
-        prim_path="/World/top_light_2",
-        spawn=sim_utils.DistantLightCfg(
-            color=(1.0, 0.95, 0.88),
-            intensity=1000.0,
-            angle=5.0,
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            rot=(0.8259431, -0.1503529, 0.4768585, -0.2604189),
-        ),
-    )
-
+    # The room encloses the scene, so every light is local to the env. An infinite
+    # dome or distant light would be blocked by the ceiling, and a copy per env
+    # would light every other env as well.
     overhead_strip = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/overhead_strip",
         spawn=sim_utils.CylinderLightCfg(
             color=(1.0, 0.96, 0.90),
-            intensity=2200.0,
+            intensity=36000.0,
             length=1.1,
             radius=0.025,
             treat_as_line=True,
@@ -164,6 +184,19 @@ class H2PnpAppleSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(-0.92, 0.0, 2.35),
             rot=(0.70710678, 0.70710678, 0.0, 0.0),
+        ),
+    )
+
+    table_bounce = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/table_bounce",
+        spawn=sim_utils.DiskLightCfg(
+            color=(1.0, 0.96, 0.92),
+            intensity=60.0,
+            radius=1.0,
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(-0.5, 0.0, 1.06),
+            rot=(0.0, 1.0, 0.0, 0.0),
         ),
     )
 
