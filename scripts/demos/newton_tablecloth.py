@@ -68,7 +68,6 @@ SUBSTEPS = 25
 VIDEO_STEPS = 240
 VIDEO_OUTPUT_DIR = "videos/newton_tablecloth"
 VIDEO_RESOLUTION = (1920, 1080)
-VIDEO_BITRATE = "20M"
 SETTLE_TIME = 0.5
 PULL_DISTANCE = 1.25
 PULL_RAMP_TIME = 0.40
@@ -595,7 +594,6 @@ def _create_video_recorder(sim, video_length: int):
             output_dir=VIDEO_OUTPUT_DIR,
             output_filename_prefix="newton_tablecloth",
             fps=FPS,
-            video_bitrate=VIDEO_BITRATE,
             video_length=video_length,
         ),
         _StandaloneVideoTarget(sim),

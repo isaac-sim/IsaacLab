@@ -252,9 +252,6 @@ Clip control
    * - ``fps``
      - ``None``
      - Output frame rate; ``None`` resolves from ``env.metadata["render_fps"]`` or ``1 / step_dt``
-   * - ``video_bitrate``
-     - ``None``
-     - Encoder target bitrate such as ``"20M"``; ``None`` uses the encoder default
    * - ``output_dir``
      - ``"videos"``
      - Directory for output files (created on demand)

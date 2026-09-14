@@ -231,7 +231,6 @@ def test_vbd_rigid_solver_cfg_is_forwarded(monkeypatch):
             model,
             *,
             rigid_compliant_alm,
-            rigid_contact_history,
             rigid_body_contact_buffer_size,
             rigid_joint_linear_ke,
             rigid_joint_angular_ke,
@@ -243,7 +242,6 @@ def test_vbd_rigid_solver_cfg_is_forwarded(monkeypatch):
     monkeypatch.setattr(vbd_module, "SolverVBD", Solver)
     cfg = physics.VBDSolverCfg(
         rigid_compliant_alm=True,
-        rigid_contact_history=True,
         rigid_body_contact_buffer_size=128,
         rigid_joint_linear_ke=2.0e5,
         rigid_joint_angular_ke=3.0e5,
@@ -256,21 +254,11 @@ def test_vbd_rigid_solver_cfg_is_forwarded(monkeypatch):
     assert isinstance(result, Solver)
     assert received["model"] == "model"
     assert received["rigid_compliant_alm"] is True
-    assert received["rigid_contact_history"] is True
     assert received["rigid_body_contact_buffer_size"] == 128
     assert received["rigid_joint_linear_ke"] == 2.0e5
     assert received["rigid_joint_angular_ke"] == 3.0e5
     assert received["rigid_joint_linear_kd"] == 20.0
     assert received["rigid_joint_angular_kd"] == 30.0
-
-
-def test_vbd_contact_matching_cfg_is_forwarded():
-    """Contact matching is available through the public collision config."""
-    physics = importlib.import_module("isaaclab_newton.physics")
-
-    pipeline_args = physics.NewtonCollisionPipelineCfg(contact_matching="sticky").to_pipeline_args()
-
-    assert pipeline_args["contact_matching"] == "sticky"
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

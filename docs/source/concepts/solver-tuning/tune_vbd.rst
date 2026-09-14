@@ -208,8 +208,6 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``rigid_compliant_alm``
       - Default: ``None``. Set to ``True`` for Newton's recommended compliant-ALM formulation for rigid joints and body-body contacts. ``False`` explicitly selects the deprecated legacy AVBD path; ``None`` retains that legacy behavior during Newton's migration window.
-    * - ``rigid_contact_history``
-      - Default: ``False``. Retains the numeric body-body contact warm start between steps. Requires ``contact_matching="latest"`` or ``"sticky"`` and buffers allocated before CUDA graph capture, so leave it disabled when the scene is stable without history.
     * - ``rigid_body_contact_buffer_size``
       - Default: ``64``. Per-body capacity for body-body contacts. Increase it if Newton reports a body-contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``

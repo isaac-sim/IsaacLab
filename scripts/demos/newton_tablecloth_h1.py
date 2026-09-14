@@ -83,7 +83,6 @@ SUBSTEPS = 16
 VIDEO_STEPS = 312
 VIDEO_OUTPUT_DIR = "videos/newton_tablecloth_h1"
 VIDEO_RESOLUTION = (1920, 1080)
-VIDEO_BITRATE = "20M"
 TABLE_TOP_Z = 1.09
 RIGID_GAP = 0.001
 TABLEWARE_CLEARANCE = 0.008
@@ -872,7 +871,6 @@ def _create_video_recorder(sim, video_length: int):
             output_dir=VIDEO_OUTPUT_DIR,
             output_filename_prefix="newton_tablecloth_h1",
             fps=FPS,
-            video_bitrate=VIDEO_BITRATE,
             video_length=video_length,
         ),
         _StandaloneVideoTarget(sim),
@@ -906,8 +904,6 @@ def main() -> None:
         solver_cfg=VBDSolverCfg(
             iterations=15,
             rigid_compliant_alm=True,
-            # History is unnecessary here and prevents CUDA graph capture.
-            rigid_contact_history=False,
             rigid_body_contact_buffer_size=512,
             rigid_body_particle_contact_buffer_size=8192,
             rigid_joint_linear_ke=1.0e6,

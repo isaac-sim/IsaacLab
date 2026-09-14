@@ -66,15 +66,6 @@ class VBDSolverCfg(NewtonSolverCfg):
     legacy default and emits its migration warning when VBD integrates rigid bodies.
     """
 
-    rigid_contact_history: bool = False
-    """Whether body-body contacts retain their numeric warm start between steps.
-
-    This requires ``contact_matching`` to be ``"latest"`` or ``"sticky"`` on
-    :class:`NewtonCollisionPipelineCfg`. Leave this disabled unless persistent
-    history is needed because the history buffers must be allocated before CUDA
-    graph capture.
-    """
-
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 
