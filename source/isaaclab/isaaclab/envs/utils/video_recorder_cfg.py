@@ -59,6 +59,12 @@ class VideoRecorderCfg:
     ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
     """
 
+    video_bitrate: str | None = None
+    """Target video bitrate passed to the encoder, such as ``"20M"`` or ``"5000k"``.
+
+    ``None`` (default) uses the encoder's default quality setting.
+    """
+
     video_length: int = 200
     """Number of env steps captured per clip."""
 

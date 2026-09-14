@@ -216,6 +216,7 @@ OVERRIDES = {
         args=("--max_steps", "2"),
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
+        required_modules=("isaacsim.asset.importer.mjcf",),
     ),
     "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(

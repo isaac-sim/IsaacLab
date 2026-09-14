@@ -311,9 +311,9 @@ def test_sensor_source_missing_logs_and_returns_none(caplog):
 # ---------------------------------------------------------------------------
 
 
-def test_close_clip_writes_mp4_via_moviepy():
+def test_close_clip_writes_mp4_via_moviepy(tmp_path):
     frames = [_FRAME.copy(), _FRAME.copy()]
-    recorder = VideoRecorder(_cfg(output_dir="/tmp/test_clips", fps=10), _make_env())
+    recorder = VideoRecorder(_cfg(output_dir=str(tmp_path), fps=10, video_bitrate="20M"), _make_env())
     recorder._frames = frames
     recorder._recording = True
 
@@ -323,7 +323,9 @@ def test_close_clip_writes_mp4_via_moviepy():
             recorder._close_clip()
 
     mock_cls.assert_called_once_with(frames, fps=10)
-    mock_clip.write_videofile.assert_called_once()
+    mock_clip.write_videofile.assert_called_once_with(
+        str(tmp_path / "clip_0000.mp4"), codec="libx264", bitrate="20M", audio=False, logger=None
+    )
     assert not recorder._recording
     assert recorder._frames == []
 

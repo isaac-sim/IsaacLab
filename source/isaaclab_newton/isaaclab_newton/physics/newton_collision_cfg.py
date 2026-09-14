@@ -161,6 +161,15 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``False`` (same as Newton's default).
     """
 
+    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    """Body-body contact correspondence mode across collision passes.
+
+    ``"disabled"`` rebuilds contacts without correspondence. ``"latest"``
+    matches against the preceding collision pass. ``"sticky"`` also retains a
+    persistent material anchor for frictional resting contact. Any enabled mode
+    also enables deterministic contact sorting and has additional runtime cost.
+    """
+
     requires_grad: bool | None = None
     """Whether to enable gradient computation for collision.
 

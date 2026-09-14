@@ -350,7 +350,13 @@ class VideoRecorder:
                     mean_pixel,
                 )
             clip = ImageSequenceClip(self._frames, fps=fps)
-            clip.write_videofile(path, codec="libx264", audio=False, logger=None)
+            clip.write_videofile(
+                path,
+                codec="libx264",
+                bitrate=self.cfg.video_bitrate,
+                audio=False,
+                logger=None,
+            )
             logger.info("[VideoRecorder] Wrote %d frames to %s", len(self._frames), path)
             self._clip_index += 1
             self._maybe_delete_old_clips()
