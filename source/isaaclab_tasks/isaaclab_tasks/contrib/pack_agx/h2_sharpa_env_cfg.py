@@ -379,11 +379,6 @@ class H2PackAgxOrinEventCfg:
         mode="startup",
         params={"diffuse": 0.75, "emissive": 0.0},
     )
-    align_robot_arm_material = EventTermCfg(
-        func=mdp.align_robot_arm_material,
-        mode="startup",
-        params={"diffuse": 0.38, "hardware_diffuse": 0.013},
-    )
     align_agx_material = EventTermCfg(
         func=mdp.align_prop_material,
         mode="reset",
@@ -403,11 +398,6 @@ class H2PackAgxOrinEventCfg:
             "roughness": 0.85,
             "albedo_brightness": 2.6,
         },
-    )
-    align_backdrop_radiance = EventTermCfg(
-        func=mdp.align_backdrop_radiance,
-        mode="startup",
-        params={"scale": (0.130, 0.133, 0.141)},
     )
     reset_scene = EventTermCfg(
         func=base_mdp.reset_scene_to_default,
