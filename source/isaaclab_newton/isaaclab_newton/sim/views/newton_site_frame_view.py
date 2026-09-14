@@ -45,23 +45,23 @@ def _has_regex_tokens(pattern: str) -> bool:
 
 
 # One resolved site registration: (body_patterns, local transform, xform scale, per_world, env_ids,
-# destination prim paths).  The prim paths follow this spec's expansion order, and are ``None`` when
-# that expansion is a regex over bodies whose destination paths are not yet known.
-_SiteSpec = tuple[
-    tuple[str, ...] | None,
-    wp.transform,
-    tuple[float, float, float],
-    bool,
-    tuple[int, ...] | None,
-    tuple[str, ...] | None,
-]
+# destination prim paths).  Prim paths follow the spec's expansion order.
+_Strs = tuple[str, ...]
+_SiteSpec = tuple[_Strs | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None, _Strs | None]
+
+
+def _extend_prim_paths(collected: list[str] | None, paths: tuple[str, ...] | None, expected: int) -> list[str] | None:
+    """Append one spec's destination paths, or return ``None`` to give up on mirroring this view."""
+    if collected is None or paths is None or len(paths) != expected:
+        return None
+    collected.extend(paths)
+    return collected
 
 
 def _destination_prim_paths(
     prim_path: str, source_root: str | None, destination_template: str | None, env_ids: tuple[int, ...] | None
 ) -> tuple[str, ...]:
-    """Map a clone source prim to its per-environment destination paths, or to itself when it is not
-    part of a clone plan row."""
+    """Map a clone source prim to its per-environment destination paths, or to itself outside a plan row."""
     if source_root is None or destination_template is None or env_ids is None:
         return (prim_path,)
     suffix = prim_path if source_root == "/" else prim_path[len(source_root) :]
@@ -406,6 +406,7 @@ class NewtonSiteFrameView(BaseFrameView):
             if body_prim.HasAPI(UsdPhysics.RigidBodyAPI) or body_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 pos, quat = sim_utils.resolve_prim_pose(prim, body_prim)
                 body_path = body_prim.GetPath().pathString
+                spec_tail = (wp.transform(pos, quat), scale, False, env_ids, dest_paths)
                 if source_root is not None and destination_template is not None:
                     assert env_ids is not None
                     if body_path == source_root:
@@ -420,14 +421,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                 raise RuntimeError(
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
-                            return (
-                                (destination_root[: -len(suffix)],),
-                                wp.transform(pos, quat),
-                                scale,
-                                False,
-                                env_ids,
-                                dest_paths,
-                            )
+                            return ((destination_root[: -len(suffix)],), *spec_tail)
                         body_patterns = []
                         for env_id in env_ids:
                             destination_root = destination_template.format(env_id)
@@ -436,7 +430,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
                             body_patterns.append(destination_root[: -len(suffix)])
-                        return tuple(body_patterns), wp.transform(pos, quat), scale, False, env_ids, dest_paths
+                        return (tuple(body_patterns), *spec_tail)
                     else:
                         raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
                     if use_clone_body_pattern:
@@ -445,7 +439,7 @@ class NewtonSiteFrameView(BaseFrameView):
                         body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
                 else:
                     body_patterns = (body_path,)
-                return body_patterns, wp.transform(pos, quat), scale, False, env_ids, dest_paths
+                return (body_patterns, *spec_tail)
             body_prim = body_prim.GetParent()
 
         ref_path = source_root
@@ -483,11 +477,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 site_bodies.append(int(body_t[site_idx].item()))
                 site_locals.append([float(v) for v in xform_t[site_idx].tolist()])
                 site_scales.append(scale)
-            if site_prim_paths is not None:
-                if label_paths is None or len(label_paths) != len(site_indices):
-                    site_prim_paths = None
-                else:
-                    site_prim_paths.extend(label_paths)
+            site_prim_paths = _extend_prim_paths(site_prim_paths, label_paths, len(site_indices))
 
         self._create_buffers(site_bodies, site_locals, site_scales, site_prim_paths)
 
@@ -503,18 +493,7 @@ class NewtonSiteFrameView(BaseFrameView):
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
-
         site_prim_paths: list[str] | None = []
-
-        def record_paths(spec_paths: tuple[str, ...] | None, expected: int) -> None:
-            """Append this spec's destination paths, or give up on mirroring if they do not line up."""
-            nonlocal site_prim_paths
-            if site_prim_paths is None:
-                return
-            if spec_paths is None or len(spec_paths) != expected:
-                site_prim_paths = None
-            else:
-                site_prim_paths.extend(spec_paths)
 
         for body_patterns, xform, scale, per_world, env_ids, spec_paths in self._site_specs:
             if body_patterns is None:
@@ -527,12 +506,12 @@ class NewtonSiteFrameView(BaseFrameView):
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
-                    record_paths(spec_paths, len(world_ids))
+                    site_prim_paths = _extend_prim_paths(site_prim_paths, spec_paths, len(world_ids))
                 else:
                     site_bodies.append(WORLD_BODY_INDEX)
                     site_locals.append([float(v) for v in xform])
                     site_scales.append(scale)
-                    record_paths(spec_paths, 1)
+                    site_prim_paths = _extend_prim_paths(site_prim_paths, spec_paths, 1)
                 continue
 
             for index, body_pattern in enumerate(body_patterns):
@@ -550,7 +529,8 @@ class NewtonSiteFrameView(BaseFrameView):
                     site_bodies.append(body_idx)
                     site_locals.append([float(v) for v in xform])
                     site_scales.append(scale)
-                record_paths(None if spec_paths is None else (spec_paths[index],), len(matched_indices))
+                spec_path = None if spec_paths is None else (spec_paths[index],)
+                site_prim_paths = _extend_prim_paths(site_prim_paths, spec_path, len(matched_indices))
 
         self._create_buffers(site_bodies, site_locals, site_scales, site_prim_paths)
 
@@ -563,13 +543,12 @@ class NewtonSiteFrameView(BaseFrameView):
     ) -> None:
         """Allocate view buffers from body indices, local transforms, and destination prim paths."""
         self._count = len(site_bodies)
-        self._site_prim_paths = (
-            site_prim_paths if site_prim_paths is not None and len(site_prim_paths) == self._count else None
-        )
-        if self._site_prim_paths is None and self._count:
+        paired = site_prim_paths is not None and len(site_prim_paths) == self._count
+        self._site_prim_paths = site_prim_paths if paired else None
+        if not paired and self._count:
             logger.warning(
                 f"FrameView '{self._prim_path}' could not pair its sites with destination prims; pose writes"
-                " will update Newton state but will not be visible to the renderer."
+                " update Newton state but are not visible to the renderer."
             )
         device = self._device
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
@@ -590,57 +569,38 @@ class NewtonSiteFrameView(BaseFrameView):
     def _mirror_to_fabric(self) -> None:
         """Stamp the current site world poses onto the Fabric transforms the renderer reads.
 
-        The local matrix is written too because Newton's body sync ends in a hierarchy pass that
-        forward-propagates ``parent * local``, which would otherwise overwrite the world matrix for
-        frames under a body. The empty scale input tells the kernel to keep each matrix's existing
-        (accumulated parent) scale, matching how the body sync treats authored USD scale.
+        The local matrix is written too, else Newton's body sync forward-propagates ``parent * local``
+        over the world matrix for frames under a body.
         """
         if self._fabric_sel is None and not self._initialize_fabric_mirror():
             return
 
-        # Bodies sync to Fabric only at render cadence, so after a ``render=False`` step the local
-        # derivation below would read a parent still at its last rendered pose. No-op when clean.
+        # Bodies sync at render cadence, so after a ``render=False`` step the local derivation below
+        # would read a stale parent. No-op when clean.
         NewtonManager.sync_transforms_to_usd()
 
         count = self._fabric_sel.count
         pos_ta, quat_ta = self._get_world_poses_impl(None)
-        wp.launch(
-            _gather_mirrored_site_poses,
-            dim=count,
-            inputs=[pos_ta.warp, quat_ta.warp, self._mirror_site_indices],
-            outputs=[self._mirror_positions, self._mirror_orientations],
-            device=self._device,
-        )
+
+        def launch(kernel, inputs, outputs=()):
+            wp.launch(kernel, dim=count, inputs=inputs, outputs=outputs, device=self._device)
+
         world_ifa, local_ifa = self._fabric_sel.child_ifas()
-        wp.launch(
-            fabric_utils.compose_indexed_fabric_transforms,
-            dim=count,
-            inputs=[
-                world_ifa,
-                self._mirror_positions,
-                self._mirror_orientations,
-                self._mirror_empty_scales,
-                False,
-                False,
-                False,
-                self._fabric_sel.view_indices,
-            ],
-            device=self._device,
-        )
-        wp.launch(
-            fabric_utils.update_indexed_local_matrix_from_world,
-            dim=count,
-            inputs=[world_ifa, self._fabric_sel.parent_world_ifa(), local_ifa, self._fabric_sel.view_indices],
-            device=self._device,
-        )
+        parent_ifa = self._fabric_sel.parent_world_ifa()
+        view_indices = self._fabric_sel.view_indices
+        mirrored = [self._mirror_positions, self._mirror_orientations]
+        launch(_gather_mirrored_site_poses, [pos_ta.warp, quat_ta.warp, self._mirror_site_indices], mirrored)
+        # ``False`` x3: no broadcasting, every site has its own pose. The empty scale array keeps each
+        # matrix's accumulated-parent scale, as the body sync does for USD scale.
+        compose = [world_ifa, *mirrored, self._mirror_empty_scales, False, False, False, view_indices]
+        launch(fabric_utils.compose_indexed_fabric_transforms, compose)
+        launch(fabric_utils.update_indexed_local_matrix_from_world, [world_ifa, parent_ifa, local_ifa, view_indices])
 
     def _initialize_fabric_mirror(self) -> bool:
-        """Build the Fabric selection backing :meth:`_mirror_to_fabric`, returning whether there is
-        anything to mirror (a ``False`` result is sticky).
+        """Build the Fabric selection backing :meth:`_mirror_to_fabric` (a ``False`` result is sticky).
 
-        Seeding from USD is off because Newton never writes poses back, so it would reset the prim to
-        its spawn pose. Coverage can be partial: Newton clones physics without cloning USD, so a site
-        can be real while its destination prim exists on no stage, and those have nothing to draw.
+        Seeding from USD is off: Newton never writes poses back, so it would reset the prim to its spawn
+        pose. Coverage can be partial -- Newton clones physics without USD, so a site can outlive its prim.
         """
         if self._mirror_disabled or self._site_prim_paths is None or self._count == 0:
             self._mirror_disabled = True
@@ -669,8 +629,8 @@ class NewtonSiteFrameView(BaseFrameView):
                 " the rest have no prim on the stage (physics-only clones) and nothing to render."
             )
 
-        # Refreshing the read-write selection is what notifies the renderer: a write through the
-        # read-only one lands in Fabric, but the image keeps showing the old pose.
+        # Refreshing the read-write selection is what notifies the renderer; the read-only one would
+        # land in Fabric but keep showing the old pose.
         selection.read_write = True
         self._fabric_sel = selection
         self._mirror_site_indices = wp.array(selection.kept_indices, dtype=wp.int32, device=self._device)
@@ -693,8 +653,8 @@ class NewtonSiteFrameView(BaseFrameView):
     def __del__(self, _sys=sys):
         """Best-effort cleanup when the view is collected without :meth:`close`.
 
-        The repo's shutdown-safe idiom: ``sys`` is bound as a default argument so it survives module
-        teardown, and nothing runs during finalization, when the tags die with Fabric anyway.
+        ``sys`` is a default argument so it survives module teardown; nothing runs during finalization,
+        when the tags die with Fabric anyway.
         """
         if _sys.is_finalizing() or _sys.meta_path is None:
             return
@@ -930,9 +890,8 @@ class NewtonSiteFrameView(BaseFrameView):
 class _NewtonWriterMixin:
     """Mirrors the scope's pose writes onto Fabric on exit.
 
-    The mirror is a full-view sync, so it runs only when a pose actually changed -- and it runs on the
-    exception path too, since the Newton-side write is already committed. A mirror that fails while an
-    exception unwinds is logged rather than raised, so it cannot mask the original exception.
+    A full-view sync, so it runs only when a pose changed -- and on the exception path too, since the
+    Newton write is already committed. A mirror failing mid-unwind is logged, never masking the original.
     """
 
     def _enter_impl(self) -> None:
