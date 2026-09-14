@@ -19,7 +19,6 @@ from isaaclab_newton.physics import (
     NewtonCollisionPipelineCfg,
     NewtonSolverCfg,
 )
-from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
@@ -35,6 +34,24 @@ from .coupler_cfg import (
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
 )
+
+
+def _mpm_manager():
+    """Import the implicit-MPM manager on demand.
+
+    Importing it pulls in ``warp.fem``, which resolves to Kit's bundled Warp while ``warp._src``
+    resolves to the installed one, so the import raises in any app that loads ``omni.warp.core``.
+    A coupled task with no MPM entry must not trigger it.
+    """
+    from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
+
+    return NewtonMPMManager
+
+
+def _has_mpm_entry() -> bool:
+    """Whether the active coupled configuration owns an implicit-MPM entry."""
+    solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+    return any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ()))
 
 
 class NewtonCouplerManager(NewtonVBDManager):
@@ -208,26 +225,28 @@ class NewtonCouplerManager(NewtonVBDManager):
     @classmethod
     def _check_solver_status(cls) -> None:
         """Raise asynchronous failures from nested implicit-MPM solvers."""
-        NewtonMPMManager._check_solver_status()
+        if _has_mpm_entry():
+            _mpm_manager()._check_solver_status()
 
     @classmethod
     def _solver_specific_clear(cls) -> None:
         """Clear VBD hooks and cached nested-MPM solver references."""
         super()._solver_specific_clear()
-        NewtonMPMManager._solver_specific_clear()
+        if _has_mpm_entry():
+            _mpm_manager()._solver_specific_clear()
 
     @classmethod
     def _requires_initial_reset_before_graph_capture(cls) -> bool:
         """Capture coupled MPM only after the task authors its initial particle state."""
-        return bool(NewtonMPMManager._implicit_mpm_solvers())
+        return _has_mpm_entry() and bool(_mpm_manager()._implicit_mpm_solvers())
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
         """Reject capture when a nested MPM solver has dynamic storage."""
-        return all(
-            NewtonMPMManager._solver_supports_cuda_graph_capture(solver)
-            for solver in NewtonMPMManager._implicit_mpm_solvers()
-        )
+        if not _has_mpm_entry():
+            return True
+        mpm = _mpm_manager()
+        return all(mpm._solver_supports_cuda_graph_capture(solver) for solver in mpm._implicit_mpm_solvers())
 
     @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:

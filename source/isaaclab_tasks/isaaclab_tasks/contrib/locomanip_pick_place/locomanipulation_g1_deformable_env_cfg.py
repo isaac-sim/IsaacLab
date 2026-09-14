@@ -19,6 +19,7 @@ from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.utils.configclass import configclass
 
@@ -26,7 +27,12 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 
 from isaaclab_tasks.utils import PresetCfg
 
-from .locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg, LocomanipulationG1SceneCfg
+from .locomanipulation_g1_env_cfg import (
+    _PACKING_TABLE_COLLIDER_POS,
+    _PACKING_TABLE_COLLIDER_SIZE,
+    LocomanipulationG1EnvCfg,
+    LocomanipulationG1SceneCfg,
+)
 
 _OBJECT_SIZE = (0.06, 0.06, 0.06)
 """Edge lengths of the deformable object [m]."""
@@ -50,8 +56,15 @@ _HAND_PROXY_BODIES = [r"/World/envs/env_[^/]+/Robot/(left|right)_hand/.*_link"]
 _GROUND_SHAPE = r"/World/GroundPlane.*"
 """Static shape owned by the rigid entry, so the robot keeps its ground contact."""
 
-_TABLE_SHAPE = r"/World/envs/env_[^/]+/PackingTableCollider.*"
-"""Static shape owned by the soft entry, so the deformable rests on the table."""
+_TABLE_SHAPE_RIGID = r"/World/envs/env_[^/]+/PackingTableCollider.*"
+"""Tabletop shape owned by the rigid entry, so the robot cannot reach through the table."""
+
+_TABLE_SHAPE_SOFT = r"/World/envs/env_[^/]+/SoftPackingTableCollider.*"
+"""Tabletop shape owned by the soft entry, so the deformable rests on the table.
+
+A shape belongs to at most one entry, so the rigid and soft solvers cannot share one tabletop.
+This is a second collider coincident with :data:`_TABLE_SHAPE_RIGID`.
+"""
 
 
 @configclass
@@ -70,7 +83,7 @@ class PhysicsCfg(PresetCfg):
             entries=[
                 CouplerEntryCfg(
                     name="rigid",
-                    shape_label_patterns=[_GROUND_SHAPE],
+                    shape_label_patterns=[_GROUND_SHAPE, _TABLE_SHAPE_RIGID],
                     solver_cfg=MJWarpSolverCfg(
                         solver="newton",
                         integrator="implicitfast",
@@ -90,7 +103,7 @@ class PhysicsCfg(PresetCfg):
                     name="soft",
                     solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=256),
                     all_particles=True,
-                    shape_label_patterns=[_TABLE_SHAPE],
+                    shape_label_patterns=[_TABLE_SHAPE_SOFT],
                 ),
             ],
             proxies=[
@@ -108,15 +121,19 @@ class PhysicsCfg(PresetCfg):
             ],
             iterations=1,
         ),
+        # The Franka soft-lift preset carries its object with ``soft_contact_mu=10``, which the
+        # docs call an unphysical value. A fixed-base arm absorbs the resulting tangential force
+        # into its mount; a free-standing humanoid is torqued over by it, so friction stays
+        # physical here. Raise it if the object slips, but expect balance to degrade.
         soft_contact_cfg=NewtonSoftContactCfg(
             soft_contact_ke=8.0e3,
             soft_contact_kd=1.0e-2,
-            soft_contact_mu=10.0,
+            soft_contact_mu=1.0,
         ),
         # A humanoid's weight on two feet sinks into Newton's default ``ke=2.5e3``; see the rigid
         # task's preset.
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
-        num_substeps=2,
+        num_substeps=4,
     )
 
     default = newton_mjwarp_vbd_proxy
@@ -145,6 +162,17 @@ class LocomanipulationG1DeformableSceneCfg(LocomanipulationG1SceneCfg):
         ),
     )
 
+    # Coincident twin of ``packing_table_collider``, owned by the soft solver entry.
+    soft_packing_table_collider: AssetBaseCfg = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/SoftPackingTableCollider",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=list(_PACKING_TABLE_COLLIDER_POS)),
+        spawn=sim_utils.CuboidCfg(
+            size=_PACKING_TABLE_COLLIDER_SIZE,
+            visible=False,
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        ),
+    )
+
     # Coupled solvers hold contact forces in per-entry buffers and reject contact sensors outright.
     left_hand_contact = None
     right_hand_contact = None
@@ -153,9 +181,7 @@ class LocomanipulationG1DeformableSceneCfg(LocomanipulationG1SceneCfg):
         super().__post_init__()
         # The rigid task gates this collider on the ``newton_mjwarp`` preset name, which this
         # task does not use. Without it Newton emits no tabletop shape and the object falls through.
-        self.packing_table_collider.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True
-        )
+        self.packing_table_collider.spawn.collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
 
 
 @configclass
