@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
+import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -20,6 +21,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.physics import PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.benchmark.render_benchmark import render_benchmark_env_cfg
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
@@ -48,6 +50,81 @@ def test_default_scene_and_articulations():
     assert cfg.scene.num_envs == 4
     assert set(cfg.articulations) == {"robot", "cabinet"}
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
+    assert cfg.benchmark_mode == "render"
+
+
+def test_benchmark_mode_read_from_environment(monkeypatch):
+    """``BENCHMARK_MODE`` is how ``benchmark_renderer.py`` selects what a sweep measures."""
+    monkeypatch.setenv("BENCHMARK_MODE", "physics_render")
+
+    assert render_benchmark_env_cfg._read_benchmark_mode() == "physics_render"
+
+
+def test_benchmark_mode_rejects_unknown_value(monkeypatch):
+    """A typo must fail at launch rather than silently benchmark the default for a whole sweep."""
+    monkeypatch.setenv("BENCHMARK_MODE", "physics-only")
+
+    with pytest.raises(ValueError, match="physics-only"):
+        render_benchmark_env_cfg._read_benchmark_mode()
+
+
+def _fake_env_for_animation(mode: str, articulation) -> SimpleNamespace:
+    """Build the minimum ``RenderBenchmarkEnv`` surface :meth:`_animate_joints` touches."""
+    return SimpleNamespace(
+        cfg=SimpleNamespace(
+            benchmark_mode=mode,
+            joint_animation_amplitude=0.4,
+            joint_animation_freq_hz=0.35,
+            decimation=2,
+            sim=SimpleNamespace(dt=1.0 / 120.0),
+        ),
+        _anim_time=0.0,
+        _anim_phases={"robot": torch.zeros(1, 2)},
+        _articulations={"robot": articulation},
+    )
+
+
+class _RecordingArticulation:
+    """Articulation stub that records which drive path :meth:`_animate_joints` took."""
+
+    def __init__(self):
+        self.position_writes: list[torch.Tensor] = []
+        self.velocity_writes: list[torch.Tensor] = []
+        self.actuator_targets: list[torch.Tensor] = []
+        default_joint_pos = SimpleNamespace(torch=torch.zeros(1, 2))
+        soft_limits = SimpleNamespace(torch=torch.tensor([[[-1.0, 1.0], [-1.0, 1.0]]]))
+        self.data = SimpleNamespace(default_joint_pos=default_joint_pos, soft_joint_pos_limits=soft_limits)
+        self.actuators = SimpleNamespace(
+            target_command=SimpleNamespace(set_position_index=lambda value: self.actuator_targets.append(value))
+        )
+
+    def write_joint_position_to_sim_index(self, position):
+        self.position_writes.append(position)
+
+    def write_joint_velocity_to_sim_index(self, velocity):
+        self.velocity_writes.append(velocity)
+
+
+def test_render_mode_poses_joints_without_actuating():
+    """Render-only runs must not depend on the solver tracking a target to reach the frame's pose."""
+    articulation = _RecordingArticulation()
+
+    RenderBenchmarkEnv._animate_joints(_fake_env_for_animation("render", articulation))
+
+    assert len(articulation.position_writes) == 1
+    assert torch.equal(articulation.velocity_writes[0], torch.zeros(1, 2))
+    assert articulation.actuator_targets == []
+
+
+def test_physics_render_mode_drives_joints_through_the_actuators():
+    """Physics-plus-render runs must make the solver do an ordinary task's actuation work."""
+    articulation = _RecordingArticulation()
+
+    RenderBenchmarkEnv._animate_joints(_fake_env_for_animation("physics_render", articulation))
+
+    assert len(articulation.actuator_targets) == 1
+    assert articulation.position_writes == []
+    assert articulation.velocity_writes == []
 
 
 @pytest.mark.parametrize(

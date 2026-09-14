@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Direct environment for render-only benchmarking."""
+"""Direct environment for renderer and physics-plus-renderer benchmarking."""
 
 from __future__ import annotations
 
@@ -29,6 +29,13 @@ class RenderBenchmarkEnv(DirectRLEnv):
     sinusoid around its default joint positions. Actions are ignored and rewards are zero: the
     only output that matters is the camera image, and the only cost that matters is the time
     spent producing it.
+
+    How the sinusoid reaches the joints depends on
+    :attr:`~.render_benchmark_env_cfg.RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode`. In
+    ``"render"`` mode the pose is written straight into the simulation, so the frame a renderer
+    is timed on is the analytic pose and nothing has to be actuated to produce it. In
+    ``"physics_render"`` mode the pose becomes an actuator position target, so the solver tracks
+    it the way it would in an ordinary task and its cost is part of what the run measures.
     """
 
     cfg: RenderBenchmarkFrankaCabinetEnvCfg
@@ -140,12 +147,20 @@ class RenderBenchmarkEnv(DirectRLEnv):
         """Advance the animation clock and drive every joint to its sinusoidal target."""
         self._anim_time += self.cfg.sim.dt * self.cfg.decimation
         omega = 2.0 * math.pi * self.cfg.joint_animation_freq_hz
+        actuate = self.cfg.benchmark_mode == "physics_render"
         for name, articulation in self._articulations.items():
             default_pos = articulation.data.default_joint_pos.torch
             offset = self.cfg.joint_animation_amplitude * torch.sin(omega * self._anim_time + self._anim_phases[name])
             soft_limits = articulation.data.soft_joint_pos_limits.torch
             target = torch.clamp(default_pos + offset, soft_limits[..., 0], soft_limits[..., 1])
-            articulation.actuators.target_command.set_position_index(value=target)
+            if actuate:
+                articulation.actuators.target_command.set_position_index(value=target)
+            else:
+                # Pose the articulation directly. The velocity write keeps the solver from
+                # carrying momentum across a pose it never integrated toward, which would show up
+                # as contacts and joint-limit work that the rendered frame does not depend on.
+                articulation.write_joint_position_to_sim_index(position=target)
+                articulation.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
 
     # --- DirectRLEnv plumbing ------------------------------------------------
 

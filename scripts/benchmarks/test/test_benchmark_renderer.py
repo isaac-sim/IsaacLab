@@ -41,6 +41,21 @@ def test_render_scope_matches_render_context(benchmark_renderer):
     assert benchmark_renderer.RENDER_SCOPE == RENDER_PROFILE_SCOPE
 
 
+def test_physics_scope_matches_simulation_context(benchmark_renderer):
+    """The script's physics timer name must match the one the simulation prints."""
+    from isaaclab.sim.simulation_context import PHYSICS_PROFILE_SCOPE
+
+    assert benchmark_renderer.PHYSICS_SCOPE == PHYSICS_PROFILE_SCOPE
+
+
+def test_modes_match_the_task(benchmark_renderer):
+    """``--mode`` must offer exactly the modes the task accepts, or a run silently measures
+    something other than what was asked for."""
+    from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg import BENCHMARK_MODES
+
+    assert benchmark_renderer.MODES == BENCHMARK_MODES
+
+
 def test_pixels_per_second(benchmark_renderer):
     """Throughput is env count times tile area, scaled from milliseconds to seconds."""
     assert benchmark_renderer.pixels_per_second(median_ms=1000.0, num_envs=4, resolution=256) == pytest.approx(
@@ -75,16 +90,25 @@ def test_build_record_failed(benchmark_renderer):
 
 
 _RENDER_SCOPE = "IsaacLab::Renderer::render"
+_PHYSICS_SCOPE = "IsaacLab::Physics::step"
 
 
-def _write_log(path: Path, timings_ms: list[float]) -> None:
+def _write_log(path: Path, timings_ms: list[float], physics_ms: list[float] | None = None) -> None:
     """Write a synthetic run log with one ``wp.ScopedTimer`` print line per timing.
 
     Interleaves unrelated lines to mimic real subprocess output (warp init banner, other timers),
     so the parser is exercised against noise rather than a file with only matching lines.
+
+    Args:
+        path: File to write.
+        timings_ms: One render timing per frame [ms].
+        physics_ms: Physics step timings emitted before each frame's render [ms], or ``None`` for a
+            render-only run. Every frame repeats the same list, mimicking a fixed decimation.
     """
     lines = ["Warp 1.17.0 initialized:", "SomeOtherScope took 0.10 ms"]
     for value in timings_ms:
+        for physics_value in physics_ms or []:
+            lines.append(f"{_PHYSICS_SCOPE} took {physics_value:.2f} ms")
         lines.append(f"{_RENDER_SCOPE} took {value:.2f} ms")
     path.write_text("\n".join(lines) + "\n")
 
@@ -113,6 +137,70 @@ def test_parse_log_returns_none_without_matching_lines(benchmark_renderer, tmp_p
     assert benchmark_renderer.parse_log(str(log_path), num_frames=3) is None
 
 
+def test_parse_log_reports_no_physics_for_a_render_only_run(benchmark_renderer, tmp_path):
+    """Without physics timings the summary must stay render-only, not report zeroed physics."""
+    log_path = tmp_path / "profile.log"
+    _write_log(log_path, [1.0] * benchmark_renderer.FRAME_PADDING + [2.0] * 3)
+
+    results = benchmark_renderer.parse_log(str(log_path), num_frames=3)
+
+    assert "physics" not in results
+    assert "total" not in results
+
+
+def test_parse_log_sums_every_physics_step_in_a_frame(benchmark_renderer, tmp_path):
+    """Decimation emits several physics steps per render, and a frame's physics time is their sum."""
+    log_path = tmp_path / "profile.log"
+    padding = benchmark_renderer.FRAME_PADDING
+    # Two physics steps of 0.5ms and 1.5ms precede each 2ms render, so every frame costs 2ms of
+    # physics and 4ms in total.
+    _write_log(log_path, [1.0] * padding + [2.0] * 3, physics_ms=[0.5, 1.5])
+
+    results = benchmark_renderer.parse_log(str(log_path), num_frames=3)
+
+    assert results["median"] == pytest.approx(2.0)
+    assert results["physics"]["median"] == pytest.approx(2.0)
+    assert results["total"]["median"] == pytest.approx(4.0)
+
+
+def test_build_record_carries_physics_and_total(benchmark_renderer):
+    """A physics_render run must surface physics and total timings alongside the render ones."""
+    profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {}}
+    stats = {"median": 1.0, "mean": 1.0, "min": 1.0, "max": 1.0, "stdev": 0.0}
+    results = {"size": 3, **stats, "median": 2.0, "physics": stats, "total": dict(stats, median=3.0)}
+
+    record = benchmark_renderer.build_record(profile, results, num_envs=4, resolution=256)
+
+    assert record["median_ms"] == pytest.approx(2.0)
+    assert record["physics_median_ms"] == pytest.approx(1.0)
+    assert record["total_median_ms"] == pytest.approx(3.0)
+    # Throughput stays a render-only metric so the two modes remain comparable.
+    assert record["pixels_per_second"] == pytest.approx(benchmark_renderer.pixels_per_second(2.0, 4, 256))
+
+
+def test_table_columns_follow_the_records(benchmark_renderer):
+    """Physics columns appear only when a record carries them, so a render sweep is unchanged."""
+    render_only = {"name": "p", "status": "ok", "median_ms": 1.0}
+    with_physics = render_only | {"physics_median_ms": 1.0, "total_median_ms": 2.0}
+
+    assert [heading for heading, _ in benchmark_renderer.table_columns([render_only])] == [
+        "MEDIAN",
+        "MEAN",
+        "MIN",
+        "MAX",
+        "STDEV",
+    ]
+    assert [heading for heading, _ in benchmark_renderer.table_columns([with_physics])] == [
+        "MEDIAN",
+        "MEAN",
+        "MIN",
+        "MAX",
+        "PHYSICS",
+        "TOTAL",
+        "STDEV",
+    ]
+
+
 def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPT_PATH), *args], capture_output=True, text=True, cwd=ROOT, timeout=30
@@ -134,3 +222,11 @@ def test_cli_rejects_unmatched_profile_glob():
 
     assert result.returncode == 1
     assert "No profile found matching: does-not-exist-*" in result.stderr
+
+
+def test_cli_rejects_unknown_mode():
+    """An unknown ``--mode`` fails at argument parsing, before any profiling subprocess is launched."""
+    result = _run_cli(["--mode", "physics-only", "newton_sah_sah"])
+
+    assert result.returncode == 2
+    assert "--mode" in result.stderr

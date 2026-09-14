@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -39,6 +40,23 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
+
+PHYSICS_PROFILE_SCOPE = "IsaacLab::Physics::step"
+"""Name of the timed scope bracketing one physics step, emitted when physics profiling is on.
+
+The counterpart to :data:`~isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`: every physics
+backend steps through the same call, so a profile can compare them under one scope name.
+``wp.ScopedTimer`` prints one ``"<name> took X.XX ms"`` line per step, which
+``scripts/benchmarks/benchmark_renderer.py`` parses back out of the run log.
+"""
+
+_PHYSICS_PROFILE_ENABLED = os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
+"""Whether to time and print :data:`PHYSICS_PROFILE_SCOPE`, read once from ``ISAACLAB_PHYSICS_PROFILE``.
+
+Off by default because the timer synchronizes the device on entry and exit. That is what lets it
+measure completed device work rather than submitted work, but it also removes CPU/GPU overlap, so
+an enabled run is a profiling aid and not a throughput measurement.
+"""
 
 
 _BackendT = TypeVar("_BackendT")
@@ -781,6 +799,10 @@ class SimulationContext:
         If the timeline is paused (e.g. via the GUI), this method blocks and keeps
         the visualizer responsive until the timeline is resumed or stopped.
 
+        Only the physics step is bracketed by :data:`PHYSICS_PROFILE_SCOPE`, so a profile
+        attributes neither the pause check before it nor the render after it to physics. See
+        :data:`_PHYSICS_PROFILE_ENABLED` for how to turn the timer on.
+
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
         """
@@ -788,7 +810,13 @@ class SimulationContext:
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
         self.physics_manager.wait_for_playing()
         self._physics_step_count += 1
-        self.physics_manager.step()
+        with wp.ScopedTimer(
+            PHYSICS_PROFILE_SCOPE,
+            active=_PHYSICS_PROFILE_ENABLED,
+            print=True,
+            synchronize=True,
+        ):
+            self.physics_manager.step()
         if render and self.is_rendering:
             self.render()
 
