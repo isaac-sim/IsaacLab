@@ -118,7 +118,10 @@ def _fake_env(mode: str, articulation, events: list[str]) -> SimpleNamespace:
             write_image_to_file=False,
             sim=SimpleNamespace(dt=1.0 / 120.0),
         ),
-        sim=SimpleNamespace(forward=lambda: events.append("forward")),
+        sim=SimpleNamespace(
+            forward=lambda: events.append("forward"),
+            render_context=SimpleNamespace(reset_scene_state_cadence=lambda: events.append("invalidate_scene_state")),
+        ),
         num_envs=1,
         device="cpu",
         _anim_time=0.0,
@@ -147,14 +150,23 @@ def _run_one_step(mode: str) -> tuple[list[str], _RecordingArticulation]:
 
 
 def test_render_mode_poses_joints_after_physics_and_before_the_render():
-    """The pose must outlive the physics step, or the renderer is timed on the solver's output.
+    """The pose must reach the renderer, or it is timed on the solver's output instead.
 
-    Writing it before physics leaves the still-active drives, gravity and joint limits free to
-    move the joints off it during the step that follows.
+    Two things can break that. Writing the pose before physics leaves the still-active drives,
+    gravity and joint limits free to move the joints off it during the step that follows. Writing
+    it after physics but leaving the renderer's once-per-step scene-state dedupe stamped makes the
+    render reuse the transforms captured before the write.
     """
     events, articulation = _run_one_step("render")
 
-    assert events == ["physics", "write_position", "write_velocity", "forward", "render"]
+    assert events == [
+        "physics",
+        "write_position",
+        "write_velocity",
+        "forward",
+        "invalidate_scene_state",
+        "render",
+    ]
     # Nothing is asked to track a target, so the solver does no actuation work for this pose.
     assert articulation.actuator_targets == []
     assert torch.equal(articulation.velocity_writes[0], torch.zeros(1, 2))

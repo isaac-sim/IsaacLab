@@ -192,6 +192,11 @@ class RenderBenchmarkEnv(DirectRLEnv):
         if self.cfg.benchmark_mode == "render" and self._anim_phases is not None:
             self._pose_joints_directly()
             self.sim.forward()
+            # The renderer syncs scene state at most once per physics step, and forward() does not
+            # advance that count. With lazy_sensor_update off, InteractiveScene.update has already
+            # synced this step, so without clearing the dedupe the render below would reuse the
+            # transforms captured before the write above -- the solver's pose, not this one.
+            self.sim.render_context.reset_scene_state_cadence()
 
         # Sensor buffers update lazily, so reading the camera's data is what drives the render.
         # This access is the work the benchmark measures: keep it unconditional even when no
