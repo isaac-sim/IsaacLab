@@ -44,11 +44,22 @@ The tabletop collider's top face is at z = 0.6941, so this clears it by 2 mm. A 
 spawned intersecting the table is ejected rather than pushed out as a rigid body would be.
 """
 
-_YOUNGS_MODULUS = 2.0e5
-"""Young's modulus of the deformable object [Pa]."""
+_YOUNGS_MODULUS = 5.0e4
+"""Young's modulus of the deformable object [Pa].
+
+Four times softer than the Franka soft-lift beam. At that beam's 2e5 the cube barely deforms
+around a fingertip, so it shoves the hand back and behaves like a small elastic ball.
+"""
 
 _POISSONS_RATIO = 0.3
 """Poisson's ratio of the deformable object."""
+
+_MATERIAL_DAMPING = 5.0e1
+"""Internal damping of the deformable object [Pa s].
+
+Newton defaults this to zero, which is a perfectly elastic solid: it rings and bounces out of a
+pinch instead of absorbing it.
+"""
 
 _HAND_PROXY_BODIES = [r"/World/envs/env_[^/]+/Robot/(left|right)_hand/.*_link"]
 """Robot bodies exposed to the deformable solver. Only the grasping links belong here."""
@@ -125,11 +136,13 @@ class PhysicsCfg(PresetCfg):
         # 1000x less damped, and carries its object with an ``soft_contact_mu=10`` the docs call
         # unphysical. A bolted-down arm absorbs the resulting impulse; a free-standing humanoid is
         # thrown by it, both on first touch and when a pinch closes. The object masses 0.2 kg, so
-        # it needs a couple of newtons to hold. Raise these if it slips, and recheck balance.
+        # it needs a couple of newtons to hold. Friction is above Newton's 0.5 default because a
+        # pinch at 0.5 squirts the object sideways out of the hand, but well under the preset's
+        # 10: tangential force scales with mu*ke, so this stays far below what threw the robot.
         soft_contact_cfg=NewtonSoftContactCfg(
             soft_contact_ke=1.0e3,
             soft_contact_kd=1.0e1,
-            soft_contact_mu=1.0,
+            soft_contact_mu=3.0,
         ),
         # A humanoid's weight on two feet sinks into Newton's default ``ke=2.5e3``; see the rigid
         # task's preset.
@@ -158,6 +171,7 @@ class LocomanipulationG1DeformableSceneCfg(LocomanipulationG1SceneCfg):
                 k_lambda=(
                     _YOUNGS_MODULUS * _POISSONS_RATIO / ((1.0 + _POISSONS_RATIO) * (1.0 - 2.0 * _POISSONS_RATIO))
                 ),
+                k_damp=_MATERIAL_DAMPING,
                 particle_radius=0.004,
             ),
         ),
