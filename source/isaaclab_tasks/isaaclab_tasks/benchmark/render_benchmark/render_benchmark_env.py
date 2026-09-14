@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import torch
@@ -32,10 +33,11 @@ class RenderBenchmarkEnv(DirectRLEnv):
 
     How the sinusoid reaches the joints depends on
     :attr:`~.render_benchmark_env_cfg.RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode`. In
-    ``"render"`` mode the pose is written straight into the simulation, so the frame a renderer
-    is timed on is the analytic pose and nothing has to be actuated to produce it. In
-    ``"physics_render"`` mode the pose becomes an actuator position target, so the solver tracks
-    it the way it would in an ordinary task and its cost is part of what the run measures.
+    ``"physics_render"`` mode the pose becomes an actuator position target before the physics
+    steps, so the solver tracks it the way it would in an ordinary task. In ``"render"`` mode the
+    pose is instead written straight into the simulation after the last physics step and before
+    the camera is read, so the frame a renderer is timed on is the analytic pose rather than
+    whatever the solver arrived at.
     """
 
     cfg: RenderBenchmarkFrankaCabinetEnvCfg
@@ -117,7 +119,11 @@ class RenderBenchmarkEnv(DirectRLEnv):
             return
         if self._anim_phases is None:
             self._anim_phases = self._sample_animation_phases()
-        self._animate_joints()
+        self._anim_time += self.cfg.sim.dt * self.cfg.decimation
+        # In render mode the pose is applied in _get_observations instead, once physics can no
+        # longer move it. Only the actuated mode has anything to request before the solver runs.
+        if self.cfg.benchmark_mode == "physics_render":
+            self._request_joint_targets()
 
     def _apply_action(self) -> None:
         pass
@@ -143,28 +149,50 @@ class RenderBenchmarkEnv(DirectRLEnv):
             phases[name] = ((env_idx * 7919.0 + joint_idx * 6553.0) % 10007.0) * (2.0 * math.pi / 10007.0)
         return phases
 
-    def _animate_joints(self) -> None:
-        """Advance the animation clock and drive every joint to its sinusoidal target."""
-        self._anim_time += self.cfg.sim.dt * self.cfg.decimation
+    def _animation_targets(self) -> Iterator[tuple[Articulation, torch.Tensor]]:
+        """Yield every articulation with its joint pose for the current animation time.
+
+        Yields:
+            Each articulation and its per-joint target [m or rad, depending on joint type],
+            clamped to the joint's soft limits, shape ``[num_envs, num_joints]``.
+        """
         omega = 2.0 * math.pi * self.cfg.joint_animation_freq_hz
-        actuate = self.cfg.benchmark_mode == "physics_render"
         for name, articulation in self._articulations.items():
             default_pos = articulation.data.default_joint_pos.torch
             offset = self.cfg.joint_animation_amplitude * torch.sin(omega * self._anim_time + self._anim_phases[name])
             soft_limits = articulation.data.soft_joint_pos_limits.torch
-            target = torch.clamp(default_pos + offset, soft_limits[..., 0], soft_limits[..., 1])
-            if actuate:
-                articulation.actuators.target_command.set_position_index(value=target)
-            else:
-                # Pose the articulation directly. The velocity write keeps the solver from
-                # carrying momentum across a pose it never integrated toward, which would show up
-                # as contacts and joint-limit work that the rendered frame does not depend on.
-                articulation.write_joint_position_to_sim_index(position=target)
-                articulation.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
+            yield articulation, torch.clamp(default_pos + offset, soft_limits[..., 0], soft_limits[..., 1])
+
+    def _request_joint_targets(self) -> None:
+        """Ask the actuators to track the current pose, leaving the solver to reach it."""
+        for articulation, target in self._animation_targets():
+            articulation.actuators.target_command.set_position_index(value=target)
+
+    def _pose_joints_directly(self) -> None:
+        """Place the joints at the current pose without asking the solver to reach it.
+
+        The velocity write keeps the articulation from carrying momentum across a pose it never
+        integrated toward, which would otherwise show up as contact and joint-limit work in the
+        step that follows.
+        """
+        for articulation, target in self._animation_targets():
+            articulation.write_joint_position_to_sim_index(position=target)
+            articulation.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
 
     # --- DirectRLEnv plumbing ------------------------------------------------
 
     def _get_observations(self) -> dict:
+        # In render mode the pose is applied here rather than in _pre_physics_step. Physics runs
+        # between those two points, and its drives, gravity and joint limits would all pull the
+        # joints off a pose written beforehand -- the renderer would then be timed on the solver's
+        # output rather than on the analytic one. Writing it here, after the last physics step and
+        # before the render below, is what makes the rendered frame the pose this mode advertises.
+        # forward() propagates the joint write to the body transforms the renderer reads without
+        # stepping the solver again.
+        if self.cfg.benchmark_mode == "render" and self._anim_phases is not None:
+            self._pose_joints_directly()
+            self.sim.forward()
+
         # Sensor buffers update lazily, so reading the camera's data is what drives the render.
         # This access is the work the benchmark measures: keep it unconditional even when no
         # image is written, or the profile records a scene that was never rendered.

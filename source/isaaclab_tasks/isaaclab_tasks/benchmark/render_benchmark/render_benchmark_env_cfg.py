@@ -31,16 +31,19 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 BenchmarkMode = Literal["render", "physics_render"]
 """How much work the physics backend does to produce each frame a renderer is timed on.
 
-``"render"`` isolates the renderer: every frame's pose is written straight into the simulation,
-so the scene is exactly the analytic sinusoid and no actuator has to be solved to reach it.
+``"render"`` isolates the renderer: each frame's pose is written straight into the simulation
+after the last physics step and before the camera is read, so the rendered scene is the analytic
+sinusoid and no actuator had to be solved to reach it.
 
-``"physics_render"`` exercises the whole step: the same poses are requested as actuator targets,
-so the solver does the tracking work an ordinary task's solver does.
+``"physics_render"`` exercises the whole step: the same poses are requested as actuator targets
+before the physics steps, so the solver does the tracking work an ordinary task's solver does and
+the rendered scene is whatever it arrived at.
 
 Note that the physics backend still integrates in ``"render"`` mode, because an Isaac Lab
-environment has no way to skip its own physics step; that mode removes the actuation, not the
-step. Either way ``ISAACLAB_PHYSICS_PROFILE`` records each step's cost in the run log, so what
-physics contributed stays visible next to the render times ``benchmark_renderer.py`` reports.
+environment has no way to skip its own physics step; that mode removes the actuation and
+overwrites the solver's result before rendering, rather than skipping the step. Either way
+``ISAACLAB_PHYSICS_PROFILE`` records each step's cost in the run log, so what physics contributed
+stays visible next to the render times ``benchmark_renderer.py`` reports.
 """
 
 BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
