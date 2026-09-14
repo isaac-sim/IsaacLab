@@ -112,7 +112,12 @@ class PhysicsCfg(PresetCfg):
                 ),
                 CouplerEntryCfg(
                     name="soft",
-                    solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=256),
+                    # 40, not the Franka soft-lift preset's 10. That gripper is slim and its beam
+                    # small; a G1 palm puts far more particles in contact at once and the solve
+                    # does not converge in 10, which shows up as stored energy firing the object
+                    # out of the hand. Measured on a 5 mm overlap release: peak object speed falls
+                    # from 28.6 to 2.5 m/s and the robot's peak joint speed from 224 to 3.5.
+                    solver_cfg=VBDSolverCfg(iterations=40, rigid_body_particle_contact_buffer_size=256),
                     all_particles=True,
                     shape_label_patterns=[_TABLE_SHAPE_SOFT],
                 ),
