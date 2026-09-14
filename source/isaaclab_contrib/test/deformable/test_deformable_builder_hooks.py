@@ -113,6 +113,25 @@ def test_builder_hook_applies_env_quaternion_to_deformable_entry():
     assert entry.particles_per_body == 3
 
 
+def test_builder_hook_applies_surface_appearance():
+    """Test that surface appearance reaches Newton's triangle renderer."""
+    entry = _make_surface_entry()
+    entry.color = (0.8, 0.2, 0.1)
+    entry.opacity = 0.9
+    builder = _FakeBuilder()
+
+    add_deformable_entry_to_builder(
+        builder,
+        entry,
+        env_idx=0,
+        env_position=[0.0, 0.0, 0.0],
+        env_rotation=[0.0, 0.0, 0.0, 1.0],
+    )
+
+    assert builder.cloth_meshes[0]["color"] == entry.color
+    assert builder.cloth_meshes[0]["opacity"] == entry.opacity
+
+
 def test_builder_hook_resets_entry_offsets_on_first_environment():
     """Test that repeated model rebuilds do not accumulate stale particle offsets."""
     entry = _make_surface_entry()
