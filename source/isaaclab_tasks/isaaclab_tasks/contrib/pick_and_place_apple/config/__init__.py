@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
-from isaaclab_tasks.contrib.h2_sharpa.camera_config import CameraBaseCfg, CameraPresets
-from isaaclab_tasks.contrib.h2_sharpa.metadata import H2_DEFAULT_JOINT_POS, H2_PNP_APPLE_CUSTOM_JOINT_POS
-from isaaclab_tasks.contrib.h2_sharpa.robot_config import H2RobotPresets, make_h2_sharpa_cfg
+from ..camera_config import CameraBaseCfg, CameraPresets
+from ..metadata import H2_DEFAULT_JOINT_POS, H2_PNP_APPLE_CUSTOM_JOINT_POS
+from ..robot_config import H2RobotPresets, make_h2_sharpa_cfg
 
 TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256_cloth.usd"
 APPLE_USD = f"{PROP_ASSET_ROOT}/Assets/Apple033/Apple033.usd"

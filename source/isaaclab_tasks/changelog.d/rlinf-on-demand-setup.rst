@@ -4,18 +4,18 @@ Added
 * Added the ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa`` and
   ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa-Eval`` environments, an RLinf GR00T pick-and-place
   task on the Unitree H2 + Sharpa Wave embodiment.
-* Added ``isaaclab_tasks.contrib.h2_sharpa``, holding the joint-order metadata, articulation presets
-  and camera presets shared by the H2 + Sharpa tasks.
+* Added ``metadata``, ``robot_config``, ``camera_config`` and ``gr00t_config`` modules to each
+  H2 + Sharpa task, holding that task's joint-order metadata, articulation preset and camera presets.
 * Added the ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa`` and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa-Eval``
   environments, an RLinf GR00T N1.7 task packing an AGX Orin into its protective box with the
   Unitree H2 + Sharpa Wave embodiment.
 * Added GR00T N1.7 configurations ``isaaclab_ppo_gr00t_pick_and_place_apple_n17`` and
-  ``isaaclab_ppo_gr00t_pack_agx_orin_n17``, and ``isaaclab_tasks.contrib.h2_sharpa.gr00t_n17``
-  registering the H2 + Sharpa modality layout for N1.7 checkpoints.
+  ``isaaclab_ppo_gr00t_pack_agx_orin_n17``, each task's ``gr00t_config`` module registering the
+  H2 + Sharpa modality layout for N1.7 checkpoints.
 * Changed the N1.7 configurations to plain PPO (``enable_sft_co_train: False``): RLinf has no SFT
   dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
   SFT dataloader registered in RLinf.
-* Added ``POLICY_STATE_TO_ACTION_INDICES`` to ``isaaclab_tasks.contrib.h2_sharpa.gr00t_n17``, publishing where the policy's 58-D joint state lands in H2's 75-D action vector. The RLinf extension reads it to build a hold-the-current-pose action; H2 interleaves the two hands, so the state is not a contiguous slice of the action.
+* Added ``POLICY_STATE_TO_ACTION_INDICES`` to each H2 + Sharpa task's ``gr00t_config``, publishing where the policy's 58-D joint state lands in H2's 75-D action vector. The RLinf extension reads it to build a hold-the-current-pose action; H2 interleaves the two hands, so the state is not a contiguous slice of the action.
 * Added ``isaaclab_tasks.contrib.rlinf_assets``, the asset roots the three RLinf post-training tasks
   share, and ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` to point them at a local mirror.
 
