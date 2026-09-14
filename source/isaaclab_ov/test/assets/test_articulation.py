@@ -219,6 +219,65 @@ def test_generalized_dynamics_reorder_uses_public_joint_order():
     assert buffer.timestamp == 1.0
 
 
+def test_static_property_reads_are_not_invalidated_by_simulation_steps():
+    """Joint properties and body mass/inertia should be read once per invalidation, not once per step.
+
+    On OVPhysX these are blocking CPU-only binding reads whose cost scales with the number of
+    environments, so re-reading them every physics step made per-step consumers (such as the
+    native actuator telemetry sync) host-bound. State buffers must still refresh every step.
+    """
+
+    class Buffer:
+        def __init__(self, shape):
+            self.data = wp.zeros(shape, dtype=wp.float32, device="cpu")
+            self.timestamp = -1.0
+
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cpu"
+    data.num_instances = 1
+    data.num_joints = 2
+    data._sim_timestamp = 1.0
+    data.body_ordering = None
+    data._get_binding = lambda tensor_type: object()
+    reads: list[int] = []
+    data._binding_read = lambda tensor_type, dst: reads.append(tensor_type)
+
+    # Joint properties: one read across several steps, one more after explicit invalidation
+    # (simulation reinitialization).
+    data.joint_ordering = None
+    stiffness = Buffer((1, 2))
+    for _ in range(3):
+        data._sim_timestamp += 1.0
+        data._read_joint_property_binding(TT.DOF_STIFFNESS, stiffness, None)
+    assert reads.count(TT.DOF_STIFFNESS) == 1
+    stiffness.timestamp = -1.0
+    data._read_joint_property_binding(TT.DOF_STIFFNESS, stiffness, None)
+    assert reads.count(TT.DOF_STIFFNESS) == 2
+
+    # Body properties behave the same; body state buffers still refresh every step.
+    mass, link_pose = Buffer((1, 2)), Buffer((1, 2))
+    for _ in range(3):
+        data._sim_timestamp += 1.0
+        data._refresh_reordered_body_buffer(mass, None, TT.BODY_MASS, static=True)
+        data._refresh_reordered_body_buffer(link_pose, None, TT.LINK_POSE)
+    assert reads.count(TT.BODY_MASS) == 1
+    assert reads.count(TT.LINK_POSE) == 3
+    mass.timestamp = -1.0
+    data._refresh_reordered_body_buffer(mass, None, TT.BODY_MASS, static=True)
+    assert reads.count(TT.BODY_MASS) == 2
+
+    # Under a non-identity joint ordering the property is gathered once, then served from cache.
+    data.joint_ordering = SimpleNamespace(user_to_backend=wp.array([1, 0], dtype=wp.int32, device="cpu"))
+    data._read_launch_cache = _WarpLaunchCache("cpu")
+    user_buffer, backend_buffer = Buffer((1, 2)), Buffer((1, 2))
+    data._binding_read = lambda tensor_type, dst: (reads.append(tensor_type), dst.assign([[1.0, 2.0]]))
+    for _ in range(3):
+        data._sim_timestamp += 1.0
+        data._read_joint_property_binding(TT.DOF_DAMPING, user_buffer, backend_buffer)
+    assert reads.count(TT.DOF_DAMPING) == 1
+    torch.testing.assert_close(wp.to_torch(user_buffer.data), torch.tensor([[2.0, 1.0]]))
+
+
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute into a torch tensor on *device*.
 
