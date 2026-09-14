@@ -22,30 +22,22 @@ rigid-body scenes, the named-entry coupling options are:
 * :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
 
-Run the Standalone Tablecloth Demos
------------------------------------
+Run the Standalone Tablecloth Demo
+----------------------------------
 
-Two focused scripts demonstrate standalone VBD before the task and coupling
-examples below:
+The focused ``scripts/demos/newton_tablecloth.py`` script demonstrates
+standalone VBD before the task and coupling examples below. It compares five
+pull speeds side by side and shows how to configure full-surface contact while
+controlling deformable kinematic targets through Isaac Lab.
 
-* ``scripts/demos/newton_tablecloth.py`` compares five pull speeds side by side
-  and shows how to configure full-surface contact while controlling deformable
-  kinematic targets through Isaac Lab.
-* ``scripts/demos/newton_tablecloth_h1.py`` adds an articulated H1 with dexterous
-  hands, Newton IK, and a GPU-resident manipulation state machine. Isaac Lab's
-  MJCF importer converts and caches the H1-with-hands asset on the first run.
-
-Run them with the lightweight Newton GL visualizer:
+Run it with the lightweight Newton GL visualizer:
 
 .. code-block:: bash
 
    uv run python scripts/demos/newton_tablecloth.py --device cuda:0 --visualizer newton_gl
-   uv run --extra importers python scripts/demos/newton_tablecloth_h1.py --device cuda:0 --visualizer newton_gl
 
-Both scripts declare their ground, tables, cloth, and tableware with
-``InteractiveSceneCfg`` and use the standard scene write/step/update lifecycle.
-The H1 script additionally uses Isaac Lab's ``Articulation`` command buffers;
-its Newton-native code is limited to the VBD physics configuration and IK solve.
+The script declares its ground, tables, cloth, and tableware with
+``InteractiveSceneCfg`` and uses the standard scene write/step/update lifecycle.
 
 Start from a Supported Deformable Task
 --------------------------------------
