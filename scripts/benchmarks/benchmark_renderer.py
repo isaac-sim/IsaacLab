@@ -7,11 +7,6 @@
 # Command to run:
 # uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
 #
-# Every run reports physics, render, and total times. By default the scene is posed directly, so
-# the physics column is only the cost of moving it. Set BENCHMARK_MODE=physics_render to drive the
-# same poses through the actuators and have the solver do an ordinary task's tracking work:
-# BENCHMARK_MODE=physics_render uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
-#
 
 import argparse
 import fnmatch
@@ -66,7 +61,6 @@ PROFILES = [
 
 TASK_NAME = "Isaac-RenderBenchmark-Franka-Cabinet"
 FRAME_PADDING = 5
-STAT_KEYS = ("median", "mean", "min", "max", "stdev")
 
 # Resolved from this file rather than the working directory, so the script runs from anywhere.
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -88,7 +82,8 @@ PHYSICS_SCOPE = "IsaacLab::Physics::step"
 """Backend-agnostic timer name around one physics step, enabled by ``ISAACLAB_PHYSICS_PROFILE``.
 
 See :data:`isaaclab.sim.simulation_context.PHYSICS_PROFILE_SCOPE`. Turned on for every run, the
-same way :data:`RENDER_SCOPE` is, so a report never has to explain why a column is missing.
+same way :data:`RENDER_SCOPE` is, so a log always records what physics cost alongside the render
+times this script reports.
 """
 
 RENDER_SCOPE_PATTERN = re.compile(rf"{re.escape(RENDER_SCOPE)} took ([\d.]+) ms")
@@ -117,24 +112,6 @@ def pixels_per_second(median_ms: float, num_envs: int, resolution: int) -> float
     return num_envs * resolution * resolution * 1000.0 / median_ms
 
 
-def summarize(samples: list[float]) -> dict:
-    """Reduce a list of per-frame times [ms] to the statistics the report shows.
-
-    Args:
-        samples: One time per frame [ms]. Must be non-empty.
-
-    Returns:
-        Median, mean, min, max, and standard deviation [ms].
-    """
-    return {
-        "median": statistics.median(samples),
-        "mean": statistics.mean(samples),
-        "min": min(samples),
-        "max": max(samples),
-        "stdev": statistics.stdev(samples) if len(samples) > 1 else 0,
-    }
-
-
 def build_record(profile: dict, results: dict | None, num_envs: int, resolution: int) -> dict:
     """Summarize one profile's outcome for reporting.
 
@@ -146,129 +123,54 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
 
     Returns:
         A record carrying the profile's identity plus either its timings or the log to inspect.
-        ``pixels_per_second`` is derived from the render time alone, so it stays comparable
-        between a run that posed the scene directly and one that solved for it.
     """
     record = {"name": profile["name"], "preset": profile["preset"], "settings": profile["settings"]}
     if not results:
         return record | {"status": "failed", "log": os.path.join(OUTPUT_PATH, profile["name"] + ".log")}
-
-    record |= {
-        "status": "ok",
-        "size": results["size"],
-        "pixels_per_second": pixels_per_second(results["median"], num_envs, resolution),
-    }
-    record |= {f"{key}_ms": results[key] for key in STAT_KEYS}
-    for group in ("physics", "total"):
-        record |= {f"{group}_{key}_ms": results[group][key] for key in STAT_KEYS}
-    return record
-
-
-def parse_frames(filename: str) -> list[tuple[float, float]]:
-    """Read per-frame ``(physics_ms, render_ms)`` pairs out of a run's captured log, in order.
-
-    A rendered frame is preceded by however many physics steps the task's decimation implies, so
-    the physics timings are accumulated until the frame's render timing closes them out rather
-    than assumed to be one per frame.
-
-    Args:
-        filename: Path to the captured run log.
-
-    Returns:
-        One ``(physics_ms, render_ms)`` pair per rendered frame.
-    """
-    frames: list[tuple[float, float]] = []
-    physics_ms = 0.0
-
-    with open(filename) as file:
-        for line in file:
-            if match := PHYSICS_SCOPE_PATTERN.search(line):
-                physics_ms += float(match.group(1))
-            elif match := RENDER_SCOPE_PATTERN.search(line):
-                frames.append((physics_ms, float(match.group(1))))
-                physics_ms = 0.0
-
-    return frames
+    return (
+        record
+        | {
+            "status": "ok",
+            "size": results["size"],
+            "pixels_per_second": pixels_per_second(results["median"], num_envs, resolution),
+        }
+        | {f"{key}_ms": results[key] for key in ("median", "mean", "min", "max", "stdev")}
+    )
 
 
 def parse_log(filename: str, num_frames: int):
-    """Summarize per-frame times [ms] from a run's captured log.
+    """Summarize per-frame render times [ms] from a run's captured log.
 
     Every backend is measured the same way: the wall time of :data:`RENDER_SCOPE`, printed once per
     render by ``wp.ScopedTimer`` when ``ISAACLAB_RENDER_PROFILE`` is set. The timer synchronizes the
     device on both ends, so it covers completed rather than merely submitted work — including for
     the RTX backends, whose Vulkan render is consumed by warp extraction kernels inside the scope.
 
-    ``ISAACLAB_PHYSICS_PROFILE`` times :data:`PHYSICS_SCOPE` the same way, so every frame also
-    carries the physics time and the two summed.
-
     Args:
         filename: Path to the captured run log.
         num_frames: Number of frames to measure, after skipping :data:`FRAME_PADDING` warm-up frames.
 
     Returns:
-        Render timing statistics plus ``physics`` and ``total`` sub-dicts, or ``None`` if the log
-        holds no usable frames.
+        Timing statistics, or ``None`` if the log holds no usable frames.
     """
-    frames = parse_frames(filename)
+    with open(filename) as file:
+        frames = [float(match.group(1)) for line in file if (match := RENDER_SCOPE_PATTERN.search(line))]
 
     if not frames:
         log(f"No '{RENDER_SCOPE}' timings in {filename}; was ISAACLAB_RENDER_PROFILE set for this run?")
         return None
     out = frames[FRAME_PADDING : FRAME_PADDING + num_frames]
 
-    if not out:
-        return None
-
-    return {
-        "size": len(out),
-        **summarize([render_ms for _, render_ms in out]),
-        "physics": summarize([physics_ms for physics_ms, _ in out]),
-        "total": summarize([physics_ms + render_ms for physics_ms, render_ms in out]),
-    }
-
-
-TABLE_COLUMNS = [
-    ("RENDER", "median_ms"),
-    ("MEAN", "mean_ms"),
-    ("MIN", "min_ms"),
-    ("MAX", "max_ms"),
-    ("STDEV", "stdev_ms"),
-    ("PHYSICS", "physics_median_ms"),
-    ("TOTAL", "total_median_ms"),
-]
-"""``(heading, record key)`` pairs for the report's timing columns, in display order.
-
-The unqualified statistics are the render ones, so ``RENDER`` leads and the physics and total
-medians close the row rather than interrupting the render spread.
-"""
-
-
-def format_table(records: list[dict]) -> list[str]:
-    """Render the results table as lines of text.
-
-    Args:
-        records: Records from :func:`build_record`, in the order they should appear.
-
-    Returns:
-        The heading, separators, and one row per record.
-    """
-    name_width = max([len("PROFILE")] + [len(record["name"]) for record in records])
-    separator = (
-        "|" + "-" * (name_width + 2) + "|------|--------------|" + "|".join(["-" * 14] * len(TABLE_COLUMNS)) + "|"
-    )
-    headings = "|".join(f"{heading:^14}" for heading, _ in TABLE_COLUMNS)
-
-    lines = ["| " + "PROFILE".ljust(name_width) + " | SIZE |  PIXEL / SEC |" + headings + "|", separator]
-    for record in records:
-        if record["status"] == "ok":
-            cells = "|".join(f" {record[key]:>10.2f}ms " for _, key in TABLE_COLUMNS)
-            gpxs = record["pixels_per_second"] / 1e9
-            lines.append(f"| {record['name']:<{name_width}} | {record['size']:>4} | {gpxs:>6.2f} Gpx/s |{cells}|")
-        else:
-            lines.append(f"| {record['name']:<{name_width}} | FAILED {record['log']} |")
-    lines.append(separator)
-    return lines
+    if out:
+        return {
+            "size": len(out),
+            "median": statistics.median(out),
+            "mean": statistics.mean(out),
+            "min": min(out),
+            "max": max(out),
+            "stdev": statistics.stdev(out) if len(out) > 1 else 0,
+        }
+    return None
 
 
 def run_profile(profile: dict, args: argparse.Namespace):
@@ -415,13 +317,9 @@ def main() -> None:
 
         if results := all_results[profile["name"]]:
             log(f"    size: {results['size']}")
-            for label, stats in (
-                ("render", results),
-                ("physics", results.get("physics")),
-                ("total", results.get("total")),
-            ):
-                if stats:
-                    log(f"    {label}: " + "  ".join(f"{key}={stats[key]:.2f}ms" for key in STAT_KEYS))
+            for key, value in results.items():
+                if key != "size":
+                    log(f"    {key}: {value:.2f}ms")
         log("")
 
     # A KeyboardInterrupt leaves the remaining profiles unrun; report only what completed.
@@ -437,9 +335,6 @@ def main() -> None:
             json.dumps(
                 {
                     "task": args.task,
-                    # Reported for provenance: it decides whether the physics times below are a
-                    # solver tracking targets or just the cost of posing the scene.
-                    "mode": os.environ.get("BENCHMARK_MODE", "render"),
                     "num_envs": args.num_envs,
                     "num_frames": args.num_frames,
                     "resolution": args.resolution,
@@ -449,9 +344,21 @@ def main() -> None:
             )
         )
     else:
+        separator = "|------------------------------------------|------|--------------|--------------|--------------|--------------|--------------|--------------|"  # noqa: E501
         log("")
-        for line in format_table(records):
-            log(line)
+        log(
+            "| PROFILE                                  | SIZE |  PIXEL / SEC |    MEDIAN    |     MEAN     |     MIN      |     MAX      |    STDEV     |"  # noqa: E501
+        )
+        log(separator)
+        for record in records:
+            if record["status"] == "ok":
+                gpxs = record["pixels_per_second"] / 1e9
+                log(
+                    f"| {record['name']:<40} | {record['size']:>4} | {gpxs:>6.2f} Gpx/s | {record['median_ms']:>10.2f}ms | {record['mean_ms']:>10.2f}ms | {record['min_ms']:>10.2f}ms | {record['max_ms']:>10.2f}ms | {record['stdev_ms']:>10.2f}ms |"  # noqa: E501
+                )
+            else:
+                log(f"| {record['name']:<40} | FAILED {record['log']:<87} |")
+        log(separator)
         log("")
 
     if benchmark_failed:

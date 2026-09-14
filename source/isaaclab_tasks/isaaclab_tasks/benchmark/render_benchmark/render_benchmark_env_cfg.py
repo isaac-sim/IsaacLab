@@ -37,10 +37,10 @@ so the scene is exactly the analytic sinusoid and no actuator has to be solved t
 ``"physics_render"`` exercises the whole step: the same poses are requested as actuator targets,
 so the solver does the tracking work an ordinary task's solver does.
 
-Both modes report physics, render, and total times -- the mode decides what the physics number
-means, not whether there is one. Note that the physics backend still integrates in ``"render"``
-mode, because an Isaac Lab environment has no way to skip its own physics step; that mode removes
-the actuation, not the step.
+Note that the physics backend still integrates in ``"render"`` mode, because an Isaac Lab
+environment has no way to skip its own physics step; that mode removes the actuation, not the
+step. Either way ``ISAACLAB_PHYSICS_PROFILE`` records each step's cost in the run log, so what
+physics contributed stays visible next to the render times ``benchmark_renderer.py`` reports.
 """
 
 BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")

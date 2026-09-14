@@ -56,28 +56,14 @@ def test_pixels_per_second(benchmark_renderer):
 
 
 def test_build_record_ok(benchmark_renderer):
-    """The unqualified statistics are the render ones; physics and total sit beside them."""
     profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah"}}
-    physics = {"median": 1.0, "mean": 1.0, "min": 1.0, "max": 1.0, "stdev": 0.0}
-    results = {
-        "size": 20,
-        "median": 2.0,
-        "mean": 2.1,
-        "min": 1.5,
-        "max": 3.0,
-        "stdev": 0.2,
-        "physics": physics,
-        "total": dict(physics, median=3.0),
-    }
+    results = {"size": 20, "median": 2.0, "mean": 2.1, "min": 1.5, "max": 3.0, "stdev": 0.2}
 
     record = benchmark_renderer.build_record(profile, results, num_envs=4, resolution=256)
 
     assert record["status"] == "ok"
     assert record["size"] == 20
     assert record["median_ms"] == 2.0
-    assert record["physics_median_ms"] == 1.0
-    assert record["total_median_ms"] == 3.0
-    # Throughput stays a render-only metric, so it is unaffected by what physics cost.
     assert record["pixels_per_second"] == pytest.approx(benchmark_renderer.pixels_per_second(2.0, 4, 256))
 
 
@@ -96,25 +82,16 @@ def test_build_record_failed(benchmark_renderer):
 
 
 _RENDER_SCOPE = "IsaacLab::Renderer::render"
-_PHYSICS_SCOPE = "IsaacLab::Physics::step"
 
 
-def _write_log(path: Path, timings_ms: list[float], physics_ms: tuple[float, ...] = (0.5, 1.5)) -> None:
+def _write_log(path: Path, timings_ms: list[float]) -> None:
     """Write a synthetic run log with one ``wp.ScopedTimer`` print line per timing.
 
     Interleaves unrelated lines to mimic real subprocess output (warp init banner, other timers),
     so the parser is exercised against noise rather than a file with only matching lines.
-
-    Args:
-        path: File to write.
-        timings_ms: One render timing per frame [ms].
-        physics_ms: Physics step timings emitted before each frame's render [ms]. Every frame
-            repeats the same list, mimicking a fixed decimation.
     """
     lines = ["Warp 1.17.0 initialized:", "SomeOtherScope took 0.10 ms"]
     for value in timings_ms:
-        for physics_value in physics_ms:
-            lines.append(f"{_PHYSICS_SCOPE} took {physics_value:.2f} ms")
         lines.append(f"{_RENDER_SCOPE} took {value:.2f} ms")
     path.write_text("\n".join(lines) + "\n")
 
@@ -141,37 +118,6 @@ def test_parse_log_returns_none_without_matching_lines(benchmark_renderer, tmp_p
     _write_log(log_path, [])
 
     assert benchmark_renderer.parse_log(str(log_path), num_frames=3) is None
-
-
-def test_parse_log_sums_every_physics_step_in_a_frame(benchmark_renderer, tmp_path):
-    """Decimation emits several physics steps per render, and a frame's physics time is their sum."""
-    log_path = tmp_path / "profile.log"
-    padding = benchmark_renderer.FRAME_PADDING
-    # Two physics steps of 0.5ms and 1.5ms precede each 2ms render, so every frame costs 2ms of
-    # physics and 4ms in total.
-    _write_log(log_path, [1.0] * padding + [2.0] * 3, physics_ms=(0.5, 1.5))
-
-    results = benchmark_renderer.parse_log(str(log_path), num_frames=3)
-
-    assert results["median"] == pytest.approx(2.0)
-    assert results["physics"]["median"] == pytest.approx(2.0)
-    assert results["total"]["median"] == pytest.approx(4.0)
-
-
-def test_format_table_aligns_every_row_to_the_heading(benchmark_renderer):
-    """A misaligned row means a column silently reads against the wrong heading."""
-    stats = {"median": 1.0, "mean": 1.0, "min": 1.0, "max": 1.0, "stdev": 0.0}
-    results = {"size": 3, **stats, "physics": stats, "total": stats}
-    profile = {"name": "newton_sah_cubql", "preset": "newton_renderer,rgb", "settings": {}}
-    records = [
-        benchmark_renderer.build_record(profile, results, num_envs=4, resolution=256),
-        benchmark_renderer.build_record(profile | {"name": "p"}, None, num_envs=4, resolution=256),
-    ]
-
-    lines = benchmark_renderer.format_table(records)
-
-    assert len({len(line) for line in lines if "FAILED" not in line}) == 1
-    assert lines[0].count("|") == lines[2].count("|")
 
 
 def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
