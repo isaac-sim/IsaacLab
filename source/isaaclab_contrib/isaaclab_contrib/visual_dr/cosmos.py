@@ -30,6 +30,6 @@ def create_cosmos_backend(cfg: CosmosDRCfg, factory: Callable[[CosmosDRCfg], DRB
     if factory is None:
         raise NotImplementedError(
             "Cosmos needs a tensor-native DRBackend adapter; the file-oriented inference API is not sufficient. "
-            "See docs/runtime_visual_dr_sketch.md for installation and override blockers."
+            "Provide a CUDA adapter factory for the patched Cosmos source checkout."
         )
     return factory(cfg)
