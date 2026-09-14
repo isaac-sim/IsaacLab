@@ -198,6 +198,8 @@ jobs:
 
     - name: Log in to NGC for the base image
       uses: ./.github/actions/_lib/setup-docker-config
+      with:
+        base-image-ref: ${{ steps.config.outputs.base_image }}
 
     - name: Ensure Isaac Lab image is available locally
       shell: bash

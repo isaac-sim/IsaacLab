@@ -16,7 +16,7 @@ import sys
 import time
 from typing import Any
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
 
 
 def _disable_code_state_capture(runner: Any) -> None:
@@ -42,8 +42,8 @@ def _parse_args(argv: list[str]):
 
     from isaaclab_tasks.utils import setup_preset_cli
 
-    add_common_train_args = _common.add_common_train_args
-    enable_cameras_for_video = _common.enable_cameras_for_video
+    add_common_train_args = common.add_common_train_args
+    enable_cameras_for_video = common.enable_cameras_for_video
     from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with RSL-RL.")
@@ -147,7 +147,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
-    apply_env_overrides = _common.apply_env_overrides
+    apply_env_overrides = common.apply_env_overrides
     from isaaclab.benchmark.entrypoints.early_stop import (
         RslRlEarlyStopWrapper,
         build_success_kwargs,
@@ -170,7 +170,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
             cleanup.enter_context(
-                _common.scoped_torch_backend_flags(
+                common.scoped_torch_backend_flags(
                     cuda_matmul_allow_tf32=True,
                     cudnn_allow_tf32=True,
                     cudnn_deterministic=False,
@@ -188,7 +188,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
 
-            _common.validate_distributed_device(args_cli)
+            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # Mirror the regular training entrypoint: the launcher pinned this rank to its own
                 # device, and offsetting the seed by the rank decorrelates exploration across ranks.
@@ -237,14 +237,14 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             # RSL-RL silences logging on every rank but global rank 0, so only that rank has a
             # populated run directory to describe.
             if distributed.is_main:
-                _common.write_run_manifest(
+                common.write_run_manifest(
                     log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent}
                 )
             env_cfg.log_dir = log_dir
-            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
+            common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             env_t0 = time.perf_counter_ns()
-            env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+            env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 

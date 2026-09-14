@@ -53,13 +53,14 @@ from __future__ import annotations
 import importlib
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import torch
 import warp as wp
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.test.utils import test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -77,6 +78,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation  # noqa: E402
+from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
@@ -107,6 +109,34 @@ _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
     "Schema-level fixed-joint creation in :mod:`isaaclab.sim.schemas` imports the Kit-only "
     "``omni.physx.scripts.utils`` module, which is not shipped by the ovphysx wheel."
 )
+
+
+def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
+    """Keep implicit-only articulations on the unchanged solver-drive path."""
+    from isaaclab_ov.assets.articulation import actuator_control
+
+    runtime_prepare_calls = []
+    runtime = SimpleNamespace(
+        prepare=lambda *args, **kwargs: runtime_prepare_calls.append(True), wrapper=None, adapter=None
+    )
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+    )
+    monkeypatch.setattr(actuator_control, "PhysxActuatorRuntime", lambda *args, **kwargs: runtime)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
+
+    control = OvPhysxActuatorControl(articulation)
+    native_groups = control.prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
+    )
+
+    assert native_groups == set()
+    assert not control.native_actuator_path_active
+    assert not articulation._has_newton_actuators
+    assert runtime_prepare_calls == []
+
 
 _SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
     "OVPhysX 0.5.9 segfaults while attaching OVStage scenes containing spatial tendon schemas."
@@ -586,8 +616,9 @@ def sim(request):
         add_ground_plane = request.getfixturevalue("add_ground_plane")
     else:
         add_ground_plane = False  # default to no ground plane
+    dt = request.getfixturevalue("dt") if "dt" in request.fixturenames else 1.0 / 60.0
     with _ovphysx_sim_context(
-        device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane
+        device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane, dt=dt
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
@@ -619,10 +650,13 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
 
 
-@pytest.mark.parametrize("device", ["cpu"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled):
-    """Keep dynamics tensors consistent with public joint velocity."""
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("gravity_enabled", [False, True])
+@pytest.mark.parametrize("user_ordering", [False, True])
+# Keep integration-time pose/velocity differences below the dynamics tolerance.
+@pytest.mark.parametrize("dt", [1e-4])
+def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled, user_ordering, dt):
+    """Check velocity, kinetic energy and gravity in the public joint basis."""
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -630,6 +664,8 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
                 usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
             ),
             actuators={},
+            joint_ordering=BRANCHING_MJWARP_JOINT_NAMES if user_ordering else None,
+            body_ordering=BRANCHING_MJWARP_BODY_NAMES if user_ordering else None,
         )
     )
     UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
@@ -637,6 +673,14 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
     body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
     joint.GetBody0Rel().SetTargets(body1)
     joint.GetBody1Rel().SetTargets(body0)
+    for prim in Usd.PrimRange(sim.stage.GetPrimAtPath("/World/Robot")):
+        if prim.IsA(UsdPhysics.RevoluteJoint):
+            UsdPhysics.RevoluteJoint(prim).GetAxisAttr().Set("Y")
+        if prim.HasAPI(UsdPhysics.MassAPI):
+            mass = UsdPhysics.MassAPI(prim)
+            mass.CreateCenterOfMassAttr(Gf.Vec3f(0.2, 0.0, 0.0))
+            # Isotropic inertia makes the energy check independent of body rotation.
+            mass.CreateDiagonalInertiaAttr(Gf.Vec3f(0.1))
     sim.reset()
 
     velocity = torch.zeros((1, articulation.num_joints), device=device)
@@ -644,7 +688,7 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
     velocity[:, articulation.find_joints("left_elbow")[0][0]] = 0.7
     articulation.write_joint_velocity_to_sim_index(velocity=velocity)
     sim.step()
-    articulation.update(sim.cfg.dt)
+    articulation.update(dt)
 
     joint_velocity = articulation.data.joint_vel.torch
     predicted_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_com_jacobian_w.torch, joint_velocity)
@@ -660,6 +704,19 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
         + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
     )
     torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
+
+    gravity = torch.tensor(sim.cfg.gravity, device=device)
+    body_weight = articulation.data.body_mass.torch[:, 1:, None] * gravity
+    expected_compensation = -torch.einsum(
+        "nbij,nbi->nj", articulation.data.body_com_jacobian_w.torch[:, :, :3], body_weight
+    )
+    if gravity_enabled:
+        assert torch.all(expected_compensation.abs() > 0.1)
+    else:
+        assert torch.count_nonzero(expected_compensation) == 0
+    torch.testing.assert_close(
+        articulation.data.gravity_compensation_forces.torch, expected_compensation, atol=1e-5, rtol=1e-5
+    )
 
 
 def test_joint_dof_sign_resolution_traverses_instance_proxies():

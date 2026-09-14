@@ -983,6 +983,6 @@ See Also
 - :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
+- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference

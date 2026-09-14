@@ -136,8 +136,9 @@ def test_reach_diffik_physx_configures_teleop_physics():
     physx_props = next(props for props in rigid_props if isinstance(props, PhysxRigidBodyCfg))
     assert physx_props.disable_gravity
     assert physx_props.max_depenetration_velocity == pytest.approx(5.0)
-    assert cfg.scene.robot.spawn.make_uninstanceable
-    assert cfg.scene.robot.spawn.collision_props["/Geometry/.*_c.*"][0].collision_enabled
+    assert not cfg.scene.robot.spawn.make_uninstanceable
+    assert cfg.scene.robot.spawn.collision_props is None
+    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/Legacy/panda_instanceable.usd")
 
 
 def test_reach_newton_ik_configures_gravity_compensation():
@@ -146,6 +147,7 @@ def test_reach_newton_ik_configures_gravity_compensation():
 
     mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
     assert mujoco_props.gravcomp == pytest.approx(1.0)
+    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
 
 
 def test_reach_newton_ik_uses_native_se3_command_convention():

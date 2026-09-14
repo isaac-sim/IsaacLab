@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+3.1.1 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disabled the reversed-joint sign correction for OvPhysX 0.6 and newer, which already returned Jacobians and mass matrices
+  in the public joint basis. Preserved the correction for the default OvPhysX 0.5.11
+  runtime and custom joint and body ordering on both versions.
+* Removed an unnecessary reversed-joint sign correction from gravity compensation forces on OvPhysX 0.5.11.
+* Registered the OvPhysX codeless physics schemas with OVStage before scene population when its registration API was
+  available, including when the host USD registry already provided those schemas.
+* Fixed :class:`~isaaclab_ov.sensors.ContactSensor` reporting the last in-contact force forever after a body
+  left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its data
+  was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The ovphysx contact bindings
+  are now read on every physics step regardless of the history length, while the warp kernels that consume
+  the fetched buffers stay lazy.
+
+
 3.1.0 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~
 
