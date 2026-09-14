@@ -559,7 +559,7 @@ def test_no_contact_reporting():
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("detail_mode", [None, "points", "friction"])
+@pytest.mark.parametrize("detail_mode", [None, "points", "friction", "both"])
 def test_multi_body_per_sensor_indexing(device, num_envs, detail_mode):
     """Ground-truth body-index check for a single sensor that resolves to two bodies.
 
@@ -588,8 +588,8 @@ def test_multi_body_per_sensor_indexing(device, num_envs, detail_mode):
             track_pose=False,
             debug_vis=False,
             update_period=0.0,
-            track_contact_points=detail_mode == "points",
-            track_friction_forces=detail_mode == "friction",
+            track_contact_points=detail_mode in ("points", "both"),
+            track_friction_forces=detail_mode in ("friction", "both"),
             max_contact_data_count_per_prim=32,
             filter_prim_paths_expr=[scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
             if detail_mode
@@ -626,7 +626,7 @@ def test_multi_body_per_sensor_indexing(device, num_envs, detail_mode):
             " assumed env-major instead of pattern-major flat-buffer layout."
         )
         data = contact_sensor.data
-        if detail_mode == "points":
+        if detail_mode in ("points", "both"):
             assert data.contact_pos_w is not None
             positions = data.contact_pos_w.torch
             assert positions.shape == (num_envs, 2, 1, 3)
@@ -639,7 +639,7 @@ def test_multi_body_per_sensor_indexing(device, num_envs, detail_mode):
             )
         else:
             assert data.contact_pos_w is None
-        if detail_mode == "friction":
+        if detail_mode in ("friction", "both"):
             assert data.friction_force_matrix_w is not None
             assert data.friction_force_matrix_w.torch.shape == (num_envs, 2, 1, 3)
             assert torch.count_nonzero(data.friction_force_matrix_w.torch[:, high_idx]) == 0

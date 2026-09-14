@@ -401,27 +401,25 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-        for buffers, output, average in (
-            (self._contact_data_buffers, self._data._contact_pos_w, True),
-            (self._friction_data_buffers, self._data._friction_force_matrix_w, False),
-        ):
-            if buffers is not None:
-                values = buffers[1] if average else buffers[0]
-                wp.launch(
-                    unpack_contact_buffer_data,
-                    dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
-                    inputs=[
-                        values.view(wp.vec3f),
-                        buffers[-2],
-                        buffers[-1],
-                        env_mask,
-                        self._num_envs,
-                        average,
-                        float("nan") if average else 0.0,
-                    ],
-                    outputs=[output],
-                    device=self._device,
-                )
+        contact_buffers = self._contact_data_buffers
+        friction_buffers = self._friction_data_buffers
+        if contact_buffers is not None or friction_buffers is not None:
+            wp.launch(
+                unpack_contact_buffer_data,
+                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
+                inputs=[
+                    contact_buffers[1].view(wp.vec3f) if contact_buffers is not None else None,
+                    contact_buffers[-2] if contact_buffers is not None else None,
+                    contact_buffers[-1] if contact_buffers is not None else None,
+                    friction_buffers[0].view(wp.vec3f) if friction_buffers is not None else None,
+                    friction_buffers[-2] if friction_buffers is not None else None,
+                    friction_buffers[-1] if friction_buffers is not None else None,
+                    env_mask,
+                    self._num_envs,
+                ],
+                outputs=[self._data._contact_pos_w, self._data._friction_force_matrix_w],
+                device=self._device,
+            )
         if self._friction_data_buffers is not None:
             wp.launch(
                 update_filtered_force_history_kernel,
