@@ -322,14 +322,14 @@ Verify an export in the following order:
    model patterns.
 
 LEAPP prefers ONNX Runtime's CUDA execution provider when it is installed and otherwise runs the
-exported ONNX model on the CPU. A CUDA PyTorch trace and a CPU ONNX Runtime replay can differ by
-more than the default absolute tolerance even when a strict same-device comparison passes. Prefer
-an ONNX Runtime installation that exposes the same execution provider as the PyTorch trace, and
-verify the provider that the session actually activates. If the deployment runtime intentionally
-uses a different provider, also run a strict parity test on that provider. Use a larger
-``--validation_atol`` only for a deliberate cross-provider check after inspecting the reported
-maximum and mean error. Do not disable validation as a workaround. Always follow artifact parity
-with a bounded closed-loop deployment canary.
+exported ONNX model on the CPU. PyTorch and ONNX Runtime can select different kernels even on the
+same device, and a device or provider mismatch can increase the difference further. Prefer an ONNX
+Runtime installation that exposes the same execution provider as the PyTorch trace, and verify the
+provider that the session actually activates. If the deployment runtime uses another provider,
+also run a strict parity test on that target provider. Increase ``--validation_atol`` only after
+inspecting the reported maximum and mean error and independently confirming the exported model on
+the target runtime. Do not disable validation as a workaround. Always follow artifact parity with
+a bounded closed-loop deployment canary.
 
 Use the default ``onnx-dynamo`` backend unless your
 downstream runtime or workflow requires another format. Backend support can vary by model, so if
