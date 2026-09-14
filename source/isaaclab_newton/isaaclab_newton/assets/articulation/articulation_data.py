@@ -25,7 +25,6 @@ from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import (
     build_joint_coordinate_tables,
     gather_joint_coordinates,
-    scatter_joint_coordinates,
 )
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
@@ -2197,24 +2196,6 @@ class ArticulationData(BaseArticulationData):
             inputs=[self._sim_bind_body_link_pose_w, self._sim_bind_body_com_vel_w, self.body_ordering.user_to_backend],
             outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
         )
-
-    def _flush_joint_targets(self, env_mask: wp.array) -> None:
-        """Push DOF-space joint position targets into Newton's coordinate array.
-
-        A no-op unless Newton hands back coordinate-layout targets, in which case the actuators
-        write into a DOF-shaped staging buffer and this scatters it across. A ball joint's three
-        target values are read as a rotation vector, the same convention ``joint_pos`` uses.
-
-        Args:
-            env_mask: Per-environment mask of instances to scatter.
-        """
-        if self._joint_targets_need_conversion:
-            scatter_joint_coordinates(
-                self._joint_coord_map,
-                self._sim_bind_joint_position_target,
-                self._sim_bind_joint_target_coords,
-                env_mask,
-            )
 
     def _gather_joint_coordinates(self) -> None:
         """Re-derive the DOF-space joint positions from Newton's coordinate array.

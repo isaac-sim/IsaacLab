@@ -22,6 +22,7 @@ from isaaclab.actuators.newton.adapter import NewtonActuatorSelection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 
+from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -185,7 +186,13 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         # DOF-indexed targets, so the staging buffer has to be scattered across unconditionally.
         # Sequenced after the writes above (not a try/finally) so an exception mid-write leaves the
         # staging buffer unflushed rather than scattering a half-written buffer into joint_target_q.
-        articulation.data._flush_joint_targets(articulation._ALL_ENV_MASK)
+        if articulation.data._joint_targets_need_conversion:
+            scatter_joint_coordinates(
+                articulation.data._joint_coord_map,
+                articulation.data._sim_bind_joint_position_target,
+                articulation.data._sim_bind_joint_target_coords,
+                articulation._ALL_ENV_MASK,
+            )
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
