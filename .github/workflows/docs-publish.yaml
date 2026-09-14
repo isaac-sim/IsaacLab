@@ -1,0 +1,116 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Publish Docs
+
+on:
+  workflow_run:
+    workflows: [Docs]
+    types: [completed]
+  pull_request_target:
+    types: [closed, labeled, unlabeled]
+  # Reconcile missed events, interrupted runs, and notification failures.
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Every run reconciles all open PRs, so replacing a pending run cannot lose an update.
+concurrency:
+  group: docs-pages-publisher
+  cancel-in-progress: false
+
+jobs:
+  select-repository:
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      github.event.action == 'closed' ||
+      github.event.label.name == 'docs-preview'
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.repository.outputs.enabled }}
+    steps:
+      - id: repository
+        env:
+          REPO_NAME: ${{ secrets.REPO_NAME }}
+        if: github.repository == env.REPO_NAME
+        run: echo 'enabled=true' >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: select-repository
+    if: needs.select-repository.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: write
+      pages: write
+      id-token: write
+      pull-requests: write
+      statuses: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # Never check out the triggering PR or execute anything from its artifacts.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Set publication directory
+        run: echo "DOCS_STATE=$RUNNER_TEMP/docs-site" >> "$GITHUB_ENV"
+
+      - name: Restore published site
+        run: |
+          if git ls-remote --exit-code --heads origin docs-site; then
+            git fetch --depth=1 origin refs/heads/docs-site
+            git worktree add --detach "$DOCS_STATE" FETCH_HEAD
+          else
+            result=$?
+            if [ "$result" -ne 2 ]; then exit "$result"; fi
+            git worktree add --detach --no-checkout "$DOCS_STATE" HEAD
+            git -C "$DOCS_STATE" switch --orphan docs-site
+          fi
+
+      - name: Reconcile release docs and PR previews
+        id: prepare
+        run: uv run --no-project python .github/scripts/docs_preview.py prepare "$DOCS_STATE"
+
+      - name: Upload complete site
+        if: steps.prepare.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ env.DOCS_STATE }}/public
+
+      - name: Deploy GitHub Pages
+        if: steps.prepare.outputs.changed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Update PR comments and checks
+        run: uv run --no-project python .github/scripts/docs_preview.py notify "$DOCS_STATE"
+
+      # Persist successful deployments even if a comment was blocked (e.g. a locked PR).
+      # Notification acknowledgements are also saved and retried on the next run.
+      - name: Save published site
+        if: always() && steps.prepare.outcome == 'success' && (steps.deployment.outcome == 'success' || steps.prepare.outputs.changed == 'false')
+        working-directory: ${{ env.DOCS_STATE }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --force --all public state.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update hosted documentation and PR previews'
+            git push origin HEAD:refs/heads/docs-site
+          fi

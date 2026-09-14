@@ -1,0 +1,43 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Publish Docs Command
+run-name: Publish docs for PR #${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+# Save each PR's opt-in before entering the shared publisher queue.
+concurrency:
+  group: publish-doc-command-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  request-preview:
+    if: github.event.issue.pull_request && github.event.comment.body == 'publish-doc'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Authorize and request preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPO_NAME: ${{ secrets.REPO_NAME }}
+        run: uv run --no-project python .github/scripts/docs_preview.py request "$GITHUB_EVENT_PATH"

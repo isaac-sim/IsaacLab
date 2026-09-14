@@ -49,6 +49,10 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 Docker and GPU tests run on demand. Push the commits you want tested, then
 comment `run-ci` on the pull request.
 
+To host a documentation preview, comment `publish-doc`. The bot replies with
+the link after deployment. The preview updates after successful docs builds and
+is removed when the PR closes or the `docs-preview` label is removed.
+
 - [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)
 - [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./isaaclab.sh --format`
 - [ ] I have made corresponding changes to the documentation
