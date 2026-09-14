@@ -574,11 +574,39 @@ class image_features(ManagerTermBase):
         Returns:
             A dictionary containing the model and inference functions.
         """
-        from transformers import AutoModel
+        from transformers import AutoConfig
+        from transformers.dynamic_module_utils import get_class_from_dynamic_module
 
         def _load_model() -> torch.nn.Module:
             """Load the Theia transformer model."""
-            model = AutoModel.from_pretrained(f"theaiinstitute/{model_name}", trust_remote_code=True).eval()
+            pretrained_model_name = f"theaiinstitute/{model_name}"
+            config = AutoConfig.from_pretrained(pretrained_model_name, trust_remote_code=True)
+            model_class = get_class_from_dynamic_module(config.auto_map["AutoModel"], pretrained_model_name)
+
+            # Theia initializes a pretrained backbone inside its constructor. Transformers 5 constructs
+            # models on the meta device, where nested ``from_pretrained`` calls are prohibited. Limit the
+            # legacy initialization behavior to the trusted remote class and restore it after loading.
+            had_init_context = "get_init_context" in model_class.__dict__
+            original_init_context = model_class.__dict__.get("get_init_context")
+            had_tied_weight_keys = "all_tied_weights_keys" in model_class.__dict__
+            original_tied_weight_keys = model_class.__dict__.get("all_tied_weights_keys")
+
+            def _get_init_context(_cls, *_args, **_kwargs):
+                return []
+
+            model_class.get_init_context = classmethod(_get_init_context)
+            model_class.all_tied_weights_keys = {}
+            try:
+                model = model_class.from_pretrained(pretrained_model_name, config=config).eval()
+            finally:
+                if had_init_context:
+                    model_class.get_init_context = original_init_context
+                else:
+                    del model_class.get_init_context
+                if had_tied_weight_keys:
+                    model_class.all_tied_weights_keys = original_tied_weight_keys
+                else:
+                    del model_class.all_tied_weights_keys
             return model.to(model_device)
 
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
