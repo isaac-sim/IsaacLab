@@ -257,3 +257,35 @@ def test_world_attached_set_world_roundtrip(device):
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)
     torch.testing.assert_close(ret_quat.torch, wp.to_torch(new_quat), atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_world_attached_per_env_flat_builder(device):
+    """A world-attached frame resolved per environment does not crash under the flat
+    (non-replicated) builder.
+
+    The flat builder (``replicate_physics=False``) has exactly one shared Newton world
+    regardless of environment count, so a per-environment world-attached site (env_ids
+    from the cloner, not None) must not index ``NewtonManager._world_xforms`` — which has
+    length 1 — with an environment index greater than 0.
+    """
+    num_envs = 3
+    NEWTON_SIM_CFG.device = device
+    ctx = build_simulation_context(device=device, sim_cfg=NEWTON_SIM_CFG, add_ground_plane=True)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0, replicate_physics=False))
+
+    # a plain Xform sibling of the per-env Cube body: no RigidBodyAPI/ArticulationRootAPI
+    # ancestor, so it resolves through the per_world (body=-1) fallback, but it is still
+    # matched per environment via the cloner because it lives under the cloned env root.
+    for i in range(num_envs):
+        sim_utils.create_prim(f"/World/envs/env_{i}/WorldMarker", translation=WORLD_MARKER_POS)
+
+    sim.reset()
+    view = FrameView("/World/envs/env_[^/]+/WorldMarker", device=device)
+
+    pos = view.get_world_poses()[0].torch
+    expected = torch.tensor([list(WORLD_MARKER_POS)] * num_envs, device=device)
+    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
+    ctx.__exit__(None, None, None)
