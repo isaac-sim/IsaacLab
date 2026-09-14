@@ -1754,12 +1754,12 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "24.1.1"
+version = "24.2.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "0.8.0"
+version = "0.8.1"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
@@ -1983,6 +1983,9 @@ video = [
 viser = [
     { name = "viser" },
 ]
+wandb = [
+    { name = "wandb" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2079,7 +2082,7 @@ requires-dist = [
     { name = "resolve-robotics-uri-py", specifier = ">=0.4.0" },
     { name = "rich" },
     { name = "rich", marker = "extra == 'sb3'" },
-    { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=python3.11" },
+    { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=02d19580d184efc9d2279af715407723ffecfdeb" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
     { name = "rsl-rl-lib", specifier = "==5.4.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.4.1" },
@@ -2120,9 +2123,10 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "usd-exchange", specifier = "==2.3.0" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
+    { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "rl-games", "wandb", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -2137,7 +2141,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.6"
+version = "2.0.8"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2154,7 +2158,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.2.0"
+version = "6.3.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2165,7 +2169,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.1.0"
+version = "3.1.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2180,7 +2184,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.1.1"
+version = "7.1.3"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2202,7 +2206,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.17.2"
+version = "0.17.4"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2219,7 +2223,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "20.1.2"
+version = "20.3.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2249,7 +2253,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.8.4"
+version = "0.9.0"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2260,7 +2264,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.10.4"
+version = "1.11.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -4939,16 +4943,14 @@ wheels = [
 [[package]]
 name = "rl-games"
 version = "1.6.1"
-source = { git = "https://github.com/isaac-sim/rl_games.git?rev=python3.11#6b3534f29568158e9e29ec8bf83cc88fce5f0cae" }
+source = { git = "https://github.com/isaac-sim/rl_games.git?rev=02d19580d184efc9d2279af715407723ffecfdeb#02d19580d184efc9d2279af715407723ffecfdeb" }
 dependencies = [
     { name = "gym" },
     { name = "psutil" },
     { name = "pyyaml" },
-    { name = "ray" },
     { name = "setproctitle" },
     { name = "tensorboard" },
     { name = "tensorboardx" },
-    { name = "wandb" },
 ]
 
 [[package]]
