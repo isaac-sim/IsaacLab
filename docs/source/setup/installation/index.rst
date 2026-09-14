@@ -578,7 +578,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
          uv init --python 3.12 my_isaaclab_project
          cd my_isaaclab_project
-         uv add "isaaclab @ https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl"
+         uv add isaaclab
 
    .. tab-item:: Standalone uv environment
 
@@ -592,7 +592,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl
+               uv pip install isaaclab
 
          .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
             :sync: windows-x86_64
@@ -601,7 +601,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                env_isaaclab\Scripts\activate
-               uv pip install https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl
+               uv pip install isaaclab
 
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
             :sync: linux-aarch64
@@ -610,7 +610,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl
+               uv pip install isaaclab
 
 The project workflow records the dependency in ``pyproject.toml`` and updates ``uv.lock``. Use it
 when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
@@ -622,10 +622,8 @@ Optional extras
 ~~~~~~~~~~~~~~~
 
 Add extras only when your project needs them. Most extras work with
-``uv pip install "isaaclab[<extra>] @ https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl"``
-in a standalone environment or
-``uv add "isaaclab[<extra>] @ https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl"``
-in a uv project. The ``importers`` and ``isaacsim`` extras
+``uv pip install "isaaclab[<extra>]"`` in a standalone environment or
+``uv add "isaaclab[<extra>]"`` in a uv project. The ``importers`` and ``isaacsim`` extras
 have dedicated commands below.
 
 .. list-table::

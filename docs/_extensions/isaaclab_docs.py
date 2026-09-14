@@ -17,7 +17,6 @@ from sphinx.util.docutils import SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
-_ISAACLAB_WHEEL_URL = "https://pypi.nvidia.com/isaaclab/isaaclab-3.0.0ea-py3-none-any.whl"
 
 
 def _branch(config) -> str:
@@ -224,7 +223,7 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[isaacsim] @ {_ISAACLAB_WHEEL_URL}" \\
+   uv pip install "isaaclab[isaacsim]" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match
@@ -245,7 +244,7 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[importers] @ {_ISAACLAB_WHEEL_URL}" \\
+   uv pip install "isaaclab[importers]" \\
      --overrides "{overrides_url}"
 """
         return _parse_rst(self, content)
