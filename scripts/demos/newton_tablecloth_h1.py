@@ -34,8 +34,7 @@ from __future__ import annotations
 import argparse
 import os
 import tempfile
-from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -50,6 +49,32 @@ args_cli = parser.parse_args()
 
 import numpy as np
 import warp as wp
+from _newton_tablecloth_utils import (
+    BOWL_LOCAL_HEIGHT,
+    BOWL_LOCAL_RADIUS,
+    BOWL_LOCAL_Z_MIN,
+    BOWL_SCALE,
+    BOWL_USD,
+    FORK_CENTER_OF_MASS,
+    FORK_DIAGONAL_INERTIA,
+    FORK_LOCAL_Z_MIN,
+    FORK_ROTATION,
+    FORK_SCALE,
+    FORK_USD,
+    KITCHEN_ISLAND_SIZE,
+    KITCHEN_ISLAND_USD,
+    RIGID_GAP,
+    WINE_GLASS_CENTER_OF_MASS,
+    WINE_GLASS_DIAGONAL_INERTIA,
+    WINE_GLASS_LOCAL_Z_MIN,
+    WINE_GLASS_USD,
+    VisualTableUsdFileCfg,
+    collision_properties,
+    create_video_recorder,
+    rigid_material,
+    rigid_object_cfg,
+    tabletop_collider_cfg,
+)
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -57,22 +82,15 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
-from isaaclab_newton.sim.schemas import (
-    NewtonCollisionCfg,
-    NewtonDeformableBodyPropertiesCfg,
-    NewtonSDFCollisionCfg,
-)
-from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg, NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg, NewtonSDFCollisionCfg
+from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
-from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
-from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
     from isaaclab_newton.ik import NewtonIKSolver
@@ -84,74 +102,73 @@ VIDEO_STEPS = 312
 VIDEO_OUTPUT_DIR = "videos/newton_tablecloth_h1"
 VIDEO_RESOLUTION = (1920, 1080)
 TABLE_TOP_Z = 1.09
-RIGID_GAP = 0.001
 TABLEWARE_CLEARANCE = 0.008
 CLOTH_Z = TABLE_TOP_Z + 0.002
 PULL_DISTANCE = 0.40
 PULL_RAMP_TIME = wp.constant(0.25)
 
-KITCHEN_ISLAND_USD = (
-    f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Counters/Island_A01/sm_fixture_island_a01_01.usd"
-)
-BOWL_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Dishware/Bowl_G01/sm_kitchenware_bowl_g01_01.usd"
-WINE_GLASS_USD = (
-    f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Furnishing/Kitchen/Kitchenware/Dishware/Glass_Wine_A01/"
-    "sm_dishware_glass_wine_a01_01.usd"
-)
-FORK_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Utensils/Fork_K01/sm_kitchenware_fork_k01_01.usd"
-
 # Dimensions measured from the SimReady assets. Non-uniform scaling turns the kitchen island into a compact,
 # H1-height serving table without changing the manipulation geometry used by the state machine.
-KITCHEN_ISLAND_SIZE = (0.631293, 1.240893, 0.900409)
 KITCHEN_ISLAND_SCALE = (
     0.40 / KITCHEN_ISLAND_SIZE[0],
     0.72 / KITCHEN_ISLAND_SIZE[1],
     TABLE_TOP_Z / KITCHEN_ISLAND_SIZE[2],
 )
-BOWL_LOCAL_Z_MIN = 0.000001783
-BOWL_LOCAL_RADIUS = 0.052765541
-BOWL_LOCAL_HEIGHT = 0.043569469
-WINE_GLASS_LOCAL_Z_MIN = 0.000358
-FORK_LOCAL_Z_MIN = 0.000127
-BOWL_SCALE = 1.35
-FORK_SCALE = 0.85
-FORK_ROTATION = (0.0, 0.0, -0.70710678, 0.70710678)
-FORK_CENTER_OF_MASS = (0.0, 0.0092, 0.0089)
-FORK_DIAGONAL_INERTIA = (1.86e-4, 6.2e-6, 1.90e-4)
-# A base-only collision proxy would otherwise give the tall glass a flat-disk inertia.
-WINE_GLASS_CENTER_OF_MASS = (0.0, 0.0, 0.04)
-WINE_GLASS_DIAGONAL_INERTIA = (3.0e-3, 3.0e-3, 5.0e-4)
 
-SETTLE_DURATION = wp.constant(0.50)
-APPROACH_DURATION = wp.constant(0.80)
-DESCEND_DURATION = wp.constant(0.60)
-INSERT_DURATION = wp.constant(0.50)
-PRELIFT_DURATION = wp.constant(0.60)
-CLOSE_DURATION = wp.constant(0.40)
-LIFT_DURATION = wp.constant(0.50)
-PINCH_DURATION = wp.constant(0.60)
+GROUP_LEFT_THUMB = 0
+GROUP_RIGHT_THUMB = 1
+GROUP_LEFT_INDEX = 2
+GROUP_RIGHT_INDEX = 3
+GROUP_OTHER = 4
 
-STATE_SETTLE = wp.constant(0)
-STATE_APPROACH = wp.constant(1)
-STATE_DESCEND = wp.constant(2)
-STATE_INSERT = wp.constant(3)
-STATE_PRELIFT = wp.constant(4)
-STATE_CLOSE = wp.constant(5)
-STATE_LIFT = wp.constant(6)
-STATE_PINCH = wp.constant(7)
-STATE_PULL = wp.constant(8)
-STATE_HOLD = wp.constant(9)
+FINGERS_OPEN = (0.0, 0.0, 0.0, 0.0, 0.0)
+FINGERS_CURLED = (0.0, 0.0, 0.0, 0.0, 0.80)
+FINGERS_INSERTED = (0.0, 0.0, 0.75, 0.75, 0.80)
+FINGERS_PREPINCHED = (0.0, 0.0, 0.737080, 0.713855, 0.80)
+FINGERS_PINCHED = (1.0, 1.0, 0.737080, 0.713855, 0.80)
 
-GROUP_LEFT_THUMB = wp.constant(0)
-GROUP_RIGHT_THUMB = wp.constant(1)
-GROUP_LEFT_INDEX = wp.constant(2)
-GROUP_RIGHT_INDEX = wp.constant(3)
-GROUP_OTHER = wp.constant(4)
-LEFT_INDEX_PINCH = wp.constant(0.737080)
-RIGHT_INDEX_PINCH = wp.constant(0.713855)
+
+@dataclass(frozen=True)
+class _MotionPhase:
+    """One timed interpolation in the grasp sequence."""
+
+    name: str
+    duration: float
+    start_keyframe: int
+    end_keyframe: int
+    start_fingers: tuple[float, float, float, float, float]
+    end_fingers: tuple[float, float, float, float, float]
+
+
+MOTION_PHASES = (
+    _MotionPhase("settle", 0.50, 0, 0, FINGERS_OPEN, FINGERS_OPEN),
+    _MotionPhase("approach", 0.80, 0, 2, FINGERS_OPEN, FINGERS_CURLED),
+    _MotionPhase("descend", 0.60, 2, 4, FINGERS_CURLED, FINGERS_INSERTED),
+    _MotionPhase("insert", 0.50, 4, 6, FINGERS_INSERTED, FINGERS_INSERTED),
+    _MotionPhase("prelift", 0.60, 6, 8, FINGERS_INSERTED, FINGERS_PREPINCHED),
+    _MotionPhase("close", 0.40, 8, 8, FINGERS_PREPINCHED, FINGERS_PINCHED),
+    _MotionPhase("lift", 0.50, 8, 10, FINGERS_PINCHED, FINGERS_PINCHED),
+    _MotionPhase("pinch", 0.60, 10, 10, FINGERS_PINCHED, FINGERS_PINCHED),
+)
+STATE_PULL = wp.constant(len(MOTION_PHASES))
+STATE_HOLD = wp.constant(len(MOTION_PHASES) + 1)
 
 HAND_OFFSETS = ((0.146273, -0.068447, 0.028077), (0.148808, 0.068652, 0.026675))
 HAND_ROTATIONS = ((-0.09, 0.46, 0.03, 0.88), (0.09023, 0.46115, -0.03008, 0.88221))
+HAND_KEYFRAMES = (
+    (-0.48, 0.24, 1.24),
+    (-0.48, -0.24, 1.24),
+    (-0.30, 0.24, 1.16),
+    (-0.30, -0.24, 1.16),
+    (-0.30, 0.24, 1.050),
+    (-0.30, -0.24, 1.052),
+    (-0.225, 0.24, 1.050),
+    (-0.225, -0.24, 1.052),
+    (-0.195, 0.24, 1.110),
+    (-0.195, -0.24, 1.110),
+    (-0.195, 0.24, 1.115),
+    (-0.195, -0.24, 1.115),
+)
 THUMB_CLOSED_VALUES = (
     (1.273907, 0.160957, 0.369535, 0.892908),
     (1.192278, 0.195421, 0.400690, 0.679765),
@@ -169,6 +186,11 @@ def _infer_state_machine(
     dt: float,
     pull_speed: float,
     keyframes: wp.array(dtype=wp.vec3),
+    phase_durations: wp.array(dtype=float),
+    phase_start_keyframes: wp.array(dtype=wp.int32),
+    phase_end_keyframes: wp.array(dtype=wp.int32),
+    phase_start_fingers: wp.array(dtype=float),
+    phase_end_fingers: wp.array(dtype=float),
     left_target: wp.array(dtype=wp.vec3),
     right_target: wp.array(dtype=wp.vec3),
     finger_fractions: wp.array(dtype=float),
@@ -180,93 +202,22 @@ def _infer_state_machine(
     current_state = state[0]
     elapsed = state_time[0] + dt
 
-    if current_state == STATE_SETTLE and elapsed >= SETTLE_DURATION:
-        current_state = STATE_APPROACH
-        elapsed = 0.0
-    elif current_state == STATE_APPROACH and elapsed >= APPROACH_DURATION:
-        current_state = STATE_DESCEND
-        elapsed = 0.0
-    elif current_state == STATE_DESCEND and elapsed >= DESCEND_DURATION:
-        current_state = STATE_INSERT
-        elapsed = 0.0
-    elif current_state == STATE_INSERT and elapsed >= INSERT_DURATION:
-        current_state = STATE_PRELIFT
-        elapsed = 0.0
-    elif current_state == STATE_PRELIFT and elapsed >= PRELIFT_DURATION:
-        current_state = STATE_CLOSE
-        elapsed = 0.0
-    elif current_state == STATE_CLOSE and elapsed >= CLOSE_DURATION:
-        current_state = STATE_LIFT
-        elapsed = 0.0
-    elif current_state == STATE_LIFT and elapsed >= LIFT_DURATION:
-        current_state = STATE_PINCH
-        elapsed = 0.0
-    elif current_state == STATE_PINCH and elapsed >= PINCH_DURATION:
-        current_state = STATE_PULL
+    if current_state < STATE_PULL and elapsed >= phase_durations[current_state]:
+        current_state += 1
         elapsed = 0.0
 
     left = keyframes[0]
     right = keyframes[1]
-    left_thumb = 0.0
-    right_thumb = 0.0
-    left_index = 0.0
-    right_index = 0.0
-    other = 0.0
-
-    if current_state == STATE_SETTLE:
-        pass
-    elif current_state == STATE_APPROACH:
-        u = _smoothstep(elapsed / APPROACH_DURATION)
-        left = wp.lerp(keyframes[0], keyframes[2], u)
-        right = wp.lerp(keyframes[1], keyframes[3], u)
-        other = 0.80 * u
-    elif current_state == STATE_DESCEND:
-        u = _smoothstep(elapsed / DESCEND_DURATION)
-        left = wp.lerp(keyframes[2], keyframes[4], u)
-        right = wp.lerp(keyframes[3], keyframes[5], u)
-        left_index = 0.75 * u
-        right_index = 0.75 * u
-        other = 0.80
-    elif current_state == STATE_INSERT:
-        u = _smoothstep(elapsed / INSERT_DURATION)
-        left = wp.lerp(keyframes[4], keyframes[6], u)
-        right = wp.lerp(keyframes[5], keyframes[7], u)
-        left_index = 0.75
-        right_index = 0.75
-        other = 0.80
-    elif current_state == STATE_PRELIFT:
-        u = _smoothstep(elapsed / PRELIFT_DURATION)
-        left = wp.lerp(keyframes[6], keyframes[8], u)
-        right = wp.lerp(keyframes[7], keyframes[9], u)
-        left_index = wp.lerp(0.75, LEFT_INDEX_PINCH, u)
-        right_index = wp.lerp(0.75, RIGHT_INDEX_PINCH, u)
-        other = 0.80
-    elif current_state == STATE_CLOSE:
-        left = keyframes[8]
-        right = keyframes[9]
-        u = _smoothstep(elapsed / CLOSE_DURATION)
-        left_thumb = u
-        right_thumb = u
-        left_index = LEFT_INDEX_PINCH
-        right_index = RIGHT_INDEX_PINCH
-        other = 0.80
-    elif current_state == STATE_LIFT:
-        u = _smoothstep(elapsed / LIFT_DURATION)
-        left = wp.lerp(keyframes[8], keyframes[10], u)
-        right = wp.lerp(keyframes[9], keyframes[11], u)
-        left_thumb = 1.0
-        right_thumb = 1.0
-        left_index = LEFT_INDEX_PINCH
-        right_index = RIGHT_INDEX_PINCH
-        other = 0.80
-    elif current_state == STATE_PINCH:
-        left = keyframes[10]
-        right = keyframes[11]
-        left_thumb = 1.0
-        right_thumb = 1.0
-        left_index = LEFT_INDEX_PINCH
-        right_index = RIGHT_INDEX_PINCH
-        other = 0.80
+    if current_state < STATE_PULL:
+        duration = phase_durations[current_state]
+        u = _smoothstep(elapsed / duration)
+        start_keyframe = phase_start_keyframes[current_state]
+        end_keyframe = phase_end_keyframes[current_state]
+        left = wp.lerp(keyframes[start_keyframe], keyframes[end_keyframe], u)
+        right = wp.lerp(keyframes[start_keyframe + 1], keyframes[end_keyframe + 1], u)
+        for group in range(5):
+            finger_offset = current_state * 5 + group
+            finger_fractions[group] = wp.lerp(phase_start_fingers[finger_offset], phase_end_fingers[finger_offset], u)
     elif current_state == STATE_PULL:
         speed_ramp = _smoothstep(elapsed / PULL_RAMP_TIME)
         distance = wp.min(pull_distance[0] + speed_ramp * pull_speed * dt, PULL_DISTANCE)
@@ -274,35 +225,24 @@ def _infer_state_machine(
         drop = 0.0
         if distance > 0.08:
             drop = 0.175 * _smoothstep((distance - 0.08) / (PULL_DISTANCE - 0.08))
-        offset = wp.vec3(-distance, 0.0, -drop)
-        left = keyframes[10] + offset
-        right = keyframes[11] + offset
-        left_thumb = 1.0
-        right_thumb = 1.0
-        left_index = LEFT_INDEX_PINCH
-        right_index = RIGHT_INDEX_PINCH
-        other = 0.80
+        pull_offset = wp.vec3(-distance, 0.0, -drop)
+        left = keyframes[10] + pull_offset
+        right = keyframes[11] + pull_offset
+        for group in range(5):
+            finger_fractions[group] = phase_end_fingers[(STATE_PULL - 1) * 5 + group]
         if distance >= PULL_DISTANCE:
             current_state = STATE_HOLD
     else:
         distance = pull_distance[0]
         drop = 0.175 * _smoothstep((distance - 0.08) / (PULL_DISTANCE - 0.08))
-        offset = wp.vec3(-distance, 0.0, -drop)
-        left = keyframes[10] + offset
-        right = keyframes[11] + offset
-        left_thumb = 1.0
-        right_thumb = 1.0
-        left_index = LEFT_INDEX_PINCH
-        right_index = RIGHT_INDEX_PINCH
-        other = 0.80
+        pull_offset = wp.vec3(-distance, 0.0, -drop)
+        left = keyframes[10] + pull_offset
+        right = keyframes[11] + pull_offset
+        for group in range(5):
+            finger_fractions[group] = phase_end_fingers[(STATE_PULL - 1) * 5 + group]
 
     left_target[0] = left
     right_target[0] = right
-    finger_fractions[0] = left_thumb
-    finger_fractions[1] = right_thumb
-    finger_fractions[2] = left_index
-    finger_fractions[3] = right_index
-    finger_fractions[4] = other
     state[0] = current_state
     state_time[0] = elapsed
 
@@ -345,193 +285,6 @@ def _unit_quat(values: tuple[float, float, float, float]) -> tuple[float, float,
     values_np = np.asarray(values, dtype=np.float32)
     values_np /= np.linalg.norm(values_np)
     return tuple(float(value) for value in values_np)
-
-
-def _rigid_material(
-    *, density: float | None, friction: float, contact_stiffness: float, contact_damping: float
-) -> list[UsdPhysicsRigidBodyMaterialCfg | NewtonMaterialCfg]:
-    """Return solver-common friction and Newton compliant-contact material fragments."""
-    return [
-        UsdPhysicsRigidBodyMaterialCfg(
-            static_friction=friction,
-            dynamic_friction=friction,
-            restitution=0.0,
-            density=density,
-        ),
-        NewtonMaterialCfg(contact_stiffness=contact_stiffness, contact_damping=contact_damping),
-    ]
-
-
-def _collision_properties() -> list[UsdPhysicsCollisionCfg | NewtonCollisionCfg]:
-    """Return collision properties shared by cloth-contacting rigid shapes."""
-    return [
-        UsdPhysicsCollisionCfg(collision_enabled=True),
-        NewtonCollisionCfg(contact_margin=0.002, contact_gap=RIGID_GAP),
-    ]
-
-
-def _tabletop_collider_cfg(size: tuple[float, float, float]) -> sim_utils.CuboidCfg:
-    """Create the low-cost collision proxy underneath the kitchen-island visual."""
-    return sim_utils.CuboidCfg(
-        size=size,
-        visible=False,
-        collision_props=_collision_properties(),
-        physics_material=_rigid_material(
-            density=None,
-            friction=0.35,
-            contact_stiffness=1.0e4,
-            contact_damping=1.0e1,
-        ),
-    )
-
-
-def _spawn_visual_table_from_usd(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
-    """Spawn a visual-only island and remove material inputs unsupported by Newton GL."""
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    from pxr import UsdShade  # noqa: PLC0415
-
-    for root in sim_utils.find_matching_prims(prim_path):
-        for child in sim_utils.get_all_matching_child_prims(root.GetPath()):
-            physics_binding = child.GetRelationship("material:binding:physics")
-            if physics_binding:
-                physics_binding.SetTargets([])
-            if child.IsA(UsdShade.Shader):
-                shader = UsdShade.Shader(child)
-                if shader.GetIdAttr().Get() == "UsdPreviewSurface":
-                    for input_name in ("metallic", "roughness"):
-                        shader.GetInput(input_name).DisconnectSource()
-    return prim
-
-
-@configclass
-class _VisualTableUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD spawner config for a visual-only SimReady kitchen island."""
-
-    func: Callable | str = _spawn_visual_table_from_usd
-
-
-def _spawn_tableware_from_usd(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
-    """Spawn one tableware USD and prepare its authored collider for Newton VBD."""
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    from pxr import Gf, UsdPhysics, UsdShade  # noqa: PLC0415
-
-    for root in sim_utils.find_matching_prims(prim_path):
-        root_path = root.GetPath().pathString
-        for child in sim_utils.get_all_matching_child_prims(root_path):
-            physics_binding = child.GetRelationship("material:binding:physics")
-            if physics_binding:
-                physics_binding.SetTargets([])
-            if child.IsA(UsdShade.Shader):
-                shader = UsdShade.Shader(child)
-                shader_id = shader.GetIdAttr().Get()
-                if shader_id == "UsdPreviewSurface":
-                    for input_name in ("metallic", "roughness"):
-                        shader.GetInput(input_name).DisconnectSource()
-                    if cfg.visual_color is not None:
-                        shader.GetInput("diffuseColor").Set(Gf.Vec3f(*cfg.visual_color))
-                    if cfg.visual_opacity is not None:
-                        shader.GetInput("opacity").Set(cfg.visual_opacity)
-                    if cfg.visual_roughness is not None:
-                        shader.GetInput("roughness").Set(cfg.visual_roughness)
-                elif shader_id == "mdl:OmniGlass":
-                    if cfg.visual_color is not None:
-                        shader.GetInput("glass_color").Set(Gf.Vec3f(*cfg.visual_color))
-                    if cfg.visual_opacity is not None:
-                        shader.GetInput("cutout_opacity").Set(cfg.visual_opacity)
-                    if cfg.visual_roughness is not None:
-                        shader.GetInput("frosting_roughness").Set(cfg.visual_roughness)
-        mesh_colliders = sim_utils.get_all_matching_child_prims(
-            root_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.CollisionAPI),
-        )
-        if len(mesh_colliders) != 1:
-            raise RuntimeError(f"Expected one SimReady tableware mesh collider, found {len(mesh_colliders)}")
-        UsdPhysics.CollisionAPI(mesh_colliders[0]).CreateCollisionEnabledAttr(False)
-
-        bodies = sim_utils.get_all_matching_child_prims(
-            root_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-        )
-        if len(bodies) != 1:
-            raise RuntimeError(f"Expected one SimReady tableware rigid body, found {len(bodies)}")
-        body = bodies[0]
-        mass_api = UsdPhysics.MassAPI.Apply(body)
-        mass_api.CreateMassAttr(cfg.mass)
-        mass_api.CreateDensityAttr(0.0)
-        if cfg.center_of_mass is not None:
-            mass_api.CreateCenterOfMassAttr(cfg.center_of_mass)
-        if cfg.diagonal_inertia is not None:
-            mass_api.CreateDiagonalInertiaAttr(cfg.diagonal_inertia)
-            mass_api.CreatePrincipalAxesAttr(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
-        cfg.collision_proxy_cfg.func(
-            f"{body.GetPath()}/CollisionProxy",
-            cfg.collision_proxy_cfg,
-            translation=cfg.collision_proxy_position,
-            orientation=(0.0, 0.0, 0.0, 1.0),
-        )
-    return prim
-
-
-@configclass
-class _TablewareUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD spawner config for SimReady visuals with one analytic support collider."""
-
-    func: Callable | str = _spawn_tableware_from_usd
-    mass: float = MISSING
-    collision_proxy_cfg: sim_utils.ShapeCfg = MISSING
-    collision_proxy_position: tuple[float, float, float] = MISSING
-    center_of_mass: tuple[float, float, float] | None = None
-    diagonal_inertia: tuple[float, float, float] | None = None
-    visual_color: tuple[float, float, float] | None = None
-    visual_opacity: float | None = None
-    visual_roughness: float | None = None
-
-
-def _rigid_object_cfg(
-    usd_path: str,
-    position: tuple[float, float, float],
-    mass: float,
-    collision_proxy_cfg: sim_utils.ShapeCfg,
-    collision_proxy_position: tuple[float, float, float],
-    orientation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
-    scale: tuple[float, float, float] | None = None,
-    center_of_mass: tuple[float, float, float] | None = None,
-    diagonal_inertia: tuple[float, float, float] | None = None,
-    visual_color: tuple[float, float, float] | None = None,
-    visual_opacity: float | None = None,
-    visual_roughness: float | None = None,
-) -> RigidObjectCfg:
-    """Create one dynamic SimReady tableware object with demo-tuned physical properties."""
-    return RigidObjectCfg(
-        prim_path="",
-        spawn=_TablewareUsdFileCfg(
-            usd_path=usd_path,
-            scale=scale,
-            make_uninstanceable=True,
-            rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=False)],
-            mass=mass,
-            collision_proxy_cfg=collision_proxy_cfg,
-            collision_proxy_position=collision_proxy_position,
-            center_of_mass=center_of_mass,
-            diagonal_inertia=diagonal_inertia,
-            visual_color=visual_color,
-            visual_opacity=visual_opacity,
-            visual_roughness=visual_roughness,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=position, rot=orientation),
-    )
 
 
 def _convert_h1_asset() -> str:
@@ -593,7 +346,7 @@ class _H1ArticulationCfg(ArticulationCfg):
         grasp_material_path = f"{root_path}/GraspMaterial"
         spawn_rigid_body_material_from_fragments(
             grasp_material_path,
-            _rigid_material(
+            rigid_material(
                 density=None,
                 friction=200.0,
                 contact_stiffness=8.0e3,
@@ -621,8 +374,8 @@ def _h1_articulation_cfg(usd_path: str) -> ArticulationCfg:
             usd_path=usd_path,
             make_uninstanceable=True,
             fix_root_link=True,
-            collision_props=_collision_properties(),
-            physics_material=_rigid_material(
+            collision_props=collision_properties(),
+            physics_material=rigid_material(
                 density=None,
                 friction=0.50,
                 contact_stiffness=1.0e3,
@@ -664,7 +417,7 @@ class H1TableclothSceneCfg(InteractiveSceneCfg):
 
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        spawn=_VisualTableUsdFileCfg(
+        spawn=VisualTableUsdFileCfg(
             usd_path=KITCHEN_ISLAND_USD,
             scale=KITCHEN_ISLAND_SCALE,
             variants={"Physics": "none"},
@@ -675,7 +428,12 @@ class H1TableclothSceneCfg(InteractiveSceneCfg):
     )
     tabletop_collider = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Tabletop",
-        spawn=_tabletop_collider_cfg((0.40, 0.72, 0.08)),
+        spawn=tabletop_collider_cfg(
+            (0.40, 0.72, 0.08),
+            friction=0.35,
+            contact_stiffness=1.0e4,
+            contact_damping=1.0e1,
+        ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, TABLE_TOP_Z - 0.04)),
     )
 
@@ -699,65 +457,65 @@ class H1TableclothSceneCfg(InteractiveSceneCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(-0.01, 0.0, CLOTH_Z)),
     )
 
-    bowl = _rigid_object_cfg(
-        BOWL_USD,
-        (0.08, -0.07, CLOTH_Z + TABLEWARE_CLEARANCE - BOWL_SCALE * BOWL_LOCAL_Z_MIN),
-        0.45,
-        sim_utils.CylinderCfg(
+    bowl = rigid_object_cfg(
+        usd_path=BOWL_USD,
+        position=(0.08, -0.07, CLOTH_Z + TABLEWARE_CLEARANCE - BOWL_SCALE * BOWL_LOCAL_Z_MIN),
+        mass=0.45,
+        collision_proxy_cfg=sim_utils.CylinderCfg(
             radius=BOWL_LOCAL_RADIUS,
             height=BOWL_LOCAL_HEIGHT,
             visible=False,
-            collision_props=_collision_properties(),
-            physics_material=_rigid_material(
+            collision_props=collision_properties(),
+            physics_material=rigid_material(
                 density=None,
                 friction=0.08,
                 contact_stiffness=1.0e4,
                 contact_damping=1.0e1,
             ),
         ),
-        (0.0, 0.0, BOWL_LOCAL_Z_MIN + 0.5 * BOWL_LOCAL_HEIGHT),
+        collision_proxy_position=(0.0, 0.0, BOWL_LOCAL_Z_MIN + 0.5 * BOWL_LOCAL_HEIGHT),
         scale=(BOWL_SCALE,) * 3,
     ).replace(prim_path="{ENV_REGEX_NS}/Bowl")
-    glass = _rigid_object_cfg(
-        WINE_GLASS_USD,
-        (0.10, 0.13, CLOTH_Z + TABLEWARE_CLEARANCE - WINE_GLASS_LOCAL_Z_MIN),
-        0.35,
-        sim_utils.CylinderCfg(
+    glass = rigid_object_cfg(
+        usd_path=WINE_GLASS_USD,
+        position=(0.10, 0.13, CLOTH_Z + TABLEWARE_CLEARANCE - WINE_GLASS_LOCAL_Z_MIN),
+        mass=0.35,
+        collision_proxy_cfg=sim_utils.CylinderCfg(
             radius=0.040,
             height=0.006,
             visible=False,
-            collision_props=_collision_properties(),
-            physics_material=_rigid_material(
+            collision_props=collision_properties(),
+            physics_material=rigid_material(
                 density=None,
                 friction=0.01,
                 contact_stiffness=1.0e4,
                 contact_damping=1.0e1,
             ),
         ),
-        (0.0, 0.0, 0.003),
+        collision_proxy_position=(0.0, 0.0, 0.003),
         center_of_mass=WINE_GLASS_CENTER_OF_MASS,
         diagonal_inertia=WINE_GLASS_DIAGONAL_INERTIA,
         visual_color=(0.55, 0.75, 0.90),
         visual_opacity=0.90,
         visual_roughness=0.12,
     ).replace(prim_path="{ENV_REGEX_NS}/Glass")
-    fork = _rigid_object_cfg(
-        FORK_USD,
-        (0.04, -0.22, CLOTH_Z + TABLEWARE_CLEARANCE - FORK_SCALE * FORK_LOCAL_Z_MIN),
-        0.07,
-        sim_utils.CuboidCfg(
+    fork = rigid_object_cfg(
+        usd_path=FORK_USD,
+        position=(0.04, -0.22, CLOTH_Z + TABLEWARE_CLEARANCE - FORK_SCALE * FORK_LOCAL_Z_MIN),
+        mass=0.07,
+        collision_proxy_cfg=sim_utils.CuboidCfg(
             size=(0.014, 0.160, 0.003),
             visible=False,
-            collision_props=_collision_properties(),
-            physics_material=_rigid_material(
+            collision_props=collision_properties(),
+            physics_material=rigid_material(
                 density=None,
                 friction=0.50,
                 contact_stiffness=1.0e4,
                 contact_damping=1.0e1,
             ),
         ),
-        (0.0, 0.0092, 0.0016),
-        FORK_ROTATION,
+        collision_proxy_position=(0.0, 0.0092, 0.0016),
+        orientation=FORK_ROTATION,
         scale=(FORK_SCALE,) * 3,
         center_of_mass=FORK_CENTER_OF_MASS,
         diagonal_inertia=FORK_DIAGONAL_INERTIA,
@@ -846,35 +604,133 @@ def _make_ik(model: Model, bodies: dict[str, int]) -> NewtonIKSolver:
     )
 
 
-class _StandaloneVideoTarget:
-    """Expose the simulation fields expected by Isaac Lab's step-driven recorder."""
+class _H1TableclothController:
+    """Generate GPU-resident H1 joint targets for the tablecloth sequence."""
 
-    metadata = {"render_fps": FPS}
+    def __init__(self, robot: Articulation, model: Model, sim: sim_utils.SimulationContext, pull_speed: float):
+        if model.joint_coord_count < robot.num_joints:
+            raise RuntimeError(
+                "Newton IK cannot address every H1 joint; "
+                f"the model has {model.joint_coord_count} coordinates and H1 exposes {robot.num_joints} joints"
+            )
 
-    def __init__(self, sim):
-        self.sim = sim
-        self.step_dt = sim.get_physics_dt()
+        self._robot = robot
+        self._sim_dt = sim.get_physics_dt()
+        self._pull_speed = pull_speed
+        device = model.device
 
+        bodies = {
+            "torso": _find_suffix(model.body_label, "torso_link"),
+            "left_hand": _find_suffix(model.body_label, "left_hand_link"),
+            "right_hand": _find_suffix(model.body_label, "right_hand_link"),
+        }
+        self._ik_solver = _make_ik(model, bodies)
+        self._left_objective = self._ik_solver.objectives_by_name["left_hand"]
+        self._right_objective = self._ik_solver.objectives_by_name["right_hand"]
+        torso_objective = self._ik_solver.objectives_by_name["torso"]
 
-def _create_video_recorder(sim, video_length: int):
-    """Create a 60 FPS viewport recorder when ``--video`` is enabled."""
-    if not args_cli.video:
-        return None
+        torso_ids, _ = robot.find_bodies("torso_link")
+        initial_torso_pose = robot.data.body_link_pose_w.torch[0, torso_ids[0]].cpu().numpy()
+        torso_objective.position_objective.set_target_position(0, wp.vec3(*initial_torso_pose[:3]))
+        torso_objective.rotation_objective.set_target_rotation(0, wp.quat(*initial_torso_pose[3:]))
+        self._left_objective.rotation_objective.set_target_rotation(0, wp.quat(*_unit_quat(HAND_ROTATIONS[0])))
+        self._right_objective.rotation_objective.set_target_rotation(0, wp.quat(*_unit_quat(HAND_ROTATIONS[1])))
 
-    from isaaclab.envs.utils.video_recorder import VideoRecorder  # noqa: PLC0415
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg  # noqa: PLC0415
+        self._keyframes = wp.array(HAND_KEYFRAMES, dtype=wp.vec3, device=device)
+        self._phase_durations = wp.array([phase.duration for phase in MOTION_PHASES], dtype=float, device=device)
+        self._phase_start_keyframes = wp.array(
+            [phase.start_keyframe for phase in MOTION_PHASES], dtype=wp.int32, device=device
+        )
+        self._phase_end_keyframes = wp.array(
+            [phase.end_keyframe for phase in MOTION_PHASES], dtype=wp.int32, device=device
+        )
+        self._phase_start_fingers = wp.array(
+            [fraction for phase in MOTION_PHASES for fraction in phase.start_fingers], dtype=float, device=device
+        )
+        self._phase_end_fingers = wp.array(
+            [fraction for phase in MOTION_PHASES for fraction in phase.end_fingers], dtype=float, device=device
+        )
+        self._state = wp.zeros(1, dtype=wp.int32, device=device)
+        self._state_time = wp.zeros(1, dtype=float, device=device)
+        self._pull_distance = wp.zeros(1, dtype=float, device=device)
+        self._fractions = wp.zeros(5, dtype=float, device=device)
 
-    print(f"[INFO]: Recording {video_length / FPS:.1f} s to {VIDEO_OUTPUT_DIR}/", flush=True)
-    return VideoRecorder(
-        VideoRecorderCfg(
-            source="visualizer",
-            output_dir=VIDEO_OUTPUT_DIR,
-            output_filename_prefix="newton_tablecloth_h1",
-            fps=FPS,
-            video_length=video_length,
-        ),
-        _StandaloneVideoTarget(sim),
-    )
+        finger_indices, closed_values, finger_groups = _finger_data(robot)
+        self._finger_count = len(finger_indices)
+        self._finger_indices = wp.array(finger_indices, dtype=wp.int32, device=device)
+        self._closed_values = wp.array(closed_values, dtype=float, device=device)
+        self._finger_groups = wp.array(finger_groups, dtype=wp.int32, device=device)
+
+        self._ik_seed = wp.clone(model.joint_q).reshape((1, model.joint_coord_count))
+        self._target_q = robot.actuators.target_command.position.warp.reshape((-1,))
+        self._target_qd = robot.actuators.target_command.velocity.warp.reshape((-1,))
+        self._initialize_rest_pose(sim)
+
+    def step(self) -> None:
+        """Advance the state machine and write its targets to Isaac Lab's command buffers."""
+        wp.launch(
+            _infer_state_machine,
+            dim=1,
+            inputs=[
+                self._sim_dt,
+                self._pull_speed,
+                self._keyframes,
+                self._phase_durations,
+                self._phase_start_keyframes,
+                self._phase_end_keyframes,
+                self._phase_start_fingers,
+                self._phase_end_fingers,
+                self._left_objective.position_objective.target_positions,
+                self._right_objective.position_objective.target_positions,
+                self._fractions,
+                self._state,
+                self._state_time,
+                self._pull_distance,
+            ],
+        )
+        solved = self._ik_solver.solve(self._ik_seed)
+        solved_flat = solved.reshape((-1,))
+        wp.launch(
+            _set_finger_targets,
+            dim=self._finger_count,
+            inputs=[
+                solved_flat,
+                self._finger_indices,
+                self._closed_values,
+                self._finger_groups,
+                self._fractions,
+            ],
+        )
+        wp.copy(self._ik_seed, solved)
+        wp.launch(
+            _update_control_targets,
+            dim=self._robot.num_joints,
+            inputs=[
+                solved_flat,
+                self._previous_targets,
+                self._sim_dt,
+                self._target_q,
+                self._target_qd,
+            ],
+        )
+
+    def _initialize_rest_pose(self, sim: sim_utils.SimulationContext) -> None:
+        """Solve and apply the first task-space keyframe before simulation begins."""
+        self._left_objective.position_objective.set_target_position(0, wp.vec3(*HAND_KEYFRAMES[0]))
+        self._right_objective.position_objective.set_target_position(0, wp.vec3(*HAND_KEYFRAMES[1]))
+        self._ik_solver.cfg.iterations = 48
+        solved = self._ik_solver.solve(self._ik_seed)
+        solved_flat = solved.reshape((-1,))
+        robot_position = solved_flat[: self._robot.num_joints].reshape((1, self._robot.num_joints))
+        self._robot.write_joint_position_to_sim_index(position=robot_position)
+        self._robot.write_joint_velocity_to_sim_index(velocity=wp.zeros_like(robot_position))
+        sim.forward()
+
+        self._previous_targets = wp.clone(solved_flat[: self._robot.num_joints])
+        wp.copy(self._target_q, self._previous_targets)
+        self._target_qd.zero_()
+        self._ik_solver.cfg.iterations = 24
+        wp.copy(self._ik_seed, solved)
 
 
 def main() -> None:
@@ -946,115 +802,20 @@ def main() -> None:
         sim_dt = sim.get_physics_dt()
 
         robot: Articulation = scene["robot"]
-        model = NewtonManager.get_model()
-        if model.joint_coord_count < robot.num_joints:
-            raise RuntimeError(
-                "Newton IK cannot address every H1 joint; "
-                f"the model has {model.joint_coord_count} coordinates and H1 exposes {robot.num_joints} joints"
-            )
-        bodies = {
-            "torso": _find_suffix(model.body_label, "torso_link"),
-            "left_hand": _find_suffix(model.body_label, "left_hand_link"),
-            "right_hand": _find_suffix(model.body_label, "right_hand_link"),
-        }
-        device = model.device
-        ik_solver = _make_ik(model, bodies)
-        left_objective = ik_solver.objectives_by_name["left_hand"]
-        right_objective = ik_solver.objectives_by_name["right_hand"]
-        torso_objective = ik_solver.objectives_by_name["torso"]
-        torso_ids, _ = robot.find_bodies("torso_link")
-        initial_torso_pose = robot.data.body_link_pose_w.torch[0, torso_ids[0]].cpu().numpy()
-        torso_objective.position_objective.set_target_position(0, wp.vec3(*initial_torso_pose[:3]))
-        torso_objective.rotation_objective.set_target_rotation(0, wp.quat(*initial_torso_pose[3:]))
-        left_objective.rotation_objective.set_target_rotation(0, wp.quat(*_unit_quat(HAND_ROTATIONS[0])))
-        right_objective.rotation_objective.set_target_rotation(0, wp.quat(*_unit_quat(HAND_ROTATIONS[1])))
-
-        grasp_y = 0.24
-        keyframes = wp.array(
-            [
-                (-0.48, grasp_y, 1.24),
-                (-0.48, -grasp_y, 1.24),
-                (-0.30, grasp_y, 1.16),
-                (-0.30, -grasp_y, 1.16),
-                (-0.30, grasp_y, 1.050),
-                (-0.30, -grasp_y, 1.052),
-                (-0.225, grasp_y, 1.050),
-                (-0.225, -grasp_y, 1.052),
-                (-0.195, grasp_y, 1.110),
-                (-0.195, -grasp_y, 1.110),
-                (-0.195, grasp_y, 1.115),
-                (-0.195, -grasp_y, 1.115),
-            ],
-            dtype=wp.vec3,
-            device=device,
+        controller = _H1TableclothController(robot, NewtonManager.get_model(), sim, args_cli.pull_speed)
+        video_recorder = create_video_recorder(
+            sim,
+            enabled=args_cli.video,
+            output_dir=VIDEO_OUTPUT_DIR,
+            filename_prefix="newton_tablecloth_h1",
+            video_length=max_steps,
+            fps=FPS,
         )
-        state = wp.zeros(1, dtype=wp.int32, device=device)
-        state_time = wp.zeros(1, dtype=float, device=device)
-        pull_distance = wp.zeros(1, dtype=float, device=device)
-        fractions = wp.zeros(5, dtype=float, device=device)
-        finger_indices, closed_values, finger_groups = _finger_data(robot)
-        finger_indices_wp = wp.array(finger_indices, dtype=wp.int32, device=device)
-        closed_values_wp = wp.array(closed_values, dtype=float, device=device)
-        finger_groups_wp = wp.array(finger_groups, dtype=wp.int32, device=device)
-        ik_seed = wp.clone(model.joint_q).reshape((1, model.joint_coord_count))
-        target_q = robot.actuators.target_command.position.warp.reshape((-1,))
-        target_qd = robot.actuators.target_command.velocity.warp.reshape((-1,))
-
-        # Start from the solved rest pose instead of spending the settle phase moving out of the MJCF default.
-        left_objective.position_objective.set_target_position(0, wp.vec3(-0.48, grasp_y, 1.24))
-        right_objective.position_objective.set_target_position(0, wp.vec3(-0.48, -grasp_y, 1.24))
-        ik_solver.cfg.iterations = 48
-        solved = ik_solver.solve(ik_seed)
-        solved_flat = solved.reshape((-1,))
-        robot_position = solved_flat[: robot.num_joints].reshape((1, robot.num_joints))
-        robot.write_joint_position_to_sim_index(position=robot_position)
-        robot.write_joint_velocity_to_sim_index(velocity=wp.zeros_like(robot_position))
-        sim.forward()
-        previous_targets = wp.clone(solved_flat[: robot.num_joints])
-        wp.copy(target_q, previous_targets)
-        target_qd.zero_()
-        ik_solver.cfg.iterations = 24
-        wp.copy(ik_seed, solved)
-
-        video_recorder = _create_video_recorder(sim, max_steps)
         print("[INFO]: Setup complete. H1 Isaac Lab tablecloth state machine is ready.", flush=True)
         step = 0
         try:
             while sim.is_headless_or_exist_active_visualizer() and (max_steps < 0 or step < max_steps):
-                wp.launch(
-                    _infer_state_machine,
-                    dim=1,
-                    inputs=[
-                        sim_dt,
-                        args_cli.pull_speed,
-                        keyframes,
-                        left_objective.position_objective.target_positions,
-                        right_objective.position_objective.target_positions,
-                        fractions,
-                        state,
-                        state_time,
-                        pull_distance,
-                    ],
-                )
-                solved = ik_solver.solve(ik_seed)
-                solved_flat = solved.reshape((-1,))
-                wp.launch(
-                    _set_finger_targets,
-                    dim=len(finger_indices),
-                    inputs=[solved_flat, finger_indices_wp, closed_values_wp, finger_groups_wp, fractions],
-                )
-                wp.copy(ik_seed, solved)
-                wp.launch(
-                    _update_control_targets,
-                    dim=robot.num_joints,
-                    inputs=[
-                        solved_flat,
-                        previous_targets,
-                        sim_dt,
-                        target_q,
-                        target_qd,
-                    ],
-                )
+                controller.step()
                 scene.write_data_to_sim()
                 sim.step()
                 scene.update(sim_dt)

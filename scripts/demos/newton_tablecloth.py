@@ -24,9 +24,9 @@ configuration and substep controller are Newton-specific.
         --device cuda:0 --visualizer kit --video
 """
 
+from __future__ import annotations
+
 import argparse
-from collections.abc import Callable
-from dataclasses import MISSING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -38,6 +38,31 @@ parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 import warp as wp
+from _newton_tablecloth_utils import (
+    BOWL_LOCAL_HEIGHT,
+    BOWL_LOCAL_RADIUS,
+    BOWL_LOCAL_Z_MIN,
+    BOWL_SCALE,
+    BOWL_USD,
+    FORK_CENTER_OF_MASS,
+    FORK_DIAGONAL_INERTIA,
+    FORK_LOCAL_Z_MIN,
+    FORK_ROTATION,
+    FORK_SCALE,
+    FORK_USD,
+    KITCHEN_ISLAND_SIZE,
+    KITCHEN_ISLAND_USD,
+    WINE_GLASS_CENTER_OF_MASS,
+    WINE_GLASS_DIAGONAL_INERTIA,
+    WINE_GLASS_LOCAL_Z_MIN,
+    WINE_GLASS_USD,
+    VisualTableUsdFileCfg,
+    collision_properties,
+    create_video_recorder,
+    rigid_material,
+    rigid_object_cfg,
+    tabletop_collider_cfg,
+)
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -45,8 +70,8 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
-from isaaclab_newton.sim.schemas import NewtonCollisionCfg, NewtonDeformableBodyPropertiesCfg
-from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg, NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
+from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import (
@@ -58,10 +83,7 @@ from isaaclab.assets import (
 )
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
-from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 FPS = 60
 SUBSTEPS = 25
@@ -86,234 +108,8 @@ CLOTH_PARTICLE_RADIUS = 0.0005
 TABLEWARE_CLEARANCE = 0.008
 LANE_SPACING = 0.95
 
-KITCHEN_ISLAND_USD = (
-    f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Counters/Island_A01/sm_fixture_island_a01_01.usd"
-)
-BOWL_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Dishware/Bowl_G01/sm_kitchenware_bowl_g01_01.usd"
-WINE_GLASS_USD = (
-    f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Furnishing/Kitchen/Kitchenware/Dishware/Glass_Wine_A01/"
-    "sm_dishware_glass_wine_a01_01.usd"
-)
-FORK_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Utensils/Fork_K01/sm_kitchenware_fork_k01_01.usd"
-
-KITCHEN_ISLAND_HEIGHT = 0.900409
-KITCHEN_ISLAND_SCALE = (TABLE_TOP_Z / KITCHEN_ISLAND_HEIGHT,) * 3
-KITCHEN_ISLAND_ROTATION = (0.0, 0.0, -0.70710678, 0.70710678)
-BOWL_LOCAL_Z_MIN = 0.000001783
-BOWL_LOCAL_RADIUS = 0.052765541
-BOWL_LOCAL_HEIGHT = 0.043569469
-WINE_GLASS_LOCAL_Z_MIN = 0.000358
-FORK_LOCAL_Z_MIN = 0.000127
-BOWL_SCALE = 1.35
-FORK_SCALE = 0.85
-FORK_ROTATION = KITCHEN_ISLAND_ROTATION
-FORK_CENTER_OF_MASS = (0.0, 0.0092, 0.0089)
-FORK_DIAGONAL_INERTIA = (1.86e-4, 6.2e-6, 1.90e-4)
-# A base-only collision proxy would otherwise give the tall glass a flat-disk inertia.
-WINE_GLASS_CENTER_OF_MASS = (0.0, 0.0, 0.04)
-WINE_GLASS_DIAGONAL_INERTIA = (3.0e-3, 3.0e-3, 5.0e-4)
-
-
-def _rigid_material(
-    *, density: float | None, friction: float, contact_stiffness: float, contact_damping: float
-) -> list[UsdPhysicsRigidBodyMaterialCfg | NewtonMaterialCfg]:
-    """Return solver-common friction and Newton compliant-contact material fragments."""
-    return [
-        UsdPhysicsRigidBodyMaterialCfg(
-            static_friction=friction,
-            dynamic_friction=friction,
-            restitution=0.0,
-            density=density,
-        ),
-        NewtonMaterialCfg(contact_stiffness=contact_stiffness, contact_damping=contact_damping),
-    ]
-
-
-def _collision_properties() -> list[UsdPhysicsCollisionCfg | NewtonCollisionCfg]:
-    """Return collision properties shared by cloth-contacting rigid shapes."""
-    return [
-        UsdPhysicsCollisionCfg(collision_enabled=True),
-        NewtonCollisionCfg(contact_margin=0.002, contact_gap=0.001),
-    ]
-
-
-def _tabletop_collider_cfg(size: tuple[float, float, float]) -> sim_utils.CuboidCfg:
-    """Create the low-cost collision proxy underneath the kitchen-island visual."""
-    return sim_utils.CuboidCfg(
-        size=size,
-        visible=False,
-        collision_props=_collision_properties(),
-        physics_material=_rigid_material(
-            density=None,
-            friction=1.00,
-            contact_stiffness=1.0e5,
-            contact_damping=1.0e2,
-        ),
-    )
-
-
-def _spawn_visual_table_from_usd(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
-    """Spawn a visual-only island and remove material inputs unsupported by Newton GL."""
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    from pxr import UsdShade  # noqa: PLC0415
-
-    for root in sim_utils.find_matching_prims(prim_path):
-        for child in sim_utils.get_all_matching_child_prims(root.GetPath()):
-            physics_binding = child.GetRelationship("material:binding:physics")
-            if physics_binding:
-                physics_binding.SetTargets([])
-            if child.IsA(UsdShade.Shader):
-                shader = UsdShade.Shader(child)
-                if shader.GetIdAttr().Get() == "UsdPreviewSurface":
-                    for input_name in ("metallic", "roughness"):
-                        shader.GetInput(input_name).DisconnectSource()
-    return prim
-
-
-@configclass
-class _VisualTableUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD spawner config for a visual-only SimReady kitchen island."""
-
-    func: Callable | str = _spawn_visual_table_from_usd
-
-
-def _spawn_tableware_from_usd(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
-    """Spawn one tableware USD and prepare its authored collider for Newton VBD."""
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    from pxr import Gf, UsdPhysics, UsdShade  # noqa: PLC0415
-
-    for root in sim_utils.find_matching_prims(prim_path):
-        root_path = root.GetPath().pathString
-        for child in sim_utils.get_all_matching_child_prims(root_path):
-            physics_binding = child.GetRelationship("material:binding:physics")
-            if physics_binding:
-                physics_binding.SetTargets([])
-            if child.IsA(UsdShade.Shader):
-                shader = UsdShade.Shader(child)
-                shader_id = shader.GetIdAttr().Get()
-                if shader_id == "UsdPreviewSurface":
-                    for input_name in ("metallic", "roughness"):
-                        shader.GetInput(input_name).DisconnectSource()
-                    if cfg.visual_color is not None:
-                        shader.GetInput("diffuseColor").Set(Gf.Vec3f(*cfg.visual_color))
-                    if cfg.visual_opacity is not None:
-                        shader.GetInput("opacity").Set(cfg.visual_opacity)
-                    if cfg.visual_roughness is not None:
-                        shader.GetInput("roughness").Set(cfg.visual_roughness)
-                elif shader_id == "mdl:OmniGlass":
-                    if cfg.visual_color is not None:
-                        shader.GetInput("glass_color").Set(Gf.Vec3f(*cfg.visual_color))
-                    if cfg.visual_opacity is not None:
-                        shader.GetInput("cutout_opacity").Set(cfg.visual_opacity)
-                    if cfg.visual_roughness is not None:
-                        shader.GetInput("frosting_roughness").Set(cfg.visual_roughness)
-        mesh_colliders = sim_utils.get_all_matching_child_prims(
-            root_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.CollisionAPI),
-        )
-        if len(mesh_colliders) != 1:
-            raise RuntimeError(f"Expected one SimReady tableware mesh collider, found {len(mesh_colliders)}")
-        UsdPhysics.CollisionAPI(mesh_colliders[0]).CreateCollisionEnabledAttr(False)
-
-        bodies = sim_utils.get_all_matching_child_prims(
-            root_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-        )
-        if len(bodies) != 1:
-            raise RuntimeError(f"Expected one SimReady tableware rigid body, found {len(bodies)}")
-        body = bodies[0]
-        mass_api = UsdPhysics.MassAPI.Apply(body)
-        mass_api.CreateMassAttr(cfg.mass)
-        mass_api.CreateDensityAttr(0.0)
-        if cfg.center_of_mass is not None:
-            mass_api.CreateCenterOfMassAttr(cfg.center_of_mass)
-        if cfg.diagonal_inertia is not None:
-            mass_api.CreateDiagonalInertiaAttr(cfg.diagonal_inertia)
-            mass_api.CreatePrincipalAxesAttr(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
-        cfg.collision_proxy_cfg.func(
-            f"{body.GetPath()}/CollisionProxy",
-            cfg.collision_proxy_cfg,
-            translation=cfg.collision_proxy_position,
-            orientation=(0.0, 0.0, 0.0, 1.0),
-        )
-        for index, (proxy_cfg, proxy_position) in enumerate(
-            zip(cfg.additional_collision_proxy_cfgs, cfg.additional_collision_proxy_positions, strict=True), start=1
-        ):
-            proxy_cfg.func(
-                f"{body.GetPath()}/CollisionProxy{index}",
-                proxy_cfg,
-                translation=proxy_position,
-                orientation=(0.0, 0.0, 0.0, 1.0),
-            )
-    return prim
-
-
-@configclass
-class _TablewareUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD spawner config for SimReady visuals with an analytic collision proxy."""
-
-    func: Callable | str = _spawn_tableware_from_usd
-    mass: float = MISSING
-    collision_proxy_cfg: sim_utils.ShapeCfg = MISSING
-    collision_proxy_position: tuple[float, float, float] = MISSING
-    additional_collision_proxy_cfgs: tuple[sim_utils.ShapeCfg, ...] = ()
-    additional_collision_proxy_positions: tuple[tuple[float, float, float], ...] = ()
-    center_of_mass: tuple[float, float, float] | None = None
-    diagonal_inertia: tuple[float, float, float] | None = None
-    visual_color: tuple[float, float, float] | None = None
-    visual_opacity: float | None = None
-    visual_roughness: float | None = None
-
-
-def _rigid_object_cfg(
-    usd_path: str,
-    position: tuple[float, float, float],
-    mass: float,
-    collision_proxy_cfg: sim_utils.ShapeCfg,
-    collision_proxy_position: tuple[float, float, float],
-    orientation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
-    scale: tuple[float, float, float] | None = None,
-    center_of_mass: tuple[float, float, float] | None = None,
-    diagonal_inertia: tuple[float, float, float] | None = None,
-    additional_collision_proxy_cfgs: tuple[sim_utils.ShapeCfg, ...] = (),
-    additional_collision_proxy_positions: tuple[tuple[float, float, float], ...] = (),
-    visual_color: tuple[float, float, float] | None = None,
-    visual_opacity: float | None = None,
-    visual_roughness: float | None = None,
-) -> RigidObjectCfg:
-    """Create one dynamic SimReady tableware object with demo-tuned physical properties."""
-    return RigidObjectCfg(
-        prim_path="",
-        spawn=_TablewareUsdFileCfg(
-            usd_path=usd_path,
-            scale=scale,
-            make_uninstanceable=True,
-            rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=False)],
-            mass=mass,
-            collision_proxy_cfg=collision_proxy_cfg,
-            collision_proxy_position=collision_proxy_position,
-            additional_collision_proxy_cfgs=additional_collision_proxy_cfgs,
-            additional_collision_proxy_positions=additional_collision_proxy_positions,
-            center_of_mass=center_of_mass,
-            diagonal_inertia=diagonal_inertia,
-            visual_color=visual_color,
-            visual_opacity=visual_opacity,
-            visual_roughness=visual_roughness,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=position, rot=orientation),
-    )
+KITCHEN_ISLAND_SCALE = (TABLE_TOP_Z / KITCHEN_ISLAND_SIZE[2],) * 3
+KITCHEN_ISLAND_ROTATION = FORK_ROTATION
 
 
 @configclass
@@ -340,7 +136,7 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                 f"table_{lane}",
                 AssetBaseCfg(
                     prim_path=f"{lane_path}/Table",
-                    spawn=_VisualTableUsdFileCfg(
+                    spawn=VisualTableUsdFileCfg(
                         usd_path=KITCHEN_ISLAND_USD,
                         scale=KITCHEN_ISLAND_SCALE,
                         variants={"Physics": "none"},
@@ -356,8 +152,11 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                 f"tabletop_collider_{lane}",
                 AssetBaseCfg(
                     prim_path=f"{lane_path}/TabletopCollider",
-                    spawn=_tabletop_collider_cfg(
-                        (2.0 * TABLE_HALF_WIDTH, 2.0 * TABLE_HALF_DEPTH, 2.0 * TABLETOP_HALF_HEIGHT)
+                    spawn=tabletop_collider_cfg(
+                        (2.0 * TABLE_HALF_WIDTH, 2.0 * TABLE_HALF_DEPTH, 2.0 * TABLETOP_HALF_HEIGHT),
+                        friction=1.00,
+                        contact_stiffness=1.0e5,
+                        contact_damping=1.0e2,
                     ),
                     init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, lane_y, TABLE_TOP_Z - TABLETOP_HALF_HEIGHT)),
                 ),
@@ -387,42 +186,42 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                 ),
             )
 
-            tableware[f"bowl_{lane}"] = _rigid_object_cfg(
-                BOWL_USD,
-                (-0.22, lane_y - 0.08, cloth_z + TABLEWARE_CLEARANCE - BOWL_SCALE * BOWL_LOCAL_Z_MIN),
-                0.45,
-                sim_utils.CylinderCfg(
+            tableware[f"bowl_{lane}"] = rigid_object_cfg(
+                usd_path=BOWL_USD,
+                position=(-0.22, lane_y - 0.08, cloth_z + TABLEWARE_CLEARANCE - BOWL_SCALE * BOWL_LOCAL_Z_MIN),
+                mass=0.45,
+                collision_proxy_cfg=sim_utils.CylinderCfg(
                     radius=BOWL_LOCAL_RADIUS,
                     height=BOWL_LOCAL_HEIGHT,
                     visible=False,
-                    collision_props=_collision_properties(),
-                    physics_material=_rigid_material(
+                    collision_props=collision_properties(),
+                    physics_material=rigid_material(
                         density=None,
                         friction=0.70,
                         contact_stiffness=1.0e3,
                         contact_damping=1.0e1,
                     ),
                 ),
-                (0.0, 0.0, BOWL_LOCAL_Z_MIN + 0.5 * BOWL_LOCAL_HEIGHT),
+                collision_proxy_position=(0.0, 0.0, BOWL_LOCAL_Z_MIN + 0.5 * BOWL_LOCAL_HEIGHT),
                 scale=(BOWL_SCALE,) * 3,
             ).replace(prim_path=f"{lane_path}/Bowl")
-            tableware[f"glass_{lane}"] = _rigid_object_cfg(
-                WINE_GLASS_USD,
-                (0.02, lane_y + 0.12, cloth_z + TABLEWARE_CLEARANCE - WINE_GLASS_LOCAL_Z_MIN),
-                0.35,
-                sim_utils.CylinderCfg(
+            tableware[f"glass_{lane}"] = rigid_object_cfg(
+                usd_path=WINE_GLASS_USD,
+                position=(0.02, lane_y + 0.12, cloth_z + TABLEWARE_CLEARANCE - WINE_GLASS_LOCAL_Z_MIN),
+                mass=0.35,
+                collision_proxy_cfg=sim_utils.CylinderCfg(
                     radius=0.035,
                     height=0.006,
                     visible=False,
-                    collision_props=_collision_properties(),
-                    physics_material=_rigid_material(
+                    collision_props=collision_properties(),
+                    physics_material=rigid_material(
                         density=None,
                         friction=0.70,
                         contact_stiffness=1.0e3,
                         contact_damping=1.0e1,
                     ),
                 ),
-                (0.0, 0.0, 0.003),
+                collision_proxy_position=(0.0, 0.0, 0.003),
                 center_of_mass=WINE_GLASS_CENTER_OF_MASS,
                 diagonal_inertia=WINE_GLASS_DIAGONAL_INERTIA,
                 # Approximate the 22.7 cm visual with cheap base, stem, and cup shapes.
@@ -431,8 +230,8 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                         radius=0.004,
                         height=0.096,
                         visible=False,
-                        collision_props=_collision_properties(),
-                        physics_material=_rigid_material(
+                        collision_props=collision_properties(),
+                        physics_material=rigid_material(
                             density=None,
                             friction=0.70,
                             contact_stiffness=1.0e3,
@@ -443,8 +242,8 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                         radius=0.041,
                         height=0.045,
                         visible=False,
-                        collision_props=_collision_properties(),
-                        physics_material=_rigid_material(
+                        collision_props=collision_properties(),
+                        physics_material=rigid_material(
                             density=None,
                             friction=0.70,
                             contact_stiffness=1.0e3,
@@ -457,23 +256,23 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                 visual_opacity=0.90,
                 visual_roughness=0.12,
             ).replace(prim_path=f"{lane_path}/Glass")
-            tableware[f"fork_{lane}"] = _rigid_object_cfg(
-                FORK_USD,
-                (0.10, lane_y - 0.11, cloth_z + TABLEWARE_CLEARANCE - FORK_SCALE * FORK_LOCAL_Z_MIN),
-                0.07,
-                sim_utils.CuboidCfg(
+            tableware[f"fork_{lane}"] = rigid_object_cfg(
+                usd_path=FORK_USD,
+                position=(0.10, lane_y - 0.11, cloth_z + TABLEWARE_CLEARANCE - FORK_SCALE * FORK_LOCAL_Z_MIN),
+                mass=0.07,
+                collision_proxy_cfg=sim_utils.CuboidCfg(
                     size=(0.014, 0.160, 0.003),
                     visible=False,
-                    collision_props=_collision_properties(),
-                    physics_material=_rigid_material(
+                    collision_props=collision_properties(),
+                    physics_material=rigid_material(
                         density=None,
                         friction=0.70,
                         contact_stiffness=1.0e3,
                         contact_damping=1.0e1,
                     ),
                 ),
-                (0.0, 0.0092, 0.0016),
-                FORK_ROTATION,
+                collision_proxy_position=(0.0, 0.0092, 0.0016),
+                orientation=FORK_ROTATION,
                 scale=(FORK_SCALE,) * 3,
                 center_of_mass=FORK_CENTER_OF_MASS,
                 diagonal_inertia=FORK_DIAGONAL_INERTIA,
@@ -569,37 +368,6 @@ class _TableclothPullController:
             cloth.write_data_to_sim()
 
 
-class _StandaloneVideoTarget:
-    """Expose the simulation fields expected by Isaac Lab's step-driven recorder."""
-
-    metadata = {"render_fps": FPS}
-
-    def __init__(self, sim):
-        self.sim = sim
-        self.step_dt = sim.get_physics_dt()
-
-
-def _create_video_recorder(sim, video_length: int):
-    """Create a 60 FPS viewport recorder when ``--video`` is enabled."""
-    if not args_cli.video:
-        return None
-
-    from isaaclab.envs.utils.video_recorder import VideoRecorder  # noqa: PLC0415
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg  # noqa: PLC0415
-
-    print(f"[INFO]: Recording {video_length / FPS:.1f} s to {VIDEO_OUTPUT_DIR}/", flush=True)
-    return VideoRecorder(
-        VideoRecorderCfg(
-            source="visualizer",
-            output_dir=VIDEO_OUTPUT_DIR,
-            output_filename_prefix="newton_tablecloth",
-            fps=FPS,
-            video_length=video_length,
-        ),
-        _StandaloneVideoTarget(sim),
-    )
-
-
 def main() -> None:
     """Launch the five-speed tablecloth demo."""
     if args_cli.video and "none" in (args_cli.visualizer or []):
@@ -653,7 +421,14 @@ def main() -> None:
         sim.reset()
 
         sim_dt = sim.get_physics_dt()
-        video_recorder = _create_video_recorder(sim, max_steps)
+        video_recorder = create_video_recorder(
+            sim,
+            enabled=args_cli.video,
+            output_dir=VIDEO_OUTPUT_DIR,
+            filename_prefix="newton_tablecloth",
+            video_length=max_steps,
+            fps=FPS,
+        )
 
         print("[INFO]: Setup complete. Five side-by-side Isaac Lab tablecloth trials are ready.", flush=True)
         step = 0
