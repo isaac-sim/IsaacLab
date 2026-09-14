@@ -140,13 +140,21 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = True):
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv | DirectRLEnv,
+        fast_variant: bool = True,
+        action_low: float | None = None,
+        action_high: float | None = None,
+    ):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
             fast_variant: Use fast variant for processing info
                 (Only episodic reward, lengths and truncation info are included)
+            action_low: Lower bound used when clamping an unbounded action space. Defaults to -100.
+            action_high: Upper bound used when clamping an unbounded action space. Defaults to 100.
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
@@ -175,6 +183,8 @@ class Sb3VecEnvWrapper(VecEnv):
         # initialize the wrapper
         self.env = env
         self.fast_variant = fast_variant
+        self._action_low = action_low if action_low is not None else -100.0
+        self._action_high = action_high if action_high is not None else 100.0
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -361,11 +371,11 @@ class Sb3VecEnvWrapper(VecEnv):
                         self.observation_processors[obs_key] = chained_processor
 
         # obtain gym spaces
-        # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we set it to some high value here. Maybe this is not general but something to think about.
+        # note: stable-baselines3 does not support unbounded action spaces, so
+        #   use configurable finite bounds as a fallback.
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+            action_space = gym.spaces.Box(low=self._action_low, high=self._action_high, shape=action_space.shape)
 
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)

@@ -102,6 +102,28 @@ def test_random_actions(registered_tasks):
         env.close()
 
 
+def test_unbounded_action_space_uses_configured_bounds():
+    """Check that configured bounds are applied to unbounded action spaces."""
+    sim_utils.create_new_stage()
+
+    env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=4)
+    env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+
+    try:
+        # Verify the original environment is actually unbounded.
+        assert isinstance(env.unwrapped.single_action_space, gym.spaces.Box)
+        assert not env.unwrapped.single_action_space.is_bounded("both")
+
+        # Wrap for Stable-Baselines3 with custom action bounds.
+        env = Sb3VecEnvWrapper(env, action_low=-2.0, action_high=3.0)
+
+        np.testing.assert_allclose(env.action_space.low, -2.0)
+        np.testing.assert_allclose(env.action_space.high, 3.0)
+
+    finally:
+        env.close()
+
+
 """
 Helper functions.
 """

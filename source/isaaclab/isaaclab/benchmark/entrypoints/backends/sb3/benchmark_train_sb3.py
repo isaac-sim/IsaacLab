@@ -282,6 +282,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
             n_timesteps = agent_cfg.pop("n_timesteps")
+            action_low = agent_cfg.pop("action_low", None)
+            action_high = agent_cfg.pop("action_high", None)
 
             env_t0 = time.perf_counter_ns()
             env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
@@ -295,7 +297,12 @@ def run(argv: list[str]) -> BenchmarkResult:
                 num_steps_per_env=n_steps_cfg,
             )
 
-            env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            env = Sb3VecEnvWrapper(
+                env,
+                fast_variant=not args_cli.keep_all_info,
+                action_low=action_low,
+                action_high=action_high,
+            )
 
             norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
             norm_args = {}
