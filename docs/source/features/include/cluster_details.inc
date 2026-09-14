@@ -215,7 +215,7 @@ at submission time:
      - Description
    * - image
      - The Isaac Lab container image to run. Defaults to the released
-       ``nvcr.io/nvidia/isaac-lab:3.0.0-beta2`` image. Note that the repository does not publish a
+       ``nvcr.io/nvidia/isaac-lab:3.0.0-ea`` image. Note that the repository does not publish a
        ``latest`` tag, so this must name an explicit version.
    * - rl_library
      - The RL library used for training. Defaults to ``rsl_rl``.
