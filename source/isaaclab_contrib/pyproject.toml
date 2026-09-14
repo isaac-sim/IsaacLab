@@ -21,6 +21,19 @@ dependencies = [
     "isaaclab",
 ]
 
+[project.optional-dependencies]
+# Support for the patched Cosmos source checkout installed separately with --no-deps.
+# Its upstream metadata has no inference-only extra compatible with the shared env.
+cosmos-runtime = [
+    "accelerate", "av", "cattrs", "diffusers==0.35.1", "einops",
+    "hydra-core", "imageio-ffmpeg", "imageio", "loguru", "msgpack",
+    "nvidia-cudnn-frontend; sys_platform == 'linux'", "nvidia-ml-py",
+    "obstore", "omegaconf", "pydantic", "requests", "scipy", "termcolor",
+    "transformers>=4.57.1,<5", "tyro", "uv", "websockets",
+    "ftfy", "qwen-vl-utils", "iopath", "multi-storage-client", "boto3", "pandas", "wandb",
+]
+nixl = ["nixl; sys_platform == 'linux'"]
+
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 
