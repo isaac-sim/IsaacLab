@@ -11,7 +11,7 @@ owners:
 
 ## When To Use
 
-Read the [asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
+Read the [asset migration guide](../../../docs/source/how-to/prepare_asset_for_newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
 1D cable / rod assets are out of scope here: they are authored fresh as Newton deformables (Newton + VBD only), not converted from a PhysX rigid asset. See the [Deformables guide](../../../docs/source/concepts/deformables.rst).
 

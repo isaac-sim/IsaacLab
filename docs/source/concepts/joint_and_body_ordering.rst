@@ -10,7 +10,7 @@ backend-view access. For backend selection and capabilities, see
 .. seealso::
 
     For policy transfer instructions and validated examples, see
-    :doc:`/source/concepts/transfer_policies_between_physx_and_newton`.
+    :doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
 
 
 Why Articulation Orders Differ
