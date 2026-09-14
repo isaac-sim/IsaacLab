@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import copy
+
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -53,6 +55,15 @@ around a fingertip, so it shoves the hand back and behaves like a small elastic 
 
 _POISSONS_RATIO = 0.3
 """Poisson's ratio of the deformable object."""
+
+_HAND_EFFORT_LIMIT = 2.0
+"""Torque cap on the finger joints [N m].
+
+The shared G1 config allows 300, which on a finger's few-centimetre moment arm is thousands of
+newtons at the fingertip. Against a 0.2 kg object the fingers drive straight through it, and a
+force-driven contact stores F^2/2k, so the squeeze is what has to be bounded rather than the
+contact stiffness. Two newton-metres is still ample to hold the object.
+"""
 
 _MATERIAL_DAMPING = 5.0e1
 """Internal damping of the deformable object [Pa s].
@@ -202,6 +213,9 @@ class LocomanipulationG1DeformableSceneCfg(LocomanipulationG1SceneCfg):
         # The rigid task gates this collider on the ``newton_mjwarp`` preset name, which this
         # task does not use. Without it Newton emits no tabletop shape and the object falls through.
         self.packing_table_collider.spawn.collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
+        # Deep-copied so the shared G1 actuator config, and the rigid task, keep their own limits.
+        self.robot.actuators = copy.deepcopy(self.robot.actuators)
+        self.robot.actuators["hands"].joint_effort_limit = _HAND_EFFORT_LIMIT
 
 
 @configclass
