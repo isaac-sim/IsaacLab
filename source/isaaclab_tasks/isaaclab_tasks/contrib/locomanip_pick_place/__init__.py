@@ -21,6 +21,17 @@ gym.register(
 )
 
 gym.register(
+    id="IsaacContrib-PickPlace-Locomanipulation-Deformable-G1-Abs",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.locomanipulation_g1_deformable_env_cfg:LocomanipulationG1DeformableEnvCfg"
+        ),
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
     id="IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={

@@ -360,6 +360,44 @@ Measured on the G1 locomanipulation task, zero actions, 30 steps:
 | root height | 0.72 | 0.43 (fell) | 0.72 |
 | `abs(qd)` max | 0.22 | 19.1 | 3.6, decaying |
 
+## Deformable Objects Need A Second Solver
+
+MJWarp cannot simulate a deformable at all: deformable support is installed by the VBD manager,
+and `NewtonMJWarpManager` sets `soft_contact_max=0`. A deformable therefore cannot be added to an
+MJWarp task by swapping the asset. Partition the scene instead, with
+`isaaclab_contrib.coupling.CouplerProxyCfg`: a `rigid` MJWarp entry owning the robot articulation
+and a `soft` VBD entry owning the particles, with only the grasping links exposed as proxies.
+
+Copy `isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py`, the maintained
+reference. Volume deformables need the `tetrahedralization` extra.
+
+Four things bite when moving that recipe from a fixed-base arm to a walking humanoid:
+
+- **Contact sensors are rejected.** `coupler.py` raises `NotImplementedError("Newton contact
+  sensors are not yet supported by coupled solvers")` because contact forces live in per-entry
+  buffers. Drop the sensors and anything reading them, such as controller haptics.
+- **`include_static_shapes=True` takes every static shape into one entry**, and an element can
+  belong to at most one entry. On a fixed-base arm that is harmless. On a humanoid it hands the
+  ground plane to VBD and leaves MJWarp with no ground: the feet sank 18 cm below the floor while
+  the state stayed finite. Assign the ground and the support surface individually with
+  `shape_label_patterns`.
+- **Full-surface rigid-soft contact needs an SDF per rigid shape.** Mesh and convex colliders have
+  none, so `enable_rigid_soft_full_surface_contact=True` raises with the offending shape indices.
+  Either provision SDFs (`NewtonSDFCollisionPropertiesCfg`) or set it `False` for per-vertex
+  contacts.
+- **A soft body spawned intersecting a collider is ejected**, where a rigid body is pushed out
+  gently. Compute the support surface's top face and clear it; do not inherit the rigid task's
+  start height.
+
+Also check any preset-gated config in the base task. A preset named `newton_mjwarp_vbd_proxy` does
+not match a `newton_mjwarp` preset key and silently falls through to `default`.
+
+Deformables have no single rigid pose. `root_pos_w` exists and is the mean of the nodal positions,
+but there is no `root_quat_w`, so orientation-dependent terms need replacing.
+
+Other limits: proxy coupling supports at most two entries, each articulation must stay in one
+entry, nested couplers are rejected, and the whole path is experimental.
+
 ## Benchmarking Without Fooling Yourself
 
 Use the CI replay harness as the metric and respect its variance.
