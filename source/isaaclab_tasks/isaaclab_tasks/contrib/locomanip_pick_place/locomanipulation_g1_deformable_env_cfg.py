@@ -121,13 +121,14 @@ class PhysicsCfg(PresetCfg):
             ],
             iterations=1,
         ),
-        # The Franka soft-lift preset carries its object with ``soft_contact_mu=10``, which the
-        # docs call an unphysical value. A fixed-base arm absorbs the resulting tangential force
-        # into its mount; a free-standing humanoid is torqued over by it, so friction stays
-        # physical here. Raise it if the object slips, but expect balance to degrade.
+        # Newton's defaults, not the Franka soft-lift preset's. That preset is 8x stiffer and
+        # 1000x less damped, and carries its object with an ``soft_contact_mu=10`` the docs call
+        # unphysical. A bolted-down arm absorbs the resulting impulse; a free-standing humanoid is
+        # thrown by it, both on first touch and when a pinch closes. The object masses 0.2 kg, so
+        # it needs a couple of newtons to hold. Raise these if it slips, and recheck balance.
         soft_contact_cfg=NewtonSoftContactCfg(
-            soft_contact_ke=8.0e3,
-            soft_contact_kd=1.0e-2,
+            soft_contact_ke=1.0e3,
+            soft_contact_kd=1.0e1,
             soft_contact_mu=1.0,
         ),
         # A humanoid's weight on two feet sinks into Newton's default ``ke=2.5e3``; see the rigid
