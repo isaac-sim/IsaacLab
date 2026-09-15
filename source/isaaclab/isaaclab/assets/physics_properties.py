@@ -15,6 +15,28 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+    from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+
+
+def _apply_inertia_diagonal_offsets(asset: BaseRigidObject | BaseRigidObjectCollection, offsets: list[float]) -> None:
+    """Apply configured isotropic inertia additions in public body order after initialization."""
+    import math
+
+    if any(not math.isfinite(value) or value < 0.0 for value in offsets):
+        raise ValueError("inertia_diagonal_offset must be finite and nonnegative.")
+    if not any(offsets):
+        return
+    import torch
+
+    inertias = asset.data.body_inertia.torch.clone()
+    values = torch.tensor(offsets, dtype=inertias.dtype, device=inertias.device)
+    # Adding a multiple of the identity is invariant to the backend's inertial frame.
+    inertias[..., (0, 4, 8)] += values[None, :, None]
+    asset.set_inertias_index(inertias=inertias)
 
 
 @dataclass(frozen=True)

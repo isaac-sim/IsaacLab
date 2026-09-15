@@ -406,7 +406,7 @@ def add_common_train_args(
         "--export_deployment_usd",
         action="store_true",
         default=False,
-        help="Export environment zero after one-time initialization and before training reset (rank 0 only).",
+        help="Export initialized environment zero before startup randomization (rank 0 only).",
     )
     parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
     parser.add_argument(
@@ -748,6 +748,11 @@ def create_isaaclab_env(
     if getattr(args_cli, "export_deployment_usd", False):
         if args_cli.frontend != "torch":
             raise NotImplementedError("Deployment USD export currently supports the torch task frontend.")
+        rank_key = "JAX_RANK" if getattr(args_cli, "ml_framework", "torch").startswith("jax") else "RANK"
+        if int(os.environ.get(rank_key, "0")) == 0:
+            if not env_cfg.log_dir:
+                raise ValueError("Deployment export requires the training run log_dir.")
+            env_cfg.scene.export_usd_path = str(Path(env_cfg.log_dir).resolve() / "deployment.usda")
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:
@@ -756,11 +761,6 @@ def create_isaaclab_env(
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
-    # All subclass initialization and one-time events have completed; wrappers may reset next.
-    if getattr(args_cli, "export_deployment_usd", False):
-        from isaaclab_rl.entrypoints.deployment import export_training_scene
-
-        export_training_scene(env.unwrapped, args_cli)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
         from isaaclab.envs import multi_agent_to_single_agent
 

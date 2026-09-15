@@ -15,6 +15,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -30,6 +31,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -72,6 +74,31 @@ class RoughPhysicsCfg(PresetCfg):
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
     default = newton_mjwarp
+
+
+@configclass
+class RobotMaterialCfg(PresetCfg):
+    """Fixed robot friction, authored before the backend cooks collision shapes."""
+
+    physx = RigidBodyMaterialBaseCfg(static_friction=0.8, dynamic_friction=0.6)
+    # Isaac Sim's previous unbound robot shapes inherited the terrain's scene-default combine modes.
+    isaacsim_physx = PhysxRigidBodyMaterialCfg(
+        static_friction=0.8,
+        dynamic_friction=0.6,
+        friction_combine_mode="multiply",
+        restitution_combine_mode="multiply",
+    )
+    ovphysx = physx
+    # Newton imports dynamic friction as its single coefficient; the old event used static friction.
+    newton_mjwarp = RigidBodyMaterialBaseCfg(static_friction=0.8, dynamic_friction=0.8)
+    newton_kamino = newton_mjwarp
+    default = newton_mjwarp
+
+    def __post_init__(self):
+        from isaaclab.utils.version import has_kit
+
+        # Match PhysxAutoCfg's backend selection in the normal post-AppLauncher config flow.
+        self.physx = self.isaacsim_physx if has_kit() else self.ovphysx
 
 
 ##
@@ -197,18 +224,6 @@ class EventsCfg:
     """Configuration for events."""
 
     # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
-
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",

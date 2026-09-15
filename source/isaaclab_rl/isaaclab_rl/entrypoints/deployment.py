@@ -7,12 +7,11 @@
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.timer import Timer
+from isaaclab.envs.common import _export_deployment_scene
 
 if TYPE_CHECKING:
     from argparse import Namespace
@@ -33,20 +32,4 @@ def export_training_scene(env: DirectRLEnv | DirectMARLEnv | ManagerBasedEnv, ar
     if not env.cfg.log_dir:
         raise ValueError("Deployment export requires the training run log_dir.")
     output = Path(env.cfg.log_dir).resolve() / "deployment.usda"
-    timings = {}
-    with Timer() as timer:
-        env.scene.export_to_usd(str(output), env_id=0, timings=timings)
-    output.with_suffix(".metrics.json").write_text(
-        json.dumps(
-            {
-                "seconds": timings,
-                "export_wall_seconds": timer.total_run_time,
-                "source_num_envs": env.scene.num_envs,
-                "selected_env_id": 0,
-                "output_bytes": output.stat().st_size,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
-    return output
+    return _export_deployment_scene(env.scene, str(output))

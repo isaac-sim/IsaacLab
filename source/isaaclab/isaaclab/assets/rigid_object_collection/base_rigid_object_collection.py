@@ -753,6 +753,16 @@ class BaseRigidObjectCollection(AssetBase):
     Internal simulation callbacks.
     """
 
+    def _initialize_callback(self, event) -> None:
+        was_initialized = self._is_initialized
+        super()._initialize_callback(event)
+        if not was_initialized:
+            from ..physics_properties import _apply_inertia_diagonal_offsets
+
+            _apply_inertia_diagonal_offsets(
+                self, [self.cfg.rigid_objects[name].inertia_diagonal_offset for name in self.body_names]
+            )
+
     @abstractmethod
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidates the scene elements."""

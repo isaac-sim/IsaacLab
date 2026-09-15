@@ -7,12 +7,45 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import MISSING, fields
-from typing import Dict, Literal, TypeVar  # noqa: UP035
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
 import torch
 
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+
+
+def _export_deployment_scene(scene: InteractiveScene, path: str | None) -> Path | None:
+    """Write one initialized environment and its export timing metadata."""
+    if path is None:
+        return None
+    import json
+
+    from isaaclab.utils.timer import Timer
+
+    output = Path(path).resolve()
+    timings = {}
+    with Timer() as timer:
+        scene.export_to_usd(str(output), env_id=0, timings=timings)
+    output.with_suffix(".metrics.json").write_text(
+        json.dumps(
+            {
+                "seconds": timings,
+                "export_wall_seconds": timer.total_run_time,
+                "source_num_envs": scene.num_envs,
+                "selected_env_id": 0,
+                "output_bytes": output.stat().st_size,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    return output
+
 
 ##
 # Deprecated: ViewerCfg

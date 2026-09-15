@@ -1936,7 +1936,7 @@ def rendering_test_lift_kuka(
         env_cfg.seed = 42
         env_cfg.events.robot_physics_material = None
         env_cfg.events.object_physics_material = None
-        env_cfg.events.object_physics_inertia = None
+        env_cfg.scene.object.inertia_diagonal_offset = 0.0
         env_cfg.events.joint_stiffness_and_damping = None
         env_cfg.events.joint_friction = None
         env_cfg.events.object_scale_mass = None

@@ -12,6 +12,7 @@ import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
+    RobotMaterialCfg,
 )
 
 ##
@@ -80,6 +81,9 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.physics_material = RobotMaterialCfg()
+        # Material binding must reach colliders inside referenced instances.
+        self.scene.robot.spawn.make_uninstanceable = True
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
         # commands
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8

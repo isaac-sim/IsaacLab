@@ -34,3 +34,10 @@ class RigidObjectCfg(AssetBaseCfg):
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""
+
+    inertia_diagonal_offset: float = 0.0
+    """Nonnegative isotropic addition to the initialized inertia tensor [kg·m²].
+
+    Applied once after the backend resolves mass properties, before startup events. The addition
+    is independent of the body's inertial frame and does not change its mass or center of mass.
+    """

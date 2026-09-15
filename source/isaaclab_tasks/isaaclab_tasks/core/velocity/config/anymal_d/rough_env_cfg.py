@@ -6,7 +6,7 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RobotMaterialCfg
 
 ##
 # Pre-defined configs
@@ -23,3 +23,6 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot = ANYMAL_D_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot", init_state=ANYMAL_D_CFG.init_state.replace(pos=(0.0, 0.0, 0.65))
         )
+        self.scene.robot.spawn.physics_material = RobotMaterialCfg()
+        # Material binding must reach colliders inside referenced instances.
+        self.scene.robot.spawn.make_uninstanceable = True

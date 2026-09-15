@@ -11,18 +11,33 @@ entrypoint to write ``deployment.usda`` beside the run's configuration files in 
 The option is off by default. Only global rank zero exports; RLINF and the experimental
 Warp task frontend are not supported by this integration.
 
-The normal task constructor completes first, including subclass setup and one-time
-``prestartup``/``startup`` events. The opt-in call then exports environment zero before
-training wrappers perform their first reset or step. There is no second task construction,
-pre-event callback or exception used to interrupt initialization. Sampled one-time results
-are part of the artifact; later reset, interval and training changes are excluded.
+The normal task construction exports environment zero after backend and asset initialization,
+before ``startup`` events and the first reset or step. Training then runs its startup events
+normally. There is no second environment, saved nominal snapshot or export-only script.
+Set ``env_cfg.scene.export_usd_path`` to use the same boundary outside the training entrypoint.
+``prestartup`` USD edits are already present and are retained; this path does not undo them.
 
-The snapshot uses current backend state. Newton first delivers queued property-change
-notifications to its native solver without advancing physics. It does not apply ``default_*`` buffers: defaults
-are inputs to future resets and may differ from the current state or be changed by events.
-Calling reset or applying defaults during export would erase startup results. Tasks must
-register physical assets in the scene; unregistered enabled bodies fail completeness checks.
-A task that steps inside its constructor cannot use this initialization-only export.
+Fixed physical properties belong in asset configuration. Material overrides are authored by
+the spawner, actuator settings are resolved during initialization, and
+``RigidObjectCfg.inertia_diagonal_offset`` adds an isotropic inertia correction after the backend
+computes mass properties. These values are exported before training randomization can change them.
+Moving material settings from events requires preserving backend semantics: Newton's importer
+uses dynamic friction for its single coefficient, whereas its material randomizer uses the
+static-friction range. Referenced instance colliders must also be reachable by material binding.
+Removing fixed randomizers changes random-number consumption, so the same training seed may
+produce different samples than before the configuration migration.
+
+The exporter reads initialized physical values; it does not reset the scene or apply
+``default_*`` buffers. Newton delivers queued property-change notifications to its native solver
+without advancing physics. Tasks must finish and register their physical scene before this
+boundary; unregistered enabled bodies fail completeness checks. Physics added or changed later
+in a task constructor is not part of the automatic artifact and must move into scene/asset setup.
+A task that steps before this boundary cannot use initialization-only export.
+
+Direct calls to ``InteractiveScene.export_to_usd`` still export the current scene at the time of
+the call. To export nominal properties, call before randomization; a manual call after startup
+retains its effective changes. Neither mode serializes controllers, observation processing or
+sensor execution for policy deployment.
 
 For a standalone robot and box, launch the backend normally and use the scene's export method.
 Here ``sim_cfg`` is the resolved simulation configuration for that backend::
@@ -56,8 +71,9 @@ Here ``sim_cfg`` is the resolved simulation configuration for that backend::
         scene.export_to_usd("environment.usda")
 
 In this standalone example, default state is applied explicitly before the snapshot because
-there is no task event lifecycle. For task environments, export after the constructor returns;
-do not apply defaults again after startup events. The exporter never executes event functions.
+there is no task event lifecycle. For task environments, set ``scene.export_usd_path`` before
+construction to export before startup, or call the scene method afterward to retain runtime
+changes. Do not reapply defaults while exporting. The exporter never executes event functions.
 
 Preservation and authoring
 --------------------------

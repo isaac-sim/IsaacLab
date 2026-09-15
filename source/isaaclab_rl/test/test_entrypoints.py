@@ -752,8 +752,8 @@ def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
     assert not hasattr(skrl.config.jax, "backend")
 
 
-def test_deployment_export_includes_initialization_and_preserves_training(tmp_path, monkeypatch):
-    """The real CLI construction path preserves same-seed training, including Direct setup assets."""
+def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, monkeypatch):
+    """Export initialized properties while preserving startup randomization and same-seed training."""
     import copy
     import random
 
@@ -785,6 +785,8 @@ def test_deployment_export_includes_initialization_and_preserves_training(tmp_pa
     cfg.scene.num_envs = 1
     cfg.scene.replicate_physics = False
     cfg.scene.clone_in_fabric = False
+    cfg.scene.box.inertia_diagonal_offset = 0.01
+    cfg.scene.collection.rigid_objects["first"].inertia_diagonal_offset = 0.04
     cfg.events = SimpleNamespace(
         pre=EventTermCfg(func=fixed_export_prestartup, mode="prestartup"),
         start=EventTermCfg(func=fixed_export_startup, mode="startup"),
@@ -801,16 +803,34 @@ def test_deployment_export_includes_initialization_and_preserves_training(tmp_pa
                 assert not stage.GetPrimAtPath("/World/envs/env_1")
                 assert stage.GetPrimAtPath("/World/SetupOnly")
                 box = stage.GetPrimAtPath("/World/envs/env_0/Box")
-                assert 20 <= UsdPhysics.MassAPI(box).GetMassAttr().Get() < 42
-                assert UsdPhysics.MassAPI(box).GetMassAttr().Get() == pytest.approx(
-                    float(env.unwrapped.scene.rigid_objects["box"].data.body_mass.torch[0, 0])
-                )
-                expected = (
-                    env.unwrapped.scene.rigid_objects["box"].data.body_com_vel_w.torch[0].cpu().numpy().reshape(-1)
-                )
-                np.testing.assert_allclose(UsdPhysics.RigidBodyAPI(box).GetVelocityAttr().Get(), expected[:3])
+                mass = UsdPhysics.MassAPI(box).GetMassAttr().Get()
+                assert 20 <= mass < 21  # Prestartup USD edits precede initialization and export.
+                assert float(env.unwrapped.scene.rigid_objects["box"].data.body_mass.torch[0, 0]) > mass
+                # A cuboid's principal inertias provide an independent reference for the fixed addition.
+                geometric_inertia = np.array([0.3**2 + 0.4**2, 0.2**2 + 0.4**2, 0.2**2 + 0.3**2]) / 12
                 np.testing.assert_allclose(
-                    UsdPhysics.RigidBodyAPI(box).GetAngularVelocityAttr().Get(), np.degrees(expected[3:]), rtol=1e-6
+                    sorted(UsdPhysics.MassAPI(box).GetDiagonalInertiaAttr().Get()),
+                    sorted(mass * geometric_inertia + 0.01),
+                    rtol=1e-5,
+                )
+                collected = stage.GetPrimAtPath("/World/envs/env_0/CollectedFirst")
+                np.testing.assert_allclose(
+                    sorted(UsdPhysics.MassAPI(collected).GetDiagonalInertiaAttr().Get()),
+                    sorted(1.5 * geometric_inertia + 0.04),
+                    rtol=1e-5,
+                )
+                # Fresh import receives nominal physical properties, without the task's startup event.
+                import newton
+
+                builder = newton.ModelBuilder()
+                builder.add_usd(stage)
+                restored = builder.finalize(device="cpu")
+                index = restored.body_label.index(str(box.GetPath()))
+                assert restored.body_mass.numpy()[index] == pytest.approx(mass)
+                np.testing.assert_allclose(
+                    np.linalg.eigvalsh(restored.body_inertia.numpy()[index]),
+                    sorted(mass * geometric_inertia + 0.01),
+                    rtol=1e-5,
                 )
                 monkeypatch.setenv("RANK", "1")
                 assert export_training_scene(env.unwrapped, args) is None
