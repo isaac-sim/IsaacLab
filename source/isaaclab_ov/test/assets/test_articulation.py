@@ -502,38 +502,64 @@ def test_host_actuator_control_import_does_not_probe_optional_newton_runtime(mon
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-def test_newton_native_ovphysx_effort_binding_excludes_implicit_pd(device):
-    """Submit raw native effort so OVPhysX evaluates the implicit joint drive once."""
-    with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=True) as sim:
+@pytest.mark.parametrize("use_newton_actuators", [False, True])
+def test_ovphysx_effort_binding_excludes_implicit_pd(device, use_newton_actuators):
+    """Submit implicit feedforward and explicit PD effort without submitting implicit PD telemetry."""
+    stiffness, effort_limit = 20.0, 400.0
+    with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=use_newton_actuators) as sim:
         sim._app_control_on_stop_handle = None
         articulation_cfg = CARTPOLE_CFG.replace(
             actuators={
                 "cart": ImplicitActuatorCfg(
-                    joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=20.0, damping=0.0
+                    joint_names_expr=["slider_to_cart"],
+                    joint_effort_limit=effort_limit,
+                    stiffness=stiffness,
+                    damping=0.0,
                 ),
                 "pole": IdealPDActuatorCfg(
                     joint_names_expr=["cart_to_pole"],
-                    stiffness=20.0,
+                    stiffness=stiffness,
                     damping=0.0,
-                    actuator_effort_limit=400.0,
+                    actuator_effort_limit=effort_limit,
                 ),
             }
         )
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
 
-        articulation.actuators.target_command.set_position_index(
-            value=articulation.data.joint_pos.torch + torch.tensor([[0.25, 0.5]], device=device)
-        )
+        joint_names = articulation.joint_names
+        cart_id = joint_names.index("slider_to_cart")
+        pole_id = joint_names.index("cart_to_pole")
+        initial_pos = articulation.data.joint_pos.torch.clone()
+        position_target = initial_pos.clone()
+        position_target[:, cart_id] += 0.25
+        position_target[:, pole_id] += 0.5
+        feedforward = torch.zeros_like(initial_pos)
+        feedforward[:, cart_id] = 1.5
+        feedforward[:, pole_id] = -0.75
+        articulation.actuators.target_command.set_position_index(value=position_target)
+        articulation.actuators.target_command.set_effort_index(value=feedforward)
         articulation.write_data_to_sim()
 
-        raw_effort = wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d)
-        applied_effort = articulation.actuators.applied_effort.torch
-        assert torch.any(applied_effort[:, 0] != raw_effort[:, 0])
-        torch.testing.assert_close(
-            _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device),
-            raw_effort,
+        expected_pd_effort = torch.clamp(
+            stiffness * (position_target - initial_pos) + feedforward, -effort_limit, effort_limit
         )
+        applied_effort = articulation.actuators.applied_effort.torch
+        torch.testing.assert_close(applied_effort, expected_pd_effort)
+        assert torch.all(applied_effort[:, cart_id] != feedforward[:, cart_id])
+        expected_force = expected_pd_effort.clone()
+        expected_force[:, cart_id] = feedforward[:, cart_id]
+        backend_to_user = [joint_names.index(name) for name in articulation.root_view.dof_names]
+        backend_force = _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device)
+        torch.testing.assert_close(backend_force, expected_force[:, backend_to_user])
+
+        expected_stiffness = torch.zeros_like(initial_pos)
+        expected_stiffness[:, cart_id] = stiffness
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_STIFFNESS, device),
+            expected_stiffness[:, backend_to_user],
+        )
+        assert articulation._actuator_control.native_actuator_path_active == use_newton_actuators
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -777,11 +803,12 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device):
     """Write nonidentity-ordered joint targets into their intended backend columns."""
+    stiffness, damping = 10.0, 2.0
     backend_joint_names = ANYMAL_C_PHYSX_JOINT_NAMES
     joint_ordering = (*backend_joint_names[1:], backend_joint_names[0])
     articulation_cfg = generate_articulation_cfg("anymal").replace(
         joint_ordering=joint_ordering,
-        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0)},
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
     )
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
     sim.reset()
@@ -795,14 +822,28 @@ def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device)
     joint_index = torch.arange(articulation.num_joints, dtype=torch.float32, device=device).unsqueeze(0)
     position_target = -0.25 + 0.031 * joint_index
     velocity_target = 0.07 + 0.017 * joint_index
+    effort_target = torch.where(joint_index.remainder(2) == 0, 0.0, 0.13 * joint_index)
+    joint_pos = articulation.data.joint_pos.torch.clone()
+    joint_vel = articulation.data.joint_vel.torch.clone()
     articulation.set_joint_position_target_index(target=position_target)
     articulation.set_joint_velocity_target_index(target=velocity_target)
+    articulation.actuators.target_command.set_effort_index(value=effort_target)
     articulation.write_data_to_sim()
 
     backend_position_target = _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, device)
     backend_velocity_target = _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, device)
     torch.testing.assert_close(backend_position_target, position_target[:, backend_to_user])
     torch.testing.assert_close(backend_velocity_target, velocity_target[:, backend_to_user])
+    torch.testing.assert_close(
+        _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device), effort_target[:, backend_to_user]
+    )
+    computed_effort = (
+        stiffness * (position_target - joint_pos) + damping * (velocity_target - joint_vel) + effort_target
+    )
+    limits = articulation.data.joint_effort_limits.torch
+    expected_telemetry = torch.clamp(computed_effort, min=-limits, max=limits)
+    torch.testing.assert_close(articulation.actuators.applied_effort.torch, expected_telemetry)
+    assert not torch.allclose(expected_telemetry, effort_target)
 
 
 @pytest.mark.parametrize("device", ["cpu"])
