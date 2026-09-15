@@ -64,9 +64,11 @@ EMIT_HI = (1.0, 1.0, 3.5)
 PARTICLES_PER_VOXEL_AXIS = 2.0
 PARTICLE_SPACING = VOXEL_SIZE / PARTICLES_PER_VOXEL_AXIS
 PARTICLE_JITTER = PARTICLE_SPACING
-COLLIDER_MARGIN = 0.5 * PARTICLE_SPACING
+COLLIDER_MARGIN = PARTICLE_SPACING
 
-PARTICLE_COLOR = (0.7, 0.6, 0.4)
+PARTICLE_COLOR = (0.66, 0.43, 0.16)
+CAMERA_EYE = (5.0, -8.0, 5.0)
+CAMERA_TARGET = (0.0, 0.0, 1.5)
 
 IDENTITY_ROT = (0.0, 0.0, 0.0, 1.0)
 Y_ROT_45_DEG = (0.0, math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
@@ -83,6 +85,8 @@ def create_visualizer_cfgs():
     cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
         cfg_type(
+            eye=CAMERA_EYE,
+            lookat=CAMERA_TARGET,
             show_particles=True,
             particle_color=PARTICLE_COLOR,
         )
@@ -106,6 +110,7 @@ def create_sim_cfg():
                 grid_type=GRID_TYPE,
                 grid_padding=GRID_PADDING,
                 max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
+                project_outside_colliders=True,
             ),
             num_substeps=args_cli.substeps,
         ),
@@ -135,7 +140,11 @@ def create_scene_cfg():
                     static_friction=friction,
                     dynamic_friction=friction,
                 ),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.45)),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.18, 0.21, 0.25),
+                    roughness=0.24,
+                    metallic=0.18,
+                ),
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=center, rot=orientation),
         )
@@ -211,7 +220,7 @@ def main() -> None:
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        sim.set_camera_view(eye=(4.0, -6.0, 4.0), target=(0.0, 0.0, 1.0))
+        sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         scene = InteractiveScene(create_scene_cfg())
         sim.reset()
         print(

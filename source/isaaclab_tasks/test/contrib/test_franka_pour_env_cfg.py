@@ -5,11 +5,14 @@
 
 """Tests for the single-stage Franka Pour task configuration."""
 
+from types import SimpleNamespace
+
 import pytest
+import torch
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.contrib.franka_pour import pour_env
+from isaaclab_tasks.contrib.franka_pour import mdp, pour_env
 from isaaclab_tasks.contrib.franka_pour.geometry import SOURCE_CUP_GEOMETRY
 from isaaclab_tasks.contrib.franka_pour.media import media_particle_count
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
@@ -102,6 +105,37 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     assert solver.media_solver.max_iterations == 17
     assert not cfg.sim.physics.use_cuda_graph
     assert _reset_dataset_task_contract(cfg) == reset_contract
+
+
+def test_play_mode_uses_configured_success_dwell_without_changing_training_termination():
+    """Policy playback keeps a completed pour visible while training remains immediate."""
+    training_cfg = FrankaPourResetDatasetEnvCfg()
+    assert training_cfg.success_dwell_time_s == pytest.approx(0.15)
+    assert training_cfg.terminations.success.func is mdp.immediate_pour_success
+
+    play_cfg = FrankaPourResetDatasetEnvCfg()
+    play_cfg.play_mode()
+    assert play_cfg.success_dwell_time_s == pytest.approx(0.7)
+    assert play_cfg.terminations.success.func is mdp.dwell_pour_success
+
+    env = SimpleNamespace(
+        _num_particles=10,
+        _success_dwell_count=torch.zeros(1, dtype=torch.long),
+        cfg=SimpleNamespace(success_dwell_time_s=play_cfg.success_dwell_time_s),
+        episode_succeeded=torch.zeros(1, dtype=torch.bool),
+        pour_target_frac=0.7,
+        step_dt=1.0 / 30.0,
+        termination_manager=SimpleNamespace(terminated=torch.zeros(1, dtype=torch.bool)),
+    )
+    env._particle_region_masks = lambda: (
+        torch.zeros((1, 10), dtype=torch.bool),
+        torch.tensor([[True] * 7 + [False] * 3]),
+        torch.zeros((1, 10), dtype=torch.bool),
+    )
+
+    for _ in range(20):
+        assert not mdp.dwell_pour_success(env).item()
+    assert mdp.dwell_pour_success(env).item()
 
 
 def test_reset_dataset_contract_stores_root_relative_robot_asset_path():

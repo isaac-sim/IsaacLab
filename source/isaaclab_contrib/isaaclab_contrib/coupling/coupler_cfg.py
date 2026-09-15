@@ -110,6 +110,22 @@ class CouplerProxyMappingCfg:
     mass_scale: float = 1.0
     """Scale applied to proxy body mass/inertia and particle mass in the destination view."""
 
+    proxy_relaxation: float = 1.0
+    """Relaxation factor applied to lagged proxy-feedback forces.
+
+    Setting this to ``0`` suppresses feedback while preserving source-to-destination
+    proxy motion, which yields one-way coupling.
+    """
+
+    proxy_relaxation_mode: Literal["fixed", "aitken"] = "fixed"
+    """Proxy-feedback relaxation mode."""
+
+    proxy_relaxation_min: float = 0.1
+    """Minimum relaxation factor used by adaptive Aitken relaxation."""
+
+    proxy_relaxation_max: float = 1.0
+    """Maximum relaxation factor used by adaptive Aitken relaxation."""
+
     collide_interval: int | None = None
     """Proxy-local collision refresh interval.
 

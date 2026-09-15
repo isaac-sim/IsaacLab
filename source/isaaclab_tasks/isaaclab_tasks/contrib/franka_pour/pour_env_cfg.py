@@ -824,6 +824,8 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
         super().play_mode()
         self.scene.num_envs = 1
+        self.success_dwell_time_s = 0.7
+        self.terminations.success.func = mdp.dwell_pour_success
         self.sim.default_visualizer_cfg = NewtonRTXVisualizerCfg(
             eye=(0.9, 0.65, 0.5),
             lookat=(0.5, 0.0, 0.1),

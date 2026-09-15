@@ -175,3 +175,27 @@ def immediate_pour_success(env: FrankaPourEnv) -> torch.Tensor:
     env._success_dwell_count[:] = success.to(dtype=env._success_dwell_count.dtype)
     env.episode_succeeded |= success
     return success
+
+
+def dwell_pour_success(env: FrankaPourEnv) -> torch.Tensor:
+    """Terminate after target occupancy remains successful for the configured dwell.
+
+    This presentation-oriented variant lets a successful pour remain visible during policy
+    playback. Training continues to use :func:`immediate_pour_success` so its task contract and
+    checkpoint behavior remain unchanged.
+    """
+    target_fraction = env._particle_region_masks()[1].sum(dim=1) / max(env._num_particles, 1)
+    qualifies = immediate_pour_success_mask(
+        target_fraction,
+        env.pour_target_frac,
+        env.termination_manager.terminated,
+    )
+    dwell_steps = max(1, math.ceil(float(env.cfg.success_dwell_time_s) / max(float(env.step_dt), 1.0e-6)))
+    env._success_dwell_count[:] = torch.where(
+        qualifies,
+        torch.clamp(env._success_dwell_count + 1, max=dwell_steps),
+        0,
+    )
+    success = qualifies & (env._success_dwell_count >= dwell_steps)
+    env.episode_succeeded |= success
+    return success

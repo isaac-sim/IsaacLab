@@ -38,6 +38,7 @@ __all__ = [
     "tcp_cup_grasp_pose_tanh",
     "terminal_failure",
     # terminations
+    "dwell_pour_success",
     "excessive_spill",
     "extreme_rigid_state",
     "immediate_pour_success",
@@ -86,6 +87,7 @@ from .rewards import (
     terminal_failure,
 )
 from .terminations import (
+    dwell_pour_success,
     excessive_spill,
     extreme_rigid_state,
     immediate_pour_success,
