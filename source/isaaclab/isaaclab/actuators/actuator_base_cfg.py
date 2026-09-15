@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:

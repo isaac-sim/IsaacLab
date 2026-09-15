@@ -11,7 +11,7 @@ from typing import Literal
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

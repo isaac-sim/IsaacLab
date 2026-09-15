@@ -46,7 +46,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 

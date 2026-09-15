@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+6.3.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the Newton 1.5 compatibility shim for the MuJoCo tendon adapter. Newton 1.6.0rc1
+  provides the ``mujoco:actuator`` custom-frequency view API (newton-physics/newton#4017)
+  directly, so the adapter now reads it from the articulation view and model rather than
+  through a wrapper. No migration is needed: the shim was internal and became a no-op once
+  the Newton pin moved to 1.6.0rc1.
+
+Fixed
+^^^^^
+
+* Fixed batched scene cloning duplicating custom-frequency label prefixes, which prevented MuJoCo tendon actuators from resolving their targets.
+* Fixed Newton visualizers showing nested static collision geometry, including generated proxy-collider visual meshes,
+  when the rigid-body root had a separate visual subtree.
+* Fixed native Newton actuator initialization in non-cloned and heterogeneous scenes after a previous simulation.
+* Fixed Newton-backed visualizers unnecessarily running collision mesh approximation for
+  render-only shadow models.
+
+
+6.2.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a rebuilt Newton visualization model reusing the previous model's shadow-body index mapping.
+
+
 6.2.0 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~
 

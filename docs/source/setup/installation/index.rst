@@ -3,9 +3,9 @@
 Installation
 ============
 
-.. image:: https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-6.1.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: Isaac Sim 6.0.0
+   :alt: Isaac Sim 6.1.0
 
 .. image:: https://img.shields.io/badge/python-3.12-blue.svg
    :target: https://www.python.org/downloads/release/python-3120/
@@ -90,7 +90,7 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 `Omniverse technical requirements
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
 
-Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.0 with Python 3.12.
+Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
 
 Use the latest NVIDIA production branch driver. Version ``580.95.05`` or later is recommended on
 Linux x86_64 and aarch64, ``580.142`` on DGX Spark, and ``581.42.00`` on Windows. If a new GPU or
@@ -201,8 +201,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 
          powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-      .. isaaclab-clone-https::
-         :platform: windows
+      .. isaaclab-clone-commands::
 
       .. code-block:: batch
 
@@ -658,12 +657,12 @@ have dedicated commands below.
      - Both OV backends: OV PhysX and OV RTX.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
-   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
+   * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
      - The corresponding RL framework.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
-     - Imitation learning / XR teleoperation.
+     - Isaac Lab Mimic / XR teleoperation. The wheel's ``mimic`` extra does not include Robomimic.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
@@ -671,7 +670,7 @@ have dedicated commands below.
    * - ``importers``
      - Standalone URDF and MJCF conversion without Isaac Sim.
    * - ``all``
-     - The curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
+     - The curated ``ov``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
        extras. Isaac Sim is not included.
    * - ``test``
      - Developer test and documentation tooling.
@@ -679,6 +678,13 @@ have dedicated commands below.
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
 (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
 developer ``test`` tooling remain opt-in.
+
+.. note::
+
+   RL-Games and Robomimic are not included in the published wheel metadata because the versions
+   used by Isaac Lab are installed from Git and do not provide package-index wheels. To use either
+   integration, install Isaac Lab from a source checkout and select the ``rl-games`` or ``mimic``
+   extra there.
 
 .. note::
 
@@ -702,7 +708,7 @@ Install this extra to convert URDF and MJCF files without Isaac Sim.
 Installing the ``isaacsim`` extra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Sim 6.0 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
+Isaac Sim 6.1 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
 the tested overrides:
 
 .. isaaclab-uv-isaacsim-wheel-install::
@@ -1193,4 +1199,4 @@ issue through the `Isaac Sim forums
    Installation docs are the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.

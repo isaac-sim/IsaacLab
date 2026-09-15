@@ -71,7 +71,9 @@ args_cli, hydra_overrides = parser.parse_known_args()
 # renderer. ``resolve_task_config`` is safe to call before Kit is launched, and ``scan`` is the
 # same detection ``launch_simulation`` uses, so this matches how camera enabling is resolved
 # elsewhere now that the ``--enable_cameras`` flag is gone.
-env_cfg_for_scan, _ = resolve_task_config(args_cli.task, "")
+# ``overrides`` must be passed explicitly: this script keeps its own flags in ``sys.argv`` rather
+# than stripping them, so letting Hydra fall back to reading ``sys.argv`` makes it reject them.
+env_cfg_for_scan, _ = resolve_task_config(args_cli.task, "", overrides=hydra_overrides)
 app_launcher = AppLauncher(args_cli, enable_cameras=scan(env_cfg_for_scan, args_cli).has_kit_camera)
 simulation_app = app_launcher.app
 

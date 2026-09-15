@@ -40,7 +40,7 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 wp.init()
 

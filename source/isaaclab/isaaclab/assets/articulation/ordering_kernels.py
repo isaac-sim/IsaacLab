@@ -445,7 +445,8 @@ def reorder_generalized_vector_backend_to_user(
             shaped [num_envs, num_dofs], in backend joint order.
         joint_user_to_backend: Read-only map from public actuated-joint indices
             to backend actuated-joint indices.
-        joint_dof_signs: Backend-to-USD direction sign for each joint DoF.
+        joint_dof_signs: Backend-to-USD direction sign for each joint DoF, or
+            ``None`` when the backend already uses the public joint basis.
         num_base_dofs: Number of leading floating-base DoFs, either 0 or 6.
         has_joint_ordering: Whether to apply the map after the leading base DoFs.
         user_data: Destination with the same shape and units in public joint
@@ -458,7 +459,7 @@ def reorder_generalized_vector_backend_to_user(
         backend_dof_id = num_base_dofs + joint_user_to_backend[user_dof_id - num_base_dofs]
 
     sign = 1.0
-    if user_dof_id >= num_base_dofs:
+    if user_dof_id >= num_base_dofs and joint_dof_signs.shape[0] > 0:
         sign = wp.float32(joint_dof_signs[backend_dof_id - num_base_dofs])
     user_data[env_id, user_dof_id] = sign * backend_data[env_id, backend_dof_id]
 

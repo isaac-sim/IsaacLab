@@ -26,8 +26,8 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 __all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
 

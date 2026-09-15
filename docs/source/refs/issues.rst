@@ -16,6 +16,16 @@ apply to the others unless it says so.
 PhysX backends
 --------------
 
+Surface grippers require CPU simulation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=isaacsim_physx`` surface-gripper tasks.
+
+Surface grippers require CPU simulation. This includes the UR10 Long/Short Suction stacking tasks,
+the Galbot Right Arm Suction stacking task, and its relative and absolute Mimic variants.
+Pass ``--device cpu`` when running teleoperation. Zero and random agents preserve these tasks'
+CPU defaults when ``--device`` is omitted; an explicit GPU override is unsupported.
+
 Sensor readings are stale immediately after a reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

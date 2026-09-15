@@ -127,6 +127,7 @@ def test_main_collects_canonical_external_project_choices():
     assert specification["robot_name"] == "so101"
     assert specification["include_ui_extension"] is False
     assert specification["isaaclab_version"] == "3.0.0"
+    assert specification["isaaclab_source_path"] == _MODULE.ROOT_DIR
 
 
 def test_generated_project_matches_canonical_uv_layout(tmp_path):
@@ -173,11 +174,53 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
     assert (project_dir / "tests" / "test_registration.py").is_file()
     assert 'default="TestProject-"' in (project_dir / "scripts" / "list_envs.py").read_text()
     assert (task_dir / "env_cfg.py").is_file()
+    assert not (task_dir / "env.py").exists()
     assert (task_dir / "agents" / "rsl_rl_ppo_cfg.py").is_file()
     assert not (project_dir / "source").exists()
     assert not (project_dir / "config" / "extension.toml").exists()
     assert not (module_dir / "ui_extension_example.py").exists()
     assert "from .tasks import" not in (module_dir / "__init__.py").read_text()
+
+
+def test_generated_project_uses_active_source_checkout(tmp_path):
+    """Source-generated projects must use the checkout instead of requiring an unpublished wheel."""
+    specification = _external_specification(tmp_path)
+    specification["isaaclab_source_path"] = _MODULE.ROOT_DIR
+
+    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
+        _GENERATOR.generate(specification)
+
+    project_dir = tmp_path / "test_project"
+    with (project_dir / "pyproject.toml").open("rb") as file:
+        project_config = tomllib.load(file)
+
+    assert project_config["project"]["dependencies"] == ["isaaclab-dev[rsl-rl]"]
+    assert project_config["project"]["optional-dependencies"] == {
+        "isaacsim": ["isaaclab-dev[isaacsim]"],
+        "ov": ["isaaclab-dev[ov]"],
+        "ovphysx": ["isaaclab-dev[ovphysx]"],
+        "ovrtx": ["isaaclab-dev[ovrtx]"],
+    }
+    sources = project_config["tool"]["uv"]["sources"]
+    expected_root = Path(_MODULE.ROOT_DIR)
+    assert (project_dir / sources["isaaclab-dev"]["path"]).resolve() == expected_root.resolve()
+    assert (project_dir / sources["isaaclab"]["path"]).resolve() == (expected_root / "source" / "isaaclab").resolve()
+    assert sources["isaaclab-dev"]["editable"] is True
+    assert sources["isaaclab"]["editable"] is True
+    with (expected_root / "pyproject.toml").open("rb") as file:
+        source_config = tomllib.load(file)
+    assert project_config["tool"]["uv"]["override-dependencies"] == source_config["tool"]["uv"]["override-dependencies"]
+    assert project_config["tool"]["uv"]["environments"] == source_config["tool"]["uv"]["environments"]
+    assert sources["torch"] == source_config["tool"]["uv"]["sources"]["torch"]
+    assert "uses editable relative paths" in (project_dir / "README.md").read_text()
+
+
+def test_source_path_falls_back_to_absolute_path_across_windows_drives(monkeypatch):
+    """A project on another Windows drive must still receive a valid source path."""
+    monkeypatch.setattr(_GENERATOR.os.path, "relpath", mock.Mock(side_effect=ValueError))
+    monkeypatch.setattr(_GENERATOR.os.path, "realpath", lambda path: path)
+
+    assert _GENERATOR._project_source_path(r"D:\IsaacLab", r"C:\projects\robot") == "D:/IsaacLab"
 
 
 def test_generated_project_can_opt_into_ui_extension(tmp_path):

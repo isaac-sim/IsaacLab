@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-estimate-how-cameras-can-run:
 
 

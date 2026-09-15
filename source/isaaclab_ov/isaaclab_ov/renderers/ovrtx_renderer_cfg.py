@@ -12,7 +12,7 @@ import tempfile
 from typing import TYPE_CHECKING
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .ovrtx_renderer import OVRTXRenderer

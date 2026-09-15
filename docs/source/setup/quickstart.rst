@@ -332,5 +332,5 @@ Next steps
 - Browse registered environments and build a command: :doc:`/source/setup/environments`
 - Learn how backends and presets fit together: :doc:`/source/concepts/backends_and_presets`
 - Learn how to override task configuration: :doc:`/source/features/hydra`
-- Follow a guided environment-building tutorial: :doc:`/source/tutorials/index`
+- Find tutorials and task-focused documentation: :doc:`/source/how-to/index`
 - Read the installation options and troubleshooting guide: :ref:`isaaclab-installation-root`

@@ -45,7 +45,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
@@ -213,7 +213,10 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             (
                 (green > 1.5 * red) & (green > 1.5 * blue) & (green > 80.0),
                 (blue > 1.5 * red) & (blue > 1.5 * green) & (blue > 80.0),
-                (red > 80.0) & (green > 80.0) & (blue < 0.6 * torch.minimum(red, green)),
+                (red > 80.0)
+                & (green > 80.0)
+                & (blue < 0.6 * torch.minimum(red, green))
+                & (torch.minimum(red, green) > 0.95 * torch.maximum(red, green)),
                 (red > 80.0) & (blue > 80.0) & (green < 0.6 * torch.minimum(red, blue)),
             ),
             dim=1,

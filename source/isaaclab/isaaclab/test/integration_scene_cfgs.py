@@ -9,8 +9,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",

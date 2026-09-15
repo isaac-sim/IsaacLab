@@ -25,27 +25,24 @@ This page covers:
    .viz-grid > div { flex:1 1 0; min-width:0; }
    .viz-grid video, .viz-grid img { display:block; width:100%; border-radius:0 !important; padding:0 !important; background:none !important; }
    .viz-grid-stretch video, .viz-grid-stretch img { height:260px; object-fit:cover; }
-   .viz-grid-stretch.viz-grid-hero-tiles video { height:286px; }
+   .viz-grid-stretch.viz-grid-hero-tiles video { height:315px; }
    .viz-grid-fit { justify-content:center; }
    .viz-grid-fit > div { flex:0 0 auto; }
    .viz-grid-fit video, .viz-grid-fit img { width:auto; height:488px; }
    .viz-grid-stretch video.viz-no-crop { object-fit:contain; background:#000; }
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
-   /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
-      the same size and position across all 5 hero tiles. object-position stays centered; each
-      video's own (taller) height sets the zoom and its negative margin-top picks which slice
-      of the 241px-tall wrap is shown. Newton RTX/Rerun/Kit/Viser are pinned against their clip's
-      frame edge or UI chrome, so they're a few percent larger than a plain center crop; Newton
-      GL was shrunk to match. Viser's clip also shows a sliver of a baked-in info panel at this
-      zoom level -- a known trade-off. */
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:402px; margin-top:-97px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:273px; margin-top:-32px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:267px; margin-top:-26px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:287px; margin-top:-36px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:274px; margin-top:-33px; }
+   /* Per-tile crop windows: each video's (taller) height sets the zoom and its negative
+      margin-top picks which slice of the 265px wrap is shown, matching robot size within each
+      row. Tuned against the currently hosted clips, not capture_visualizer.py's own (much
+      smaller) fixed trim -- re-check if the clips are ever regenerated. Rerun/Viser cap how far
+      they can zoom out before their own baked-in UI chrome reappears; Viser is already at that
+      limit. */
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:293px; margin-top:-19px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
@@ -65,13 +62,13 @@ This page covers:
    <div class="viz-hero-stack">
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-gl">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton GL</div>
      </div>
      <div class="viz-hero-wrap viz-crop-viser">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
@@ -79,25 +76,39 @@ This page covers:
    </div>
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-rtx">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
-     <div class="viz-hero-wrap viz-crop-rerun">
-       <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
-       </video>
-       <div class="viz-label">Rerun</div>
-     </div>
      <div class="viz-hero-wrap viz-crop-kit">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-x8">
+       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
      </div>
+     <div class="viz-hero-wrap viz-crop-rerun">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
+         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
+       </video>
+       <div class="viz-label">Rerun</div>
+     </div>
    </div>
    </div>
+
+   <script>
+   // Kit/Newton RTX are encoded 10% slower than the other 3 (output_speed_factor in
+   // capture_visualizer.py); undo that so all 5 independently-looping clips stay in phase.
+   document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
+     v.playbackRate = 1 / 0.9;
+   });
+   // Start Viser/Rerun 1.2s into their clip instead of at 0; native loop still wraps to 0 as usual.
+   document.querySelectorAll(".viz-hero-start-1s").forEach(function (v) {
+     var seek = function () { v.currentTime = 1.2; };
+     if (v.readyState >= 1) seek();
+     else v.addEventListener("loadedmetadata", seek, { once: true });
+   });
+   </script>
 
    <p class="viz-cap">Note: Newton RTX has no velocity arrows, since it doesn't yet support visualization markers.</p>
 
@@ -458,6 +469,14 @@ Visualizer Overview
       - Direct access to the Isaac Sim USD stage for inspecting and editing prims at runtime
       - Full Isaac Sim GUI tooling (Property, Layers, and Stage panels)
 
+      .. note::
+
+         Kit's ImGui-based UI writes an ``imgui.ini`` file, recording window layout (panel
+         positions, docking, collapsed state), to the process working directory. If that is the
+         repository root, it shows up as an untracked file. ``imgui.ini`` is already listed in
+         ``.gitignore``; delete it or launch from outside the repository if you would rather it
+         not appear at all.
+
       **Core configuration:**
 
       .. code-block:: python
@@ -536,11 +555,11 @@ Visualization markers draw debug geometry over the scene via
 
    <div class="viz-grid viz-grid-stretch">
      <div>
-       <img src="../../_static/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
+       <img src="../../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
        <p class="viz-cap">Large green/blue arrow markers showing target and base velocity for an AnymalD robot</p>
      </div>
      <div>
-       <img src="../../_static/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
+       <img src="../../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
        <p class="viz-cap">Arrow markers on the Franka arm's joints, with contact sensor markers on the cube</p>
      </div>
    </div>
@@ -775,6 +794,21 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 
+Scene Background
+~~~~~~~~~~~~~~~~
+
+Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
+``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
+lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
+color directly, or set the field to ``None`` to preserve the backend's native background:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_color=(0.1, 0.2, 0.3))
+
+
 Performance
 ~~~~~~~~~~~
 
@@ -897,6 +931,14 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
 
+**Rerun: blank page until the first payload loads**
+
+The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
+depending on scene size) before the scene and live plots appear. This is expected -- it's the
+time for the web viewer to connect to the local Rerun server and receive its first batch of
+logged data -- but the page gives no loading indicator in the meantime, so it can look stuck.
+No action is needed; wait for the first frame to arrive.
+
 **Newton GL: CUDA/OpenGL interoperability warnings**
 
 In some configurations, the Newton GL visualizer emits warnings about CUDA/OpenGL
@@ -940,7 +982,7 @@ See Also
 - :doc:`/source/features/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
-- :doc:`/source/overview/core-concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
-- :doc:`/source/overview/core-concepts/physical-backends/newton/index`: Newton backend guide
+- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
+- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows to visualizers
+- :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference

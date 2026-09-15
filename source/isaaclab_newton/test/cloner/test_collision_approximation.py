@@ -133,6 +133,12 @@ class TestClonerCollisionApproximation:
         assert len(shapes) >= 2, f"expected a multi-hull decomposition, got {shapes}"
         assert all(geo_type == GeoType.CONVEX_MESH for geo_type in shapes.values())
 
+    def test_skip_mesh_approximation_bypasses_authored_convex_decomposition(self):
+        """A render-only import can bypass decomposition and retain the original mesh."""
+        shapes = _collision_shapes(_build(_make_stage("convexDecomposition"), skip_mesh_approximation=True))
+
+        assert list(shapes.values()) == [GeoType.MESH]
+
     @pytest.mark.parametrize(
         ("approximation", "expected"),
         [

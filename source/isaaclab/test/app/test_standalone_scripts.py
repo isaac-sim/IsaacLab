@@ -116,7 +116,8 @@ def test_script_scope_rejects_empty_selection():
 
 def test_demo_browser_documents_options_for_each_demo():
     """Every demo card must expose its supported launch options to the command builder."""
-    demos_page = (script_cases.ROOT / "docs/source/setup/demos.rst").read_text(encoding="utf-8")
+    docs_source = script_cases.ROOT / "docs/source"
+    demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
     cards = re.findall(r'(?s)<button[^>]+data-demo-path="[^"]+"[^>]*>', demos_page)
     documented_entries = {}
     for card in cards:
@@ -134,6 +135,10 @@ def test_demo_browser_documents_options_for_each_demo():
         if spec.relative_path.startswith("scripts/demos/") and spec.relative_path in referenced_paths
     }
     assert demo_specs.keys() == referenced_paths
+    image_paths = re.findall(r'<img src="../../([^"]+)"', demos_page)
+    assert image_paths
+    missing_images = [path for path in image_paths if not (docs_source / path).is_file()]
+    assert not missing_images, f"demo browser references missing images: {missing_images}"
     for path, spec in demo_specs.items():
         entry = documented_entries[path]
         expected_physics = {backend for _, backend in spec.physics_backends}

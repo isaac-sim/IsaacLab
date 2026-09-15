@@ -817,6 +817,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     default_cfg = VisualizerCfg(
+        background_color=(0.1, 0.2, 0.3),
         streaming_cam_target_prim_path="/World/envs/*/Object",
         streaming_cam_eye=(1.0, -1.0, 0.5),
     )
@@ -826,6 +827,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
 
     assert len(cfgs) == 1
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
+    assert cfgs[0].background_color == (0.1, 0.2, 0.3)
     assert cfgs[0].streaming_cam_target_prim_path == "/World/envs/*/Object"
     assert cfgs[0].streaming_cam_eye == (1.0, -1.0, 0.5)
 
@@ -923,6 +925,19 @@ def test_is_rendering_true_when_only_cfg_visualizer_is_set():
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
     assert ctx.is_rendering is True
+
+
+def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
+    """A capture-only headless visualizer must not trigger continuous rendering."""
+    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "kit", "headless": True})()
+    settings = {
+        "/isaaclab/render/rtx_sensors": False,
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
+    assert ctx.is_rendering is False
 
 
 def test_is_rendering_false_when_cli_disable_all_even_with_cfg_visualizer():

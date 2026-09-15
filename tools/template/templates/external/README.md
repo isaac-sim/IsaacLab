@@ -16,6 +16,11 @@ environment uses the Newton backend and does not install Isaac Sim:
 ```bash
 uv sync
 ```
+{% if isaaclab_sources %}
+
+This project was generated from an Isaac Lab source checkout. Its `pyproject.toml` uses editable relative paths to that
+checkout, so regenerate the project or update `[tool.uv.sources]` if either directory moves.
+{% endif %}
 
 Optional backends are available through extras. Pass the extra to each `uv run` command that needs it:
 

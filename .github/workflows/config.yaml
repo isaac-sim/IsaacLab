@@ -10,6 +10,6 @@
 # which the CI credential can reach.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
 # Isaac Sim 6.1.0-alpha.50 (b86cf6ce) includes Kit 110.3.0-360924's fix for NVBug 6566677.
-isaacsim_image_tag: latest-develop@sha256:b6222dffc0182e82f49d656d08dabdfb6a279e368a478cbd38080bbe959bb2ba
+isaacsim_image_tag: latest-develop@sha256:223adbb0a6f1897ed78d40597dac2efc740843e8051779ffdcbb021a9edc1217
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
