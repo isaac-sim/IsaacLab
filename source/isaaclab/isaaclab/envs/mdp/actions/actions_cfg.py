@@ -325,6 +325,11 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
     scale: float | tuple[float, ...] = 1.0
     """Scale factor for the action. Defaults to 1.0."""
+    offset: float | tuple[float, ...] = 0.0
+    """Offset applied to the scaled action. Defaults to 0.0.
+
+    Components use [m], [rad], or unitless quaternion values depending on the controller command type.
+    """
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
 
