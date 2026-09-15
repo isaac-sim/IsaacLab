@@ -46,9 +46,7 @@ from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveScene
     from isaaclab.sim.simulation_context import SimulationContext
-    from isaaclab.sim.usd_export import SceneExportAdapter
 
     from .ovphysx_manager_cfg import OvPhysxCfg
 
@@ -427,13 +425,6 @@ class OvPhysxManager(PhysicsManager):
     # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
     # value that randomization terms resample from, so live updates must not be written back to it.
     _gravity: ClassVar[tuple[float, float, float] | None] = None
-
-    @classmethod
-    def create_usd_export_adapter(cls, scene: InteractiveScene) -> SceneExportAdapter:
-        """Provide source identities and native extensions for fixed scene export."""
-        from ..sim.usd_export import SceneAdapter
-
-        return SceneAdapter(scene)
 
     @classmethod
     def get_dt(cls) -> float:

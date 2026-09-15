@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -179,6 +180,22 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.shared_metatype.link_names
+
+    def _usd_export_paths(self) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        view = self.root_view
+        return AssetPaths(
+            [
+                (str(path), self.body_names.index(name))
+                for path, name in zip(view.link_paths[0], self.backend_body_names)
+            ],
+            [
+                (str(path), self.joint_names.index(name))
+                for path, name in zip(view.dof_paths[0], self.backend_joint_names)
+            ],
+        )
 
     @property
     def root_view(self) -> physx.ArticulationView:

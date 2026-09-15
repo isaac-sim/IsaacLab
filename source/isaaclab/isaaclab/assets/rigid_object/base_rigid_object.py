@@ -131,8 +131,7 @@ class BaseRigidObject(AssetBase):
         from isaaclab.assets.physics_properties import validate_configuration_coverage
 
         validate_configuration_coverage(self.cfg)
-        assert writer.adapter is not None, "Asset authoring requires a source backend adapter."
-        writer.write_bodies(self.data, writer.adapter.paths(self).bodies)
+        writer.write_bodies(self.data, self._usd_export_paths().bodies)
 
     @abstractmethod
     def reset(

@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -31,6 +32,9 @@ from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .rigid_object_data import RigidObjectData
+
+if TYPE_CHECKING:
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class RigidObject(BaseRigidObject):
@@ -91,6 +95,12 @@ class RigidObject(BaseRigidObject):
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object."""
         return self._body_names
+
+    def _usd_export_paths(self) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        return AssetPaths([(str(path), row) for row, path in enumerate(self.root_view.prim_paths)], [])
 
     @property
     def root_view(self) -> OvPhysxView:

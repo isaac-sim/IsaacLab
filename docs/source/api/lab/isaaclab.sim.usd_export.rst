@@ -66,7 +66,9 @@ link state and joint properties; the box supplies its body state. Both write int
 same copy through a shared ``UsdWriter``. Articulation resolves and traverses its own joints;
 the writer discovers data declarations and performs the common attribute writes. Collections use that same body writer for
 all members. Scene-wide settings, dependencies and completeness are checked before saving.
-Backend managers provide the adapter; the scene does not select a backend by package name.
+Concrete assets map their native view identities into public data order. Physics managers own
+global driver settings and backend collision tables, including static colliders without registered assets.
+There is no scene export adapter or backend factory. ``UsdWriter.from_stage`` owns the isolated copy.
 
 Task construction and the pre-event callback belong to the training worker. Because a task
 constructor has no normal return at this boundary, a worker-local exception stops its remaining
@@ -100,9 +102,12 @@ fixed-root frames and Newton material bindings remain explicit. Unregistered ext
 an explicit target type. Schema discovery cannot infer source fields, units or backend semantics.
 
 The common writer targets standard USD Physics plus the
-PhysX extension dialect used by Isaac Sim. Backend adapters supply source identities and required
+PhysX extension dialect used by Isaac Sim. Concrete assets and physics managers supply required
 native extensions; this does not make PhysX-specific friction or drive semantics backend-neutral.
 Explicit controller gains never become implicit solver gains.
+
+Configuration ownership is declared beside the asset/actuator config definitions and checked
+across inheritance. These declarations are distinct from discoverable USD schema fields.
 
 Missing required objects, unsupported driven joint types, unknown configuration fields and
 unresolved dependencies fail before replacing the destination. The implementation currently

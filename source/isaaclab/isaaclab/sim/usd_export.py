@@ -15,7 +15,7 @@ import math
 import os
 import tempfile
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -28,14 +28,10 @@ from isaaclab.assets.physics_properties import (
 
 if TYPE_CHECKING:
     from isaaclab.assets import (
-        BaseArticulation,
         BaseArticulationData,
-        BaseRigidObject,
-        BaseRigidObjectCollection,
         BaseRigidObjectCollectionData,
         BaseRigidObjectData,
     )
-    from isaaclab.scene import InteractiveScene
 
 
 @dataclass(frozen=True)
@@ -44,35 +40,6 @@ class AssetPaths:
 
     bodies: list[tuple[str, int]]
     joints: list[tuple[str, int]]
-
-
-class SceneExportAdapter(Protocol):
-    """Source-backend provenance and fixed values absent from public asset data.
-
-    Standard writes target UsdPhysics plus PhysX extensions. A source adapter must
-    reject physical semantics it cannot preserve; it does not select a target backend.
-    """
-
-    def paths(self, asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection) -> AssetPaths:
-        """Resolve all bodies and supported DOFs to prims, in public data order."""
-        ...
-
-    def write_extensions(self, writer: UsdWriter) -> None:
-        """Preserve source-specific initialized semantics or fail before saving."""
-        ...
-
-
-def copy_scene_stage(stage: Usd.Stage) -> Usd.Stage:
-    """Flatten composition and make instances writable without touching the source stage."""
-    if UsdGeom.GetStageMetersPerUnit(stage) != 1 or UsdPhysics.GetStageKilogramsPerUnit(stage) != 1:
-        raise NotImplementedError("Fixed export requires SI stage units.")
-    snapshot = Usd.Stage.Open(stage.Flatten())
-    while True:
-        instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
-        if not instances:
-            return Usd.Stage.Open(snapshot.Flatten())
-        for prim in instances:
-            prim.SetInstanceable(False)
 
 
 class UsdWriter:
@@ -84,12 +51,24 @@ class UsdWriter:
     never evaluates them. Tasks, spawning and training are outside this object.
     """
 
-    def __init__(self, stage: Usd.Stage, adapter: SceneExportAdapter | None = None):
+    def __init__(self, stage: Usd.Stage):
         self.stage = stage
-        self.adapter = adapter
         self.body_paths: set[str] = set()
         # Retain owners with their arrays, so ids cannot be reused during an export.
         self._values: dict[int, tuple[object, dict[str, np.ndarray]]] = {}
+
+    @classmethod
+    def from_stage(cls, stage: Usd.Stage) -> UsdWriter:
+        """Preserve composition in an isolated writable SI stage without changing the source."""
+        if UsdGeom.GetStageMetersPerUnit(stage) != 1 or UsdPhysics.GetStageKilogramsPerUnit(stage) != 1:
+            raise NotImplementedError("Fixed export requires SI stage units.")
+        snapshot = Usd.Stage.Open(stage.Flatten())
+        while True:
+            instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
+            if not instances:
+                return cls(Usd.Stage.Open(snapshot.Flatten()))
+            for prim in instances:
+                prim.SetInstanceable(False)
 
     def write_properties(self, path: str, axis: str | None, data: object, *, row: int) -> None:
         """Write inherited property declarations from environment zero at one data row."""
@@ -193,19 +172,6 @@ class UsdWriter:
                 raise RuntimeError(f"Missing or multiply owned body {path}.")
             self._write_body_state(prim, poses[row], velocities[row])
             self.body_paths.add(path)
-
-    def write_scene_settings(self, scene: InteractiveScene) -> None:
-        """Preserve fixed simulation timing and identify the configuration boundary."""
-        frequency = 1 / scene.sim.get_physics_dt()
-        if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
-            raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this timestep.")
-        physics = self.stage.GetPrimAtPath(scene.physics_scene_path)
-        physics.AddAppliedSchema("PhysxSceneAPI")
-        physics.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(round(frequency))
-        self.stage.GetRootLayer().customLayerData = {
-            **self.stage.GetRootLayer().customLayerData,
-            "isaaclab:configuration": "fixed initialization before task events; controller/sensor runtime excluded",
-        }
 
     def validate(self) -> None:
         """Reject physical bodies retained from USD without a corresponding initialized backend data."""

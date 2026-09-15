@@ -26,7 +26,7 @@ from isaaclab.utils.warp import ProxyArray
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.sim.usd_export import UsdWriter
+    from isaaclab.sim.usd_export import AssetPaths, UsdWriter
 
     from .asset_base_cfg import AssetBaseCfg
 
@@ -289,6 +289,10 @@ class AssetBase(ABC):
         selector_cache = getattr(self, "_selector_cache", None)
         if selector_cache is not None:
             selector_cache.clear()
+
+    def _usd_export_paths(self) -> AssetPaths:
+        """Resolve initialized prim identities in public data order for one fixed environment."""
+        raise NotImplementedError(f"Fixed USD identities are not implemented for {type(self).__name__}.")
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Supplement this asset's prims in an isolated fixed single-environment stage.

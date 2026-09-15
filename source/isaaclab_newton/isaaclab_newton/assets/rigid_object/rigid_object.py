@@ -31,6 +31,7 @@ from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class RigidObject(BaseRigidObject):
@@ -85,6 +86,18 @@ class RigidObject(BaseRigidObject):
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object."""
         return self.root_view.link_names
+
+    def _usd_export_paths(self) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        view = self.root_view
+        model = SimulationManager.get_model()
+        if view.world_count != 1:
+            raise ValueError("Fixed USD identities require one environment.")
+        layout = view.frequency_layouts[model.get_attribute_frequency("body_mass")]
+        paths = [model.body_label[layout.offset + i * layout.stride_within_worlds] for i in range(view.count_per_world)]
+        return AssetPaths(list(zip(paths, range(len(paths)))), [])
 
     @property
     def root_view(self) -> ArticulationView:

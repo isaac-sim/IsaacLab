@@ -16,29 +16,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, fields
 from functools import lru_cache
 
-# Routes describe ownership, not a second cfg interpreter. Spawner/schema fields are
-# consumed by their existing writers and preserved wholesale in USD. Keep the exceptions
-# here so a newly added asset/actuator field cannot silently disappear during export.
-ASSET_CONFIGURATION_SOURCES = {
-    "construction": {"class_type", "cloning_contexts", "prim_path", "articulation_root_prim_path"},
-    "usd": {"spawn", "collision_group"},
-    "initial_state": {"init_state"},
-    "joint_properties": {"actuators"},
-    "identity": {"joint_ordering", "body_ordering"},
-    "collection": {"rigid_objects"},
-    "runtime_only": {
-        "soft_joint_pos_limit_factor",
-        "debug_vis",
-        "disable_shape_checks",
-        "actuator_value_resolution_debug_print",
-    },
-}
-ACTUATOR_CONFIGURATION_SOURCES = {
-    "construction": {"class_type", "joint_names_expr"},
-    "controller": {"actuator_effort_limit", "actuator_velocity_limit"},
-    "aliases": {"effort_limit_sim", "velocity_limit_sim", "effort_limit", "velocity_limit"},
-}
-
 
 def validate_configuration_coverage(cfg: object, *, actuator: bool = False) -> None:
     """Reject configuration fields with no declared export owner.
@@ -46,17 +23,19 @@ def validate_configuration_coverage(cfg: object, *, actuator: bool = False) -> N
     Derived native actuator fields are covered by their existing schema authoring contract;
     this check covers the shared actuator base consumed by ActuatorControl.
     """
+    cfg_type = cfg if isinstance(cfg, type) else type(cfg)
     if actuator:
         from isaaclab.actuators import ActuatorBaseCfg
-
-        names = {field.name for field in fields(ActuatorBaseCfg)}
         from isaaclab.actuators.actuator_control import _JOINT_PROPERTY_KEYS
 
-        routes = {**ACTUATOR_CONFIGURATION_SOURCES, "solver": set(_JOINT_PROPERTY_KEYS)}
+        cfg_type = ActuatorBaseCfg
+        covered = set(_JOINT_PROPERTY_KEYS)
     else:
-        names = {field.name for field in fields(cfg)}
-        routes = ASSET_CONFIGURATION_SOURCES
-    missing = names - set().union(*routes.values())
+        covered = set()
+    for base in cfg_type.__mro__:
+        for names in vars(base).get("__usd_configuration_sources__", {}).values():
+            covered.update(names)
+    missing = {field.name for field in fields(cfg_type)} - covered
     if missing:
         raise NotImplementedError(f"Undeclared physical configuration export fields on {type(cfg).__name__}: {missing}")
 

@@ -39,6 +39,14 @@ class AssetBaseCfg:
         Defaults to (0.0, 0.0, 0.0, 1.0).
         """
 
+    # Fixed export owners for fields declared here; inherited declarations are combined.
+    __usd_configuration_sources__ = {
+        "construction": {"cloning_contexts", "class_type", "prim_path"},
+        "usd": {"collision_group", "spawn"},
+        "initial_state": {"init_state"},
+        "runtime_only": {"disable_shape_checks", "debug_vis"},
+    }
+
     class_type: type | str | None = None
     """The associated asset class. Defaults to None, which means that the asset will be spawned
     but cannot be interacted with via the asset class.

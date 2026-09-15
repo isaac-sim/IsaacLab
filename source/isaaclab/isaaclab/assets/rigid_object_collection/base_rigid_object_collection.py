@@ -133,8 +133,7 @@ class BaseRigidObjectCollection(AssetBase):
         validate_configuration_coverage(self.cfg)
         for cfg in self.cfg.rigid_objects.values():
             validate_configuration_coverage(cfg)
-        assert writer.adapter is not None, "Asset authoring requires a source backend adapter."
-        writer.write_bodies(self.data, writer.adapter.paths(self).bodies)
+        writer.write_bodies(self.data, self._usd_export_paths().bodies)
 
     @abstractmethod
     def reset(

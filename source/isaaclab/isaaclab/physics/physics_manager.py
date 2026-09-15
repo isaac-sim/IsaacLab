@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
     from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
-    from isaaclab.sim.usd_export import SceneExportAdapter
+    from isaaclab.sim.usd_export import UsdWriter
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +98,22 @@ class PhysicsManager(ABC):
     """
 
     @classmethod
-    def create_usd_export_adapter(cls, scene: InteractiveScene) -> SceneExportAdapter:
-        """Provide source identities and native extensions for fixed scene export."""
-        raise NotImplementedError(f"Fixed USD export is not supported for {cls.__name__}.")
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Author fixed simulation timing; backend overrides preserve native scene semantics."""
+        from isaaclab.assets.physics_properties import UsdAttribute
+
+        frequency = 1 / scene.sim.get_physics_dt()
+        if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
+            raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this timestep.")
+        writer.write_attribute(
+            scene.physics_scene_path,
+            UsdAttribute("physxScene:timeStepsPerSecond", "PhysxSceneAPI", type_name="uint"),
+            round(frequency),
+        )
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:configuration": "fixed initialization before task events; controller/sensor runtime excluded",
+        }
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:

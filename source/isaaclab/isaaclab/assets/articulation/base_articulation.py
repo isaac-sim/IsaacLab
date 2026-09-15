@@ -496,8 +496,7 @@ class BaseArticulation(AssetBase):
             validate_configuration_coverage(cfg, actuator=True)
             if not _is_implicit_actuator_cfg(cfg) and name not in self.actuators.usd_actuator_groups:
                 raise NotImplementedError(f"Controller {name!r} has no native USD representation.")
-        assert writer.adapter is not None, "Asset authoring requires a source backend adapter."
-        paths = writer.adapter.paths(self)
+        paths = self._usd_export_paths()
         data = self.data
         writer.write_bodies(data, paths.bodies)
         if sorted(row for _, row in paths.joints) != list(range(self.num_joints)):

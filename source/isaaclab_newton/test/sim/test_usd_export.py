@@ -187,11 +187,16 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path):
         np.testing.assert_allclose(state.body_qd.numpy()[index], velocity, rtol=3e-5, atol=1e-6, err_msg=path)
 
 
-@pytest.mark.parametrize("bound", [True, False])
-def test_fixed_contact_materials_preserve_distinct_collider_values(bound):
-    from isaaclab_newton.sim.usd_export import write_shape_properties
+@pytest.mark.parametrize("bound", [True, False, "complete"])
+def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkeypatch):
+    from types import SimpleNamespace
+
+    import warp as wp
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager, XPBDSolverCfg
 
     from pxr import UsdShade
+
+    from isaaclab.sim.usd_export import UsdWriter
 
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
@@ -218,11 +223,43 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound):
             ("shape_material_restitution", 0.7, 0.8),
         )
     }
-    for i, prim in enumerate(shapes):
-        write_shape_properties(prim, values, i)
+    if bound == "complete":
+        physics = UsdPhysics.MaterialAPI.Apply(shared.GetPrim())
+        physics.CreateStaticFrictionAttr().Set(0.5)
+        physics.CreateDynamicFrictionAttr().Set(0.5)
+        physics.CreateRestitutionAttr().Set(0.7)
+        for name, value in values.items():
+            if name.startswith("shape_material_"):
+                value[1] = value[0]
+        values["shape_material_ke"][:] = 17.0
+        for name, value in (
+            ("contactStiffness", 17.0),
+            ("contactDamping", 3.0),
+            ("contactFrictionGain", 5.0),
+            ("contactAdhesion", 7.0),
+            ("torsionalFriction", 0.1),
+            ("rollingFriction", 0.3),
+        ):
+            shared.GetPrim().CreateAttribute("newton:" + name, Sdf.ValueTypeNames.Float).Set(value)
+    model = SimpleNamespace(**{name: wp.array(value, dtype=wp.float32, device="cpu") for name, value in values.items()})
+    model.shape_label = [str(prim.GetPath()) for prim in shapes]
+    for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"):
+        setattr(model, name, wp.array([], dtype=wp.float32, device="cpu"))
+    monkeypatch.setattr(NewtonManager, "get_model", lambda: model)
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    scene = SimpleNamespace(
+        physics_scene_path="/physicsScene",
+        sim=SimpleNamespace(
+            get_physics_dt=lambda: 1 / 60, cfg=SimpleNamespace(physics=NewtonCfg(solver_cfg=XPBDSolverCfg()))
+        ),
+    )
+    NewtonManager.author_fixed_configuration(UsdWriter(stage), scene)
     for i, prim in enumerate(shapes):
         material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
-        assert material.GetPrim().GetAttribute("newton:contactStiffness").Get() == i + 1
+        assert material.GetPrim().GetAttribute("newton:contactStiffness").Get() == values["shape_material_ke"][i]
+        if bound == "complete":
+            assert material.GetPath() == shared.GetPath()
+            assert not prim.GetChild("ExportPhysicsMaterial")
         if not bound:
             assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == pytest.approx(
                 0.5 + 0.1 * i
@@ -235,4 +272,4 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound):
     model = builder.finalize(device="cpu")
     for index, name in enumerate(("A", "B")):
         row = info["path_shape_map"]["/" + name]
-        assert model.shape_material_ke.numpy()[row] == index + 1
+        assert model.shape_material_ke.numpy()[row] == values["shape_material_ke"][index]

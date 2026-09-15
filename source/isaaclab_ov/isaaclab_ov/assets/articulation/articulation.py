@@ -12,6 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -57,6 +58,10 @@ from .kernels import (
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class Articulation(BaseArticulation):
@@ -161,6 +166,39 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self._body_names
+
+    def _usd_export_paths(self) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from pxr import Usd, UsdPhysics
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        roots = self.root_view.prim_paths
+        if len(roots) != 1:
+            raise NotImplementedError("Register each articulation instance separately for fixed export.")
+        root = self.stage.GetPrimAtPath(roots[0])
+        # An articulation-root API may be on a link; find the nearest scope containing every DOF/link.
+        while root and not root.IsPseudoRoot():
+            bodies, joints = {}, {}
+            for prim in Usd.PrimRange(root):
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    bodies.setdefault(prim.GetName(), []).append(str(prim.GetPath()))
+                elif prim.IsA(UsdPhysics.Joint):
+                    joints.setdefault(prim.GetName(), []).append(str(prim.GetPath()))
+            if set(self.body_names) <= bodies.keys() and set(self.joint_names) <= joints.keys():
+                break
+            root = root.GetParent()
+
+        def resolve(names, paths):
+            result = []
+            for row, name in enumerate(names):
+                matches = paths.get(name, [])
+                if len(matches) != 1:
+                    raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
+                result.append((matches[0], row))
+            return result
+
+        return AssetPaths(resolve(self.body_names, bodies), resolve(self.joint_names, joints))
 
     @property
     def root_view(self) -> OvPhysxView:

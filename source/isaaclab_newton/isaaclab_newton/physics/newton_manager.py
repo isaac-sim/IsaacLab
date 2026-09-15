@@ -118,7 +118,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.scene import InteractiveScene
-    from isaaclab.sim.usd_export import SceneExportAdapter
+    from isaaclab.sim.usd_export import UsdWriter
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -563,11 +563,104 @@ class NewtonManager(PhysicsManager):
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
     @classmethod
-    def create_usd_export_adapter(cls, scene: InteractiveScene) -> SceneExportAdapter:
-        """Provide source identities and native extensions for fixed scene export."""
-        from ..sim.usd_export import SceneAdapter
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Preserve global driver options and contacts, including static colliders without asset objects."""
+        from newton import JointTargetMode
 
-        return SceneAdapter(scene)
+        from pxr import Sdf, UsdPhysics, UsdShade
+
+        super().author_fixed_configuration(writer, scene)
+        from isaaclab_newton.physics import XPBDSolverCfg
+
+        stage = writer.stage
+        model = cls.get_model()
+        cfg = scene.sim.cfg.physics
+        solver = cfg.solver_cfg
+        if not isinstance(solver, XPBDSolverCfg):
+            raise NotImplementedError("Fixed Newton scene export currently supports XPBD solver settings only.")
+        defaults = XPBDSolverCfg().to_dict()
+        unsupported = [
+            name
+            for name, value in solver.to_dict().items()
+            if name not in {"class_type", "solver_type", "iterations"} and value != defaults.get(name)
+        ]
+        if cfg.num_substeps != 1 or cfg.collision_decimation != 0 or unsupported:
+            raise NotImplementedError(
+                f"No USD representation for Newton substeps/decimation or solver fields: {unsupported}"
+            )
+        gains = zip(
+            *(getattr(model, name).numpy() for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"))
+        )
+        modes = [(float(kp), float(kd), int(mode)) for kp, kd, mode in gains]
+        supported = []
+        for force_both in (False, True):
+            if all(
+                int(JointTargetMode.from_gains(kp, kd, force_both, has_drive=mode != 0)) == mode
+                for kp, kd, mode in modes
+            ):
+                supported.append(force_both)
+        if not supported:
+            raise NotImplementedError("Newton's USD importer cannot represent mixed per-joint actuator modes.")
+        stage.GetRootLayer().customLayerData = {
+            **stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonImportOptions": {"force_position_velocity_actuation": supported[0]},
+        }
+        stage.GetRootLayer().customLayerData = {
+            **stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "xpbd", "iterations": solver.iterations},
+        }
+
+        shape_fields = {"newton:contactGap": "shape_gap", "newton:contactMargin": "shape_margin"}
+        material_fields = {
+            "newton:contactStiffness": "shape_material_ke",
+            "newton:contactDamping": "shape_material_kd",
+            "newton:contactFrictionGain": "shape_material_kf",
+            "newton:contactAdhesion": "shape_material_ka",
+            "newton:torsionalFriction": "shape_material_mu_torsional",
+            "newton:rollingFriction": "shape_material_mu_rolling",
+        }
+
+        sources = (
+            set(shape_fields.values())
+            | set(material_fields.values())
+            | {"shape_material_mu", "shape_material_restitution"}
+        )
+        values = {name: getattr(model, name).numpy() for name in sources}
+        for index, path in enumerate(model.shape_label):
+            prim = stage.GetPrimAtPath(path)
+            if not prim or not prim.HasAPI(UsdPhysics.CollisionAPI):
+                continue
+            for target, source in shape_fields.items():
+                prim.CreateAttribute(target, Sdf.ValueTypeNames.Float).Set(float(values[source][index]))
+            binding = UsdShade.MaterialBindingAPI.Apply(prim)
+            original, _ = binding.ComputeBoundMaterial("physics")
+            # Complete native materials already express the fixed values and can stay shared.
+            if (
+                original
+                and original.GetPrim().HasAPI(UsdPhysics.MaterialAPI)
+                and all(
+                    original.GetPrim().GetAttribute(target).Get() == float(values[source][index])
+                    for target, source in material_fields.items()
+                )
+            ):
+                continue
+            path = prim.GetPath().AppendChild("ExportPhysicsMaterial")
+            if stage.GetPrimAtPath(path):
+                raise RuntimeError(f"Export material path already exists: {path}")
+            if original:
+                if not Sdf.CopySpec(stage.GetRootLayer(), original.GetPath(), stage.GetRootLayer(), path):
+                    raise RuntimeError(f"Cannot preserve bound material {original.GetPath()}")
+                material = UsdShade.Material(stage.GetPrimAtPath(path))
+            else:
+                material = UsdShade.Material.Define(stage, path)
+            if not material.GetPrim().HasAPI(UsdPhysics.MaterialAPI):
+                physics = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+                physics.CreateStaticFrictionAttr().Set(float(values["shape_material_mu"][index]))
+                physics.CreateDynamicFrictionAttr().Set(float(values["shape_material_mu"][index]))
+                physics.CreateRestitutionAttr().Set(float(values["shape_material_restitution"][index]))
+            for target, source in material_fields.items():
+                material.GetPrim().CreateAttribute(target, Sdf.ValueTypeNames.Float).Set(float(values[source][index]))
+            binding.Bind(material, bindingStrength=UsdShade.Tokens.strongerThanDescendants, materialPurpose="physics")
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:

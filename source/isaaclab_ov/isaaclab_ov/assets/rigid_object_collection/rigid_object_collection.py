@@ -33,6 +33,7 @@ from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):
@@ -121,6 +122,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object collection."""
         return list(self._body_names_list)
+
+    def _usd_export_paths(self) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        return AssetPaths([(str(path), row) for row, path in enumerate(self.root_view.prim_paths)], [])
 
     @property
     def root_view(self) -> OvPhysxView:

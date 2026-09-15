@@ -498,7 +498,7 @@ class InteractiveScene:
         from itertools import chain
         from time import perf_counter
 
-        from isaaclab.sim.usd_export import UsdWriter, copy_scene_stage
+        from isaaclab.sim.usd_export import UsdWriter
 
         if self.num_envs != 1 or self.sim.get_physics_step_count() != 0:
             raise ValueError("Fixed export requires exactly one environment before its first physics step.")
@@ -506,18 +506,15 @@ class InteractiveScene:
             raise NotImplementedError("Fixed export does not support deformables, cables or surface grippers.")
         durations = timings if timings is not None else {}
         start = perf_counter()
-        stage = copy_scene_stage(self.sim.stage)
+        writer = UsdWriter.from_stage(self.sim.stage)
         durations["flatten"] = perf_counter() - start
         start = perf_counter()
-        adapter = self.sim.physics_manager.create_usd_export_adapter(self)
-        writer = UsdWriter(stage, adapter)
         for asset in chain(
             self.articulations.values(), self.rigid_objects.values(), self.rigid_object_collections.values()
         ):
             asset.author_fixed_configuration(writer)
         writer.write_fixed_root_frames()
-        adapter.write_extensions(writer)
-        writer.write_scene_settings(self)
+        self.sim.physics_manager.author_fixed_configuration(writer, self)
         durations["configuration"] = perf_counter() - start
         start = perf_counter()
         writer.validate()

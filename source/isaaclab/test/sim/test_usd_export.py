@@ -6,7 +6,6 @@
 """Independent USD preservation, fixed mapping and atomic-save contracts."""
 
 import math
-from dataclasses import fields
 from types import SimpleNamespace
 
 import numpy as np
@@ -16,15 +15,13 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.assets.physics_properties import (
-    ACTUATOR_CONFIGURATION_SOURCES,
-    ASSET_CONFIGURATION_SOURCES,
     UsdAttribute,
     usd_field,
     usd_fields,
     validate_configuration_coverage,
 )
 from isaaclab.scene import InteractiveScene
-from isaaclab.sim.usd_export import UsdWriter, copy_scene_stage
+from isaaclab.sim.usd_export import UsdWriter
 
 
 @pytest.fixture
@@ -54,7 +51,7 @@ def test_copy_preserves_authored_content_and_source(scene, tmp_path):
         for prim in stage.Traverse()
     }
     output = tmp_path / "complete.usda"
-    UsdWriter(copy_scene_stage(stage)).save(str(output))
+    UsdWriter(UsdWriter.from_stage(stage).stage).save(str(output))
     fresh = Usd.Stage.Open(str(output))
     assert {str(p.GetPath()) for p in fresh.Traverse()} == set(expected)
     for path, properties in expected.items():
@@ -195,9 +192,9 @@ def test_articulation_rejects_unsupported_driven_joint():
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.SphericalJoint.Define(stage, "/Joint")
     asset = SimpleNamespace(cfg=ArticulationCfg(prim_path="/Robot", actuators={}), num_joints=1, data=None)
+    asset._usd_export_paths = lambda: AssetPaths([], [("/Joint", 0)])
     writer = SimpleNamespace(
         stage=stage,
-        adapter=SimpleNamespace(paths=lambda _: AssetPaths([], [("/Joint", 0)])),
         write_bodies=lambda *_: None,
     )
     with pytest.raises(NotImplementedError, match="Unsupported driven joint"):
@@ -233,12 +230,14 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
     scene.cable_objects = {}
     scene.surface_grippers = {}
     scene.physics_scene_path = "/physicsScene"
-    from isaaclab_physx.sim.usd_export import SceneAdapter
-
     from isaaclab.assets import BaseRigidObject
+    from isaaclab.sim.usd_export import AssetPaths
 
     asset.author_fixed_configuration = lambda writer: BaseRigidObject.author_fixed_configuration(asset, writer)
-    scene.sim.physics_manager = SimpleNamespace(create_usd_export_adapter=lambda scene: SceneAdapter(scene))
+    from isaaclab.physics import PhysicsManager
+
+    asset._usd_export_paths = lambda: AssetPaths([(path, 0)], [])
+    scene.sim.physics_manager = SimpleNamespace(author_fixed_configuration=PhysicsManager.author_fixed_configuration)
     scene.sim.get_physics_step_count = lambda: 0
     scene.sim.get_physics_dt = lambda: 1 / 60
     output = tmp_path / "complete.usda"
@@ -252,20 +251,11 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
 
 def test_configuration_contract_covers_asset_and_actuator_fields():
     from isaaclab.actuators import ActuatorBaseCfg
-    from isaaclab.actuators.actuator_control import _JOINT_PROPERTY_KEYS
 
-    asset_fields = set().union(
-        *(
-            {field.name for field in fields(cfg)}
-            for cfg in (AssetBaseCfg, ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg)
-        )
-    )
-    assert asset_fields == set().union(*ASSET_CONFIGURATION_SOURCES.values())
-    assert {field.name for field in fields(ActuatorBaseCfg)} == set(_JOINT_PROPERTY_KEYS).union(
-        *ACTUATOR_CONFIGURATION_SOURCES.values()
-    )
     for cfg in (AssetBaseCfg, ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg):
         validate_configuration_coverage(cfg)
+    validate_configuration_coverage(ActuatorBaseCfg, actuator=True)
+    assert "__usd_configuration_sources__" not in RigidObjectCfg(prim_path="/Body").to_dict()
     from isaaclab.utils import configclass
 
     @configclass
@@ -279,7 +269,7 @@ def test_configuration_contract_covers_asset_and_actuator_fields():
 def test_atomic_save_rejects_missing_dependencies_and_preserves_destination(scene, tmp_path, monkeypatch):
     output = tmp_path / "scene.usda"
     output.write_text("existing destination")
-    stage = copy_scene_stage(scene.sim.stage)
+    stage = UsdWriter.from_stage(scene.sim.stage).stage
     body = stage.GetPrimAtPath("/World/envs/env_0/Body")
     for name, target in (
         ("physics:body0", "/Missing"),
