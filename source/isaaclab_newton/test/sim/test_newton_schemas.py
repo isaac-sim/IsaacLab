@@ -491,6 +491,28 @@ def test_newton_sdf_collision_offsets_route_to_physx_namespace(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
+def test_newton_mesh_collision_offsets_route_to_physx_namespace(setup_sim):
+    """``NewtonMeshCollisionPropertiesCfg`` inherits from two bases, only one of which carries
+    the offset routing, so the resolution order decides where the fields land.
+
+    Unlike its siblings this cfg is the only multiply-inherited one
+    (``NewtonCollisionPropertiesCfg`` plus ``MeshCollisionBaseCfg``), so the single-inheritance
+    offset tests above leave this path uncovered.
+    """
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/nmesh_off", prim_type="Cube")
+    schemas.define_mesh_collision_properties(
+        "/World/nmesh_off",
+        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull", contact_offset=0.02, rest_offset=0.01),
+    )
+    prim = stage.GetPrimAtPath("/World/nmesh_off")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
+    assert not prim.GetAttribute("physics:contactOffset").IsValid()
+    assert not prim.GetAttribute("physics:restOffset").IsValid()
+
+
+@pytest.mark.isaacsim_ci
 def test_newton_joint_drive_max_velocity_routes_to_physx_namespace(setup_sim):
     """``max_joint_velocity`` is a PhysX-consumed field inherited from the base cfg. Setting it
     on the Newton joint-drive cfg must author ``physxJoint:maxJointVelocity`` instead of
