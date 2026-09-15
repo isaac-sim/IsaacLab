@@ -28,16 +28,10 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         self._vms_m2 = 0
         self._vms_n = 0
 
-        # Welford's algorithm stats for USS (Unique Set Size)
-        self._uss_mean = 0
-        self._uss_m2 = 0
-        self._uss_n = 0
-
         # Peak (running max) alongside the Welford mean/std. Initialised to
         # 0.0 so emit-before-record returns a meaningful zero.
         self._rss_peak = 0.0
         self._vms_peak = 0.0
-        self._uss_peak = 0.0
 
         # Process handle
         self._process = psutil.Process(os.getpid())
@@ -84,20 +78,14 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         self._memory_runtime_info["vms_n"] = self._vms_n
         self._memory_runtime_info["vms_peak"] = self._vms_peak
 
-        # USS (Unique Set Size) - memory unique to process (not shared)
-        try:
-            uss = self._process.memory_full_info().uss
-            self._uss_mean, self._uss_m2, self._uss_n, uss_std = self._update_welford(
-                uss, self._uss_mean, self._uss_m2, self._uss_n
-            )
-            self._uss_peak = max(self._uss_peak, float(uss))
-            self._memory_runtime_info["uss_mean"] = self._uss_mean
-            self._memory_runtime_info["uss_std"] = uss_std
-            self._memory_runtime_info["uss_n"] = self._uss_n
-            self._memory_runtime_info["uss_peak"] = self._uss_peak
-        except (psutil.AccessDenied, AttributeError):
-            # USS may not be available on all platforms
-            pass
+        # USS (Unique Set Size) is deliberately not sampled here.
+        # ``psutil.Process.memory_full_info()`` walks the process page tables on every
+        # call, which costs hundreds of milliseconds once the process is a few GB
+        # resident. This recorder is driven by
+        # :class:`~isaaclab.benchmark.BenchmarkMonitor` from a background thread while
+        # the benchmark is being timed, so that walk perturbs the very workload the run
+        # is measuring. ``memory_info()`` above reads cheap kernel counters and is
+        # unaffected.
 
     def update(self) -> None:
         self._get_runtime_info()
@@ -153,31 +141,6 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
             ),
             SingleMeasurement(name="System Memory VMS n", value=self._memory_runtime_info.get("vms_n", 0), unit=""),
         ]
-
-        # USS (Unique Set Size) - only if available
-        if "uss_mean" in self._memory_runtime_info:
-            measurements.extend(
-                [
-                    SingleMeasurement(
-                        name="System Memory USS",
-                        value=self._bytes_to_gb(self._memory_runtime_info.get("uss_mean", 0)),
-                        unit="GB",
-                    ),
-                    SingleMeasurement(
-                        name="System Memory USS std",
-                        value=self._bytes_to_gb(self._memory_runtime_info.get("uss_std", 0)),
-                        unit="GB",
-                    ),
-                    SingleMeasurement(
-                        name="System Memory USS peak",
-                        value=self._bytes_to_gb(self._memory_runtime_info.get("uss_peak", 0)),
-                        unit="GB",
-                    ),
-                    SingleMeasurement(
-                        name="System Memory USS n", value=self._memory_runtime_info.get("uss_n", 0), unit=""
-                    ),
-                ]
-            )
 
         return MeasurementData(
             measurements=measurements,

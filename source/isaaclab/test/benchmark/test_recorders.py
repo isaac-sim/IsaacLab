@@ -383,8 +383,8 @@ class TestMemoryInfoRecorder:
         assert recorder._rss_n == 0
         assert recorder._vms_mean == 0
         assert recorder._vms_n == 0
-        assert recorder._uss_mean == 0
-        assert recorder._uss_n == 0
+        assert not hasattr(recorder, "_uss_mean")
+        assert not hasattr(recorder, "_uss_n")
 
     def test_get_initial_data_structure(self, recorder):
         """Test that get_initial_data returns correct structure."""
@@ -466,10 +466,9 @@ class TestMemoryInfoRecorder:
 
         data = recorder.get_data()
         assert isinstance(data, MeasurementData)
-        # 8 measurements for RSS and VMS (mean, std, peak, n for each)
-        # Plus potentially 4 more for USS if available (mean, std, peak, n)
-        assert len(data.measurements) >= 8
-        assert len(data.measurements) <= 12
+        # Exactly 8: RSS and VMS, each with mean, std, peak and n. USS is no longer
+        # collected, so the count is platform-independent.
+        assert len(data.measurements) == 8
         assert len(data.metadata) == 1
 
     def test_get_data_measurement_names(self, recorder):
@@ -487,8 +486,8 @@ class TestMemoryInfoRecorder:
         assert "System Memory VMS" in names
         assert "System Memory VMS std" in names
         assert "System Memory VMS n" in names
-        # USS measurements may be present depending on platform
-        # We don't assert their presence since they're platform-dependent
+        # USS is not collected, so no USS row may be emitted on any platform.
+        assert not [n for n in names if "USS" in n]
 
     def test_get_data_metadata_names(self, recorder):
         """Test that get_data returns metadata with correct names."""
@@ -521,7 +520,6 @@ class TestMemoryInfoRecorder:
             def __init__(self, rss):
                 self.rss = rss
                 self.vms = rss  # mirror so VMS also moves
-                # USS is read via memory_full_info, not memory_info; leave alone.
 
         def _fake_memory_info(self):  # noqa: ARG001 — bound method, self is the process
             return _FakeMemInfo(next(scripted_iter))
@@ -567,6 +565,64 @@ class TestMemoryInfoRecorder:
         data = rec.get_data()
         rss_peak = next(m for m in data.measurements if m.name == "System Memory RSS peak")
         assert rss_peak.value == 300.0
+
+    def test_memory_full_info_is_never_called(self, monkeypatch):
+        """Test that the recorder never calls psutil's expensive USS query.
+
+        ``memory_full_info()`` walks the process page tables, which is what made this
+        recorder perturb the benchmark it runs inside. Fail loudly if it comes back.
+        """
+        import psutil
+
+        def _explode(self):  # noqa: ARG001 — bound method, self is the process
+            raise AssertionError("MemoryInfoRecorder must not call memory_full_info()")
+
+        monkeypatch.setattr(psutil.Process, "memory_full_info", _explode)
+
+        rec = MemoryInfoRecorder()
+        for _ in range(5):
+            rec.update()
+        rec.get_runtime_data()
+        rec.get_data()
+
+    def test_no_uss_keys_in_runtime_data(self, recorder):
+        """Test that no USS key is emitted, so nothing downstream can read a stale value."""
+        for _ in range(3):
+            recorder.update()
+
+        runtime = recorder.get_runtime_data()["memory_utilization"]
+        assert not [k for k in runtime if "uss" in k.lower()]
+
+    def test_rss_and_vms_means_are_tracked(self, monkeypatch):
+        """Test that RSS and VMS means are still computed correctly after the USS removal."""
+        import psutil
+
+        rss_values = [1 * 1024**3, 3 * 1024**3]  # bytes; mean = 2 GiB
+        vms_values = [2 * 1024**3, 6 * 1024**3]  # bytes; mean = 4 GiB
+        pairs = iter(zip(rss_values, vms_values))
+
+        class _FakeMemInfo:
+            def __init__(self, rss, vms):
+                self.rss = rss
+                self.vms = vms
+
+        def _fake_memory_info(self):  # noqa: ARG001 — bound method, self is the process
+            return _FakeMemInfo(*next(pairs))
+
+        monkeypatch.setattr(psutil.Process, "memory_info", _fake_memory_info)
+
+        rec = MemoryInfoRecorder()
+        for _ in range(len(rss_values)):
+            rec.update()
+
+        data = rec.get_data()
+        by_name = {m.name: m.value for m in data.measurements}
+        assert by_name["System Memory RSS"] == 2.0
+        assert by_name["System Memory VMS"] == 4.0
+        assert by_name["System Memory RSS peak"] == 3.0
+        assert by_name["System Memory VMS peak"] == 6.0
+        assert by_name["System Memory RSS n"] == 2
+        assert by_name["System Memory VMS n"] == 2
 
 
 # ==============================================================================
