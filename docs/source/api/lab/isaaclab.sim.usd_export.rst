@@ -136,12 +136,21 @@ configuration. Unrepresentable per-joint actuation modes fail explicitly. The
 loader must consume the exported import options and driver metadata, rather than silently using
 its own defaults::
 
+    import numpy as np
+    import warp as wp
+    from pxr import Usd, UsdPhysics
     from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
     stage = Usd.Stage.Open("deployment.usda")
     metadata = stage.GetRootLayer().customLayerData
     builder.add_usd(stage, schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()],
                     **metadata["isaaclab:newtonImportOptions"])
+    # Pinned Newton rotates these USD world-frame velocities during import.
+    for index, label in enumerate(builder.body_label):
+        body = UsdPhysics.RigidBodyAPI(stage.GetPrimAtPath(label))
+        linear = body.GetVelocityAttr().Get()
+        angular = np.deg2rad(body.GetAngularVelocityAttr().Get())
+        builder.body_qd[index] = wp.spatial_vector(*linear, *angular)
     model = builder.finalize()
     driver = dict(metadata["isaaclab:newtonDriver"])
     assert driver.pop("solver") == "xpbd"
@@ -161,6 +170,11 @@ examples for all three drivers. The deployment stepping loop must honor ``dt``,
 The metadata consumers are the deployment loader (illustrated above) and the independent
 fresh-load tests. Isaac Sim/OVPhysX do not consume these Newton driver options. The descriptive
 ``isaaclab:configuration`` marker does not execute task code.
+
+The loader above corrects a pinned Newton importer frame conversion: standard USD body
+velocities are already in the world frame. This correction reads only the exported USD;
+it does not replay task overrides. It is especially necessary for Kamino's body-state
+initialization and must be revalidated when upgrading Newton.
 
 The fresh-load tests compare complete fixture entity coverage, topology, geometry,
 materials, collision relationships, body/joint properties, gravity and state. MJWarp and

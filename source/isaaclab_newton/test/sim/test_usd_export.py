@@ -36,6 +36,15 @@ def _load(path: str, device="cpu") -> tuple[newton.Model, dict]:
     if driver == "mujoco":
         resolvers.insert(0, SchemaResolverMjc())
     stage_info = builder.add_usd(str(path), schema_resolvers=resolvers, **options)
+    # The pinned importer rotates USD world-frame velocities by each body's pose.
+    # Restore the USD values before finalization; no source task state is available here.
+    import warp as wp
+
+    for body, label in enumerate(builder.body_label):
+        api = UsdPhysics.RigidBodyAPI(stage.GetPrimAtPath(label))
+        linear = api.GetVelocityAttr().Get()
+        angular = np.deg2rad(api.GetAngularVelocityAttr().Get())
+        builder.body_qd[body] = wp.spatial_vector(*linear, *angular)
     replace_newton_builder_shape_colors(builder, stage)
     return builder.finalize(device=device), stage_info
 
