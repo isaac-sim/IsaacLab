@@ -269,7 +269,8 @@ def retrieve_git_asset_path(
         local_path: Asset path relative to the git repository, or an absolute path inside it.
         cache_dir: Directory where remote repositories are cached. Defaults to
             :data:`GIT_ASSET_CACHE_DIR`.
-        force_update: Whether to run ``git pull --ff-only`` for an existing checkout.
+        force_update: Whether to refresh an existing checkout. Unpinned repositories
+            use ``git pull --ff-only``; pinned repositories fetch the exact commit again.
         revision: Full 40-character Git commit SHA to check out for a remote repository.
             The commit is stored in a revision-specific cache directory. Local checkout
             paths do not accept this option.
