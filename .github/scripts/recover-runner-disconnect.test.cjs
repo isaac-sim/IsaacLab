@@ -185,6 +185,7 @@ for (const name of ['closed', 'updated', 'ambiguous', 'different fork']) {
     if (name === 'different fork') state.pulls[0].head.repo.id = 21;
     assert.equal((await recover(input)).retried, false);
     assert.deepEqual(state.writes, []);
+    assert.equal(state.reads.some(([method]) => method === 'jobs'), false);
   });
 }
 
