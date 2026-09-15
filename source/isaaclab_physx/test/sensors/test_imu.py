@@ -18,6 +18,7 @@ import pathlib
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
@@ -98,7 +99,8 @@ class MySceneCfg(InteractiveSceneCfg):
             articulation_props=[
                 PhysxArticulationCfg(
                     enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                )
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
             ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
@@ -122,7 +124,8 @@ class MySceneCfg(InteractiveSceneCfg):
             articulation_props=[
                 PhysxArticulationCfg(
                     enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                )
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
             ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
