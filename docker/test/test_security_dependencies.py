@@ -26,6 +26,8 @@ class TestSecurityDependencies(unittest.TestCase):
             project = tomllib.load(file)["project"]
         self.assertIn("gitpython>=3.1.59", project["dependencies"])
         self.assertIn("pillow>=12.3.0", project["dependencies"])
+        self.assertIn("starlette>=1.3.1", project["dependencies"])
+        self.assertIn("aiohttp>=3.14.3", project["optional-dependencies"]["rl-games"])
         self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["rerun"])
 
     def test_wheel_metadata_preserves_dependency_updates(self):
@@ -47,15 +49,18 @@ class TestSecurityDependencies(unittest.TestCase):
                 project = tomllib.load(file)["project"]
             self.assertIn("gitpython>=3.1.59", project["dependencies"])
             self.assertIn("pillow>=12.3.0", project["dependencies"])
+            self.assertIn("starlette>=1.3.1", project["dependencies"])
             self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["all"])
 
     def test_lock_contains_security_updates(self):
         with (REPO_ROOT / "uv.lock").open("rb") as file:
             packages = {p["name"]: p["version"] for p in tomllib.load(file)["package"]}
         for name, version in {
+            "aiohttp": "3.14.3",
             "gitpython": "3.1.59",
             "pillow": "12.3.0",
             "pyarrow": "23.0.1",
+            "starlette": "1.3.1",
         }.items():
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
@@ -131,8 +136,6 @@ class TestSecurityDependencies(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, valid_checksum, result.stderr)
                 self.assertEqual((root / "executed").exists(), valid_checksum)
                 self.assertEqual(pip_dir.exists(), not valid_checksum)
-
-
 class TestGitLfsInstaller(unittest.TestCase):
     """Exercise the shell installer with no network, root writes or package-manager changes."""
 
