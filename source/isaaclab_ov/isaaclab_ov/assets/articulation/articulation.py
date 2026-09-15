@@ -167,16 +167,23 @@ class Articulation(BaseArticulation):
         """Ordered names of bodies as exposed by the active backend."""
         return self._body_names
 
-    def _usd_export_paths(self) -> AssetPaths:
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
         from pxr import Usd, UsdPhysics
 
         from isaaclab.sim.usd_export import AssetPaths
 
         roots = self.root_view.prim_paths
-        if len(roots) != 1:
-            raise NotImplementedError("Register each articulation instance separately for fixed export.")
-        root = self.stage.GetPrimAtPath(roots[0])
+        root = self.stage.GetPrimAtPath(roots[env_index])
+        if not root:
+            from isaaclab.cloner.query import path_to_source
+
+            plan = sim_utils.SimulationContext.instance().get_clone_plan()
+            source = path_to_source(plan, roots[env_index]) if plan is not None else None
+            if source is None:
+                raise RuntimeError(f"Missing articulation source variant for {roots[env_index]}.")
+            root = self.stage.GetPrimAtPath(source[0] + source[2])
+        bodies, joints = {}, {}
         # An articulation-root API may be on a link; find the nearest scope containing every DOF/link.
         while root and not root.IsPseudoRoot():
             bodies, joints = {}, {}
@@ -185,7 +192,10 @@ class Articulation(BaseArticulation):
                     bodies.setdefault(prim.GetName(), []).append(str(prim.GetPath()))
                 elif prim.IsA(UsdPhysics.Joint):
                     joints.setdefault(prim.GetName(), []).append(str(prim.GetPath()))
-            if set(self.body_names) <= bodies.keys() and set(self.joint_names) <= joints.keys():
+            if (
+                set(self.body_names) <= bodies.keys()
+                and {name.split(":")[0] for name in self.joint_names} <= joints.keys()
+            ):
                 break
             root = root.GetParent()
 
@@ -194,6 +204,8 @@ class Articulation(BaseArticulation):
             for row, name in enumerate(names):
                 matches = paths.get(name, [])
                 if len(matches) != 1:
+                    if name.split(":")[0] in paths and ":" in name:
+                        raise NotImplementedError(f"Export does not support multi-axis joint DOF {name}.")
                     raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
                 result.append((matches[0], row))
             return result

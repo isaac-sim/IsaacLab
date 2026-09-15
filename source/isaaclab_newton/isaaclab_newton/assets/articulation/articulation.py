@@ -330,23 +330,10 @@ class Articulation(BaseArticulation):
         """Author fixed links/DOFs plus Newton limit compliance and initial-state compatibility."""
         from pxr import Sdf
 
-        from isaaclab.assets.physics_properties import UsdAttribute
-
         super().author_fixed_configuration(writer)
-        model = SimulationManager.get_model()
-        view = self.root_view
-        # The pinned importer resolves defaults/hard limits into buffers; USD may omit them.
-        limits = {
-            "joint_limit_ke": UsdAttribute("newton:limitStiffness", angular_power=-1, type_name="float"),
-            "joint_limit_kd": UsdAttribute("newton:limitDamping", angular_power=-1, type_name="float"),
-        }
-        values = {name: view.get_attribute(name, model).numpy().reshape(-1) for name in limits}
-        for path, row in self._usd_export_paths().joints:
+        for path, row in writer.resolve_paths(self._usd_export_paths(writer.env_index)).joints:
             joint = writer.stage.GetPrimAtPath(path)
             axis = "angular" if joint.GetTypeName() == "PhysicsRevoluteJoint" else "linear"
-            native_row = self.backend_joint_names.index(self.joint_names[row])
-            for source, target in limits.items():
-                writer.write_attribute(path, target, values[source][native_row], axis=axis)
             # Pinned Newton consumes angular initial velocity in rad/s; USD uses deg/s.
             for name in ("position", "velocity"):
                 value = joint.GetAttribute(f"state:{axis}:physics:{name}").Get()
@@ -355,12 +342,12 @@ class Articulation(BaseArticulation):
                         value = np.deg2rad(value)
                     joint.CreateAttribute(f"newton:{axis}:{name}", Sdf.ValueTypeNames.Float).Set(float(value))
 
-    def _usd_export_paths(self) -> AssetPaths:
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
         from isaaclab.sim.usd_export import AssetPaths
 
         view = self.root_view
-        if view.world_count != 1 or view.count_per_world != 1:
+        if view.count_per_world != 1:
             raise NotImplementedError("Register each articulation instance separately for fixed export.")
         dofs = [path for path, count in zip(view.joint_labels, view.joint_dof_counts) for _ in range(count)]
         return AssetPaths(

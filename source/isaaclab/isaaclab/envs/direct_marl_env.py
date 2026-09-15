@@ -147,10 +147,6 @@ class DirectMARLEnv(gym.Env):
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        from isaaclab.envs.utils.scene_export import capture_before_events
-
-        capture_before_events(self)
-
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale

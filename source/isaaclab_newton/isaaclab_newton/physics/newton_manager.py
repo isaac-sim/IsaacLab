@@ -567,13 +567,15 @@ class NewtonManager(PhysicsManager):
         """Preserve global driver options and contacts, including static colliders without asset objects."""
         from newton import JointTargetMode
 
-        from pxr import Sdf, UsdPhysics, UsdShade
-
         super().author_fixed_configuration(writer, scene)
         from isaaclab_newton.physics import XPBDSolverCfg
 
         stage = writer.stage
         model = cls.get_model()
+        if hasattr(model, "gravity"):
+            writer.write_gravity(
+                scene.physics_scene_path, model.gravity.numpy()[writer.env_id if model.world_count else -1]
+            )
         cfg = scene.sim.cfg.physics
         solver = cfg.solver_cfg
         if not isinstance(solver, XPBDSolverCfg):
@@ -591,7 +593,14 @@ class NewtonManager(PhysicsManager):
         gains = zip(
             *(getattr(model, name).numpy() for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"))
         )
-        modes = [(float(kp), float(kd), int(mode)) for kp, kd, mode in gains]
+        starts = model.joint_qd_start.numpy()
+        selected_dofs = {
+            dof
+            for joint, world in enumerate(model.joint_world.numpy())
+            if world in (-1, writer.env_id)
+            for dof in range(starts[joint], starts[joint + 1])
+        }
+        modes = [(float(kp), float(kd), int(mode)) for dof, (kp, kd, mode) in enumerate(gains) if dof in selected_dofs]
         supported = []
         for force_both in (False, True):
             if all(
@@ -610,57 +619,81 @@ class NewtonManager(PhysicsManager):
             "isaaclab:newtonDriver": {"solver": "xpbd", "iterations": solver.iterations},
         }
 
-        shape_fields = {"newton:contactGap": "shape_gap", "newton:contactMargin": "shape_margin"}
-        material_fields = {
-            "newton:contactStiffness": "shape_material_ke",
-            "newton:contactDamping": "shape_material_kd",
-            "newton:contactFrictionGain": "shape_material_kf",
-            "newton:contactAdhesion": "shape_material_ka",
-            "newton:torsionalFriction": "shape_material_mu_torsional",
-            "newton:rollingFriction": "shape_material_mu_rolling",
-        }
+        cls._author_collision_configuration(writer)
 
-        sources = (
-            set(shape_fields.values())
-            | set(material_fields.values())
-            | {"shape_material_mu", "shape_material_restitution"}
-        )
+    @classmethod
+    def _author_collision_configuration(cls, writer: UsdWriter) -> None:
+        """Write effective selected-world contacts, including unregistered static geometry."""
+        from dataclasses import fields
+
+        from pxr import UsdPhysics
+
+        from isaaclab_newton.sim.schemas.schemas_cfg import NewtonCollisionCfg, NewtonMaterialPropertiesCfg
+
+        model = cls.get_model()
+        declarations = {
+            cfg: [(f.metadata["newton_model"], f.metadata["usd"]) for f in fields(cfg) if "newton_model" in f.metadata]
+            for cfg in (NewtonCollisionCfg, NewtonMaterialPropertiesCfg)
+        }
+        sources = {source for group in declarations.values() for source, _ in group}
+        sources.update(("shape_material_mu", "shape_material_restitution"))
         values = {name: getattr(model, name).numpy() for name in sources}
+        worlds = model.shape_world.numpy() if hasattr(model, "shape_world") else None
         for index, path in enumerate(model.shape_label):
-            prim = stage.GetPrimAtPath(path)
+            if worlds is not None and worlds[index] not in (-1, writer.env_id):
+                continue
+            from isaaclab.sim.usd_export import AssetPaths
+
+            path = writer.resolve_paths(AssetPaths([(path, 0)], [])).bodies[0][0]
+            prim = writer.stage.GetPrimAtPath(path)
             if not prim or not prim.HasAPI(UsdPhysics.CollisionAPI):
                 continue
-            for target, source in shape_fields.items():
-                prim.CreateAttribute(target, Sdf.ValueTypeNames.Float).Set(float(values[source][index]))
-            binding = UsdShade.MaterialBindingAPI.Apply(prim)
-            original, _ = binding.ComputeBoundMaterial("physics")
-            # Complete native materials already express the fixed values and can stay shared.
-            if (
-                original
-                and original.GetPrim().HasAPI(UsdPhysics.MaterialAPI)
-                and all(
-                    original.GetPrim().GetAttribute(target).Get() == float(values[source][index])
-                    for target, source in material_fields.items()
-                )
-            ):
-                continue
-            path = prim.GetPath().AppendChild("ExportPhysicsMaterial")
-            if stage.GetPrimAtPath(path):
-                raise RuntimeError(f"Export material path already exists: {path}")
-            if original:
-                if not Sdf.CopySpec(stage.GetRootLayer(), original.GetPath(), stage.GetRootLayer(), path):
-                    raise RuntimeError(f"Cannot preserve bound material {original.GetPath()}")
-                material = UsdShade.Material(stage.GetPrimAtPath(path))
-            else:
-                material = UsdShade.Material.Define(stage, path)
-            if not material.GetPrim().HasAPI(UsdPhysics.MaterialAPI):
-                physics = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
-                physics.CreateStaticFrictionAttr().Set(float(values["shape_material_mu"][index]))
-                physics.CreateDynamicFrictionAttr().Set(float(values["shape_material_mu"][index]))
-                physics.CreateRestitutionAttr().Set(float(values["shape_material_restitution"][index]))
-            for target, source in material_fields.items():
-                material.GetPrim().CreateAttribute(target, Sdf.ValueTypeNames.Float).Set(float(values[source][index]))
-            binding.Bind(material, bindingStrength=UsdShade.Tokens.strongerThanDescendants, materialPurpose="physics")
+            for source, target in declarations[NewtonCollisionCfg]:
+                writer.write_attribute(path, target, float(values[source][index]))
+            cls._author_collision_material(writer, prim, index, values, declarations[NewtonMaterialPropertiesCfg])
+
+    @classmethod
+    def _author_collision_material(cls, writer: UsdWriter, prim, index: int, values: dict, declarations: list) -> None:
+        """Preserve a complete shared material or bind an independent effective copy."""
+        from pxr import Sdf, UsdPhysics, UsdShade
+
+        binding = UsdShade.MaterialBindingAPI.Apply(prim)
+        original, _ = binding.ComputeBoundMaterial("physics")
+        effective = {target.attribute: float(values[source][index]) for source, target in declarations}
+        # Newton has one friction coefficient; keep authored static/dynamic distinctions
+        # when the importer already resolves them to the effective dynamic value.
+        physics = UsdPhysics.MaterialAPI(original.GetPrim()) if original else None
+        complete = physics and all(
+            original.GetPrim().GetAttribute(name).Get() == value for name, value in effective.items()
+        )
+        mu, restitution = float(values["shape_material_mu"][index]), float(values["shape_material_restitution"][index])
+        if (
+            complete
+            and physics.GetDynamicFrictionAttr().Get() == mu
+            and physics.GetRestitutionAttr().Get() == restitution
+        ):
+            return
+        stage = writer.stage
+        path = prim.GetPath().AppendChild("ExportPhysicsMaterial")
+        if stage.GetPrimAtPath(path):
+            raise RuntimeError(f"Export material path already exists: {path}")
+        if original:
+            if not Sdf.CopySpec(stage.GetRootLayer(), original.GetPath(), stage.GetRootLayer(), path):
+                raise RuntimeError(f"Cannot preserve bound material {original.GetPath()}")
+            material = UsdShade.Material(stage.GetPrimAtPath(path))
+        else:
+            material = UsdShade.Material.Define(stage, path)
+        physics = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+        if not original or physics.GetDynamicFrictionAttr().Get() != mu:
+            physics.CreateStaticFrictionAttr().Set(mu)
+            physics.CreateDynamicFrictionAttr().Set(mu)
+        physics.CreateRestitutionAttr().Set(restitution)
+        for source, target in declarations:
+            writer.write_attribute(str(path), target, float(values[source][index]))
+        binding.Bind(material, bindingStrength=UsdShade.Tokens.weakerThanDescendants, materialPurpose="physics")
+        effective_material, _ = binding.ComputeBoundMaterial("physics")
+        if effective_material.GetPath() != material.GetPath():
+            raise NotImplementedError(f"An ancestor material binding prevents contact overrides at {prim.GetPath()}.")
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:

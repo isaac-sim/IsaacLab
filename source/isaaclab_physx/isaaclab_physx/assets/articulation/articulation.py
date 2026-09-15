@@ -181,7 +181,7 @@ class Articulation(BaseArticulation):
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.shared_metatype.link_names
 
-    def _usd_export_paths(self) -> AssetPaths:
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
         from isaaclab.sim.usd_export import AssetPaths
 
@@ -189,11 +189,11 @@ class Articulation(BaseArticulation):
         return AssetPaths(
             [
                 (str(path), self.body_names.index(name))
-                for path, name in zip(view.link_paths[0], self.backend_body_names)
+                for path, name in zip(view.link_paths[env_index], self.backend_body_names)
             ],
             [
                 (str(path), self.joint_names.index(name))
-                for path, name in zip(view.dof_paths[0], self.backend_joint_names)
+                for path, name in zip(view.dof_paths[env_index], self.backend_joint_names)
             ],
         )
 

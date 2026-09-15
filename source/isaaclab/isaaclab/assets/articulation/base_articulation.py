@@ -489,14 +489,11 @@ class BaseArticulation(AssetBase):
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Supplement link initial state and fixed joint parameters in the export stage."""
         from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-        from isaaclab.assets.physics_properties import validate_configuration_coverage
 
-        validate_configuration_coverage(self.cfg)
         for name, cfg in self.cfg.actuators.items():
-            validate_configuration_coverage(cfg, actuator=True)
             if not _is_implicit_actuator_cfg(cfg) and name not in self.actuators.usd_actuator_groups:
                 raise NotImplementedError(f"Controller {name!r} has no native USD representation.")
-        paths = self._usd_export_paths()
+        paths = writer.resolve_paths(self._usd_export_paths(writer.env_index))
         data = self.data
         writer.write_bodies(data, paths.bodies)
         if sorted(row for _, row in paths.joints) != list(range(self.num_joints)):

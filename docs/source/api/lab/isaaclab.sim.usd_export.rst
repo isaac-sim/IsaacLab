@@ -11,15 +11,17 @@ entrypoint to write ``deployment.usda`` beside the run's configuration files in 
 The option is off by default. Only global rank zero exports; RLINF and the experimental
 Warp task frontend are not supported by this integration.
 
-A separate process constructs the actual task with one environment using a copy of the resolved
-configuration. It includes Direct tasks' ``_setup_scene`` content, then stops before creating
-``EventManager`` or executing ``prestartup``/``startup`` events. Physics initialization and
-warmup complete, configured default body/joint states are applied, and the exporter takes its
-snapshot. The parent subsequently constructs the normal training environment, with its original
-environment count, configuration, seed and event behavior. Custom task constructors must use the
-standard scene boundary; physical assets created only after that boundary are outside this API.
-Direct tasks must register their physical assets in the scene. Unregistered rigid bodies fail
-coverage checks. Unimportable task classes/configurations cannot be sent to the isolated worker.
+The normal task constructor completes first, including subclass setup and one-time
+``prestartup``/``startup`` events. The opt-in call then exports environment zero before
+training wrappers perform their first reset or step. There is no second task construction,
+pre-event callback or exception used to interrupt initialization. Sampled one-time results
+are part of the artifact; later reset, interval and training changes are excluded.
+
+The snapshot uses current backend state. It does not apply ``default_*`` buffers: defaults
+are inputs to future resets and may differ from the current state or be changed by events.
+Calling reset or applying defaults during export would erase startup results. Tasks must
+register physical assets in the scene; unregistered enabled bodies fail completeness checks.
+A task that steps inside its constructor cannot use this initialization-only export.
 
 For a standalone robot and box, launch the backend normally and use the scene's export method.
 Here ``sim_cfg`` is the resolved simulation configuration for that backend::
@@ -52,10 +54,9 @@ Here ``sim_cfg`` is the resolved simulation configuration for that backend::
         scene.update(0.0)
         scene.export_to_usd("environment.usda")
 
-There is no runtime snapshot
-mode, model-only reconstruction, articulation-only export or replicated-environment extraction.
-A task that requires randomized parameters for deployment must first express them as a fixed
-configuration. Event functions are not evaluated by the export process.
+In this standalone example, default state is applied explicitly before the snapshot because
+there is no task event lifecycle. For task environments, export after the constructor returns;
+do not apply defaults again after startup events. The exporter never executes event functions.
 
 Preservation and authoring
 --------------------------
@@ -70,14 +71,19 @@ Concrete assets map their native view identities into public data order. Physics
 global driver settings and backend collision tables, including static colliders without registered assets.
 There is no scene export adapter or backend factory. ``UsdWriter.from_stage`` owns the isolated copy.
 
-Task construction and the pre-event callback belong to the training worker. Because a task
-constructor has no normal return at this boundary, a worker-local exception stops its remaining
-controller/observation setup. This hook is a construction constraint, not part of USD authoring.
+One environment is sufficient for export. ``env_id`` defaults to zero and selects a single
+environment from an existing replicated scene; for example, ``env_id=37`` selects environment
+37 when that environment exists. Differences in other environments do not change the selected
+environment's effective configuration. ClonePlan queries supply
+its source variants and instance membership, not runtime property values. Physics-only
+clones missing from USD are materialized from their authored sources; objects supply the
+selected instance's effective buffers. Other environments are removed, shared scene content
+and dependencies retained, and the selected environment keeps its world frame.
 
 The in-memory USD stage carries geometry, mass/inertia/COM, topology, collision materials,
 filtering, static objects, terrain, shared resources, tendon schemas and other authored settings.
-Native Flatten/Stage.Export preserve that content. Only initialized values absent from USD are
-written onto the isolated copy: body/joint initial state and resolved actuator solver properties.
+Native Flatten/Stage.Export preserve that content. Effective body/joint state, mass, inertia, COM, actuator properties and supported native
+contact/gravity values are written onto the isolated copy.
 The live stage, backend buffers and caller's configuration are not authored by the exporter.
 
 Data properties declare targets alongside their getters with ``@usd_field(UsdAttribute(...))``.
@@ -106,10 +112,7 @@ PhysX extension dialect used by Isaac Sim. Concrete assets and physics managers 
 native extensions; this does not make PhysX-specific friction or drive semantics backend-neutral.
 Explicit controller gains never become implicit solver gains.
 
-Configuration ownership is declared beside the asset/actuator config definitions and checked
-across inheritance. These declarations are distinct from discoverable USD schema fields.
-
-Missing required objects, unsupported driven joint types, unknown configuration fields and
+Missing required objects, unsupported driven joint types and
 unresolved dependencies fail before replacing the destination. The implementation currently
 requires SI stage units, representable timestep and supported rigid assets. Deformables, cables
 and surface grippers are rejected. Native schemas unsupported by a deployment consumer still
@@ -140,6 +143,10 @@ its own defaults::
     solver = newton.solvers.SolverXPBD(model, **driver)
     dt = 1 / stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get()
 
+The metadata consumers are the deployment loader (illustrated above) and the independent
+fresh-load tests. Isaac Sim/OVPhysX do not consume these Newton driver options. The descriptive
+``isaaclab:configuration`` marker does not execute task code.
+
 The fresh-load test constructs this driver and checks a non-default iteration count. The pinned
 Newton importer uses radians/second for native initial angular velocity; its compatibility
 attributes are emitted alongside standard USD degree-based state and currently produce warnings.
@@ -159,10 +166,12 @@ Deployment must restore policies, observations, sensor sampling/rendering, contr
 and task logic. Complete same-backend fresh-load tests are the first gate; use on a different
 backend requires a separate physical-semantics validation.
 
-``deployment.metrics.json`` reports scene construction, initialization, flattening,
-fixed configuration, dependency/coverage validation and file saving separately, in seconds.
-The configuration phase includes object/backend data reading and authoring. It also
-reports the child process's peak resident memory, output size and total process wall time including
-startup/shutdown. Peak resident memory includes imported libraries and backend initialization;
-it is not incremental GPU memory. The extra process and scene have a measurable startup cost,
-so the flag remains opt-in. Same-seed integration tests compare training with the flag off/on.
+``deployment.metrics.json`` reports selection/materialization, configuration authoring,
+validation and saving durations, total export wall time, source environment count, selected
+id and output size. It measures incremental export in the already initialized process.
+Same-seed integration tests compare event results and subsequent training with the flag off/on.
+
+PhysX tensor interfaces expose body identities but not per-collider identities. Single
+colliders and equal per-body contact values can be authored unambiguously; distinct per-shape
+values are rejected. Uniform values also cover cooked meshes with multiple convex pieces. Newton retains explicit shape labels,
+including static colliders. These support boundaries are separate from task/preset availability.

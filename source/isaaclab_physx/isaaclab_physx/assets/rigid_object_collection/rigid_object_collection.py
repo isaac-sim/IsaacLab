@@ -124,11 +124,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Ordered names of bodies in the rigid object collection."""
         return self._body_names_list
 
-    def _usd_export_paths(self) -> AssetPaths:
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
         from isaaclab.sim.usd_export import AssetPaths
 
-        return AssetPaths([(str(path), row) for row, path in enumerate(self.root_view.prim_paths)], [])
+        return AssetPaths(
+            [(str(path), row) for row, path in enumerate(self.root_view.prim_paths[env_index :: self.num_instances])],
+            [],
+        )
 
     @property
     def root_view(self):

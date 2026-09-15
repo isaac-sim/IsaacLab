@@ -482,46 +482,64 @@ class InteractiveScene:
     Operations.
     """
 
-    def export_to_usd(self, path: str, *, timings: dict[str, float] | None = None) -> str:
-        """Export the complete fixed scene to USD without modifying the live simulation.
+    def export_to_usd(self, path: str, *, env_id: int = 0, timings: dict[str, float] | None = None) -> str:
+        """Export one deployment environment after one-time initialization.
 
-        Call after initialization/warmup and default-state application, before task events
-        or application steps, with exactly one environment. All registered rigid assets
-        supplement the same isolated copy of the authored stage. Controllers, observations
-        and sensor execution require separate deployment integration.
+        Call after the task constructor returns and before the first training reset or
+        step. Prestartup/startup results, including random samples, are retained. Current
+        state is exported without applying defaults or mutating the live simulation.
+        Controllers, observations and sensor execution require deployment integration.
 
         Args:
-            path: Destination USD file. External asset dependencies must remain accessible.
-            timings: Optional output of flatten/configuration/validate/save durations [s].
-                Configuration includes backend reads and object/scene authoring.
+            path: Destination USD file. External dependencies must remain accessible.
+            env_id: Environment to export, retaining its world frame and shared resources.
+            timings: Optional output of selection/configuration/validate/save durations [s].
         """
         from itertools import chain
-        from time import perf_counter
 
+        from isaaclab.cloner.query import iter_sources
         from isaaclab.sim.usd_export import UsdWriter
+        from isaaclab.utils.timer import Timer
 
-        if self.num_envs != 1 or self.sim.get_physics_step_count() != 0:
-            raise ValueError("Fixed export requires exactly one environment before its first physics step.")
+        if not 0 <= env_id < self.num_envs:
+            raise ValueError(f"Environment {env_id} is outside [0, {self.num_envs}).")
+        if self.sim.get_physics_step_count() != 0:
+            raise ValueError("Deployment export must precede the first physics step.")
         if self.deformable_objects or self.cable_objects or self.surface_grippers:
-            raise NotImplementedError("Fixed export does not support deformables, cables or surface grippers.")
-        durations = timings if timings is not None else {}
-        start = perf_counter()
-        writer = UsdWriter.from_stage(self.sim.stage)
-        durations["flatten"] = perf_counter() - start
-        start = perf_counter()
-        for asset in chain(
-            self.articulations.values(), self.rigid_objects.values(), self.rigid_object_collections.values()
-        ):
-            asset.author_fixed_configuration(writer)
-        writer.write_fixed_root_frames()
-        self.sim.physics_manager.author_fixed_configuration(writer, self)
-        durations["configuration"] = perf_counter() - start
-        start = perf_counter()
-        writer.validate()
-        durations["validate"] = perf_counter() - start
-        start = perf_counter()
-        result = writer.save(path, validate=False)
-        durations["save"] = perf_counter() - start
+            raise NotImplementedError("Deployment export does not support deformables, cables or surface grippers.")
+        phases = {name: Timer() for name in ("selection", "configuration", "validate", "save")}
+        with phases["selection"]:
+            writer = UsdWriter.from_stage(self.sim.stage)
+            writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
+        with phases["configuration"]:
+            # Layout queries select the public instance row; effective values come from objects.
+            for asset in chain(
+                self.articulations.values(), self.rigid_objects.values(), self.rigid_object_collections.values()
+            ):
+                cfgs = asset.cfg.rigid_objects.values() if hasattr(asset.cfg, "rigid_objects") else (asset.cfg,)
+                memberships = []
+                for cfg in cfgs:
+                    ids = (
+                        sorted({i for *_, envs in iter_sources(self.clone_plan, cfg.prim_path) for i in envs})
+                        if self.clone_plan is not None
+                        else []
+                    )
+                    memberships.append(ids)
+                if any(ids != memberships[0] for ids in memberships):
+                    raise NotImplementedError("Collection members must share environment membership for export.")
+                ids = memberships[0]
+                if ids and env_id not in ids:
+                    continue
+                writer.env_index = ids.index(env_id) if ids else 0
+                asset.author_fixed_configuration(writer)
+            writer.write_fixed_root_frames()
+            self.sim.physics_manager.author_fixed_configuration(writer, self)
+        with phases["validate"]:
+            writer.validate()
+        with phases["save"]:
+            result = writer.save(path, validate=False)
+        if timings is not None:
+            timings.update({name: timer.total_run_time for name, timer in phases.items()})
         return result
 
     def reset(self, env_ids: Sequence[int] | None = None):

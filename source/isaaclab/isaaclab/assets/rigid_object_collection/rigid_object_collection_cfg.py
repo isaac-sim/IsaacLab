@@ -17,9 +17,6 @@ if TYPE_CHECKING:
 class RigidObjectCollectionCfg:
     """Configuration parameters for a rigid object collection."""
 
-    # Fixed export owners for fields declared here; inherited declarations are combined.
-    __usd_configuration_sources__ = {"construction": {"class_type"}, "collection": {"rigid_objects"}}
-
     class_type: type["RigidObjectCollection"] | str = "{DIR}.rigid_object_collection:RigidObjectCollection"
     """The associated asset class.
 

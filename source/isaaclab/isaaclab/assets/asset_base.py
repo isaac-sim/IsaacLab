@@ -290,7 +290,7 @@ class AssetBase(ABC):
         if selector_cache is not None:
             selector_cache.clear()
 
-    def _usd_export_paths(self) -> AssetPaths:
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Resolve initialized prim identities in public data order for one fixed environment."""
         raise NotImplementedError(f"Fixed USD identities are not implemented for {type(self).__name__}.")
 

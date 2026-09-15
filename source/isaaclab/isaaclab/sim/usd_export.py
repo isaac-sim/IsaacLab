@@ -5,8 +5,8 @@
 
 """Complete fixed single-environment USD export in the PhysX deployment dialect.
 
-Authored USD is preserved; only fixed initialization values absent from USD are
-written onto an isolated copy. This is not a runtime or multi-environment snapshot.
+Authored USD and one-time initialization results are preserved in an isolated copy
+of the selected environment. Subsequent training changes are outside this contract.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.assets.physics_properties import (
     UsdAttribute,
@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         BaseRigidObjectCollectionData,
         BaseRigidObjectData,
     )
+    from isaaclab.cloner.clone_plan import ClonePlan
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,9 @@ class UsdWriter:
 
     def __init__(self, stage: Usd.Stage):
         self.stage = stage
+        self.env_index = 0
+        self.env_id = 0
+        self.clone_plan: ClonePlan | None = None
         self.body_paths: set[str] = set()
         # Retain owners with their arrays, so ids cannot be reused during an export.
         self._values: dict[int, tuple[object, dict[str, np.ndarray]]] = {}
@@ -70,8 +74,111 @@ class UsdWriter:
             for prim in instances:
                 prim.SetInstanceable(False)
 
+    def select_environment(self, plan: ClonePlan | None, env_id: int, env_paths: list[str]) -> None:
+        """Materialize the selected USD variant and retain its shared resources.
+
+        Physics-only replication may omit clone prims from USD. Copy their authored
+        prototype before writing effective buffers. The plan supplies layout only.
+        """
+        from isaaclab.cloner.query import path_to_source
+
+        self.clone_plan, self.env_id = plan, env_id
+        layer = self.stage.GetRootLayer()
+        if plan is not None:
+            for template in dict.fromkeys(plan.destinations):
+                destination = template.format(env_id)
+                source = path_to_source(plan, destination, env_id)
+                if source is None:
+                    continue
+                source_path = source[0] + source[2]
+                source_prim = self.stage.GetPrimAtPath(source_path)
+                if not source_prim:
+                    raise RuntimeError(f"Missing source variant {source_path}.")
+                for prim in list(Usd.PrimRange(source_prim)):
+                    target = prim.GetPath().ReplacePrefix(Sdf.Path(source_path), Sdf.Path(destination))
+                    if self.stage.GetPrimAtPath(target):
+                        continue
+                    Sdf.CreatePrimInLayer(layer, target.GetParentPath())
+                    if not Sdf.CopySpec(layer, prim.GetPath(), layer, target):
+                        raise RuntimeError(f"Cannot materialize {prim.GetPath()} at {target}.")
+                    self._rebase_connections(self.stage.GetPrimAtPath(target), source_path, destination)
+            root = self.stage.GetPrimAtPath(env_paths[env_id])
+            if root and plan.positions is not None:
+                column = list(plan.env_ids).index(env_id)
+                # Clone roots carry layout translation, including physics-only copies.
+                UsdGeom.XformCommonAPI(root).SetTranslate(Gf.Vec3d(*map(float, plan.positions[column])))
+
+        excluded = tuple(Sdf.Path(path) for index, path in enumerate(env_paths) if index != env_id)
+        # Relationship dependencies may live in a different prototype environment.
+        # Retain resources, but never pull a foreign physical entity into the export.
+        copied = {}
+        pending = list(self.stage.Traverse())
+        for prim in pending:
+            if any(prim.GetPath().HasPrefix(root) for root in excluded):
+                continue
+            for prop in prim.GetProperties():
+                relationship = isinstance(prop, Usd.Relationship)
+                targets = prop.GetTargets() if relationship else prop.GetConnections()
+                rewritten = []
+                for target in targets:
+                    if not any(target.HasPrefix(root) for root in excluded):
+                        rewritten.append(target)
+                        continue
+                    # Cross-environment collision isolation has no foreign members now.
+                    if prim.IsA(UsdPhysics.CollisionGroup) or prop.GetName() == "physics:filteredPairs":
+                        continue
+                    source = target.GetPrimPath()
+                    dependency = self.stage.GetPrimAtPath(source)
+                    if not dependency or any(
+                        child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
+                        for child in Usd.PrimRange(dependency)
+                    ):
+                        raise NotImplementedError(f"Cross-environment physical dependency {prop.GetPath()}: {target}")
+                    destination = copied.get(source)
+                    if destination is None:
+                        destination = Sdf.Path("/__ExportResources").AppendChild(f"resource_{len(copied)}")
+                        UsdGeom.Scope.Define(self.stage, destination.GetParentPath())
+                        if not Sdf.CopySpec(layer, source, layer, destination):
+                            raise RuntimeError(f"Cannot preserve dependency {source}.")
+                        copied[source] = destination
+                        self._rebase_connections(self.stage.GetPrimAtPath(destination), source, destination)
+                        pending.extend(Usd.PrimRange(self.stage.GetPrimAtPath(destination)))
+                    rewritten.append(target.ReplacePrefix(source, destination))
+                if rewritten != targets:
+                    prop.SetTargets(rewritten) if relationship else prop.SetConnections(rewritten)
+        for root in excluded:
+            self.stage.RemovePrim(root)
+
+    @staticmethod
+    def _rebase_connections(root: Usd.Prim, source: str | Sdf.Path, destination: str | Sdf.Path) -> None:
+        """Rebase internal relationships and shader connections in a copied subtree."""
+        source, destination = Sdf.Path(source), Sdf.Path(destination)
+        for prim in Usd.PrimRange(root):
+            for prop in prim.GetProperties():
+                relationship = isinstance(prop, Usd.Relationship)
+                targets = prop.GetTargets() if relationship else prop.GetConnections()
+                rebased = [target.ReplacePrefix(source, destination) for target in targets]
+                if rebased != targets:
+                    prop.SetTargets(rebased) if relationship else prop.SetConnections(rebased)
+
+    def resolve_paths(self, paths: AssetPaths) -> AssetPaths:
+        """Map native prototype identities to this environment's authored clone paths."""
+        from isaaclab.cloner.query import path_to_clone, path_to_source
+
+        def resolve(path):
+            if self.clone_plan is None:
+                return path
+            source = path_to_source(self.clone_plan, path)
+            prototype = source[0] + source[2] if source is not None else path
+            return path_to_clone(self.clone_plan, prototype, self.env_id) or path
+
+        return AssetPaths(
+            [(resolve(path), row) for path, row in paths.bodies],
+            [(resolve(path), row) for path, row in paths.joints],
+        )
+
     def write_properties(self, path: str, axis: str | None, data: object, *, row: int) -> None:
-        """Write inherited property declarations from environment zero at one data row."""
+        """Write inherited property declarations from the selected asset instance."""
         declarations = usd_fields(type(data))
         if not declarations:
             raise NotImplementedError(f"No USD declarations on {type(data).__name__}.")
@@ -82,9 +189,9 @@ class UsdWriter:
                 if hasattr(value, "torch"):
                     value = value.torch.detach().cpu().numpy()
                 array = np.asarray(value)
-                if array.ndim < 2 or array.shape[0] != 1:
-                    raise ValueError(f"Expected one environment and row dimension for {source}.")
-                values[source] = array[0].copy()
+                if array.ndim < 2 or not 0 <= self.env_index < array.shape[0]:
+                    raise ValueError(f"Missing selected environment or row dimension for {source}.")
+                values[source] = array[self.env_index].copy()
             for target in targets:
                 value = values[source][row]
                 if target.component is not None:
@@ -162,8 +269,11 @@ class UsdWriter:
         paths: list[tuple[str, int]],
     ) -> None:
         """Write initialized public body state into its existing prims and track their identities."""
-        poses = data.body_link_pose_w.torch[0].detach().cpu().numpy().reshape(-1, 7).copy()
-        velocities = data.body_com_vel_w.torch[0].detach().cpu().numpy().reshape(-1, 6).copy()
+        poses = data.body_link_pose_w.torch[self.env_index].detach().cpu().numpy().reshape(-1, 7).copy()
+        velocities = data.body_com_vel_w.torch[self.env_index].detach().cpu().numpy().reshape(-1, 6).copy()
+        masses = data.body_mass.torch[self.env_index].detach().cpu().numpy().reshape(-1)
+        inertias = data.body_inertia.torch[self.env_index].detach().cpu().numpy().reshape(-1, 3, 3)
+        coms = data.body_com_pose_b.torch[self.env_index].detach().cpu().numpy().reshape(-1, 7)
         if sorted(row for _, row in paths) != list(range(len(poses))):
             raise RuntimeError("Incomplete body identities for fixed configuration.")
         for path, row in sorted(paths, key=lambda item: Sdf.Path(item[0]).pathElementCount):
@@ -171,7 +281,32 @@ class UsdWriter:
             if path in self.body_paths or not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 raise RuntimeError(f"Missing or multiply owned body {path}.")
             self._write_body_state(prim, poses[row], velocities[row])
+            self._write_mass_properties(prim, masses[row], inertias[row], coms[row])
             self.body_paths.add(path)
+
+    def _write_mass_properties(self, prim: Usd.Prim, mass: float, inertia: np.ndarray, com: np.ndarray) -> None:
+        """Write mass [kg], COM pose [m, xyzw] and link-frame inertia [kg*m²]."""
+        if not np.isfinite(mass) or mass < 0 or not np.isfinite(inertia).all() or not np.isfinite(com).all():
+            raise ValueError(f"Invalid mass properties at {prim.GetPath()}.")
+        if not np.allclose(inertia, inertia.T, atol=1e-7):
+            raise ValueError(f"Non-symmetric inertia at {prim.GetPath()}.")
+        rotation = Gf.Quatd(float(com[6]), Gf.Vec3d(*map(float, com[3:6])))
+        axes = np.asarray(Gf.Matrix3d(rotation)).T
+        principal = axes.T @ inertia @ axes
+        if np.allclose(principal, np.diag(np.diag(principal)), atol=1e-7):
+            moments = np.diag(principal)
+        else:
+            moments, axes = np.linalg.eigh(inertia)
+            if np.linalg.det(axes) < 0:
+                axes[:, 0] *= -1
+            rotation = Gf.Matrix3d(*map(float, axes.T.flatten())).ExtractRotation().GetQuat()
+        if np.any(moments < -1e-7):
+            raise ValueError(f"Negative inertia at {prim.GetPath()}.")
+        physics = UsdPhysics.MassAPI.Apply(prim)
+        physics.CreateMassAttr().Set(float(mass))
+        physics.CreateCenterOfMassAttr().Set(Gf.Vec3f(*map(float, com[:3])))
+        physics.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(*map(float, np.maximum(moments, 0))))
+        physics.CreatePrincipalAxesAttr().Set(Gf.Quatf(rotation))
 
     def validate(self) -> None:
         """Reject physical bodies retained from USD without a corresponding initialized backend data."""
@@ -186,6 +321,80 @@ class UsdWriter:
                 f"extra={sorted(self.body_paths - authored)}"
             )
         self.validate_dependencies()
+
+    def write_gravity(self, scene_path: str, gravity) -> None:
+        """Author effective gravity [m/s²] from a backend's selected world."""
+        gravity = np.asarray(gravity, dtype=float)
+        magnitude = float(np.linalg.norm(gravity))
+        physics = UsdPhysics.Scene(self.stage.GetPrimAtPath(scene_path))
+        physics.CreateGravityMagnitudeAttr().Set(magnitude)
+        physics.CreateGravityDirectionAttr().Set(Gf.Vec3f(*(gravity / magnitude if magnitude else (0, 0, -1))))
+
+    def write_body_contacts(self, path: str, disabled: bool, materials, offsets, rest_offsets) -> None:
+        """Author body gravity and PhysX contact buffers without guessing shape ordering.
+
+        Native tensor views expose body identities but not collider paths. A single
+        collider or equal per-body values are unambiguous; distinct per-shape values
+        require a backend identity API and are rejected.
+        """
+        body = self.stage.GetPrimAtPath(path)
+        self.write_attribute(
+            path, UsdAttribute("physxRigidBody:disableGravity", "PhysxRigidBodyAPI", type_name="bool"), disabled
+        )
+        colliders = []
+        descendants = iter(Usd.PrimRange(body))
+        for prim in descendants:
+            if prim != body and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                descendants.PruneChildren()
+            elif prim.HasAPI(UsdPhysics.CollisionAPI):
+                colliders.append(prim)
+        materials = np.asarray(materials).reshape(-1, 3)
+        offsets, rest_offsets = np.asarray(offsets).reshape(-1), np.asarray(rest_offsets).reshape(-1)
+        count = len(colliders)
+        if count == 0:
+            return
+        # A cooked mesh can yield several native convex shapes. Uniform values
+        # remain representable on its original geometry without reconstructing it.
+        if not len(materials) or any(len(values) != len(materials) for values in (offsets, rest_offsets)):
+            raise NotImplementedError(f"Unmatched collider identities/count at {path}.")
+        if any(not np.all(values == values[0]) for values in (materials, offsets, rest_offsets)):
+            raise NotImplementedError(f"Distinct per-shape contact values lack stable collider identities at {path}.")
+        for prim in colliders:
+            for name, value in (("contactOffset", offsets[0]), ("restOffset", rest_offsets[0])):
+                self.write_attribute(
+                    str(prim.GetPath()),
+                    UsdAttribute(f"physxCollision:{name}", "PhysxCollisionAPI", type_name="float"),
+                    float(value),
+                )
+            binding = UsdShade.MaterialBindingAPI.Apply(prim)
+            original, _ = binding.ComputeBoundMaterial("physics")
+            names = ("staticFriction", "dynamicFriction", "restitution")
+            if original and all(
+                original.GetPrim().GetAttribute(f"physics:{name}").Get() == float(value)
+                for name, value in zip(names, materials[0])
+            ):
+                continue
+            destination = prim.GetPath().AppendChild("ExportPhysicsMaterial")
+            if self.stage.GetPrimAtPath(destination):
+                raise RuntimeError(f"Export material path already exists: {destination}")
+            if original:
+                if not Sdf.CopySpec(
+                    self.stage.GetRootLayer(), original.GetPath(), self.stage.GetRootLayer(), destination
+                ):
+                    raise RuntimeError(f"Cannot preserve bound material {original.GetPath()}.")
+                material = UsdShade.Material(self.stage.GetPrimAtPath(destination))
+            else:
+                material = UsdShade.Material.Define(self.stage, destination)
+            for name, value in zip(names, materials[0]):
+                self.write_attribute(
+                    str(destination), UsdAttribute(f"physics:{name}", "PhysicsMaterialAPI"), float(value)
+                )
+            binding.Bind(material, bindingStrength=UsdShade.Tokens.weakerThanDescendants, materialPurpose="physics")
+            effective, _ = binding.ComputeBoundMaterial("physics")
+            if effective.GetPath() != material.GetPath():
+                raise NotImplementedError(
+                    f"An ancestor material binding prevents contact overrides at {prim.GetPath()}."
+                )
 
     def validate_dependencies(self) -> None:
         """Reject dangling prim/property connections and unresolved external resources."""

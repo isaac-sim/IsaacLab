@@ -13,12 +13,11 @@ import pytest
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.assets.physics_properties import (
     UsdAttribute,
     usd_field,
     usd_fields,
-    validate_configuration_coverage,
 )
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim.usd_export import UsdWriter
@@ -37,7 +36,9 @@ def scene():
         UsdPhysics.RigidBodyAPI.Apply(prim)
         UsdPhysics.MassAPI.Apply(prim).CreateMassAttr().Set(mass)
         UsdShade.MaterialBindingAPI.Apply(prim).Bind(material, materialPurpose="physics")
-    return SimpleNamespace(sim=SimpleNamespace(stage=stage), num_envs=1)
+    return SimpleNamespace(
+        sim=SimpleNamespace(stage=stage), num_envs=1, clone_plan=None, env_prim_paths=["/World/envs/env_0"]
+    )
 
 
 def test_copy_preserves_authored_content_and_source(scene, tmp_path):
@@ -58,6 +59,56 @@ def test_copy_preserves_authored_content_and_source(scene, tmp_path):
         for name, value in properties.items():
             prop = fresh.GetPrimAtPath(path).GetProperty(name)
             assert (prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.Get()) == value
+    assert stage.GetRootLayer().ExportToString() == before
+
+
+def test_body_contacts_respect_nested_body_ownership(scene):
+    stage = scene.sim.stage
+    parent = "/World/envs/env_0/Body"
+    child = parent + "/Child"
+    child_prim = UsdGeom.Cube.Define(stage, child).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child_prim)
+    for path in (parent, child):
+        UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(path))
+    writer = UsdWriter.from_stage(stage)
+    for path, friction in ((parent, 0.25), (child, 0.75)):
+        writer.write_body_contacts(path, False, [[friction, friction, 0]], [0.02], [0])
+    for path, friction in ((parent, 0.25), (child, 0.75)):
+        material, _ = UsdShade.MaterialBindingAPI(writer.stage.GetPrimAtPath(path)).ComputeBoundMaterial("physics")
+        assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == friction
+
+
+def test_selected_variant_preserves_transitive_resources(scene):
+    from isaaclab.cloner.clone_plan import ClonePlan
+
+    stage = scene.sim.stage
+    roots = [f"/World/envs/env_{index}" for index in range(3)]
+    variant = UsdGeom.Sphere.Define(stage, roots[1] + "/Body")
+    variant.CreateRadiusAttr().Set(0.42)
+    UsdPhysics.RigidBodyAPI.Apply(variant.GetPrim())
+    material = UsdShade.Material.Define(stage, roots[0] + "/Material")
+    shader = UsdShade.Shader.Define(stage, roots[0] + "/Shader")
+    shader.CreateIdAttr().Set("UsdPreviewSurface")
+    shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+    material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+    UsdShade.MaterialBindingAPI.Apply(variant.GetPrim()).Bind(material)
+    UsdGeom.Xform.Define(stage, roots[2])
+    plan = ClonePlan(
+        sources=(roots[0] + "/Body", roots[1] + "/Body"),
+        destinations=("/World/envs/env_{}/Body",) * 2,
+        clone_mask=np.array([[True, False, False], [False, True, True]]),
+        env_ids=np.arange(3),
+    )
+    before = stage.GetRootLayer().ExportToString()
+    writer = UsdWriter.from_stage(stage)
+    writer.select_environment(plan, 2, roots)
+    selected = writer.stage.GetPrimAtPath(roots[2] + "/Body")
+    assert UsdGeom.Sphere(selected).GetRadiusAttr().Get() == pytest.approx(0.42)
+    bound, _ = UsdShade.MaterialBindingAPI(selected).ComputeBoundMaterial()
+    source = bound.GetSurfaceOutput().GetConnectedSource()[0].GetPrim()
+    assert UsdShade.Shader(source).GetIdAttr().Get() == "UsdPreviewSurface"
+    assert not writer.stage.GetPrimAtPath(roots[0])
+    assert not writer.stage.GetPrimAtPath(roots[1])
     assert stage.GetRootLayer().ExportToString() == before
 
 
@@ -192,20 +243,20 @@ def test_articulation_rejects_unsupported_driven_joint():
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.SphericalJoint.Define(stage, "/Joint")
     asset = SimpleNamespace(cfg=ArticulationCfg(prim_path="/Robot", actuators={}), num_joints=1, data=None)
-    asset._usd_export_paths = lambda: AssetPaths([], [("/Joint", 0)])
+    asset._usd_export_paths = lambda env_index=0: AssetPaths([], [("/Joint", 0)])
     writer = SimpleNamespace(
         stage=stage,
         write_bodies=lambda *_: None,
+        env_index=0,
+        resolve_paths=lambda paths: paths,
     )
     with pytest.raises(NotImplementedError, match="Unsupported driven joint"):
         BaseArticulation.author_fixed_configuration(asset, writer)
 
 
-def test_fixed_export_rejects_replication_and_poststep(scene, tmp_path):
-    scene.num_envs = 2
-    with pytest.raises(ValueError, match="exactly one"):
-        InteractiveScene.export_to_usd(scene, str(tmp_path / "scene.usda"))
-    scene.num_envs = 1
+def test_fixed_export_rejects_invalid_selection_and_poststep(scene, tmp_path):
+    with pytest.raises(ValueError, match="outside"):
+        InteractiveScene.export_to_usd(scene, str(tmp_path / "scene.usda"), env_id=1)
     scene.sim.get_physics_step_count = lambda: 1
     with pytest.raises(ValueError, match="first physics step"):
         InteractiveScene.export_to_usd(scene, str(tmp_path / "scene.usda"))
@@ -221,6 +272,9 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
         data=SimpleNamespace(
             body_link_pose_w=SimpleNamespace(torch=torch.tensor([[0.0, 0, 0, 0, 0, 0, 1]])),
             body_com_vel_w=SimpleNamespace(torch=torch.zeros((1, 6))),
+            body_mass=SimpleNamespace(torch=torch.ones((1, 1))),
+            body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
+            body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.0, 0, 0, 0, 0, 0, 1]]])),
         ),
     )
     scene.articulations = {}
@@ -236,7 +290,7 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
     asset.author_fixed_configuration = lambda writer: BaseRigidObject.author_fixed_configuration(asset, writer)
     from isaaclab.physics import PhysicsManager
 
-    asset._usd_export_paths = lambda: AssetPaths([(path, 0)], [])
+    asset._usd_export_paths = lambda env_index=0: AssetPaths([(path, 0)], [])
     scene.sim.physics_manager = SimpleNamespace(author_fixed_configuration=PhysicsManager.author_fixed_configuration)
     scene.sim.get_physics_step_count = lambda: 0
     scene.sim.get_physics_dt = lambda: 1 / 60
@@ -247,23 +301,6 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
         InteractiveScene.export_to_usd(scene, str(output))
     assert output.read_text() == "previous destination"
     assert scene.sim.stage.GetRootLayer().ExportToString() == before
-
-
-def test_configuration_contract_covers_asset_and_actuator_fields():
-    from isaaclab.actuators import ActuatorBaseCfg
-
-    for cfg in (AssetBaseCfg, ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg):
-        validate_configuration_coverage(cfg)
-    validate_configuration_coverage(ActuatorBaseCfg, actuator=True)
-    assert "__usd_configuration_sources__" not in RigidObjectCfg(prim_path="/Body").to_dict()
-    from isaaclab.utils import configclass
-
-    @configclass
-    class NewPhysicalProperty(RigidObjectCfg):
-        new_physical_property: float = 4.0
-
-    with pytest.raises(NotImplementedError, match="new_physical_property"):
-        validate_configuration_coverage(NewPhysicalProperty)
 
 
 def test_atomic_save_rejects_missing_dependencies_and_preserves_destination(scene, tmp_path, monkeypatch):

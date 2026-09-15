@@ -234,7 +234,7 @@ class FixedExportProbeEnv(DirectRLEnv):
 
 
 def fixed_export_prestartup(env, env_ids):
-    """Visible authored randomization that must never reach the fixed artifact."""
+    """Visible one-time authored randomization retained in the deployment artifact."""
     import torch
 
     prims = [p for p in env.sim.stage.Traverse() if p.GetName() == "Box" and p.HasAPI(UsdPhysics.RigidBodyAPI)]
@@ -250,3 +250,6 @@ def fixed_export_startup(env, env_ids):
     asset = env.scene.rigid_objects["box"]
     velocity = torch.rand((env.num_envs, 6), device=env.device)
     asset.write_root_velocity_to_sim_index(root_velocity=velocity)
+    factors = 1 + torch.rand((env.num_envs, 1), device=env.device)
+    asset.set_masses_index(masses=asset.data.body_mass.torch.clone() * factors)
+    asset.set_inertias_index(inertias=asset.data.body_inertia.torch.clone() * factors[..., None])

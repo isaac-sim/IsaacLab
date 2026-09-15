@@ -115,7 +115,8 @@ def _capture_environment_physics(model, world, contact_pairs=None):
     return result
 
 
-def test_fixed_scene_configuration_uses_shared_export(tmp_path):
+@pytest.mark.parametrize("env_id,num_envs", [(0, 1), (37, 64)])
+def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs):
     """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
     from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 
@@ -124,6 +125,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path):
     from isaaclab.test.utils.usd_export import make_fixed_scene_cfg
 
     cfg = make_fixed_scene_cfg(tmp_path)
+    cfg.num_envs = num_envs
     simulation_cfg = SimulationCfg(
         device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=XPBDSolverCfg(iterations=13))
     )
@@ -137,29 +139,40 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path):
         scene.reset_to_default()
         sim.forward()
         scene.update(0.0)
+        if num_envs > 1:
+            import torch
+
+            box = scene.rigid_objects["box"]
+            factors = 1 + torch.arange(num_envs, device=box.device)[:, None] / 100
+            box.set_masses_index(masses=box.data.body_mass.torch.clone() * factors)
+            box.set_inertias_index(inertias=box.data.body_inertia.torch.clone() * factors[..., None])
         manager = scene.sim.physics_manager
         pairs = manager._collision_pipeline.shape_pairs_filtered.numpy()
-        expected.update(_capture_environment_physics(manager.get_model(), 0, pairs))
+        expected.update(_capture_environment_physics(manager.get_model(), env_id, pairs))
         state = manager.get_state_0()
         for index, path in enumerate(manager.get_model().body_label):
+            if manager.get_model().body_world.numpy()[index] not in (-1, env_id):
+                continue
             expected_state[path] = (state.body_q.numpy()[index].copy(), state.body_qd.numpy()[index].copy())
-        scene.export_to_usd(str(output))
+        scene.export_to_usd(str(output), env_id=env_id)
     stage = Usd.Stage.Open(str(output))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
     assert bodies == {
-        "/World/envs/env_0/Robot/Base",
-        "/World/envs/env_0/Robot/Link",
-        "/World/envs/env_0/Box",
-        "/World/envs/env_0/CollectedFirst",
-        "/World/envs/env_0/CollectedSecond",
+        f"/World/envs/env_{env_id}/Robot/Base",
+        f"/World/envs/env_{env_id}/Robot/Link",
+        f"/World/envs/env_{env_id}/Box",
+        f"/World/envs/env_{env_id}/CollectedFirst",
+        f"/World/envs/env_{env_id}/CollectedSecond",
     }
-    joint = stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge")
+    joint = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/Hinge")
     assert UsdPhysics.DriveAPI(joint, "angular").GetStiffnessAttr().Get() == pytest.approx(83 * np.pi / 180)
     assert joint.GetAttribute("state:angular:physics:position").Get() == pytest.approx(np.degrees(0.21))
     for name, mass in (("Box", 2.5), ("CollectedFirst", 1.5), ("CollectedSecond", 3.5)):
-        prim = stage.GetPrimAtPath(f"/World/envs/env_0/{name}")
-        assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == mass
-    for path in ("/World/Ground", "/World/Light", "/World/envs/env_0/Table"):
+        prim = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/{name}")
+        assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == pytest.approx(
+            mass * (1 + env_id / 100 if name == "Box" else 1)
+        )
+    for path in ("/World/Ground", "/World/Light", f"/World/envs/env_{env_id}/Table"):
         assert stage.GetPrimAtPath(path)
     fresh, info = _load(str(output))
     # Construct the fresh driver exclusively from export metadata, not the source cfg.
@@ -243,6 +256,8 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkey
             shared.GetPrim().CreateAttribute("newton:" + name, Sdf.ValueTypeNames.Float).Set(value)
     model = SimpleNamespace(**{name: wp.array(value, dtype=wp.float32, device="cpu") for name, value in values.items()})
     model.shape_label = [str(prim.GetPath()) for prim in shapes]
+    model.joint_qd_start = wp.array([0], dtype=wp.int32, device="cpu")
+    model.joint_world = wp.array([], dtype=wp.int32, device="cpu")
     for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"):
         setattr(model, name, wp.array([], dtype=wp.float32, device="cpu"))
     monkeypatch.setattr(NewtonManager, "get_model", lambda: model)

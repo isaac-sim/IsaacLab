@@ -42,14 +42,6 @@ class ArticulationCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    # Fixed export owners for fields declared here; inherited declarations are combined.
-    __usd_configuration_sources__ = {
-        "construction": {"articulation_root_prim_path"},
-        "joint_properties": {"actuators"},
-        "identity": {"body_ordering", "joint_ordering"},
-        "runtime_only": {"actuator_value_resolution_debug_print", "soft_joint_pos_limit_factor"},
-    }
-
     class_type: type[Articulation] | str = "{DIR}.articulation:Articulation"
 
     articulation_root_prim_path: str | None = None

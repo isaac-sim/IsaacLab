@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added complete fixed single-environment USD export through ``InteractiveScene.export_to_usd`` and asset-owned fixed-configuration authoring, with property-local USD bindings and a shared ``UsdWriter``, dependency/coverage checks and atomic saving. Added collection-inclusive default-state initialization and a task construction boundary before events.
+* Added complete fixed single-environment USD export through ``InteractiveScene.export_to_usd`` and asset-owned fixed-configuration authoring, with property-local USD bindings and a shared ``UsdWriter``, dependency/completeness checks and atomic saving. Selected one environment through ClonePlan queries and retained its effective one-time initialization state, mass/inertia/COM and shared resources without resetting the source scene.

@@ -752,10 +752,9 @@ def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
     assert not hasattr(skrl.config.jax, "backend")
 
 
-def test_deployment_export_precedes_events_and_preserves_training(tmp_path, monkeypatch):
+def test_deployment_export_includes_initialization_and_preserves_training(tmp_path, monkeypatch):
     """The real CLI construction path preserves same-seed training, including Direct setup assets."""
     import copy
-    import pickle
     import random
 
     from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
@@ -792,28 +791,30 @@ def test_deployment_export_precedes_events_and_preserves_training(tmp_path, monk
     )
     monkeypatch.setenv("RANK", "0")
     args = SimpleNamespace(frontend="torch", export_deployment_usd=True)
-    before = pickle.dumps(cfg)
-    random.seed(111)
-    np.random.seed(222)
-    torch.manual_seed(333)
-    rng = (random.getstate(), np.random.get_state(), torch.get_rng_state().clone())
-    output = export_training_scene(task, cfg, args)
-    assert pickle.dumps(cfg) == before
-    assert random.getstate() == rng[0]
-    np.testing.assert_array_equal(np.random.get_state()[1], rng[1][1])
-    assert torch.equal(torch.get_rng_state(), rng[2])
-    stage = Usd.Stage.Open(str(output))
-    assert not stage.GetPrimAtPath("/World/envs/env_1")
-    assert stage.GetPrimAtPath("/World/SetupOnly")
-    assert UsdPhysics.MassAPI(stage.GetPrimAtPath("/World/envs/env_0/Box")).GetMassAttr().Get() == 2.5
-    monkeypatch.setenv("RANK", "1")
-    assert export_training_scene(task, cfg, args) is None
-    monkeypatch.setenv("RANK", "0")
     runs = []
     for enabled in (False, True):
         args.export_deployment_usd = enabled
         env = create_isaaclab_env(task, copy.deepcopy(cfg), args, convert_marl_to_single_agent=False)
         try:
+            if enabled:
+                stage = Usd.Stage.Open(str(tmp_path / "run/deployment.usda"))
+                assert not stage.GetPrimAtPath("/World/envs/env_1")
+                assert stage.GetPrimAtPath("/World/SetupOnly")
+                box = stage.GetPrimAtPath("/World/envs/env_0/Box")
+                assert 20 <= UsdPhysics.MassAPI(box).GetMassAttr().Get() < 42
+                assert UsdPhysics.MassAPI(box).GetMassAttr().Get() == pytest.approx(
+                    float(env.unwrapped.scene.rigid_objects["box"].data.body_mass.torch[0, 0])
+                )
+                expected = (
+                    env.unwrapped.scene.rigid_objects["box"].data.body_com_vel_w.torch[0].cpu().numpy().reshape(-1)
+                )
+                np.testing.assert_allclose(UsdPhysics.RigidBodyAPI(box).GetVelocityAttr().Get(), expected[:3])
+                np.testing.assert_allclose(
+                    UsdPhysics.RigidBodyAPI(box).GetAngularVelocityAttr().Get(), np.degrees(expected[3:]), rtol=1e-6
+                )
+                monkeypatch.setenv("RANK", "1")
+                assert export_training_scene(env.unwrapped, args) is None
+                monkeypatch.setenv("RANK", "0")
             observations, _ = env.reset(seed=713)
             samples = [observations["policy"].clone()]
             for _ in range(3):
@@ -871,26 +872,3 @@ def test_deployment_export_preserves_direct_task_cloning(tmp_path, monkeypatch):
     assert stage.GetPrimAtPath("/World/envs/env_0/Robot")
     assert not stage.GetPrimAtPath("/World/envs/env_1")
     assert sum(p.HasAPI(UsdPhysics.RigidBodyAPI) for p in stage.Traverse()) == 3
-
-
-def test_deployment_worker_preserves_kit_failure_status(tmp_path, monkeypatch, capsys):
-    """Kit shutdown must retain the exception and nonzero status from task construction."""
-    import json
-    import pickle
-
-    import isaaclab.app
-
-    from isaaclab_rl.entrypoints.deployment import _worker
-
-    codes = []
-    app = SimpleNamespace(close=lambda *, exit_code=0: codes.append(exit_code))
-    monkeypatch.setattr(isaaclab.app, "AppLauncher", lambda launch: SimpleNamespace(app=app))
-    (tmp_path / "launch.json").write_text(json.dumps({"needs_kit": True}))
-    payload = tmp_path / "scene.pickle"
-    # A constructor rejecting cfg deterministically exercises failure before a scene exists.
-    payload.write_bytes(pickle.dumps(("builtins:int", None)))
-    with pytest.raises(TypeError):
-        _worker(payload, tmp_path / "deployment.usda")
-    assert codes == [1]
-    assert "TypeError" in capsys.readouterr().err
-    assert not (tmp_path / "deployment.usda").exists()

@@ -23,13 +23,6 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
 class ActuatorBaseCfg:
     """Configuration for default actuators in an articulation."""
 
-    # Fixed export owners for fields declared here; inherited declarations are combined.
-    __usd_configuration_sources__ = {
-        "construction": {"class_type", "joint_names_expr"},
-        "controller": {"actuator_effort_limit", "actuator_velocity_limit"},
-        "aliases": {"effort_limit_sim", "effort_limit", "velocity_limit", "velocity_limit_sim"},
-    }
-
     class_type: type = MISSING
     """The associated actuator class.
 

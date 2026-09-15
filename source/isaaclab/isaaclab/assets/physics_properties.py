@@ -13,31 +13,8 @@ tendons and other spawn schemas remain owned by the authored USD stage.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from functools import lru_cache
-
-
-def validate_configuration_coverage(cfg: object, *, actuator: bool = False) -> None:
-    """Reject configuration fields with no declared export owner.
-
-    Derived native actuator fields are covered by their existing schema authoring contract;
-    this check covers the shared actuator base consumed by ActuatorControl.
-    """
-    cfg_type = cfg if isinstance(cfg, type) else type(cfg)
-    if actuator:
-        from isaaclab.actuators import ActuatorBaseCfg
-        from isaaclab.actuators.actuator_control import _JOINT_PROPERTY_KEYS
-
-        cfg_type = ActuatorBaseCfg
-        covered = set(_JOINT_PROPERTY_KEYS)
-    else:
-        covered = set()
-    for base in cfg_type.__mro__:
-        for names in vars(base).get("__usd_configuration_sources__", {}).values():
-            covered.update(names)
-    missing = {field.name for field in fields(cfg_type)} - covered
-    if missing:
-        raise NotImplementedError(f"Undeclared physical configuration export fields on {type(cfg).__name__}: {missing}")
 
 
 @dataclass(frozen=True)

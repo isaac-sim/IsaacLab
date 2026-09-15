@@ -94,11 +94,11 @@ class RigidObject(BaseRigidObject):
         prim_paths = self.root_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
 
-    def _usd_export_paths(self) -> AssetPaths:
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
         from isaaclab.sim.usd_export import AssetPaths
 
-        return AssetPaths([(str(path), row) for row, path in enumerate(self.root_view.prim_paths)], [])
+        return AssetPaths([(str(self.root_view.prim_paths[env_index]), 0)], [])
 
     @property
     def root_view(self):

@@ -128,10 +128,8 @@ class BaseRigidObject(AssetBase):
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Supplement this rigid object's initial body state in the export stage."""
-        from isaaclab.assets.physics_properties import validate_configuration_coverage
 
-        validate_configuration_coverage(self.cfg)
-        writer.write_bodies(self.data, self._usd_export_paths().bodies)
+        writer.write_bodies(self.data, writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies)
 
     @abstractmethod
     def reset(

@@ -750,6 +750,28 @@ class OvPhysxManager(PhysicsManager):
         return cls._physx
 
     @classmethod
+    def author_fixed_configuration(cls, writer, scene) -> None:
+        """Supplement effective gravity and contacts from concrete body bindings."""
+        from isaaclab_ov import tensor_types as TT
+        from isaaclab_ov.sim.views import OvPhysxView
+
+        super().author_fixed_configuration(writer, scene)
+        writer.write_gravity(scene.physics_scene_path, cls.get_gravity())
+        tokens = (
+            TT.RIGID_BODY_DISABLE_GRAVITY,
+            TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+            TT.RIGID_BODY_CONTACT_OFFSET,
+            TT.RIGID_BODY_REST_OFFSET,
+        )
+        for path in sorted(writer.body_paths):
+            view = OvPhysxView(cls._physx, prim_paths=[path], device="cpu", tensor_types=list(tokens), eager=True)
+            try:
+                values = [view.get_attribute(token).numpy()[0] for token in tokens]
+                writer.write_body_contacts(path, bool(values[0]), *values[1:])
+            finally:
+                view.close()
+
+    @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
         """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
 
