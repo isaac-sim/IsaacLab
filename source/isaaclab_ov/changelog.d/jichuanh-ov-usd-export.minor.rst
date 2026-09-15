@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added OVPhysX identity resolution for the shared fixed-scene USD exporter and independent fresh-backend validation.
+* Added OVPhysX identity resolution, Cartesian multi-axis joint authoring and fresh-backend validation for selected-environment USD export.

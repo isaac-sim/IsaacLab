@@ -14,7 +14,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 
-def _load(path: str) -> tuple[newton.Model, dict]:
+def _load(path: str, device="cpu") -> tuple[newton.Model, dict]:
     """Import ``path`` the way Isaac Lab does, returning the model and the importer's result maps.
 
     Newton's importer colours a shape only from a bound visual material; Isaac Lab then aligns the
@@ -23,11 +23,237 @@ def _load(path: str) -> tuple[newton.Model, dict]:
     builder = newton.ModelBuilder()
     stage = Usd.Stage.Open(str(path))
     options = stage.GetRootLayer().customLayerData.get("isaaclab:newtonImportOptions", {})
-    from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
+    from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
-    stage_info = builder.add_usd(str(path), schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()], **options)
+    driver = stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"]["solver"]
+    solver_type = {
+        "xpbd": newton.solvers.SolverXPBD,
+        "mujoco": newton.solvers.SolverMuJoCo,
+        "kamino": newton.solvers.SolverKamino,
+    }[driver]
+    solver_type.register_custom_attributes(builder)
+    resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    if driver == "mujoco":
+        resolvers.insert(0, SchemaResolverMjc())
+    stage_info = builder.add_usd(str(path), schema_resolvers=resolvers, **options)
     replace_newton_builder_shape_colors(builder, stage)
-    return builder.finalize(), stage_info
+    return builder.finalize(device=device), stage_info
+
+
+def _make_driver(model, name, driver):
+    """Construct a native driver from exported settings, without a task configuration."""
+    import dataclasses
+    import json
+
+    if name == "xpbd":
+        return newton.solvers.SolverXPBD(model, **driver)
+    options = json.loads(driver["options"])
+    if name == "mujoco":
+        import warp as wp
+
+        if "deterministic" in options:
+            options["deterministic"] = wp.DeterministicMode(options["deterministic"])
+        return newton.solvers.SolverMuJoCo(model, **options)
+    config = newton.solvers.SolverKamino.Config.from_model(model, dynamics_solver=options["dynamics_solver"])
+    for field in dataclasses.fields(config):
+        value = options[field.name]
+        default = getattr(config, field.name)
+        if dataclasses.is_dataclass(default) and value is not None:
+            value = type(default)(**value)
+        setattr(config, field.name, value)
+    return newton.solvers.SolverKamino(model, config)
+
+
+def _capture_mujoco_physics(solver, world):
+    """Capture native solver properties using Newton lineage, including material and DOF buffers."""
+    import warp as wp
+
+    model = solver.model
+    native = solver.mj_model if solver.use_mujoco_cpu else solver.mjw_model
+    world = world if solver.mjc_body_to_newton.shape[0] > 1 else 0
+    result = {}
+
+    def values(owner, name):
+        value = getattr(owner, name)
+        if isinstance(value, wp.array):
+            value = value.numpy()
+            template = solver.mj_model.opt if owner is native.opt else solver.mj_model
+            if value.ndim > np.asarray(getattr(template, name, 0.0)).ndim:
+                value = value[world if len(value) > 1 else 0]
+        return np.asarray(value).copy()
+
+    properties = {
+        "body": ("mass", "inertia", "ipos", "iquat", "gravcomp"),
+        "geom": (
+            "type",
+            "size",
+            "pos",
+            "quat",
+            "condim",
+            "priority",
+            "solmix",
+            "solref",
+            "solimp",
+            "friction",
+            "margin",
+            "gap",
+        ),
+        "jnt": ("type", "axis", "pos", "range", "stiffness", "margin", "solref", "solimp", "actfrcrange"),
+        "dof": ("armature", "frictionloss", "damping", "solref", "solimp"),
+    }
+    maps = {
+        "body": solver.mjc_body_to_newton,
+        "geom": solver.mjc_geom_to_newton_shape,
+        "jnt": solver.mjc_jnt_to_newton_jnt,
+        "dof": solver.mjc_dof_to_newton_dof,
+    }
+    starts = model.joint_qd_start.numpy()
+
+    def joint_identity(index):
+        if int(model.joint_type.numpy()[index]) == int(newton.JointType.FREE):
+            return model.body_label[int(model.joint_child.numpy()[index])] + "/__free"
+        return model.joint_label[index]
+
+    for kind, fields in properties.items():
+        mapping = maps[kind].numpy()[world]
+        for name in fields:
+            field = kind + "_" + name
+            if not hasattr(native, field):
+                continue
+            array = values(native, field)
+            for index, source in enumerate(mapping):
+                if source < 0:
+                    continue
+                if kind == "dof":
+                    joint = int(np.searchsorted(starts, source, side="right") - 1)
+                    identity = (joint_identity(joint), int(source - starts[joint]))
+                else:
+                    labels = getattr(model, {"body": "body_label", "geom": "shape_label", "jnt": "joint_label"}[kind])
+                    identity = joint_identity(source) if kind == "jnt" else labels[source]
+                result[kind, identity, field] = array[index].copy()
+    # Principal axes are non-unique for repeated moments; compare link-frame inertia.
+    from scipy.spatial.transform import Rotation
+
+    for key in list(result):
+        if key[0] == "body" and key[2] == "body_iquat":
+            quat = result.pop(key)
+            inertia_key = ("body", key[1], "body_inertia")
+            rotation = Rotation.from_quat(np.roll(quat, -1)).as_matrix()
+            result[inertia_key] = rotation @ np.diag(result[inertia_key]) @ rotation.T
+    # Bit assignments can change after pruning worlds; compare the resulting relationships.
+    masks = values(native, "geom_contype"), values(native, "geom_conaffinity")
+    bodies = values(native, "geom_bodyid")
+    excludes = set(map(int, np.asarray(solver.mj_model.exclude_signature)))
+    mapping = solver.mjc_geom_to_newton_shape.numpy()[world]
+    for first, source in enumerate(mapping):
+        if source < 0:
+            continue
+        for second in range(first + 1, len(mapping)):
+            if mapping[second] < 0:
+                continue
+            body0, body1 = sorted((int(bodies[first]), int(bodies[second])))
+            enabled = bool(
+                (int(masks[0][first]) & int(masks[1][second])) or (int(masks[0][second]) & int(masks[1][first]))
+            )
+            enabled &= body0 != body1 and ((body0 << 16) + body1) not in excludes
+            pair = tuple(sorted((model.shape_label[source], model.shape_label[mapping[second]])))
+            result["collision_pair", pair] = np.asarray(enabled)
+    for name in (
+        "iterations",
+        "ls_iterations",
+        "solver",
+        "integrator",
+        "cone",
+        "tolerance",
+        "ls_tolerance",
+        "ccd_tolerance",
+        "gravity",
+        "density",
+        "viscosity",
+        "wind",
+        "magnetic",
+        "disableflags",
+        "enableflags",
+        "impratio_invsqrt",
+    ):
+        if hasattr(native.opt, name):
+            result["option", name] = values(native.opt, name)
+    return result
+
+
+def _capture_kamino_physics(solver, world):
+    """Capture Kamino's converted body, joint, geometry and material-pair configuration."""
+    from dataclasses import asdict
+
+    native = solver._model_kamino
+    colliders = {
+        label
+        for i, label in enumerate(solver.model.shape_label)
+        if int(solver.model.shape_flags.numpy()[i]) & int(newton.ShapeFlags.COLLIDE_SHAPES)
+    }
+    result = {("options",): asdict(solver._config)}
+
+    def joint_label(index):
+        if native.joints.num_dofs.numpy()[index] == 6:
+            child = int(native.joints.bid_F.numpy()[index])
+            return native.bodies.label[child] + "/__free"
+        return native.joints.label[index]
+
+    for kind, fields in {
+        "bodies": ("m_i", "i_I_i", "i_r_com_i", "is_immovable"),
+        "geoms": ("type", "flags", "params", "offset"),
+        "joints": ("dof_type", "act_type", "num_dofs", "num_coords"),
+    }.items():
+        container = getattr(native, kind)
+        worlds = container.wid.numpy()
+        for name in fields:
+            data = getattr(container, name).numpy()
+            for index, label in enumerate(container.label):
+                if kind == "geoms" and label not in colliders:
+                    continue
+                if worlds[index] < 0 or worlds[index] == world:
+                    result[kind, joint_label(index) if kind == "joints" else label, name] = data[index].copy()
+    joints = native.joints
+    starts = joints.dofs_offset.numpy()
+    for index, label in enumerate(joints.label):
+        label = joint_label(index)
+        if joints.wid.numpy()[index] not in (-1, world):
+            continue
+        for name in ("bid_B", "bid_F"):
+            body = int(getattr(joints, name).numpy()[index])
+            result["joints", label, name] = native.bodies.label[body] if body >= 0 else "world"
+        for name in (
+            "q_j_min",
+            "q_j_max",
+            "dq_j_max",
+            "tau_j_max",
+            "a_j",
+            "b_j",
+            "f_j",
+            "k_p_j",
+            "k_d_j",
+            "dof_act_types",
+            "dof_act_paths",
+        ):
+            result["joints", label, name] = getattr(joints, name).numpy()[starts[index] : starts[index + 1]].copy()
+    shapes = [
+        (i, label)
+        for i, label in enumerate(native.geoms.label)
+        if native.geoms.wid.numpy()[i] in (-1, world) and label in colliders
+    ]
+    materials = native.geoms.material.numpy()
+    for offset, (i, label) in enumerate(shapes):
+        body = int(native.geoms.bid.numpy()[i])
+        result["geoms", label, "body"] = native.bodies.label[body] if body >= 0 else "world"
+        for j, other in shapes[offset:]:
+            row, column = sorted((int(materials[i]), int(materials[j])), reverse=True)
+            index = row * (row + 1) // 2 + column
+            for name in ("static_friction", "dynamic_friction", "restitution"):
+                if hasattr(native.material_pairs, name):
+                    result["pair", tuple(sorted((label, other))), name] = (
+                        getattr(native.material_pairs, name).numpy()[index].copy()
+                    )
+    return result
 
 
 def _capture_environment_physics(model, world, contact_pairs=None):
@@ -115,10 +341,28 @@ def _capture_environment_physics(model, world, contact_pairs=None):
     return result
 
 
-@pytest.mark.parametrize("env_id,num_envs", [(0, 1), (37, 64)])
-def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs):
+def _assert_physical_value_equal(key, actual, expected):
+    """Compare discrete identities exactly and physical tensors at their meaningful scale."""
+    if isinstance(expected, (np.ndarray, np.generic)):
+        if expected.dtype.kind == "f":
+            if key[-1] in {"body_inertia", "i_I_i"}:
+                # Principal-frame float roundoff scales with the full tensor, including zero entries.
+                error = np.linalg.norm(np.asarray(actual) - expected)
+                assert error <= 1e-6 + 3e-5 * np.linalg.norm(expected), (key, error)
+            else:
+                np.testing.assert_allclose(actual, expected, rtol=3e-5, atol=1e-6, err_msg=str(key))
+        else:
+            np.testing.assert_array_equal(actual, expected, err_msg=str(key))
+    else:
+        assert actual == expected, (key, actual, expected)
+
+
+@pytest.mark.parametrize("env_id,num_envs", [(0, 1), (1, 2)])
+@pytest.mark.parametrize("solver_name", ["xpbd", "mujoco", "kamino"])
+def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs, solver_name):
     """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
-    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+    import warp as wp
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, XPBDSolverCfg
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -126,12 +370,21 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
 
     cfg = make_fixed_scene_cfg(tmp_path)
     cfg.num_envs = num_envs
+    device = "cpu" if solver_name == "xpbd" else "cuda:0"
+    if device != "cpu" and not wp.is_cuda_available():
+        pytest.skip("MJWarp and Kamino round-trips require CUDA")
+    solver_cfg = {
+        "xpbd": XPBDSolverCfg(iterations=13),
+        "mujoco": MJWarpSolverCfg(iterations=13, ls_iterations=7),
+        "kamino": KaminoPADMMSolverCfg(),
+    }[solver_name]
     simulation_cfg = SimulationCfg(
-        device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=XPBDSolverCfg(iterations=13))
+        device=device, dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=solver_cfg)
     )
     output = tmp_path / "fixed_scene.usda"
     expected = {}
     expected_state = {}
+    expected_native = {}
 
     with build_simulation_context(sim_cfg=simulation_cfg) as sim:
         scene = InteractiveScene(cfg)
@@ -147,8 +400,37 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
             box.set_masses_index(masses=box.data.body_mass.torch.clone() * factors)
             box.set_inertias_index(inertias=box.data.body_inertia.torch.clone() * factors[..., None])
         manager = scene.sim.physics_manager
-        pairs = manager._collision_pipeline.shape_pairs_filtered.numpy()
+        manager.synchronize_model_changes()
+        if solver_name == "mujoco":
+            # These native overrides intentionally leave the task cfg and Newton model unchanged.
+            native = manager._solver.mjw_model
+            native.opt.tolerance.fill_(0.00017)
+            mixing = native.geom_solmix.numpy()
+            for world in range(len(mixing)):
+                mixing[world] = 0.7 + 0.1 * world
+            native.geom_solmix.assign(mixing)
+            mapping = manager._solver.mjc_geom_to_newton_shape.numpy()[0]
+            for field in (native.geom_contype, native.geom_conaffinity):
+                masks = field.numpy()
+                for geom, shape in enumerate(mapping):
+                    if shape >= 0 and "/Box/" in manager.get_model().shape_label[shape]:
+                        masks[..., geom] = 0
+                field.assign(masks)
+
+        pairs = (
+            manager._collision_pipeline.shape_pairs_filtered.numpy()
+            if manager._collision_pipeline is not None
+            else None
+        )
         expected.update(_capture_environment_physics(manager.get_model(), env_id, pairs))
+        if solver_name == "mujoco":
+            expected_native = _capture_mujoco_physics(manager._solver, env_id)
+            expected["filters"].update(
+                key[1] for key, value in expected_native.items() if key[0] == "collision_pair" and not value
+            )
+
+        elif solver_name == "kamino":
+            expected_native = _capture_kamino_physics(manager._solver, env_id)
         state = manager.get_state_0()
         for index, path in enumerate(manager.get_model().body_label):
             if manager.get_model().body_world.numpy()[index] not in (-1, env_id):
@@ -174,25 +456,32 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         )
     for path in ("/World/Ground", "/World/Light", f"/World/envs/env_{env_id}/Table"):
         assert stage.GetPrimAtPath(path)
-    fresh, info = _load(str(output))
+    fresh, info = _load(str(output), device=device)
     # Construct the fresh driver exclusively from export metadata, not the source cfg.
     driver = dict(stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"])
-    assert driver.pop("solver") == "xpbd"
-    solver = newton.solvers.SolverXPBD(fresh, **driver)
-    assert solver.iterations == 13
+    assert driver.pop("solver") == solver_name
+    solver = _make_driver(fresh, solver_name, driver)
+    if solver_name == "xpbd":
+        assert solver.iterations == 13
+    elif solver_name == "mujoco":
+        assert solver.mj_model.opt.iterations == 13
+        assert solver.mj_model.opt.ls_iterations == 7
     assert stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get() == 120
+    if solver_name in {"mujoco", "kamino"}:
+        native = (_capture_mujoco_physics if solver_name == "mujoco" else _capture_kamino_physics)(solver, 0)
+        assert native.keys() == expected_native.keys(), (
+            native.keys() - expected_native.keys(),
+            expected_native.keys() - native.keys(),
+        )
+        for key, value in expected_native.items():
+            _assert_physical_value_equal(key, native[key], value)
     actual = _capture_environment_physics(fresh, 0)
     assert expected.keys() == actual.keys()
     for key, value in expected.items():
-        if isinstance(value, np.ndarray):
-            if value.dtype.kind == "f":
-                np.testing.assert_allclose(actual[key], value, rtol=3e-5, atol=1e-6, err_msg=str(key))
-            else:
-                np.testing.assert_array_equal(actual[key], value, err_msg=str(key))
-        else:
-            assert actual[key] == value, key
+        _assert_physical_value_equal(key, actual[key], value)
     state = fresh.state()
-    newton.eval_fk(fresh, fresh.joint_q, fresh.joint_qd, state)
+    if solver_name != "kamino":
+        newton.eval_fk(fresh, fresh.joint_q, fresh.joint_qd, state)
     assert set(fresh.body_label) == set(expected_state)
     for index, path in enumerate(fresh.body_label):
         pose, velocity = expected_state[path]

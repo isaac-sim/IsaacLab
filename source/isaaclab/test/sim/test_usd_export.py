@@ -337,3 +337,57 @@ def test_atomic_save_rejects_missing_dependencies_and_preserves_destination(scen
         UsdWriter(stage).save(str(output))
     assert output.read_text() == "existing destination"
     assert list(tmp_path.iterdir()) == [output]
+
+
+@pytest.mark.parametrize("available", [True, False])
+def test_dependency_validation_uses_authored_uri(available, monkeypatch):
+    """A localization-only URI normalization must not reject a reachable resource."""
+    from pxr import Sdf, Usd, UsdUtils
+
+    from isaaclab.sim.usd_export import UsdWriter
+    from isaaclab.utils import assets
+
+    stage = Usd.Stage.CreateInMemory()
+    uri = "https://assets.example.test/sky.hdr"
+    stage.DefinePrim("/Light").CreateAttribute("inputs:texture:file", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(uri))
+    monkeypatch.setattr(UsdUtils, "ComputeAllDependencies", lambda _: ([], [], ["https:/assets.example.test/sky.hdr"]))
+    checked = []
+
+    def check(path):
+        checked.append(path)
+        return 2 if available else 0
+
+    monkeypatch.setattr(assets, "check_file_path", check)
+    if available:
+        UsdWriter(stage).validate_dependencies()
+    else:
+        with pytest.raises(RuntimeError, match="Unresolved export asset"):
+            UsdWriter(stage).validate_dependencies()
+    assert checked == [uri]
+    assert stage.GetPrimAtPath("/Light").GetAttribute("inputs:texture:file").Get().path == uri
+
+
+def test_multi_axis_joint_values_do_not_overwrite_other_axes():
+    """Per-axis limits and drives retain distinct values and convert radians independently."""
+    from isaaclab.assets.physics_properties import UsdAttribute
+
+    stage = Usd.Stage.CreateInMemory()
+    joint = UsdPhysics.Joint.Define(stage, "/Joint")
+    writer = UsdWriter(stage)
+    for axis, angle, stiffness in (("rotX", 0.2, 13.0), ("rotZ", 0.7, 29.0)):
+        writer.write_attribute("/Joint", UsdAttribute("physics:lowerLimit", angular_power=1), -angle, axis=axis)
+        writer.write_attribute("/Joint", UsdAttribute("physics:upperLimit", angular_power=1), angle, axis=axis)
+        writer.write_attribute(
+            "/Joint",
+            UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", angular_power=-1),
+            stiffness,
+            axis=axis,
+        )
+    for axis, angle, stiffness in (("rotX", 0.2, 13.0), ("rotZ", 0.7, 29.0)):
+        limit = UsdPhysics.LimitAPI(joint.GetPrim(), axis)
+        assert limit.GetLowAttr().Get() == pytest.approx(-np.degrees(angle))
+        assert limit.GetHighAttr().Get() == pytest.approx(np.degrees(angle))
+        assert UsdPhysics.DriveAPI(joint.GetPrim(), axis).GetStiffnessAttr().Get() == pytest.approx(
+            stiffness * np.pi / 180
+        )
+    assert not joint.GetPrim().HasAttribute("physics:lowerLimit")

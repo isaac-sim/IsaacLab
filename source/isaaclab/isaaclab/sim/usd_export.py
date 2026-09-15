@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -41,6 +41,7 @@ class AssetPaths:
 
     bodies: list[tuple[str, int]]
     joints: list[tuple[str, int]]
+    joint_axes: dict[int, str] = field(default_factory=dict)
 
 
 class UsdWriter:
@@ -58,6 +59,8 @@ class UsdWriter:
         self.env_id = 0
         self.clone_plan: ClonePlan | None = None
         self.body_paths: set[str] = set()
+        self._material_paths: set[str] = set()
+        self._joint_shared_values: dict[tuple[str, str], float] = {}
         # Retain owners with their arrays, so ids cannot be reused during an export.
         self._values: dict[int, tuple[object, dict[str, np.ndarray]]] = {}
 
@@ -67,6 +70,7 @@ class UsdWriter:
         if UsdGeom.GetStageMetersPerUnit(stage) != 1 or UsdPhysics.GetStageKilogramsPerUnit(stage) != 1:
             raise NotImplementedError("Fixed export requires SI stage units.")
         snapshot = Usd.Stage.Open(stage.Flatten())
+        # Expanding an outer instance can expose nested instances on the next traversal.
         while True:
             instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
             if not instances:
@@ -96,6 +100,7 @@ class UsdWriter:
                     raise RuntimeError(f"Missing source variant {source_path}.")
                 for prim in list(Usd.PrimRange(source_prim)):
                     target = prim.GetPath().ReplacePrefix(Sdf.Path(source_path), Sdf.Path(destination))
+                    # Keep authored clone overrides; copy only missing prototype content.
                     if self.stage.GetPrimAtPath(target):
                         continue
                     Sdf.CreatePrimInLayer(layer, target.GetParentPath())
@@ -142,6 +147,7 @@ class UsdWriter:
                             raise RuntimeError(f"Cannot preserve dependency {source}.")
                         copied[source] = destination
                         self._rebase_connections(self.stage.GetPrimAtPath(destination), source, destination)
+                        # Newly copied resources can themselves depend on excluded prototypes.
                         pending.extend(Usd.PrimRange(self.stage.GetPrimAtPath(destination)))
                     rewritten.append(target.ReplacePrefix(source, destination))
                 if rewritten != targets:
@@ -175,6 +181,7 @@ class UsdWriter:
         return AssetPaths(
             [(resolve(path), row) for path, row in paths.bodies],
             [(resolve(path), row) for path, row in paths.joints],
+            paths.joint_axes.copy(),
         )
 
     def write_properties(self, path: str, axis: str | None, data: object, *, row: int) -> None:
@@ -199,20 +206,49 @@ class UsdWriter:
                 self.write_attribute(path, target, value, axis=axis)
 
     def write_attribute(self, path: str, target: UsdAttribute, value, *, axis: str | None = None) -> None:
-        """Write a scalar/vector target; schema names, instance kind and types must agree."""
+        """Write a scalar, vector or scalar-array target with a declared schema/type."""
+        if axis in {"rotX", "rotY", "rotZ", "transX", "transY", "transZ"}:
+            if target.attribute in {"physics:lowerLimit", "physics:upperLimit"}:
+                bound = "low" if target.attribute == "physics:lowerLimit" else "high"
+                target = replace(target, attribute=f"limit:{{axis}}:physics:{bound}", schema="PhysicsLimitAPI:{axis}")
+            elif target.attribute in {"physxJoint:armature", "physxJoint:maxJointVelocity"}:
+                # Per-axis declarations already carry these; a joint-wide alias would overwrite other axes.
+                return
+            elif target.attribute in {"newton:limitStiffness", "newton:limitDamping"}:
+                self.stage.GetPrimAtPath(path).RemoveProperty(target.attribute)
+                target = replace(target, attribute=target.attribute.replace("newton:", "newton:{axis}:"))
+            elif target.attribute in {"newton:armature", "newton:friction"}:
+                # Newton's D6 importer currently accepts only joint-wide values for these fields.
+                key = (path, target.attribute)
+                previous = self._joint_shared_values.setdefault(key, float(value))
+                if previous != float(value):
+                    raise NotImplementedError(f"Newton cannot import distinct per-axis {target.attribute} at {path}.")
         if (target.angular_power or "{axis}" in target.attribute or "{axis}" in (target.schema or "")) and axis not in {
             "angular",
             "linear",
+            "rotX",
+            "rotY",
+            "rotZ",
+            "transX",
+            "transY",
+            "transZ",
         }:
             raise ValueError(f"Missing supported axis for {target.attribute}.")
         attr = self._attribute(path, target, axis)
         converted = np.asarray(value)
-        if axis == "angular" and target.angular_power:
+        if axis in {"angular", "rotX", "rotY", "rotZ"} and target.angular_power:
+            # Derivative quantities such as stiffness need the inverse angular conversion.
             converted = converted * (180 / math.pi) ** target.angular_power
         value_type = attr.GetTypeName()
         default = value_type.defaultValue
         dimension = getattr(default, "dimension", None)
-        if value_type.isArray or (dimension is not None and not isinstance(dimension, int)):
+        if value_type.isArray:
+            if converted.ndim != 1:
+                raise NotImplementedError(f"Only scalar arrays are supported at {attr.GetPath()}.")
+            if not attr.Set(type(default)(converted.tolist())):
+                raise RuntimeError(f"Could not author {attr.GetPath()}.")
+            return
+        if dimension is not None and not isinstance(dimension, int):
             raise NotImplementedError(f"Use a dedicated writer for {value_type} at {attr.GetPath()}.")
         if dimension is not None:
             if converted.shape != (dimension,):
@@ -276,15 +312,16 @@ class UsdWriter:
         coms = data.body_com_pose_b.torch[self.env_index].detach().cpu().numpy().reshape(-1, 7)
         if sorted(row for _, row in paths) != list(range(len(poses))):
             raise RuntimeError("Incomplete body identities for fixed configuration.")
+        # Child local transforms must use the already updated parent world pose.
         for path, row in sorted(paths, key=lambda item: Sdf.Path(item[0]).pathElementCount):
             prim = self.stage.GetPrimAtPath(path)
             if path in self.body_paths or not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 raise RuntimeError(f"Missing or multiply owned body {path}.")
             self._write_body_state(prim, poses[row], velocities[row])
-            self._write_mass_properties(prim, masses[row], inertias[row], coms[row])
+            self.write_mass_properties(prim, masses[row], inertias[row], coms[row])
             self.body_paths.add(path)
 
-    def _write_mass_properties(self, prim: Usd.Prim, mass: float, inertia: np.ndarray, com: np.ndarray) -> None:
+    def write_mass_properties(self, prim: Usd.Prim, mass: float, inertia: np.ndarray, com: np.ndarray) -> None:
         """Write mass [kg], COM pose [m, xyzw] and link-frame inertia [kg*m²]."""
         if not np.isfinite(mass) or mass < 0 or not np.isfinite(inertia).all() or not np.isfinite(com).all():
             raise ValueError(f"Invalid mass properties at {prim.GetPath()}.")
@@ -292,11 +329,13 @@ class UsdWriter:
             raise ValueError(f"Non-symmetric inertia at {prim.GetPath()}.")
         rotation = Gf.Quatd(float(com[6]), Gf.Vec3d(*map(float, com[3:6])))
         axes = np.asarray(Gf.Matrix3d(rotation)).T
+        # USD stores principal moments and axes, while public data supplies a full link-frame tensor.
         principal = axes.T @ inertia @ axes
         if np.allclose(principal, np.diag(np.diag(principal)), atol=1e-7):
             moments = np.diag(principal)
         else:
             moments, axes = np.linalg.eigh(inertia)
+            # An eigenbasis may be reflected; quaternions require a right-handed frame.
             if np.linalg.det(axes) < 0:
                 axes[:, 0] *= -1
             rotation = Gf.Matrix3d(*map(float, axes.T.flatten())).ExtractRotation().GetQuat()
@@ -374,27 +413,36 @@ class UsdWriter:
                 for name, value in zip(names, materials[0])
             ):
                 continue
-            destination = prim.GetPath().AppendChild("ExportPhysicsMaterial")
-            if self.stage.GetPrimAtPath(destination):
-                raise RuntimeError(f"Export material path already exists: {destination}")
-            if original:
-                if not Sdf.CopySpec(
-                    self.stage.GetRootLayer(), original.GetPath(), self.stage.GetRootLayer(), destination
-                ):
-                    raise RuntimeError(f"Cannot preserve bound material {original.GetPath()}.")
-                material = UsdShade.Material(self.stage.GetPrimAtPath(destination))
-            else:
-                material = UsdShade.Material.Define(self.stage, destination)
+            material = self.material_for_override(prim)
+            destination = material.GetPath()
             for name, value in zip(names, materials[0]):
                 self.write_attribute(
                     str(destination), UsdAttribute(f"physics:{name}", "PhysicsMaterialAPI"), float(value)
                 )
-            binding.Bind(material, bindingStrength=UsdShade.Tokens.weakerThanDescendants, materialPurpose="physics")
-            effective, _ = binding.ComputeBoundMaterial("physics")
-            if effective.GetPath() != material.GetPath():
-                raise NotImplementedError(
-                    f"An ancestor material binding prevents contact overrides at {prim.GetPath()}."
-                )
+
+    def material_for_override(self, prim: Usd.Prim) -> UsdShade.Material:
+        """Return an independently bound physics material, preserving its existing resources."""
+        binding = UsdShade.MaterialBindingAPI.Apply(prim)
+        original, _ = binding.ComputeBoundMaterial("physics")
+        destination = prim.GetPath().AppendChild("ExportPhysicsMaterial")
+        if str(destination) in self._material_paths:
+            return UsdShade.Material(self.stage.GetPrimAtPath(destination))
+        if self.stage.GetPrimAtPath(destination):
+            raise RuntimeError(f"Export material path already exists: {destination}")
+        if original:
+            layer = self.stage.GetRootLayer()
+            if not Sdf.CopySpec(layer, original.GetPath(), layer, destination):
+                raise RuntimeError(f"Cannot preserve bound material {original.GetPath()}.")
+            material = UsdShade.Material(self.stage.GetPrimAtPath(destination))
+            self._rebase_connections(material.GetPrim(), original.GetPath(), destination)
+        else:
+            material = UsdShade.Material.Define(self.stage, destination)
+        binding.Bind(material, bindingStrength=UsdShade.Tokens.weakerThanDescendants, materialPurpose="physics")
+        effective, _ = binding.ComputeBoundMaterial("physics")
+        if effective.GetPath() != destination:
+            raise NotImplementedError(f"An ancestor material binding prevents contact overrides at {prim.GetPath()}.")
+        self._material_paths.add(str(destination))
+        return material
 
     def validate_dependencies(self) -> None:
         """Reject dangling prim/property connections and unresolved external resources."""
@@ -409,6 +457,25 @@ class UsdWriter:
                         raise RuntimeError(f"Unresolved export dependency {prop.GetPath()}: {path}")
         _, _, unresolved = UsdUtils.ComputeAllDependencies(Sdf.AssetPath(self.stage.GetRootLayer().identifier))
         unresolved = [p for p in unresolved if p not in {"OmniPBR.mdl", "OmniGlass.mdl", "OmniSurface.mdl"}]
+        if unresolved:
+            from isaaclab.utils.assets import check_file_path
+
+            # USD's filesystem localization can turn a valid https:// URI into https:/.
+            # Verify the original authored URI; never repair or accept an unknown dependency.
+            authored_uris = {}
+            for prim in self.stage.Traverse():
+                for attr in prim.GetAttributes():
+                    if attr.GetTypeName() not in (Sdf.ValueTypeNames.Asset, Sdf.ValueTypeNames.AssetArray):
+                        continue
+                    for time in [Usd.TimeCode.Default(), *attr.GetTimeSamples()]:
+                        value = attr.Get(time)
+                        paths = [value] if isinstance(value, Sdf.AssetPath) else (value or [])
+                        for path in paths:
+                            if "://" in path.path:
+                                authored_uris[os.path.normpath(path.path)] = path.path
+            unresolved = [
+                path for path in unresolved if path not in authored_uris or not check_file_path(authored_uris[path])
+            ]
         if unresolved:
             raise RuntimeError(f"Unresolved export asset dependencies: {unresolved}")
 
@@ -462,6 +529,7 @@ class UsdWriter:
         transform = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(float(pose[6]), Gf.Vec3d(*map(float, pose[3:6]))))
         transform.SetTranslateOnly(Gf.Vec3d(*map(float, pose[:3] / length)))
         parent = UsdGeom.XformCache().GetLocalToWorldTransform(prim.GetParent())
+        # Retain geometry scale while replacing the physical pose relative to its parent.
         local = Gf.Matrix4d().SetScale(scale) * transform * parent.GetInverse()
         xform = UsdGeom.Xformable(prim)
         xform.ClearXformOpOrder()

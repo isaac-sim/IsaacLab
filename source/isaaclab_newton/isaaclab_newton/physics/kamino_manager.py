@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import Model, eval_fk
@@ -17,6 +18,10 @@ from isaaclab.physics import PhysicsManager
 
 from .kamino_manager_cfg import _KaminoSolverCfgBase
 from .newton_manager import NewtonManager
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import UsdWriter
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +63,20 @@ class NewtonKaminoManager(NewtonManager):
     _solver: SolverKamino
 
     _builder_attribute_solvers = (SolverKamino,)
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Preserve the resolved Kamino driver configuration, including nested solver settings."""
+        import json
+        from dataclasses import asdict
+
+        super().author_fixed_configuration(writer, scene)
+        # The instantiated config includes defaults resolved by Kamino, unlike the task cfg.
+        configuration = asdict(cls._solver._config)
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "kamino", "options": json.dumps(configuration)},
+        }
 
     @classmethod
     def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:

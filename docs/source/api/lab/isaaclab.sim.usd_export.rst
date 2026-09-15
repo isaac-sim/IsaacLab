@@ -17,7 +17,8 @@ training wrappers perform their first reset or step. There is no second task con
 pre-event callback or exception used to interrupt initialization. Sampled one-time results
 are part of the artifact; later reset, interval and training changes are excluded.
 
-The snapshot uses current backend state. It does not apply ``default_*`` buffers: defaults
+The snapshot uses current backend state. Newton first delivers queued property-change
+notifications to its native solver without advancing physics. It does not apply ``default_*`` buffers: defaults
 are inputs to future resets and may differ from the current state or be changed by events.
 Calling reset or applying defaults during export would erase startup results. Tasks must
 register physical assets in the scene; unregistered enabled bodies fail completeness checks.
@@ -74,7 +75,9 @@ There is no scene export adapter or backend factory. ``UsdWriter.from_stage`` ow
 One environment is sufficient for export. ``env_id`` defaults to zero and selects a single
 environment from an existing replicated scene; for example, ``env_id=37`` selects environment
 37 when that environment exists. Differences in other environments do not change the selected
-environment's effective configuration. ClonePlan queries supply
+environment's effective configuration. The replicated-scene regression covers matching
+object layouts with different runtime overrides; this does not certify heterogeneous scenes.
+ClonePlan queries supply
 its source variants and instance membership, not runtime property values. Physics-only
 clones missing from USD are materialized from their authored sources; objects supply the
 selected instance's effective buffers. Other environments are removed, shared scene content
@@ -84,7 +87,8 @@ The in-memory USD stage carries geometry, mass/inertia/COM, topology, collision 
 filtering, static objects, terrain, shared resources, tendon schemas and other authored settings.
 Native Flatten/Stage.Export preserve that content. Effective body/joint state, mass, inertia, COM, actuator properties and supported native
 contact/gravity values are written onto the isolated copy.
-The live stage, backend buffers and caller's configuration are not authored by the exporter.
+The live stage and caller's configuration are not authored by the exporter. Newton's
+queued property notifications synchronize solver buffers at the snapshot boundary.
 
 Data properties declare targets alongside their getters with ``@usd_field(UsdAttribute(...))``.
 Source names come from the decorated properties, without a second exporter field list. For example::
@@ -102,8 +106,8 @@ effort units. Abstract-property and existing observation metadata are preserved.
 
 Registered schemas supply exact attribute names and types through ``GetSchemaAttributeNames``
 and ``Prim.GetAttribute``. Single/multi-apply and typed schemas are distinguished. Generic writing
-supports scalar and vector attributes, and declared components such as lower/upper limits.
-Arrays, matrices, transforms and relationship semantics need dedicated operations; body transforms,
+supports scalar, vector and scalar-array attributes, and declared components such as lower/upper limits.
+Matrices, transforms and relationship semantics need dedicated operations; body transforms,
 fixed-root frames and Newton material bindings remain explicit. Unregistered extensions require
 an explicit target type. Schema discovery cannot infer source fields, units or backend semantics.
 
@@ -126,8 +130,9 @@ Newton preserves the original geometry and adds its fixed contact/joint properti
 independent physics-material bindings when native values are authored, preserving differences even
 when the source material was shared. Missing bindings receive explicit native material values.
 
-The supported Newton driver is XPBD. Unsupported solver families, non-default unrepresentable
-options, substeps/decimation and unrepresentable per-joint actuation modes fail explicitly. The
+XPBD, MJWarp and Kamino managers own their respective driver exports. MJWarp additionally
+reads native body, joint and contact buffers; Kamino stores its resolved nested driver
+configuration. Unrepresentable per-joint actuation modes fail explicitly. The
 loader must consume the exported import options and driver metadata, rather than silently using
 its own defaults::
 
@@ -141,13 +146,25 @@ its own defaults::
     driver = dict(metadata["isaaclab:newtonDriver"])
     assert driver.pop("solver") == "xpbd"
     solver = newton.solvers.SolverXPBD(model, **driver)
-    dt = 1 / stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get()
+    timing = metadata["isaaclab:newtonSimulation"]
+    dt = timing["dt"]
+
+For MJWarp, register ``SolverMuJoCo`` custom attributes on the builder and put
+``SchemaResolverMjc`` before the Newton/PhysX resolvers. Its driver metadata uses
+``solver="mujoco"`` and JSON ``options`` passed to ``SolverMuJoCo`` (convert the
+``deterministic`` integer to ``warp.DeterministicMode``). Kamino uses ``solver="kamino"``;
+register ``SolverKamino`` attributes, reconstruct its ``Config`` and nested dataclasses
+from JSON ``options``, then construct the solver. The fresh-load tests contain executable
+examples for all three drivers. The deployment stepping loop must honor ``dt``,
+``num_substeps`` and ``collision_decimation`` in ``isaaclab:newtonSimulation``.
 
 The metadata consumers are the deployment loader (illustrated above) and the independent
 fresh-load tests. Isaac Sim/OVPhysX do not consume these Newton driver options. The descriptive
 ``isaaclab:configuration`` marker does not execute task code.
 
-The fresh-load test constructs this driver and checks a non-default iteration count. The pinned
+The fresh-load tests compare complete fixture entity coverage, topology, geometry,
+materials, collision relationships, body/joint properties, gravity and state. MJWarp and
+Kamino also compare native solver configuration after loading without task overrides. The pinned
 Newton importer uses radians/second for native initial angular velocity; its compatibility
 attributes are emitted alongside standard USD degree-based state and currently produce warnings.
 That behavior requires revalidation on Newton upgrades.
@@ -175,3 +192,27 @@ PhysX tensor interfaces expose body identities but not per-collider identities. 
 colliders and equal per-body contact values can be authored unambiguously; distinct per-shape
 values are rejected. Uniform values also cover cooked meshes with multiple convex pieces. Newton retains explicit shape labels,
 including static colliders. These support boundaries are separate from task/preset availability.
+
+Additional support boundaries
+-----------------------------
+
+Cartesian multi-axis joints retain axis-specific limits and drives. Non-Cartesian Newton
+axes, distinct per-axis values where the native USD importer accepts only one joint-wide
+value, and OVPhysX spherical-joint drive reconstruction are rejected.
+
+OVPhysX cannot export different contact/material values for individual cooked convex pieces
+until its tensor API exposes stable piece-to-USD identity and cooked geometry. Body identity
+alone is insufficient. Its first GPU tensor access may perform a minimal warmup step;
+fresh-load state agreement must be validated per task rather than hidden with wider tolerances.
+
+The exporter does not reconstruct arbitrary edits to private solver topology or geometry
+buffers, Kamino-only body/material buffer mutations, solver warm-start caches, active contacts,
+or transient applied forces. Use supported object-data setters for physical randomization.
+Authored tendon/actuator schemas are retained, but runtime tendon/control buffers require
+separate validation. A successful physical export does not certify policy observation support:
+cameras, ray/contact sensors, sampling schedules and controller histories need deployment
+integration even when their authored scene prims are present.
+
+Unreachable external resources and dangling material bindings fail completeness checks.
+A reachable authored URL is checked in its original form when USD dependency discovery
+normalizes its scheme incorrectly. Missing source materials are not invented or replaced.

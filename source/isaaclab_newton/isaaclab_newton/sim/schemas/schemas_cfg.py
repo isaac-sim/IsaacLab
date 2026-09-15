@@ -6,10 +6,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import field
 from typing import ClassVar, Literal
 
-from isaaclab.assets.physics_properties import UsdAttribute
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     ArticulationRootFragment,
@@ -281,10 +279,7 @@ class NewtonCollisionCfg(CollisionFragment):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonCollisionAPI"
 
-    contact_margin: float | None = field(
-        default=None,
-        metadata={"newton_model": "shape_margin", "usd": UsdAttribute("newton:contactMargin", type_name="float")},
-    )
+    contact_margin: float | None = None
     """Outward inflation of the collision surface [m].
 
     Extends the effective collision surface outward. Sum of both bodies' margins is used for
@@ -292,10 +287,7 @@ class NewtonCollisionCfg(CollisionFragment):
     via ``NewtonCollisionAPI``. Range: [0, inf).
     """
 
-    contact_gap: float | None = field(
-        default=None,
-        metadata={"newton_model": "shape_gap", "usd": UsdAttribute("newton:contactGap", type_name="float")},
-    )
+    contact_gap: float | None = None
     """Additional contact detection gap [m].
 
     AABBs are expanded by this value; contacts are detected earlier to avoid tunneling. Written to
@@ -565,75 +557,42 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "NewtonMaterialAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    torsional_friction: float | None = field(
-        default=None,
-        metadata={
-            "newton_model": "shape_material_mu_torsional",
-            "usd": UsdAttribute("newton:torsionalFriction", type_name="float"),
-        },
-    )
+    torsional_friction: float | None = None
     """Torsional friction coefficient (resistance to spinning at a contact point) [dimensionless].
 
     Written to ``newton:torsionalFriction`` via ``NewtonMaterialAPI``.
     Range: [0, inf).
     """
 
-    rolling_friction: float | None = field(
-        default=None,
-        metadata={
-            "newton_model": "shape_material_mu_rolling",
-            "usd": UsdAttribute("newton:rollingFriction", type_name="float"),
-        },
-    )
+    rolling_friction: float | None = None
     """Rolling friction coefficient (resistance to rolling motion) [dimensionless].
 
     Written to ``newton:rollingFriction`` via ``NewtonMaterialAPI``.
     Range: [0, inf).
     """
 
-    contact_stiffness: float | None = field(
-        default=None,
-        metadata={
-            "newton_model": "shape_material_ke",
-            "usd": UsdAttribute("newton:contactStiffness", type_name="float"),
-        },
-    )
+    contact_stiffness: float | None = None
     """Contact normal-force stiffness [N/m].
 
     Writes ``newton:contactStiffness``. Replaces the deprecated per-shape ``ke`` contact parameter;
     used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
     """
 
-    contact_damping: float | None = field(
-        default=None,
-        metadata={"newton_model": "shape_material_kd", "usd": UsdAttribute("newton:contactDamping", type_name="float")},
-    )
+    contact_damping: float | None = None
     """Contact normal-force damping coefficient [N·s/m].
 
     Writes ``newton:contactDamping``. Replaces the deprecated per-shape ``kd`` contact parameter;
     used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
     """
 
-    contact_friction_gain: float | None = field(
-        default=None,
-        metadata={
-            "newton_model": "shape_material_kf",
-            "usd": UsdAttribute("newton:contactFrictionGain", type_name="float"),
-        },
-    )
+    contact_friction_gain: float | None = None
     """Friction-force stiffness gain used by the tangential (friction) contact response [N·s/m].
 
     Writes ``newton:contactFrictionGain``. Replaces the deprecated per-shape ``kf`` contact
     parameter; used by the SemiImplicit and Featherstone solvers.
     """
 
-    contact_adhesion: float | None = field(
-        default=None,
-        metadata={
-            "newton_model": "shape_material_ka",
-            "usd": UsdAttribute("newton:contactAdhesion", type_name="float"),
-        },
-    )
+    contact_adhesion: float | None = None
     """Contact adhesion distance: shapes closer than this threshold experience an attractive
     (adhesive) force [m].
 

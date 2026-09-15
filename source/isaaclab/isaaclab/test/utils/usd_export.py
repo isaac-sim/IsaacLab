@@ -18,7 +18,17 @@ def capture_physics_structure(stage: Usd.Stage) -> dict:
     including geometry dimensions, shape-to-body associations and joint attachment frames.
     """
     result = {}
-    buffered = {"position", "rotation", "linearVelocity", "angularVelocity", "materials", "drive", "limit"}
+    buffered = {
+        "position",
+        "rotation",
+        "linearVelocity",
+        "angularVelocity",
+        "materials",
+        "drive",
+        "limit",
+        "jointDrives",
+        "jointLimits",
+    }
     parsed = UsdPhysics.LoadUsdPhysicsFromRange(stage, ["/"])
     for kind, (paths, descriptions) in parsed.items():
         if kind in (UsdPhysics.ObjectType.Scene, UsdPhysics.ObjectType.RigidBodyMaterial):
@@ -26,6 +36,10 @@ def capture_physics_structure(stage: Usd.Stage) -> dict:
         for path, description in zip(paths, descriptions):
             assert description.isValid, path
             prim = stage.GetPrimAtPath(path)
+            # D6 descriptors bundle per-axis buffered values; retain axis identities separately.
+            for field in ("jointDrives", "jointLimits"):
+                if hasattr(description, field):
+                    result[str(path), field + "Axes"] = tuple(str(item.first) for item in getattr(description, field))
             for field in dir(description):
                 if field.startswith("_") or field in buffered:
                     continue

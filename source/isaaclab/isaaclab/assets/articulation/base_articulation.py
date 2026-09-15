@@ -502,7 +502,10 @@ class BaseArticulation(AssetBase):
             prim = writer.stage.GetPrimAtPath(path)
             if not prim:
                 raise RuntimeError(f"Missing joint {path}.")
-            axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.GetTypeName())
+            axis = paths.joint_axes.get(row) or {
+                "PhysicsRevoluteJoint": "angular",
+                "PhysicsPrismaticJoint": "linear",
+            }.get(prim.GetTypeName())
             if axis is None:
                 raise NotImplementedError(f"Unsupported driven joint {path} ({prim.GetTypeName()}).")
             writer.write_properties(path, axis, data, row=row)

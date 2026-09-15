@@ -176,6 +176,7 @@ class Articulation(BaseArticulation):
         roots = self.root_view.prim_paths
         root = self.stage.GetPrimAtPath(roots[env_index])
         if not root:
+            # Physics-only clones may lack USD prims; recover their authored source variant.
             from isaaclab.cloner.query import path_to_source
 
             plan = sim_utils.SimulationContext.instance().get_clone_plan()
@@ -199,18 +200,26 @@ class Articulation(BaseArticulation):
                 break
             root = root.GetParent()
 
+        axes = {}
+
         def resolve(names, paths):
             result = []
             for row, name in enumerate(names):
                 matches = paths.get(name, [])
                 if len(matches) != 1:
-                    if name.split(":")[0] in paths and ":" in name:
-                        raise NotImplementedError(f"Export does not support multi-axis joint DOF {name}.")
-                    raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
+                    joint_name, _, suffix = name.rpartition(":")
+                    if paths is joints and suffix in {"0", "1", "2"} and len(paths.get(joint_name, [])) == 1:
+                        matches = paths[joint_name]
+                        # OVPhysX names spherical DOFs by twist/swing1/swing2, corresponding to X/Y/Z.
+                        axes[row] = ("rotX", "rotY", "rotZ")[int(suffix)]
+                        if self.stage.GetPrimAtPath(matches[0]).GetTypeName() != "PhysicsJoint":
+                            raise NotImplementedError(f"No per-axis USD drive representation for {matches[0]}.")
+                    else:
+                        raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
                 result.append((matches[0], row))
             return result
 
-        return AssetPaths(resolve(self.body_names, bodies), resolve(self.joint_names, joints))
+        return AssetPaths(resolve(self.body_names, bodies), resolve(self.joint_names, joints), axes)
 
     @property
     def root_view(self) -> OvPhysxView:
