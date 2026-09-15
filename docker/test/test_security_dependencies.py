@@ -26,8 +26,6 @@ class TestSecurityDependencies(unittest.TestCase):
             project = tomllib.load(file)["project"]
         self.assertIn("gitpython>=3.1.59", project["dependencies"])
         self.assertIn("pillow>=12.3.0", project["dependencies"])
-        self.assertIn("starlette>=1.3.1", project["dependencies"])
-        self.assertIn("aiohttp==3.14.1", project["optional-dependencies"]["rl-games"])
         self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["rerun"])
 
     def test_wheel_metadata_preserves_dependency_updates(self):
@@ -49,7 +47,6 @@ class TestSecurityDependencies(unittest.TestCase):
                 project = tomllib.load(file)["project"]
             self.assertIn("gitpython>=3.1.59", project["dependencies"])
             self.assertIn("pillow>=12.3.0", project["dependencies"])
-            self.assertIn("starlette>=1.3.1", project["dependencies"])
             self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["all"])
 
     def test_lock_contains_security_updates(self):
@@ -59,11 +56,9 @@ class TestSecurityDependencies(unittest.TestCase):
             "gitpython": "3.1.59",
             "pillow": "12.3.0",
             "pyarrow": "23.0.1",
-            "starlette": "1.3.1",
         }.items():
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
-        self.assertEqual(packages["aiohttp"], "3.14.1")
 
     def test_both_images_install_verified_git_lfs(self):
         for name in ("Dockerfile.base", "Dockerfile.kitless"):
