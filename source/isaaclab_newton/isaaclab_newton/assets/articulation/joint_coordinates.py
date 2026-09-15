@@ -23,7 +23,7 @@ onto the DOF axes; sign and frame parity with PhysX has not been verified numeri
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from dataclasses import dataclass
 
 import warp as wp
 
@@ -107,21 +107,32 @@ def scatter_ball_dofs(
     coords[env, c + 3] = q[3]
 
 
-class BallJointCoordinateMap(NamedTuple):
+@dataclass(frozen=True)
+class BallJointCoordinateMap:
     """Index tables mapping an articulation view's ball-joint coordinates to their DOFs and back.
 
     A plain data record, not an object with behavior -- :func:`build_ball_joint_coordinate_map`
     produces one, and :func:`gather_joint_coordinates` / :func:`scatter_joint_coordinates` consume
     one. Fields are only meaningful when ``required`` is True; the ``as_wp`` conversion in
-    :func:`build_ball_joint_coordinate_map` is skipped otherwise, so on a required=False table the
-    remaining fields are placeholder empty arrays.
+    :func:`build_ball_joint_coordinate_map` is skipped otherwise, so on a required=False map the
+    remaining fields are placeholder empty arrays. The frozen dataclass prevents field
+    reassignment, but the Warp arrays remain mutable objects.
     """
 
     required: bool
+    """Whether the articulation has a ball joint and the remaining fields are populated."""
+
     single_dof: wp.array
+    """DOF indices of joints whose coordinate count equals their DOF count, dtype ``wp.int32``."""
+
     single_coord: wp.array
+    """Matching coordinate indices for :attr:`single_dof`, dtype ``wp.int32``."""
+
     ball_dof: wp.array
+    """First DOF index of each ball joint, dtype ``wp.int32``."""
+
     ball_coord: wp.array
+    """First coordinate index of each ball joint, dtype ``wp.int32``."""
 
 
 def build_ball_joint_coordinate_map(coord_counts: list[int], dof_counts: list[int], device) -> BallJointCoordinateMap:
