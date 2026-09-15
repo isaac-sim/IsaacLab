@@ -148,7 +148,7 @@ skrl = ["skrl>=2.1.0"]
 
 rl-games = [
     "aiohttp>=3.12.14",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@02d19580d184efc9d2279af715407723ffecfdeb",
+    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@5cf4f9ff07e9a01bbefd167cf19b6804b294b51c",
     "gym",
     "standard-distutils",
 ]
