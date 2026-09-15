@@ -1,0 +1,1 @@
+Migrated the Newton test and benchmark call sites from the legacy physics-schema cfg classes to composable schema fragments.

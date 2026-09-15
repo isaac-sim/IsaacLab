@@ -19,6 +19,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -61,9 +62,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+            mass_props=[sim_utils.MassCfg(mass=0.5)],
+            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -73,9 +74,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+            mass_props=[sim_utils.MassCfg(mass=0.5)],
+            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -94,9 +95,11 @@ class MySceneCfg(InteractiveSceneCfg):
             merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                )
+            ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
             ),
@@ -116,9 +119,11 @@ class MySceneCfg(InteractiveSceneCfg):
             merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                )
+            ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
             ),
@@ -502,9 +507,9 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+            mass_props=[sim_utils.MassCfg(mass=0.5)],
+            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
         ),
     )
     imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")

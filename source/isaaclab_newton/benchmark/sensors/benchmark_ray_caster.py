@@ -44,6 +44,7 @@ if args_cli.grid_resolution <= 0.0:
 import torch
 import warp as wp
 from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -67,9 +68,9 @@ def _sensor_body_cfg(prim_path: str, position: tuple[float, float, float] = (0.0
         prim_path=prim_path,
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
+            mass_props=[sim_utils.MassCfg(mass=1.0)],
+            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=position),
     )
