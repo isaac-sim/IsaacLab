@@ -4,24 +4,46 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates USD-authored PPISP on a Gaussian scene through the Isaac Lab camera sensor with
-the Newton Warp or Isaac RTX renderer.
+This script demonstrates USD-authored PPISP on a Gaussian scene through the Isaac Lab camera sensor.
+
+It renders the scene's own authored camera twice per frame -- once with the USD-authored PPISP applied
+and once without -- and writes the two images plus their difference, so a USD scene can be validated
+against any of the three supported renderers.
+
+The renderer is selected with ``--renderer``:
+
+* ``newton_renderer``: Newton Warp renderer (default). No Gaussian-splat path, so it cannot play back
+  animated Gaussian tracks.
+* ``isaac_rtx``: Kit RTX renderer, with optional RTX and Kit compositing settings.
+* ``ovrtx``: OVRTX renderer. This one runs *kit-less*, so the script does not launch the Kit app for
+  it; run it with ``uv run python`` as shown below.
 
 .. code-block:: bash
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
     uv run python scripts/demos/sensors/ppisp_camera.py \
-        --input_scene /path/to/scene.usd --renderer newton_renderer --visualizer none --max_steps 60
+        --input_scene /path/to/scene.usd --renderer newton_renderer --num_frames 3
 
     # Run the same saved-image workflow with Isaac RTX.
     uv run python scripts/demos/sensors/ppisp_camera.py \
-        --input_scene /path/to/scene.usd --renderer isaac_rtx --visualizer none --max_steps 60
+        --input_scene /path/to/scene.usd --renderer isaac_rtx --num_frames 3
+
+    # Run it kit-less on OVRTX, streaming any animated Gaussian tracks from the GPU.
+    uv run --extra ovrtx python scripts/demos/sensors/ppisp_camera.py \
+        --input_scene /path/to/scene.usd --renderer ovrtx --num_frames 3
+
+    # Play the scene's authored camera-rig or Gaussian animation time samples at 30 FPS, writing
+    # every third frame.
+    uv run python scripts/demos/sensors/ppisp_camera.py \
+        --input_scene /path/to/scene.usd --renderer isaac_rtx --render_fps 30 --write_fps 10
 
 """
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
+import logging
 import os
 from typing import Any
 
@@ -48,7 +70,19 @@ parser.add_argument(
     "--camera_time_code",
     type=float,
     default=0.0,
-    help="USD time code used to bake the selected camera pose into duplicated env cameras for Newton.",
+    help="USD time code used when neither camera nor Gaussian animation samples are authored.",
+)
+parser.add_argument(
+    "--render_fps",
+    type=float,
+    default=30.0,
+    help="Rendered-frame rate in FPS, used to resample authored animation and pace camera rendering.",
+)
+parser.add_argument(
+    "--num_frames",
+    type=int,
+    default=None,
+    help="Number of frames to render. Defaults to the authored camera or Gaussian timeline length, or 1 if static.",
 )
 parser.add_argument(
     "--num_envs",
@@ -56,7 +90,12 @@ parser.add_argument(
     default=1,
     help="Number of duplicated input-scene envs to render in the tiled camera batch.",
 )
-parser.add_argument("--env_spacing", type=float, default=20.0, help="Spacing between duplicated input-scene envs.")
+parser.add_argument(
+    "--env_spacing",
+    type=float,
+    default=None,
+    help="Spacing between duplicated input-scene envs. Defaults to the input scene's horizontal extent.",
+)
 parser.add_argument("--image_width", type=int, default=320, help="Output image width.")
 parser.add_argument(
     "--image_height",
@@ -68,18 +107,113 @@ parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabri
 parser.add_argument(
     "--renderer",
     type=str,
-    choices=["newton_renderer", "isaac_rtx"],
+    choices=["newton_renderer", "isaac_rtx", "ovrtx"],
     default="newton_renderer",
     help="Camera renderer backend to use. Newton Warp is the default for this PPISP smoke.",
+)
+parser.add_argument(
+    "--render_only",
+    action="store_true",
+    help="Render and save only the PPISP camera output; skip baseline, comparison, and diff outputs.",
+)
+isaacrtx_gaussian_settings_group = parser.add_argument_group("Isaac RTX Gaussian settings")
+isaacrtx_gaussian_settings_group.add_argument(
+    "--isaacrtx_gaussian_max_intersections",
+    type=int,
+    default=None,
+    help=(
+        "Maximum number of Gaussian intersections evaluated along each ray before traversal stops; lower values "
+        "reduce RTX work but may omit farther Gaussian contributions, while -1 means unlimited."
+    ),
+)
+isaacrtx_gaussian_settings_group.add_argument(
+    "--isaacrtx_gaussian_self_shadow_distance",
+    type=float,
+    default=None,
+    help="RTX Gaussian self-shadow distance in Gaussian-radius units; 0 disables the filter.",
+)
+rtx_settings_group = parser.add_argument_group("Shared RTX render settings")
+rtx_settings_group.add_argument(
+    "--rtx_enable_accumulation",
+    action="store_true",
+    help="Enable RTX ray-tracing accumulation.",
+)
+rtx_settings_group.add_argument(
+    "--rtx_accumulation_limit",
+    type=int,
+    default=None,
+    help="Maximum RTX ray-tracing accumulation iterations/frames.",
+)
+isaacrtx_gaussian_settings_group.add_argument(
+    "--isaacrtx_gaussian_depth_all_hits",
+    action="store_true",
+    help=(
+        "Use all hits when accumulating RTPT Gaussian depth only; this does not affect Gaussian color/albedo "
+        "or general RTX accumulation."
+    ),
+)
+rtx_settings_group.add_argument(
+    "--rtx_gaussian_accumulated_albedo",
+    action="store_true",
+    help="Accumulate Gaussian SH0 color as albedo in RTPT.",
+)
+rtx_settings_group.add_argument(
+    "--rtx_gaussian_skip_tonemapping",
+    action="store_true",
+    help=(
+        "Skip tonemapping for Gaussian pixels in RTPT. OVRTX currently uses a schema-gap RenderProduct "
+        "attribute; it becomes a generated OVRTX setting next release."
+    ),
+)
+rtx_settings_group.add_argument(
+    "--rtx_render_mode",
+    choices=["RayTracedLighting", "RealTimePathTracing", "PathTracing", "Minimal"],
+    default=None,
+    help="Render mode for the selected RTX backend; RTPT-only Gaussian options require RealTimePathTracing.",
+)
+isaacrtx_settings_group = parser.add_argument_group("Isaac RTX / Kit compositing settings")
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_keep_compositing_defaults",
+    action="store_true",
+    help=(
+        "Keep the Kit NuRec compositing defaults instead of disabling them. The demo disables NuRec post-processing "
+        "and compositing inversion so PPISP is the only ISP applied to the Gaussian render."
+    ),
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_nurec_log_level",
+    type=int,
+    default=None,
+    help="Optional NuRec compositing log level. Omit to leave the Kit default untouched.",
+)
+ovrtx_settings_group = parser.add_argument_group("OVRTX settings")
+ovrtx_settings_group.add_argument(
+    "--ovrtx_gaussian_ring_slots",
+    type=int,
+    default=3,
+    help=(
+        "Number of device ring-buffer slots used to stream animated Gaussian tracks. At least 2 are needed so"
+        " the renderer can read one slot while the next is written."
+    ),
+)
+ovrtx_settings_group.add_argument("--ovrtx_log_level", type=str, default="verbose", help="OVRTX renderer log level.")
+ovrtx_settings_group.add_argument(
+    "--ovrtx_log_file", type=str, default="/tmp/ovrtx_renderer.log", help="OVRTX renderer log file path."
 )
 parser.add_argument(
     "--warmup_steps",
     type=int,
     default=None,
-    help="Simulation/render steps to run before saving images. Defaults to 32 for Isaac RTX and 0 for Newton.",
+    help=(
+        "Render passes to run before saving images. Defaults to 32 for Isaac RTX and OVRTX, and 0 for Newton."
+    ),
 )
-parser.add_argument("--max_steps", type=int, default=120, help="Maximum simulation steps before exiting.")
-parser.add_argument("--save_interval", type=int, default=20, help="Interval, in steps, for saving comparison images.")
+parser.add_argument(
+    "--write_fps",
+    type=float,
+    default=None,
+    help="Output image writing rate in FPS. Defaults to --render_fps.",
+)
 parser.add_argument(
     "--ppisp_responsivity",
     type=float,
@@ -91,6 +225,11 @@ parser.add_argument(
     type=str,
     default=None,
     help="Directory to write comparison images. Defaults to scripts/demos/sensors/output/ppisp_camera.",
+)
+parser.add_argument(
+    "--nvtx",
+    action="store_true",
+    help="Emit NVTX ranges around render-loop phases for external profiling tools such as NSys.",
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -109,63 +248,121 @@ if args_cli.image_width < 1:
 if args_cli.image_height is not None and args_cli.image_height < 1:
     parser.error("--image_height must be at least 1.")
 if args_cli.warmup_steps is None:
-    args_cli.warmup_steps = 32 if args_cli.renderer == "isaac_rtx" else 0
+    args_cli.warmup_steps = 0 if args_cli.renderer == "newton_renderer" else 32
 if args_cli.warmup_steps < 0:
     parser.error("--warmup_steps must be non-negative.")
-if args_cli.max_steps < 1:
-    parser.error("--max_steps must be at least 1.")
-if args_cli.save_interval < 1:
-    parser.error("--save_interval must be at least 1.")
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+if args_cli.render_fps <= 0.0:
+    parser.error("--render_fps must be positive.")
+if args_cli.write_fps is None:
+    args_cli.write_fps = args_cli.render_fps
+if args_cli.write_fps <= 0.0:
+    parser.error("--write_fps must be positive.")
+if (
+    args_cli.isaacrtx_gaussian_max_intersections is not None
+    and args_cli.isaacrtx_gaussian_max_intersections < -1
+):
+    parser.error("--isaacrtx_gaussian_max_intersections must be -1 or non-negative.")
+if (
+    args_cli.isaacrtx_gaussian_self_shadow_distance is not None
+    and args_cli.isaacrtx_gaussian_self_shadow_distance < 0.0
+):
+    parser.error("--isaacrtx_gaussian_self_shadow_distance must be non-negative.")
+if args_cli.rtx_accumulation_limit is not None and args_cli.rtx_accumulation_limit < 1:
+    parser.error("--rtx_accumulation_limit must be positive.")
+if args_cli.num_frames is not None and args_cli.num_frames < 1:
+    parser.error("--num_frames must be at least 1.")
+isaacrtx_settings_requested = any(
+    [
+        args_cli.isaacrtx_gaussian_max_intersections is not None,
+        args_cli.isaacrtx_gaussian_self_shadow_distance is not None,
+        args_cli.isaacrtx_gaussian_depth_all_hits,
+        args_cli.isaacrtx_keep_compositing_defaults,
+        args_cli.isaacrtx_nurec_log_level is not None,
+    ]
+)
+if isaacrtx_settings_requested and args_cli.renderer != "isaac_rtx":
+    parser.error("Isaac RTX compositing settings require --renderer isaac_rtx.")
+if args_cli.ovrtx_gaussian_ring_slots < 2:
+    parser.error("--ovrtx_gaussian_ring_slots must be at least 2.")
+rtx_settings_requested = any(
+    [
+        args_cli.rtx_render_mode is not None,
+        args_cli.rtx_enable_accumulation,
+        args_cli.rtx_accumulation_limit is not None,
+        args_cli.rtx_gaussian_accumulated_albedo,
+        args_cli.rtx_gaussian_skip_tonemapping,
+    ]
+)
+if rtx_settings_requested and args_cli.renderer not in {"isaac_rtx", "ovrtx"}:
+    parser.error("Shared RTX settings require --renderer isaac_rtx or --renderer ovrtx.")
+if args_cli.renderer == "isaac_rtx" and args_cli.rtx_render_mode == "Minimal":
+    parser.error("--rtx_render_mode Minimal is supported only by OVRTX.")
+if args_cli.renderer == "ovrtx" and args_cli.rtx_render_mode == "RayTracedLighting":
+    parser.error("--rtx_render_mode RayTracedLighting is supported only by Isaac RTX.")
+if args_cli.nvtx and not args_cli.device.startswith("cuda"):
+    parser.error("--nvtx requires a CUDA --device.")
+# launch omniverse app, except for OVRTX: that renderer runs kit-less and fails to load its render
+# library when the Kit app owns the process, so the demo drives it without an app at all.
+simulation_app = None
+if args_cli.renderer != "ovrtx":
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import gaussian_animation as gaussian_anim
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from isaaclab_ppisp._demo_utils import (
-    find_ppisp_camera_bindings,
-    format_available_ppisp_cameras,
-    order_ppisp_bindings_by_camera,
-)
-from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
+import warp as wp
+from isaaclab_ppisp.cfg import PpispCfg, has_ppisp_camera_attrs, ppisp_cfg_from_usd_camera
 
-from pxr import Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.configclass import configclass
 
+DEFAULT_ENV_SPACING = 20.0
+"""Env grid spacing [m] used when the input scene extent cannot be measured."""
+
+STAGE_TIME_CODE = 0.0
+"""USD time code at which the simulation stage is evaluated.
+
+The Kit timeline stays stopped at time 0 for the whole demo, so every renderer composes the referenced
+scene -- including any animated ancestors of the camera -- at this time code.
+"""
+
+logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def nvtx_range(message: str):
+    """Emit an optional NVTX range without changing GPU execution ordering."""
+    if not args_cli.nvtx:
+        yield
+        return
+    torch.cuda.nvtx.range_push(message)
+    try:
+        yield
+    finally:
+        torch.cuda.nvtx.range_pop()
 
 @configclass
 class PpispCameraSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 
-    env_spacing: float = 20.0
+    env_spacing: float = DEFAULT_ENV_SPACING
 
     input_scene = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Scene",
+        cloning_contexts=(UsdReplicateContext,),
         spawn=sim_utils.UsdFileCfg(usd_path=""),
     )
-
-    anchor = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Anchor",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
-    )
-
 
 def make_renderer_cfg() -> Any:
     """Create the selected camera renderer cfg."""
@@ -173,6 +370,21 @@ def make_renderer_cfg() -> Any:
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
         return NewtonWarpRendererCfg()
+    elif args_cli.renderer == "ovrtx":
+        try:
+            from isaaclab_ov.renderers import OVRTXRendererCfg
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError("--renderer ovrtx requires the optional OVRTX renderer stack.") from exc
+
+        return OVRTXRendererCfg(
+            log_level=args_cli.ovrtx_log_level,
+            log_file_path=args_cli.ovrtx_log_file,
+            render_mode=args_cli.rtx_render_mode,
+            enable_accumulation=args_cli.rtx_enable_accumulation,
+            accumulation_limit=args_cli.rtx_accumulation_limit,
+            gaussian_accumulated_albedo=args_cli.rtx_gaussian_accumulated_albedo,
+            gaussian_skip_tonemapping=args_cli.rtx_gaussian_skip_tonemapping,
+        )
     else:
         from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -182,23 +394,138 @@ def make_renderer_cfg() -> Any:
 def make_sim_cfg() -> sim_utils.SimulationCfg:
     """Create the simulation cfg matching the selected renderer."""
     physics_cfg = None
-    if args_cli.renderer == "newton_renderer":
+    # Isaac RTX drives the Kit physics stack, while both Warp-based renderers run Newton physics.
+    if args_cli.renderer != "isaac_rtx":
         from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
         from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 
         physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
 
     return sim_utils.SimulationCfg(
-        dt=0.005,
+        dt=1.0 / args_cli.render_fps,
         device=args_cli.device,
         physics=physics_cfg,
         use_fabric=not args_cli.disable_fabric,
     )
 
 
-def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim]:
-    """Resolve the source camera and PPISP camera binding from CLI or source stage metadata."""
-    ppisp_bindings = order_ppisp_bindings_by_camera(source_stage, find_ppisp_camera_bindings(source_stage))
+def _requested_isaacrtx_settings() -> list[tuple[str, bool | float | int | str, str]]:
+    """Return explicitly requested Isaac RTX settings."""
+    settings = []
+    if args_cli.isaacrtx_gaussian_max_intersections is not None:
+        settings.append(
+            (
+                "/rtx/raytracing/gaussian/maxIntersections",
+                args_cli.isaacrtx_gaussian_max_intersections,
+                "maxIntersections",
+            )
+        )
+    if args_cli.isaacrtx_gaussian_self_shadow_distance is not None:
+        settings.append(
+            (
+                "/rtx/raytracing/gaussian/selfShadowDistance",
+                args_cli.isaacrtx_gaussian_self_shadow_distance,
+                "selfShadowDistance",
+            )
+        )
+    if args_cli.rtx_enable_accumulation:
+        settings.append(("/rtx/raytracing/enableAccumulation", True, "enableAccumulation"))
+    if args_cli.rtx_accumulation_limit is not None:
+        settings.append(
+            ("/rtx/raytracing/accumulationLimit", args_cli.rtx_accumulation_limit, "accumulationLimit")
+        )
+    if args_cli.isaacrtx_gaussian_depth_all_hits:
+        settings.append(("/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled", True, "gaussianDepthAllHits"))
+    if args_cli.rtx_gaussian_accumulated_albedo:
+        settings.append(("/rtx/rtpt/gaussian/accumulatedAlbedo/enabled", True, "gaussianAccumulatedAlbedo"))
+    if args_cli.rtx_gaussian_skip_tonemapping:
+        settings.append(("/rtx/rtpt/gaussian/skipTonemapping/enabled", True, "gaussianSkipTonemapping"))
+    if args_cli.rtx_render_mode is not None:
+        settings.append(("/rtx/rendermode", args_cli.rtx_render_mode, "renderMode"))
+    return settings
+
+
+def apply_isaacrtx_settings() -> None:
+    """Apply Kit compositing and shared RTX settings requested on the command line.
+
+    The demo applies these once after its cameras and render products are constructed, before reset
+    and the first render.
+    """
+    if args_cli.renderer != "isaac_rtx":
+        return
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    settings = get_settings_manager()
+    applied: list[str] = []
+    if not args_cli.isaacrtx_keep_compositing_defaults:
+        settings.set_bool("/omni/rtx/nre/compositing/disableNuRecPostProcessings", True)
+        settings.set_int("/omni/rtx/nre/compositing/rendererHints", 0)
+        settings.set_bool("/rtx/post/registeredCompositing/invertColorCorrection", False)
+        settings.set_bool("/rtx/post/registeredCompositing/invertToneMap", False)
+        applied.extend(
+            [
+                "disableNuRecPostProcessings=true",
+                "nreCompositingRendererHints=0",
+                "registeredCompositingInvertColorCorrection=false",
+                "registeredCompositingInvertToneMap=false",
+            ]
+        )
+    if args_cli.isaacrtx_nurec_log_level is not None:
+        settings.set_int("/omni/rtx/nre/compositing/logLevel", args_cli.isaacrtx_nurec_log_level)
+        applied.append(f"nreCompositingLogLevel={args_cli.isaacrtx_nurec_log_level}")
+
+    for path, value, label in _requested_isaacrtx_settings():
+        if isinstance(value, bool):
+            settings.set_bool(path, value)
+        elif isinstance(value, int):
+            settings.set_int(path, value)
+        elif isinstance(value, float):
+            settings.set_float(path, value)
+        else:
+            settings.set_string(path, value)
+        applied.append(f"{label}={value}")
+
+    if applied:
+        print("[INFO] Applied RTX/Gaussian settings: " + ", ".join(applied), flush=True)
+
+
+def find_ppisp_camera_bindings(source_stage: Usd.Stage) -> list[tuple[str, Usd.Prim | None, Usd.Prim]]:
+    """Return every camera carrying USD-authored PPISP attributes, in stage traversal order.
+
+    Each entry pairs the camera prim path with the first ``RenderProduct`` that targets it, when the
+    scene authored one, and the camera prim itself.
+    """
+    render_product_prims = [prim for prim in source_stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
+    bindings = []
+    for prim in source_stage.Traverse():
+        if not has_ppisp_camera_attrs(prim):
+            continue
+        render_product = None
+        for candidate in render_product_prims:
+            camera_rel = candidate.GetRelationship("camera")
+            if camera_rel and prim.GetPath() in camera_rel.GetTargets():
+                render_product = candidate
+                break
+        bindings.append((prim.GetPath().pathString, render_product, prim))
+    # A prim that carries the attributes without being typed ``Camera`` is only a fallback. ``sort`` is
+    # stable, so traversal order still decides between the real cameras.
+    bindings.sort(key=lambda binding: binding[2].GetTypeName() != "Camera")
+    return bindings
+
+
+def format_available_ppisp_cameras(ppisp_bindings: list[tuple[str, Usd.Prim | None, Usd.Prim]]) -> str:
+    """Format the PPISP camera prim paths for CLI error messages."""
+    return "\n  ".join(dict.fromkeys(binding[0] for binding in ppisp_bindings))
+
+
+def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim, int]:
+    """Resolve the source camera and PPISP camera binding from CLI or source stage metadata.
+
+    Returns:
+        The selected camera prim path, its ``RenderProduct`` if the scene authored one, the camera
+        prim, and how many PPISP cameras the scene carries in total.
+    """
+    ppisp_bindings = find_ppisp_camera_bindings(source_stage)
     if not ppisp_bindings:
         raise RuntimeError("No cameras with PPISP camera attributes found in input scene.")
 
@@ -228,7 +555,7 @@ def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Pri
 
     for binding in ppisp_bindings:
         if binding[0] == camera_prim_path:
-            return binding
+            return (*binding, len(ppisp_bindings))
 
     available = format_available_ppisp_cameras(ppisp_bindings)
     raise RuntimeError(
@@ -240,11 +567,7 @@ def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Pri
 
 def source_camera_path_to_default_rel_path(source_stage: Usd.Stage, source_camera_prim_path: str) -> str:
     """Return the source camera path relative to the source defaultPrim."""
-    default_prim = source_stage.GetDefaultPrim()
-    if not default_prim:
-        raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
-
-    default_prim_path = default_prim.GetPath().pathString
+    default_prim_path = gaussian_anim.require_default_prim(source_stage).GetPath().pathString
     default_prefix = f"{default_prim_path}/"
     if not source_camera_prim_path.startswith(default_prefix):
         raise RuntimeError(
@@ -259,52 +582,223 @@ def source_camera_path_to_env_regex(source_stage: Usd.Stage, source_camera_prim_
     return f"/World/envs/env_.*/Scene/{camera_rel_path}"
 
 
-def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str) -> None:
-    """Bake the selected USD camera pose at ``camera_time_code`` into duplicated env camera prims."""
-    default_prim = source_stage.GetDefaultPrim()
-    if not default_prim:
-        raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
+def get_trajectory_time_samples(source_stage: Usd.Stage, source_camera_prim_path: str) -> list[float]:
+    """Return uniformly spaced USD times spanning the camera and parent-rig xform samples."""
+    default_prim = gaussian_anim.require_default_prim(source_stage)
+    prim = source_stage.GetPrimAtPath(source_camera_prim_path)
+    if not prim or not prim.IsValid():
+        raise RuntimeError(f"Camera prim not found: {source_camera_prim_path}")
 
+    time_samples = set()
+    while prim and prim.IsValid():
+        xformable = UsdGeom.Xformable(prim)
+        for xform_op in xformable.GetOrderedXformOps():
+            time_samples.update(float(value) for value in xform_op.GetAttr().GetTimeSamples())
+        if prim == default_prim:
+            break
+        prim = prim.GetParent()
+
+    authored_times = sorted(time_samples)
+    if not authored_times:
+        return []
+    start_time = authored_times[0]
+    end_time = authored_times[-1]
+    time_codes_per_second = source_stage.GetTimeCodesPerSecond()
+    if time_codes_per_second <= 0.0:
+        time_codes_per_second = 24.0
+    # Keep the resampled cadence strictly uniform so the written sequence plays back at a constant
+    # rate; this drops at most one frame of the authored tail.
+    time_step = time_codes_per_second / args_cli.render_fps
+    sample_count = int(np.floor((end_time - start_time) / time_step)) + 1
+    return [start_time + index * time_step for index in range(sample_count)]
+
+
+def get_source_camera_in_default(
+    source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float
+) -> Gf.Matrix4d:
+    """Return the source camera transform relative to the source defaultPrim at ``time_code``."""
+    default_prim = gaussian_anim.require_default_prim(source_stage)
     source_camera_prim = source_stage.GetPrimAtPath(source_camera_prim_path)
     if not source_camera_prim or not source_camera_prim.IsValid():
         raise RuntimeError(f"Camera prim not found: {source_camera_prim_path}")
 
-    time_code = Usd.TimeCode(args_cli.camera_time_code)
-    source_cache = UsdGeom.XformCache(time_code)
+    source_cache = UsdGeom.XformCache(Usd.TimeCode(time_code))
     source_default_world = source_cache.GetLocalToWorldTransform(default_prim)
     source_camera_world = source_cache.GetLocalToWorldTransform(source_camera_prim)
-    source_camera_in_default = source_camera_world * source_default_world.GetInverse()
+    return source_camera_world * source_default_world.GetInverse()
 
+
+def get_env_scene_world_transforms() -> list[Gf.Matrix4d]:
+    """Return the world transform of each duplicated env scene prim, as the renderers evaluate it."""
     stage = sim_utils.get_current_stage()
-    target_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-    camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
-    authored_count = 0
+    target_cache = UsdGeom.XformCache(Usd.TimeCode(STAGE_TIME_CODE))
+    transforms = []
     for env_id in range(args_cli.num_envs):
         scene_path = f"/World/envs/env_{env_id}/Scene"
-        target_camera_path = f"{scene_path}/{camera_rel_path}"
         scene_prim = stage.GetPrimAtPath(scene_path)
-        target_camera_prim = stage.GetPrimAtPath(target_camera_path)
         if not scene_prim or not scene_prim.IsValid():
             raise RuntimeError(f"Duplicated scene prim not found: {scene_path}")
+        transforms.append(target_cache.GetLocalToWorldTransform(scene_prim))
+    return transforms
+
+
+def freeze_env_camera_ancestor_xforms(source_stage: Usd.Stage, source_camera_prim_path: str) -> None:
+    """Collapse the xform chain above each duplicated env camera to a static pose at :data:`STAGE_TIME_CODE`.
+
+    Capture scenes animate the camera rig rather than the camera prim itself. A render path that
+    re-evaluates those animated xforms on every frame overwrites the poses written at runtime and
+    leaves the render stuck on the first frame. Rewriting each
+    ancestor with the static transform the renderer already evaluates at :data:`STAGE_TIME_CODE`
+    makes the runtime pose writes authoritative for every renderer without changing the pose that is
+    rendered.
+    """
+    stage = sim_utils.get_current_stage()
+    time_code = Usd.TimeCode(STAGE_TIME_CODE)
+    camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
+    ancestor_rel_parts = camera_rel_path.split("/")[:-1]
+    frozen_count = 0
+    for env_id in range(args_cli.num_envs):
+        for depth in range(1, len(ancestor_rel_parts) + 1):
+            ancestor_path = "/".join([f"/World/envs/env_{env_id}/Scene", *ancestor_rel_parts[:depth]])
+            ancestor_prim = stage.GetPrimAtPath(ancestor_path)
+            if not ancestor_prim or not ancestor_prim.IsValid():
+                raise RuntimeError(f"Duplicated camera ancestor prim not found: {ancestor_path}")
+            # Scopes and other non-Xformable groupings carry no transform to freeze.
+            if not ancestor_prim.IsA(UsdGeom.Xformable):
+                continue
+            local_transform = Gf.Transform(UsdGeom.Xformable(ancestor_prim).GetLocalTransformation(time_code))
+            rotation = local_transform.GetRotation().GetQuat()
+            imaginary = rotation.GetImaginary()
+            sim_utils.standardize_xform_ops(
+                ancestor_prim,
+                translation=tuple(local_transform.GetTranslation()),
+                orientation=(imaginary[0], imaginary[1], imaginary[2], rotation.GetReal()),
+                scale=tuple(local_transform.GetScale()),
+            )
+            frozen_count += 1
+    print(
+        f"[INFO] Froze {frozen_count} camera ancestor xform(s) at USD time {STAGE_TIME_CODE:g}.",
+        flush=True,
+    )
+
+
+def resolve_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[gaussian_anim.AnimatedGaussianTrack]:
+    """Discover the input scene's animated Gaussian tracks and check the renderer can play them.
+
+    The Newton Warp renderer has no Gaussian-splat path at all, so an animated track is reported as
+    unsupported there instead of being silently dropped.
+    """
+    tracks = gaussian_anim.find_animated_gaussian_tracks(source_stage)
+    if not tracks:
+        return []
+    print(f"[INFO] Animated Gaussian track(s): {gaussian_anim.format_tracks(tracks)}", flush=True)
+    if args_cli.renderer == "newton_renderer":
+        raise RuntimeError(
+            f"Input scene animates {len(tracks)} Gaussian track(s), which --renderer newton_renderer cannot play"
+            f" back: {gaussian_anim.format_tracks(tracks)}. Use --renderer isaac_rtx or --renderer ovrtx."
+        )
+    return tracks
+
+
+def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float) -> None:
+    """Bake a USD camera pose at ``time_code`` into duplicated env camera prims.
+
+    This seeds the initial pose on the stage and must run before the camera sensors are created and before
+    :meth:`SimulationContext.reset`. The Newton backend samples the camera prim's USD transform once while
+    building its model, and the Fabric render path is populated from USD at reset, so later USD edits do
+    not reach the renderer. Runtime trajectory playback goes through the prebaked trajectory tensors
+    instead.
+
+    The pose is written through :func:`~isaaclab.sim.utils.standardize_xform_ops` so the prims keep the
+    canonical ``[translate, orient, scale]`` op order that the sensor frame views require; authoring a
+    single ``xformOp:transform`` here would silently discard every later view-side pose write.
+    """
+    source_camera_in_default = get_source_camera_in_default(source_stage, source_camera_prim_path, time_code)
+    stage = sim_utils.get_current_stage()
+    # The renderers evaluate the referenced scene at the stage's current timeline time, so the ancestor
+    # chain must be sampled there too. Sampling it at the default time code instead resolves animated
+    # ancestor xforms as unauthored, which double-counts their contribution in the composed camera pose.
+    target_cache = UsdGeom.XformCache(Usd.TimeCode(STAGE_TIME_CODE))
+    camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
+    scene_world_transforms = get_env_scene_world_transforms()
+    for env_id, target_scene_world in enumerate(scene_world_transforms):
+        target_camera_path = f"/World/envs/env_{env_id}/Scene/{camera_rel_path}"
+        target_camera_prim = stage.GetPrimAtPath(target_camera_path)
         if not target_camera_prim or not target_camera_prim.IsValid():
             raise RuntimeError(f"Duplicated camera prim not found: {target_camera_path}")
 
-        target_scene_world = target_cache.GetLocalToWorldTransform(scene_prim)
         target_parent_world = target_cache.GetLocalToWorldTransform(target_camera_prim.GetParent())
         target_camera_world = source_camera_in_default * target_scene_world
         target_camera_local = target_camera_world * target_parent_world.GetInverse()
         target_camera_local.Orthonormalize()
-
-        xformable = UsdGeom.Xformable(target_camera_prim)
-        xformable.ClearXformOpOrder()
-        xform_op = xformable.AddTransformOp(UsdGeom.XformOp.PrecisionDouble, "ppispCameraPose")
-        xform_op.Set(target_camera_local, Usd.TimeCode.Default())
-        xformable.SetXformOpOrder([xform_op])
-        authored_count += 1
+        translation = target_camera_local.ExtractTranslation()
+        rotation = target_camera_local.ExtractRotationQuat()
+        imaginary = rotation.GetImaginary()
+        sim_utils.standardize_xform_ops(
+            target_camera_prim,
+            translation=(translation[0], translation[1], translation[2]),
+            orientation=(imaginary[0], imaginary[1], imaginary[2], rotation.GetReal()),
+            scale=(1.0, 1.0, 1.0),
+        )
 
     print(
-        f"[INFO] Baked camera pose at USD time {args_cli.camera_time_code:g} into {authored_count} env camera(s).",
+        f"[INFO] Baked camera pose at USD time {time_code:g} into {len(scene_world_transforms)} env camera(s).",
         flush=True,
+    )
+
+
+def compute_env_camera_world_poses(
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    time_code: float,
+    scene_world_transforms: list[Gf.Matrix4d],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute per-env camera world poses at ``time_code``.
+
+    Returns:
+        A tuple of camera positions [m] with shape (num_envs, 3) and OpenGL-convention quaternion
+        orientations in (x, y, z, w) order with shape (num_envs, 4).
+    """
+    source_camera_in_default = get_source_camera_in_default(source_stage, source_camera_prim_path, time_code)
+    positions = np.empty((len(scene_world_transforms), 3), dtype=np.float32)
+    orientations = np.empty((len(scene_world_transforms), 4), dtype=np.float32)
+    for env_id, target_scene_world in enumerate(scene_world_transforms):
+        target_camera_world = source_camera_in_default * target_scene_world
+        target_camera_world.Orthonormalize()
+        translation = target_camera_world.ExtractTranslation()
+        rotation = target_camera_world.ExtractRotationQuat()
+        imaginary = rotation.GetImaginary()
+        positions[env_id] = (translation[0], translation[1], translation[2])
+        orientations[env_id] = (imaginary[0], imaginary[1], imaginary[2], rotation.GetReal())
+    return positions, orientations
+
+
+def prebake_camera_trajectory(
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    frame_time_codes: list[float],
+    scene_world_transforms: list[Gf.Matrix4d],
+    device: str,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Sample the per-env camera world poses for every frame into two device tensors.
+
+    Resolving the camera's USD transform per frame put a Python loop over envs and a host allocation
+    inside the render loop. Sampling every frame up front instead leaves the loop with a
+    slice of a device tensor.
+
+    Returns:
+        Positions [m], shape ``[num_frames, num_envs, 3]``, and orientation quaternions,
+        shape ``[num_frames, num_envs, 4]``.
+    """
+    samples = [
+        compute_env_camera_world_poses(source_stage, source_camera_prim_path, time_code, scene_world_transforms)
+        for time_code in frame_time_codes
+    ]
+    positions = np.stack([sample_positions for sample_positions, _ in samples])
+    orientations = np.stack([sample_orientations for _, sample_orientations in samples])
+    return (
+        torch.as_tensor(positions, dtype=torch.float32, device=device),
+        torch.as_tensor(orientations, dtype=torch.float32, device=device),
     )
 
 
@@ -354,9 +848,71 @@ def make_ppisp_cfg(camera_prim: Usd.Prim, num_ppisp_bindings: int) -> PpispCfg:
     return ppisp_cfg
 
 
-def create_duplicated_env_scene() -> InteractiveScene:
+def make_matched_camera_prims_visible(stage: Usd.Stage, camera_prim_path: str) -> None:
+    """Make duplicated camera prims visible so OVRTX can discover their render products."""
+    for prim in sim_utils.find_matching_prims(camera_prim_path, stage):
+        UsdGeom.Imageable(prim).MakeVisible()
+
+
+def resolve_env_spacing(source_stage: Usd.Stage) -> float:
+    """Return the env grid spacing, defaulting to the input scene's horizontal extent.
+
+    A capture scene spans hundreds of meters, so the 20 m spacing that suits a robot cell makes the
+    duplicated copies interpenetrate: every env then renders a neighbor's geometry sitting in front
+    of its camera. Gaussian splats are not :class:`UsdGeom.Boundable`, so a USD bounding box misses
+    them entirely and reports an empty extent; measure the per-particle positions as well.
+    """
+    if args_cli.env_spacing is not None:
+        return args_cli.env_spacing
+    if args_cli.num_envs == 1:
+        # A single env sits at the grid origin, so the spacing never applies.
+        return DEFAULT_ENV_SPACING
+
+    default_prim = gaussian_anim.require_default_prim(source_stage)
+    time_code = Usd.TimeCode(STAGE_TIME_CODE)
+    xform_cache = UsdGeom.XformCache(time_code)
+    # Every bound below is unioned in defaultPrim space, which is the space the scene is referenced
+    # under each env in. Mixing in a world-space bound would add the defaultPrim's own world offset
+    # to the union as a spurious gap and over-space the grid.
+    world_to_default = xform_cache.GetLocalToWorldTransform(default_prim).GetInverse()
+    bbox_cache = UsdGeom.BBoxCache(time_code, [UsdGeom.Tokens.default_], useExtentsHint=True)
+    extent = Gf.Range3d()
+    for prim in Usd.PrimRange(default_prim):
+        if prim.IsA(UsdGeom.Boundable):
+            world_bound = bbox_cache.ComputeWorldBound(prim).ComputeAlignedRange()
+            extent.UnionWith(Gf.BBox3d(world_bound, world_to_default).ComputeAlignedRange())
+        if prim.GetTypeName() != gaussian_anim.GAUSSIAN_PRIM_TYPE_NAME:
+            continue
+        positions = np.empty((0, 3))
+        for name in gaussian_anim.POSITIONS_ATTR_NAMES:
+            attr = prim.GetAttribute(name)
+            values = attr.Get(time_code) if attr else None
+            if values is not None:
+                positions = np.asarray(values, dtype=np.float64)
+                break
+        if positions.ndim != 2 or positions.shape[0] == 0:
+            continue
+        # Transforming the local corners rather than every particle keeps this to eight points.
+        local_range = Gf.Range3d(Gf.Vec3d(*positions.min(axis=0)), Gf.Vec3d(*positions.max(axis=0)))
+        local_to_default = xform_cache.GetLocalToWorldTransform(prim) * world_to_default
+        extent.UnionWith(Gf.BBox3d(local_range, local_to_default).ComputeAlignedRange())
+    if extent.IsEmpty():
+        print(
+            f"[WARN] Could not measure the input scene extent; using {DEFAULT_ENV_SPACING:g} m env spacing. "
+            "Pass --env_spacing if the duplicated envs overlap.",
+            flush=True,
+        )
+        return DEFAULT_ENV_SPACING
+
+    size = extent.GetSize()
+    spacing = max(size[0], size[1], DEFAULT_ENV_SPACING)
+    print(f"[INFO] Input scene extent {size[0]:.1f}x{size[1]:.1f} m; env spacing {spacing:.1f} m.", flush=True)
+    return spacing
+
+
+def create_duplicated_env_scene(env_spacing: float) -> InteractiveScene:
     """Create a production-style duplicated-env scene for tiled camera rendering."""
-    scene_cfg = PpispCameraSceneCfg(num_envs=args_cli.num_envs, env_spacing=args_cli.env_spacing)
+    scene_cfg = PpispCameraSceneCfg(num_envs=args_cli.num_envs, env_spacing=env_spacing)
     scene_cfg.input_scene.spawn = sim_utils.UsdFileCfg(usd_path=args_cli.input_scene)
     scene = InteractiveScene(scene_cfg)
     print(f"[INFO] Referenced input scene into {args_cli.num_envs} env(s).", flush=True)
@@ -373,14 +929,30 @@ def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int
             width=width,
             data_types=["rgb"],
             spawn=None,
+            # Required for trajectory playback: without it, the per-frame pose written by
+            # set_world_poses() stays in the sensor view and never reaches the renderer.
+            update_latest_camera_pose=True,
             isp_cfg=ppisp_cfg,
             renderer_cfg=make_renderer_cfg(),
         )
     )
 
 
+@wp.kernel
+def compute_rgb_diff(
+    baseline: wp.array(dtype=wp.uint8, ndim=4),
+    ppisp: wp.array(dtype=wp.uint8, ndim=4),
+    diff: wp.array(dtype=wp.float32, ndim=4),
+) -> None:
+    """Compute normalized RGB absolute difference on the camera array's device."""
+    env_id, row, col, channel = wp.tid()
+    diff[env_id, row, col, channel] = (
+        wp.abs(wp.float32(ppisp[env_id, row, col, channel]) - wp.float32(baseline[env_id, row, col, channel])) / 255.0
+    )
+
+
 def save_images_grid(
-    images: list[torch.Tensor],
+    images: list[np.ndarray],
     nrow: int = 1,
     subtitles: list[str] | None = None,
     title: str | None = None,
@@ -397,7 +969,7 @@ def save_images_grid(
         axes = np.array([axes])
 
     for idx, (img, ax) in enumerate(zip(images, axes)):
-        ax.imshow(img.detach().cpu().clamp(0.0, 1.0).numpy())
+        ax.imshow(np.clip(img, 0.0, 1.0))
         ax.axis("off")
         if subtitles:
             ax.set_title(subtitles[idx])
@@ -412,147 +984,331 @@ def save_images_grid(
     plt.close()
 
 
-def make_tiled_image(images: torch.Tensor) -> torch.Tensor:
+def make_tiled_image(images: np.ndarray) -> np.ndarray:
     """Stack a camera batch vertically into one image."""
-    return torch.cat([image for image in images], dim=0)
+    return np.concatenate([image for image in images], axis=0)
 
 
-def save_tensor_image(image: torch.Tensor, filename: str) -> None:
-    """Save a tensor image in [0, 1] without axes, titles, or layout scaling."""
+def save_array_image(image: np.ndarray, filename: str) -> None:
+    """Save an array image in [0, 1] without axes, titles, or layout scaling."""
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    plt.imsave(filename, image.detach().cpu().clamp(0.0, 1.0).numpy())
+    plt.imsave(filename, np.clip(image, 0.0, 1.0))
 
 
-def corner_center_ratio(rgb: torch.Tensor) -> float:
+def corner_center_ratio(rgb: np.ndarray) -> float:
     """Return the average corner brightness divided by center brightness for one RGB image."""
     h, w = rgb.shape[:2]
     patch = max(4, min(h, w) // 8)
     cy, cx = h // 2 - patch // 2, w // 2 - patch // 2
-    center = rgb[cy : cy + patch, cx : cx + patch, :3].float().mean()
-    corners = torch.stack(
+    center = rgb[cy : cy + patch, cx : cx + patch, :3].astype(np.float32).mean()
+    corners = np.stack(
         [
-            rgb[:patch, :patch, :3].float().mean(),
-            rgb[:patch, -patch:, :3].float().mean(),
-            rgb[-patch:, :patch, :3].float().mean(),
-            rgb[-patch:, -patch:, :3].float().mean(),
+            rgb[:patch, :patch, :3].astype(np.float32).mean(),
+            rgb[:patch, -patch:, :3].astype(np.float32).mean(),
+            rgb[-patch:, :patch, :3].astype(np.float32).mean(),
+            rgb[-patch:, -patch:, :3].astype(np.float32).mean(),
         ]
     ).mean()
-    return (corners / center.clamp_min(1.0)).item()
+    return float(corners / max(center, 1.0))
 
 
-def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppisp_camera: Camera) -> None:
-    """Run the simulator and periodically save baseline-vs-PPISP images."""
-    sim_dt = sim.get_physics_dt()
+def resolve_output_dir() -> str:
+    """Resolve the demo output directory, creating it if needed."""
     output_dir = args_cli.output_dir
     if output_dir is None:
         output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ppisp_camera")
     os.makedirs(output_dir, exist_ok=True)
+    return output_dir
 
-    if args_cli.warmup_steps > 0:
-        print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
-    for _ in range(args_cli.warmup_steps):
-        sim.step()
-        baseline_camera.update(sim_dt)
-        ppisp_camera.update(sim_dt)
 
-    count = 0
+def run_simulator(
+    sim: sim_utils.SimulationContext,
+    baseline_camera: Camera | None,
+    ppisp_camera: Camera,
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    frame_time_codes: list[float],
+    gaussian_tracks: list[gaussian_anim.AnimatedGaussianTrack],
+    ovrtx_renderer: Any | None = None,
+) -> None:
+    """Play the camera trajectory and periodically save rendered images."""
+    render_dt = 1.0 / args_cli.render_fps
+    write_interval = max(1, int(round(args_cli.render_fps / args_cli.write_fps)))
+    # The baseline and PPISP sensors share the same camera prims but keep independent view state.
+    cameras = [ppisp_camera] if baseline_camera is None else [baseline_camera, ppisp_camera]
+    scene_world_transforms = get_env_scene_world_transforms()
+    # Prebaked once so the render loop below only slices device buffers.
+    camera_positions, camera_orientations = prebake_camera_trajectory(
+        source_stage, source_camera_prim_path, frame_time_codes, scene_world_transforms, str(sim.device)
+    )
+    # Both RTX renderers stream sampled Gaussian state straight to their live renderer/Fabric data.
+    gaussian_playback = None
+    isaacrtx_fabric_playback = None
+    if ovrtx_renderer is not None:
+        gaussian_playback = gaussian_anim.OVRTXGaussianTrackPlayback(
+            source_stage,
+            gaussian_tracks,
+            frame_time_codes,
+            args_cli.num_envs,
+            str(sim.device),
+            num_slots=args_cli.ovrtx_gaussian_ring_slots,
+        )
+    elif args_cli.renderer == "isaac_rtx":
+        isaacrtx_fabric_playback = gaussian_anim.IsaacRtxFabricTrackPlayback(
+            source_stage,
+            gaussian_tracks,
+            frame_time_codes,
+            args_cli.num_envs,
+            str(sim.device),
+        )
+    output_dir = resolve_output_dir()
+    comparison_dir = os.path.join(output_dir, "comparison")
+    baseline_dir = os.path.join(output_dir, "baseline")
+    ppisp_dir = os.path.join(output_dir, "ppisp")
+    diff_dir = os.path.join(output_dir, "diff")
+    diff_wp: wp.array | None = None
     reported_shape = False
-    while simulation_app.is_running():
-        sim.step()
-        baseline_camera.update(sim_dt)
-        ppisp_camera.update(sim_dt)
-        count += 1
 
-        if count % args_cli.save_interval == 0:
-            baseline = baseline_camera.data.output["rgb"][..., :3]
-            ppisp = ppisp_camera.data.output["rgb"][..., :3]
-            diff = (ppisp.float() - baseline.float()).abs() / 255.0
-            if not reported_shape:
-                print(f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}", flush=True)
-                reported_shape = True
-            mean_abs_delta = diff.mean().item() * 255.0
-            ratios = [corner_center_ratio(ppisp[i]) for i in range(ppisp.shape[0])]
-            ratio = sum(ratios) / len(ratios)
-            per_env_delta = diff.mean(dim=(1, 2, 3)) * 255.0
-            per_env_ppisp_mean = ppisp.float().mean(dim=(1, 2, 3))
-            print(
-                f"[INFO] step={count} mean_abs_delta={mean_abs_delta:.2f} mean_ppisp_corner_center_ratio={ratio:.3f}",
-                flush=True,
-            )
-            print(
-                "[INFO] per-env mean_abs_delta="
-                + ", ".join(f"{value:.2f}" for value in per_env_delta.detach().cpu().tolist()),
-                flush=True,
-            )
-            print(
-                "[INFO] per-env ppisp_mean="
-                + ", ".join(f"{value:.2f}" for value in per_env_ppisp_mean.detach().cpu().tolist()),
-                flush=True,
-            )
-            images = []
-            subtitles = []
-            for env_id in range(ppisp.shape[0]):
-                images.extend(
-                    [
-                        baseline[env_id].float() / 255.0,
-                        ppisp[env_id].float() / 255.0,
-                        diff[env_id],
-                    ]
-                )
-                subtitles.extend([f"env {env_id} baseline", f"env {env_id} PPISP", f"env {env_id} diff"])
-            save_images_grid(
-                images,
-                nrow=ppisp.shape[0],
-                subtitles=subtitles,
-                title="USD-authored PPISP on duplicated Gaussian scene envs",
-                filename=os.path.join(output_dir, f"ppisp_camera_{count:04d}.png"),
-            )
-            save_tensor_image(
-                make_tiled_image(baseline.float() / 255.0),
-                os.path.join(output_dir, f"ppisp_camera_{count:04d}_baseline_tiled.png"),
-            )
-            save_tensor_image(
-                make_tiled_image(ppisp.float() / 255.0),
-                os.path.join(output_dir, f"ppisp_camera_{count:04d}_ppisp_tiled.png"),
-            )
-            save_tensor_image(
-                make_tiled_image(diff),
-                os.path.join(output_dir, f"ppisp_camera_{count:04d}_diff_tiled.png"),
-            )
+    print(
+        f"[INFO] Rendering {len(frame_time_codes)} frame(s) at {args_cli.render_fps:g} FPS; "
+        f"writing every {write_interval} frame(s) at {args_cli.write_fps:g} FPS.",
+        flush=True,
+    )
+    if args_cli.warmup_steps > 0:
+        print(f"[INFO] Running {args_cli.warmup_steps} warmup render pass(es) before saving images.", flush=True)
+    if gaussian_playback is not None and not gaussian_playback.is_empty:
+        ring_bytes = gaussian_playback.device_bytes
+        ring_size = f"{ring_bytes / 1024**2:.1f} MiB" if ring_bytes >= 1024**2 else f"{ring_bytes / 1024:.1f} KiB"
+        print(
+            f"[INFO] Streaming animated Gaussian tracks through {args_cli.ovrtx_gaussian_ring_slots} ring slot(s) using"
+            f" {ring_size} of device memory.",
+            flush=True,
+        )
+    if isaacrtx_fabric_playback is not None and not isaacrtx_fabric_playback.is_empty:
+        print("[INFO] Bound animated Gaussian tracks to Isaac RTX Fabric attributes.", flush=True)
+    # Seed OVRTX before warmup. Isaac RTX writes after each Kit render pump below, immediately before
+    # its camera updates render the frame.
+    if gaussian_playback is not None:
+        gaussian_playback.play(ovrtx_renderer, 0)
+    for _ in range(args_cli.warmup_steps):
+        with nvtx_range("warmup"):
+            if args_cli.renderer == "isaac_rtx":
+                sim.render()
+            if isaacrtx_fabric_playback is not None:
+                isaacrtx_fabric_playback.write_array_attribute(0)
+            for camera in cameras:
+                camera.update(render_dt, force_recompute=True)
 
-        if args_cli.max_steps is not None and count >= args_cli.max_steps:
+    for frame_index, time_code in enumerate(frame_time_codes):
+        if simulation_app is not None and not simulation_app.is_running():
             break
+        # Every sensor keeps its own view state, so a shared prim batch is written once per sensor.
+        with nvtx_range("camera_pose_update"):
+            for camera in cameras:
+                camera.set_world_poses(
+                    camera_positions[frame_index], camera_orientations[frame_index], convention="opengl"
+                )
+
+        with nvtx_range("gaussian_animation_update"):
+            if gaussian_playback is not None:
+                gaussian_playback.play(ovrtx_renderer, frame_index)
+
+        # Isaac RTX needs Kit's render loop to consume Fabric and render-product updates. OVRTX is
+        # kit-less and its render is driven directly by ``camera.update()`` below.
+        if args_cli.renderer == "isaac_rtx":
+            with nvtx_range("kit_render_pump"):
+                sim.render()
+
+        # Write after Kit's render pump so it does not overwrite the sampled Fabric columns before the
+        # cameras consume them below.
+        if isaacrtx_fabric_playback is not None:
+            with nvtx_range("gaussian_animation_update"):
+                isaacrtx_fabric_playback.write_array_attribute(frame_index)
+
+        with nvtx_range("camera_update"):
+            if baseline_camera is not None:
+                baseline_camera.update(render_dt, force_recompute=True)
+            ppisp_camera.update(render_dt, force_recompute=True)
+        if frame_index % write_interval != 0:
+            continue
+
+        ppisp_wp = ppisp_camera.data.output["rgb"].warp
+        baseline_wp = None if baseline_camera is None else baseline_camera.data.output["rgb"].warp
+        if baseline_wp is not None:
+            with nvtx_range("image_difference"):
+                if diff_wp is None:
+                    diff_wp = wp.empty(ppisp_wp.shape, dtype=wp.float32, device=ppisp_wp.device)
+                wp.launch(
+                    compute_rgb_diff,
+                    dim=ppisp_wp.shape,
+                    inputs=[baseline_wp, ppisp_wp, diff_wp],
+                    device=ppisp_wp.device,
+                )
+
+        # Transfer image buffers to NumPy only at the disk-writing boundary.
+        with nvtx_range("image_transfer"):
+            ppisp = ppisp_wp.numpy()
+            baseline = None if baseline_wp is None else baseline_wp.numpy()
+            diff = None if diff_wp is None else diff_wp.numpy()
+        if not reported_shape:
+            print(f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}", flush=True)
+            reported_shape = True
+
+        ratios = [corner_center_ratio(ppisp[env_id]) for env_id in range(ppisp.shape[0])]
+        per_env_ppisp_mean = ppisp.astype(np.float32).mean(axis=(1, 2, 3))
+        summary = (
+            f"[INFO] frame={frame_index} usd_time={time_code:g} "
+            f"mean_ppisp_corner_center_ratio={sum(ratios) / len(ratios):.3f}"
+        )
+        if diff is not None:
+            summary += f" mean_abs_delta={float(diff.mean()) * 255.0:.2f}"
+        print(summary, flush=True)
+        print(
+            "[INFO] per-env ppisp_mean=" + ", ".join(f"{value:.2f}" for value in per_env_ppisp_mean.tolist()),
+            flush=True,
+        )
+        if diff is not None:
+            per_env_delta = diff.mean(axis=(1, 2, 3)) * 255.0
+            print(
+                "[INFO] per-env mean_abs_delta=" + ", ".join(f"{value:.2f}" for value in per_env_delta.tolist()),
+                flush=True,
+            )
+
+        with nvtx_range("image_write"):
+            save_array_image(
+                make_tiled_image(ppisp / 255.0), os.path.join(ppisp_dir, f"ppisp_camera_{frame_index:06d}.png")
+            )
+            if baseline is not None and diff is not None:
+                save_array_image(
+                    make_tiled_image(baseline / 255.0),
+                    os.path.join(baseline_dir, f"ppisp_camera_{frame_index:06d}.png"),
+                )
+                save_array_image(make_tiled_image(diff), os.path.join(diff_dir, f"ppisp_camera_{frame_index:06d}.png"))
+                images = []
+                subtitles = []
+                for env_id in range(ppisp.shape[0]):
+                    images.extend([baseline[env_id] / 255.0, ppisp[env_id] / 255.0, diff[env_id]])
+                    subtitles.extend([f"env {env_id} baseline", f"env {env_id} PPISP", f"env {env_id} diff"])
+                save_images_grid(
+                    images,
+                    nrow=ppisp.shape[0],
+                    subtitles=subtitles,
+                    title="USD-authored PPISP on duplicated Gaussian scene envs",
+                    filename=os.path.join(comparison_dir, f"ppisp_camera_{frame_index:06d}.png"),
+                )
+
+    if isaacrtx_fabric_playback is not None:
+        isaacrtx_fabric_playback.close()
 
 
 def main() -> None:
     """Main function."""
+    if args_cli.renderer == "ovrtx" and "://" in args_cli.input_scene:
+        # Without a Kit app there is no asset resolver behind ``Usd.Stage.Open``, so fetch the payload
+        # once and let the referenced env scenes resolve against the local copy too.
+        args_cli.input_scene = retrieve_file_path(args_cli.input_scene)
     source_stage = Usd.Stage.Open(args_cli.input_scene)
     if source_stage is None:
         raise RuntimeError(f"Failed to open input scene: {args_cli.input_scene}")
-    source_camera_prim_path, render_product_prim, ppisp_camera_prim = resolve_source_camera_binding(source_stage)
-    ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, len(find_ppisp_camera_bindings(source_stage)))
+    source_camera_prim_path, render_product_prim, ppisp_camera_prim, num_ppisp_cameras = resolve_source_camera_binding(
+        source_stage
+    )
+    ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, num_ppisp_cameras)
     camera_prim_path = source_camera_path_to_env_regex(source_stage, source_camera_prim_path)
     width, height = resolve_image_shape(render_product_prim)
 
-    sim_utils.create_new_stage()
-    sim_cfg = make_sim_cfg()
-    sim = sim_utils.SimulationContext(sim_cfg)
-    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    sim = None
+    try:
+        sim_utils.create_new_stage()
+        sim_cfg = make_sim_cfg()
+        sim = sim_utils.SimulationContext(sim_cfg)
+        sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
-    scene = create_duplicated_env_scene()
-    if args_cli.renderer == "newton_renderer":
-        bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path)
-    baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
-    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
-    print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
-    print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
+        scene = create_duplicated_env_scene(resolve_env_spacing(source_stage))
+        gaussian_tracks = resolve_animated_gaussian_tracks(source_stage)
+        trajectory_times = get_trajectory_time_samples(source_stage, source_camera_prim_path)
+        if trajectory_times:
+            print(
+                f"[INFO] Resampled {len(trajectory_times)} camera trajectory time sample(s) at "
+                f"{args_cli.render_fps:g} FPS: "
+                f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+                flush=True,
+            )
+        else:
+            # A scene may animate only its Gaussians, in which case their time samples drive the frames.
+            trajectory_times = gaussian_anim.collect_authored_times(source_stage, gaussian_tracks)
+            if trajectory_times:
+                print(
+                    f"[INFO] Static camera; playing {len(trajectory_times)} Gaussian animation time sample(s): "
+                    f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+                    flush=True,
+                )
+        if not trajectory_times:
+            trajectory_times = [args_cli.camera_time_code]
+            print(
+                f"[INFO] No USD xform time samples found; playing the static camera at USD time "
+                f"{args_cli.camera_time_code:g}.",
+                flush=True,
+            )
+        frame_time_codes = trajectory_times
+        if args_cli.num_frames is not None:
+            # Hold the last trajectory pose when more frames are requested than the trajectory provides.
+            last_index = len(trajectory_times) - 1
+            frame_time_codes = [trajectory_times[min(index, last_index)] for index in range(args_cli.num_frames)]
 
-    sim.reset()
-    print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
-    run_simulator(sim, baseline_camera, ppisp_camera)
-    del scene
+        # Prepare the camera prims before the sensors and their frame views are built: freeze the animated
+        # rig above them so runtime pose writes stick, then seed the first trajectory pose.
+        freeze_env_camera_ancestor_xforms(source_stage, source_camera_prim_path)
+        bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path, frame_time_codes[0])
+        make_matched_camera_prims_visible(sim_utils.get_current_stage(), camera_prim_path)
+        # The PPISP sensor is created first because on OVRTX only the first sensor built over a shared
+        # camera prim batch receives a bound HDR render product; a later one renders black.
+        ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
+        baseline_camera = None
+        if not args_cli.render_only:
+            baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
+        # Apply once after camera/render-product construction and before reset, warmup, and rendering.
+        apply_isaacrtx_settings()
+        print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
+        print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
+    except Exception:
+        # Setup allocates renderer and sensor GPU resources too, so it needs the same teardown as the run loop.
+        if sim is not None:
+            try:
+                sim.stop()
+            finally:
+                sim.clear_instance()
+        raise
+
+    try:
+        sim.reset()
+        print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
+        # The camera sensors already initialized the shared renderer, which an equal cfg looks back up.
+        ovrtx_renderer = None
+        if args_cli.renderer == "ovrtx":
+            ovrtx_renderer = sim.render_context.get_renderer(make_renderer_cfg())
+        run_simulator(
+            sim,
+            baseline_camera,
+            ppisp_camera,
+            source_stage,
+            source_camera_prim_path,
+            frame_time_codes,
+            gaussian_tracks,
+            ovrtx_renderer=ovrtx_renderer,
+        )
+    finally:
+        del ppisp_camera
+        del baseline_camera
+        del scene
+        # The renderers own GPU resources that are only released through an explicit teardown.
+        try:
+            sim.stop()
+        finally:
+            sim.clear_instance()
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()

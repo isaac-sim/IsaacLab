@@ -176,6 +176,11 @@ def build_render_scope_usd(
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
     enable_shadows: bool = False,
+    render_mode: str | None = None,
+    enable_accumulation: bool = False,
+    accumulation_limit: int | None = None,
+    gaussian_accumulated_albedo: bool = False,
+    gaussian_skip_tonemapping: bool = False,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -196,6 +201,12 @@ def build_render_scope_usd(
             OVRTX assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored in RTX Minimal
             mode, that is when ``minimal_mode`` is set; the path-traced modes always cast shadows.
+        render_mode: Optional OVRTX render-mode override. ``None`` derives the mode from
+            :paramref:`minimal_mode`.
+        enable_accumulation: Whether to enable RTX accumulation on this render product.
+        accumulation_limit: Optional RTX accumulation-iteration limit.
+        gaussian_accumulated_albedo: Whether RTPT accumulates Gaussian SH0 color into diffuse albedo.
+        gaussian_skip_tonemapping: Whether RTPT skips tonemapping for Gaussian pixels.
 
     Returns:
         The USD string for the render scope.
@@ -218,16 +229,42 @@ def build_render_scope_usd(
     # Minimal is the only OVRTX render mode with a shadow switch, so ``enable_shadows`` is authored
     # only there. The path-traced modes always trace shadows: ``omni:rtx:shadows:enabled`` exists as
     # a setting name and authors without error, but no path-tracing backend reads it.
-    if minimal_mode is None:
-        render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
-    else:
+    selected_render_mode = render_mode
+    if selected_render_mode is None:
+        selected_render_mode = "Minimal" if minimal_mode is not None else "RealTimePathTracing"
+    if selected_render_mode not in {"Minimal", "RealTimePathTracing", "PathTracing"}:
+        raise ValueError(
+            "Unsupported OVRTX render mode "
+            f"'{selected_render_mode}'; expected 'Minimal', 'RealTimePathTracing', or 'PathTracing'."
+        )
+    if selected_render_mode == "Minimal":
+        if minimal_mode is None:
+            raise ValueError("OVRTX render mode 'Minimal' requires a simple-shading output.")
         render_mode_lines = [
             'token omni:rtx:rendermode = "Minimal"',
             f"int omni:rtx:minimal:mode = {minimal_mode}",
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
+    else:
+        render_mode_lines = [f'token omni:rtx:rendermode = "{selected_render_mode}"']
 
     render_mode_block = "\n        ".join(render_mode_lines)
+    render_settings_lines = []
+    api_schemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+    if enable_accumulation or accumulation_limit is not None:
+        api_schemas.append("OmniRtxSettingsRtAPI_1")
+        accumulation_enabled = "true" if enable_accumulation else "false"
+        render_settings_lines.append(f"bool omni:rtx:rt:accumulation:enabled = {accumulation_enabled}")
+    if accumulation_limit is not None:
+        render_settings_lines.append(f"int omni:rtx:rt:accumulationLimit = {accumulation_limit}")
+    if gaussian_accumulated_albedo:
+        api_schemas.append("OmniRtxSettingsParticleFieldAPI_1")
+        render_settings_lines.append("bool omni:rtx:rtpt:gaussian:accumulatedAlbedo:enabled = true")
+    if gaussian_skip_tonemapping:
+        # TODO: Use the generated OVRTX setting once it is exposed in the next OVRTX release.
+        render_settings_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = true")
+    api_schemas_block = ", ".join(f'"{schema}"' for schema in api_schemas)
+    render_settings_block = "\n        ".join(render_settings_lines)
     if render_var_configs is None:
         render_var_configs = [(render_var_path, render_var_name, source_name)]
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
@@ -243,13 +280,14 @@ def build_render_scope_usd(
 def Scope "Render"
 {{
     def RenderProduct "{render_product_name}" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+        prepend apiSchemas = [{api_schemas_block}]
     ) {{
         rel camera = [{camera_rel_list}]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
-        token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
+        {render_settings_block}
+        token[] omni:rtx:waitForEvents = ["AllLoadingFinished"]
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
     }}
@@ -279,6 +317,11 @@ def build_render_product_as_string(
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
     enable_shadows: bool = False,
+    render_mode: str | None = None,
+    enable_accumulation: bool = False,
+    accumulation_limit: int | None = None,
+    gaussian_accumulated_albedo: bool = False,
+    gaussian_skip_tonemapping: bool = False,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
@@ -302,6 +345,11 @@ def build_render_product_as_string(
             assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
+        render_mode: Optional OVRTX render-mode override.
+        enable_accumulation: Whether to enable RTX accumulation on the render product.
+        accumulation_limit: Optional RTX accumulation-iteration limit.
+        gaussian_accumulated_albedo: Whether RTPT accumulates Gaussian SH0 color into diffuse albedo.
+        gaussian_skip_tonemapping: Whether RTPT skips tonemapping for Gaussian pixels.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -329,6 +377,11 @@ def build_render_product_as_string(
         background_color,
         device_id,
         enable_shadows,
+        render_mode,
+        enable_accumulation,
+        accumulation_limit,
+        gaussian_accumulated_albedo,
+        gaussian_skip_tonemapping,
     )
     return camera_content, render_product_path
 
@@ -377,6 +430,77 @@ def create_scene_partition_attributes(
             Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
             root_layer.GetAttributeAtPath(attr_path).default = scene_partition
             logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
+
+
+_GAUSSIAN_PRIM_TYPE_NAME = "ParticleField3DGaussianSplat"
+"""USD type name of the gaussian splat prims :func:`force_gaussian_sorting_mode_hint` overrides."""
+
+_GAUSSIAN_SORTING_MODE_HINT = "sortingModeHint"
+"""Gaussian splat attribute selecting the depth metric the renderer sorts splats by."""
+
+
+def force_gaussian_sorting_mode_hint(stage, sorting_mode: str = "cameraDistance") -> int:
+    """Override ``sortingModeHint`` on every gaussian splat prim in the stage.
+
+    TODO: Remove this workaround once the RTX bug is fixed. RTX drops *all*
+    gaussian contribution, in *every* tile, when a RenderProduct is bound to more than one
+    camera (``viewTileCount > 1``) and the sort mode is ``zDepth`` — the mode NuRec exports
+    author and the one RTX falls back to when the token is absent. So without this override a
+    multi-camera OVRTX render of a real capture shows no splats at all. ``cameraDistance``
+    computes the sort key in object space instead of from the per-view-tile ``WorldToView``
+    matrix, and renders correctly at any camera count. ``isaac_rtx`` is unaffected, so this
+    override is deliberately confined to the OVRTX path.
+
+    Overriding an asset-defined attribute is knowingly wrong: it substitutes a different depth
+    metric than the capture asked for, which can reorder splats and change blending. It is the
+    lesser evil while the renderer bug stands, and it must go away with the bug.
+
+    The override is applied to every gaussian prim rather than only to the multi-camera case that
+    misrenders, because the caller cannot yet tell the two apart: :meth:`OVRTXRenderer.prepare_stage`
+    exports the stage to the string OVRTX consumes immediately afterwards, while render products —
+    and therefore the per-product view-tile count — are built later, by ``create_render_data``, for
+    cameras that may still register after this stage was prepared. Being wrong in the permissive
+    direction costs a different sort metric on a single-camera render; being wrong in the other
+    direction renders nothing at all.
+
+    The override is authored on the root layer, so it wins over values that arrive through a
+    reference or payload.
+
+    Args:
+        stage: USD stage to modify.
+        sorting_mode: Sort mode token to force onto the gaussian prims.
+
+    Returns:
+        Number of gaussian prims overridden.
+    """
+    attr_paths = [
+        prim.GetPath().AppendProperty(_GAUSSIAN_SORTING_MODE_HINT)
+        for prim in stage.Traverse()
+        if prim.GetTypeName() == _GAUSSIAN_PRIM_TYPE_NAME
+    ]
+    if not attr_paths:
+        return 0
+
+    root_layer = stage.GetRootLayer()
+    with Sdf.ChangeBlock():
+        for attr_path in attr_paths:
+            # The attribute is already on the root layer whenever the asset authored it there, and
+            # creating a spec that exists raises, so only create the ones that are missing.
+            if root_layer.GetAttributeAtPath(attr_path) is None:
+                Sdf.JustCreatePrimAttributeInLayer(
+                    root_layer, attr_path, Sdf.ValueTypeNames.Token, Sdf.VariabilityUniform, True
+                )
+            root_layer.GetAttributeAtPath(attr_path).default = sorting_mode
+
+    logger.warning(
+        "Forced '%s = %s' on %d gaussian splat prim(s), overriding the value authored in the asset."
+        " Workaround for an RTX bug that drops every splat in multi-camera OVRTX renders when the"
+        " sort mode is 'zDepth' (see force_gaussian_sorting_mode_hint).",
+        _GAUSSIAN_SORTING_MODE_HINT,
+        sorting_mode,
+        len(attr_paths),
+    )
+    return len(attr_paths)
 
 
 def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:

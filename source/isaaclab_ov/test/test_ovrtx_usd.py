@@ -111,6 +111,49 @@ def test_build_render_scope_usd_solid_background_color():
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
+def test_build_render_scope_usd_authors_ovrtx_rtx_settings():
+    """OVRTX settings are authored on the RenderProduct without its settings extension."""
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path="/Render/Vars/LdrColor",
+        render_var_name="LdrColor",
+        source_name="LdrColor",
+        tiled_width=16,
+        tiled_height=8,
+        render_mode="PathTracing",
+        enable_accumulation=True,
+        accumulation_limit=7,
+        gaussian_accumulated_albedo=True,
+        gaussian_skip_tonemapping=True,
+    )
+
+    assert (
+        'prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAPI_1", '
+        '"OmniRtxSettingsParticleFieldAPI_1"]'
+    ) in render_scope
+    assert 'token omni:rtx:rendermode = "PathTracing"' in render_scope
+    assert "bool omni:rtx:rt:accumulation:enabled = true" in render_scope
+    assert "int omni:rtx:rt:accumulationLimit = 7" in render_scope
+    assert "bool omni:rtx:rtpt:gaussian:accumulatedAlbedo:enabled = true" in render_scope
+    assert "bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = true" in render_scope
+
+
+def test_build_render_scope_usd_rejects_minimal_without_simple_shading():
+    """Minimal mode needs the simple-shading mode that selects its output."""
+    with pytest.raises(ValueError, match="requires a simple-shading output"):
+        build_render_scope_usd(
+            camera_paths=["/World/envs/env_0/Camera"],
+            render_product_name="RenderProduct",
+            render_var_path="/Render/Vars/LdrColor",
+            render_var_name="LdrColor",
+            source_name="LdrColor",
+            tiled_width=16,
+            tiled_height=8,
+            render_mode="Minimal",
+        )
+
+
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")

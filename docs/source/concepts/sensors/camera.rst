@@ -317,8 +317,21 @@ Run ``scripts/demos/sensors/ppisp_camera.py`` for a complete PPISP workflow:
 
 .. code-block:: bash
 
+   # Render three frames with Newton Warp (the default).
+   uv run python scripts/demos/sensors/ppisp_camera.py \
+      --renderer newton_renderer --num_frames 3
+
+   # Render the same input with Isaac RTX.
    uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
-      --renderer newton_renderer --max_steps 60
+      --renderer isaac_rtx --num_frames 3
+
+   # Render kit-less with OVRTX.
+   uv run --extra ovrtx python scripts/demos/sensors/ppisp_camera.py \
+      --renderer ovrtx --num_frames 3
+
+   # Play an authored camera or Gaussian-splat animation at 30 FPS, writing every third frame.
+   uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
+      --renderer isaac_rtx --render_fps 30 --write_fps 10
 
 Performance and validation
 --------------------------
