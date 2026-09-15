@@ -29,13 +29,12 @@ from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -616,7 +615,12 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
 
     env_spacing: float = 2.0
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="plane",
+        # Keep the background in the calibrated HDR range independently of the default plane's appearance.
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
+    )
 
     gaussian = AssetBaseCfg(
         prim_path=f"{{ENV_REGEX_NS}}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}",
@@ -729,14 +733,6 @@ def render_synthetic_gaussian_scene(
             renderer_cfg=renderer_cfg,
         )
         camera = Camera(cfg)
-        # Camera is constructed after the scene's ReplicateSession has exited, so its
-        # queued USD replication needs an explicit drain (Path B). Reuse the scene's
-        # env positions so env_origins stays consistent.
-        published = sim.get_clone_plan()
-        positions = published.positions if published is not None else None
-        src, dst = "/World/envs/env_0", "/World/envs/env_{}"
-        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, str(sim.device), positions)
-        cloner.replicate(camera_plan, stage=sim.stage)
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()

@@ -74,10 +74,10 @@ class AnymalCEnv(DirectRLEnv):
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = (self.cfg.terrain.prim_path,)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
-        cloner.replicate(plan, stage=self.scene.stage)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
@@ -147,7 +147,7 @@ class AnymalCEnv(DirectRLEnv):
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
         # undesired contacts
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
@@ -183,7 +183,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )

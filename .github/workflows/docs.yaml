@@ -57,18 +57,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
-      with:
-        lfs: true
 
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         python-version: "3.12"
         enable-cache: true
 
     - name: Install docs dependencies
       run: |
-        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra dev
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Build current version docs
@@ -91,18 +89,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
-      with:
-        lfs: true
 
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         python-version: "3.12"
         enable-cache: true
 
     - name: Install docs dependencies
       run: |
-        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra dev
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs

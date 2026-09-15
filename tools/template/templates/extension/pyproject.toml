@@ -1,3 +1,0 @@
-[build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
-build-backend = "setuptools.build_meta"

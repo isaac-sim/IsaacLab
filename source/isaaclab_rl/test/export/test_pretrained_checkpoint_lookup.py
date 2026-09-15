@@ -10,14 +10,13 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
+_EXPORT_ROOT = Path(__file__).resolve().parents[2] / "isaaclab_rl" / "entrypoints" / "backends"
 
 
 @pytest.mark.parametrize("rl_library", ["rl_games", "rsl_rl", "sb3", "skrl"])
 def test_exporter_resolves_pretrained_checkpoint_for_active_backends(rl_library: str):
     """Each exporter must request the checkpoint matching its resolved environment backends."""
-    export_path = _LEAPP_ROOT / rl_library / "export.py"
+    export_path = _EXPORT_ROOT / f"export_{rl_library}.py"
     tree = ast.parse(export_path.read_text(encoding="utf-8"), filename=str(export_path))
 
     backend_assignments = [

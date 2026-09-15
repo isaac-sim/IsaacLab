@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 import pytest
 import warp as wp
-from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
@@ -130,18 +129,6 @@ def test_builder_hook_resets_entry_offsets_on_first_environment():
 
     assert entry.particle_offsets == [0]
     assert entry.particles_per_body == 3
-
-
-def test_newton_physics_context_is_replicate_context():
-    """Test that Newton registers its replicate context as the backend physics context.
-
-    USD clones are no longer part of a backend stack: :func:`isaaclab.cloner.replicate`
-    adds ``UsdReplicateContext`` per spawned cfg only when Kit is available, which is
-    covered by the replicate-session tests in ``test_cloner.py``.
-    """
-    from isaaclab_newton.cloner import PHYSICS_CONTEXT
-
-    assert PHYSICS_CONTEXT is NewtonReplicateContext
 
 
 def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):

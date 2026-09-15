@@ -74,6 +74,44 @@ def test_apply_video_recording_injects_correct_recorder():
     assert rec.video_length == 42  # CLI override applied
     assert rec.video_interval == 500  # CLI override applied
     assert rec.output_dir == os.path.join("/my/log", "videos", "play")
+    assert rec.output_filename_prefix == "clip"
+
+
+@pytest.mark.parametrize(
+    ("existing_prefix", "checkpoint_name", "expected_prefix"),
+    [
+        ("clip", "model_1200.pt", "clip_model_1200"),
+        ("eval", "model_42.pt", "eval_model_42"),
+        # Overlapping numeric ids stay distinct tokens instead of substrings.
+        ("clip_model_1200", "model_120.pt", "clip_model_1200_model_120"),
+        # Non-model or non-numeric stems keep the configured prefix.
+        ("clip", "custom_1200.pt", "clip"),
+        ("clip", "final.pt", "clip"),
+    ],
+)
+def test_apply_video_recording_labels_play_video_with_checkpoint_stem(
+    existing_prefix, checkpoint_name, expected_prefix
+):
+    """Play videos append only a numeric model checkpoint stem, kept as a distinct token."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    existing = VideoRecorderCfg()
+    existing.output_filename_prefix = existing_prefix
+
+    env_cfg = _env_cfg()
+    env_cfg.video_recorders = [existing]
+    apply_video_recording(env_cfg, "/my/log", _args(), subdir="play", checkpoint_path=f"/my/log/{checkpoint_name}")
+
+    assert env_cfg.video_recorders[0].output_filename_prefix == expected_prefix
+
+
+def test_apply_video_recording_leaves_train_video_prefix_unchanged():
+    """Checkpoint labels are only applied to play videos, not training videos."""
+
+    env_cfg = _env_cfg()
+    apply_video_recording(env_cfg, "/my/log", _args(), checkpoint_path="/my/log/model_1200.pt")
+
+    assert env_cfg.video_recorders[0].output_filename_prefix == "clip"
 
 
 def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():

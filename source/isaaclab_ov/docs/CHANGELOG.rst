@@ -1,6 +1,226 @@
 Changelog
 ---------
 
+3.1.1 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disabled the reversed-joint sign correction for OvPhysX 0.6 and newer, which already returned Jacobians and mass matrices
+  in the public joint basis. Preserved the correction for the default OvPhysX 0.5.11
+  runtime and custom joint and body ordering on both versions.
+* Removed an unnecessary reversed-joint sign correction from gravity compensation forces on OvPhysX 0.5.11.
+* Registered the OvPhysX codeless physics schemas with OVStage before scene population when its registration API was
+  available, including when the host USD registry already provided those schemas.
+* Fixed :class:`~isaaclab_ov.sensors.ContactSensor` reporting the last in-contact force forever after a body
+  left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its data
+  was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The ovphysx contact bindings
+  are now read on every physics step regardless of the history length, while the warp kernels that consume
+  the fetched buffers stay lazy.
+
+
+3.1.0 (2026-09-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+
+
+3.0.2 (2026-09-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Projected source-only world frames from clone-plan positions when destination USD environment prims are absent.
+
+
+3.0.1 (2026-09-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added version-selected support for the OVPhysX 0.6 ``warmup()`` and ``destroy()``
+  lifecycle APIs while retaining the released 0.5.11 ``warmup_gpu()`` and
+  ``release()`` path. The public extras remain pinned to ``ovphysx==0.5.11``.
+
+Fixed
+^^^^^
+
+* Fixed fixed tendons being named after the joint carrying the tendon's root rather than after the
+  tendon instance itself, which gave the same tendon a different name on each physics engine and
+  left it unreachable from a shared configuration.
+
+* Fixed every fixed tendon being counted twice, which made ``fixed_tendon_ids=None`` address twice
+  as many tendons as the articulation has and index past the end of every fixed-tendon buffer. The
+  prim's applied schemas were read from both ``GetAppliedSchemas()`` and the ``apiSchemas``
+  metadata, which report the same entries.
+
+
+3.0.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_TYPE`,
+  :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_MODEL`,
+  :attr:`~isaaclab_ov.tensor_types.BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.CONTACT_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.REST_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_CONTACT_OFFSET`, and
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_REST_OFFSET` tensor type aliases,
+  documenting the shape, dtype and units of each.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed production OvPhysX cloning through the simulation-owned
+  ``OvPhysxReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT``, ``queue(...)``,
+  and ``queue_mapping(...)``. Standalone tooling may continue to use ``ovphysx_replicate(...)`` with
+  NumPy arrays; its unused ``device`` argument was removed.
+* Changed the IMU and PVA sensors to read rigid-body accelerations from the solver through the
+  ``RIGID_BODY_ACCELERATION`` tensor binding, including the transport terms for the sensor offset
+  from the center of mass, instead of finite-differencing the body velocity between updates. The
+  reported acceleration is available from the first update, is independent of the sensor update
+  period, and no longer spikes when velocities are written directly (for example on environment
+  resets or teleports).
+
+Fixed
+^^^^^
+
+* Fixed OVRTX transform synchronization dropping authored scale from clone-plan destinations.
+* Fixed :class:`~isaaclab_ov.sim.views.OvPhysxView` routing eight CPU-resident
+  tensor types to the simulation device. The per-collision-shape contact and rest
+  offsets, the articulation and rigid-body gravity-disable flags, and the DOF drive
+  type and drive model are CPU-resident even on a GPU simulation, but were absent
+  from the internal CPU-only classification. Reads and writes of these types
+  incurred a hidden per-call host-to-device staging copy, and a correctly placed
+  host buffer was rejected with ``OvPhysxView.DeviceMismatch``. Residency was
+  measured on a GPU simulation by counting CUDA memcpys around a binding read.
+* **Breaking:** Fixed ``articulation_dof_drive_type`` not being classified as
+  read-only. The underlying tensor type is read-only, but
+  :meth:`~isaaclab_ov.sim.views.OvPhysxView.set_attribute` previously accepted
+  writes to it and silently forwarded them. Such calls now raise
+  ``OvPhysxView.ReadOnlyAttribute``. Remove any write to this attribute; drive
+  type is authored through the USD drive schema, not the tensor path.
+* Fixed :meth:`~isaaclab_ov.physics.OvPhysxManager.get_gravity` returning the construction-time
+  gravity after :meth:`~isaaclab_ov.physics.OvPhysxManager.set_gravity` changed the running scene.
+  The manager now tracks the applied gravity vector, while ``SimulationCfg.gravity`` stays the
+  nominal value that randomization terms resample from.
+* Fixed :class:`~isaaclab_ov.sensors.Imu` and :class:`~isaaclab_ov.sensors.Pva` reporting gravity
+  captured at sensor initialization. Both sensors now re-read the scene gravity on every update, so
+  runtime randomization through :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`
+  is reflected in the accelerometer bias and the projected gravity direction.
+
+
+2.6.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OVRTX_SHADER_CACHE_PATH`` support to
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for selecting the NVIDIA driver
+  shader-cache directory.
+
+
+2.5.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`, which authors
+  ``omni:rtx:minimal:castShadows`` on the OVRTX render product. It applies to the
+  ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode; OVRTX's
+  path-traced modes provide no shadow switch and always cast shadows.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``OvPhysxManager``, which
+  enables ``physxScene:enableEnhancedDeterminism``. Reproducibility on OvPhysX is best-effort and is
+  not verified end to end.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX renderer to turn shadows off by default in RTX Minimal mode. Renders that need
+  cast shadows from the ``simple_shading_*`` data types must now set
+  ``OVRTXRendererCfg(enable_shadows=True)``.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX CPU-only property writes (joint stiffness, damping, limits, armature, friction,
+  body mass, center of mass, and inertia) on GPU simulations consuming their pinned-host staging
+  buffers before the asynchronous device-to-host copy had completed. Environments could silently
+  receive stale (typically zero) property values, which made repeated training runs diverge.
+  Every pinned-host staging copy in :class:`~isaaclab_ov.assets.Articulation`,
+  :class:`~isaaclab_ov.assets.RigidObject`, and :class:`~isaaclab_ov.assets.RigidObjectCollection`
+  now waits for the device stream before the CPU setter runs.
+
+
+2.4.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+
+
+2.3.1 (2026-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added compatibility with the OVRTX 0.5 ``frame.render_vars`` API, which keys render vars by the
+  authored RenderVar prim path (for example ``/Render/Vars/LdrColor``) instead of the source name.
+  The key form is resolved from the installed ``ovrtx`` version when
+  :mod:`isaaclab_ov.renderers.ovrtx_compat` is imported; OVRTX 0.4 keeps source-name keys and the
+  public extras stay pinned to ``ovrtx==0.4.1.364340``.
+
+Changed
+^^^^^^^
+
+* Updated the optional ovphysx runtime to 0.5.11. OVStage attachment now honors
+  explicit CUDA device selection. OVStage-backed articulation link and DOF
+  indices now use stable path-derived ordering, which may differ from 0.5.10;
+  use reported paths or names when identity matters.
+
+
+2.3.0 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+  writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
+  directory, so cooked colliders are reusable across runs from that directory. Set it to ``None`` to
+  use the runtime default.
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX writing its cooked-collider cache into the directory holding the Python interpreter,
+  which logged ``omni.datastore`` errors when that directory was not writable.
+
+
 2.2.3 (2026-08-27)
 ~~~~~~~~~~~~~~~~~~
 

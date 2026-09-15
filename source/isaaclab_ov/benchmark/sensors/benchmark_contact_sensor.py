@@ -40,7 +40,7 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 wp.init()
 
@@ -98,7 +98,7 @@ def main() -> None:
             native_read=lambda: sensor._contact_binding.read_net_forces(sensor._net_forces_flat_buf),
         )
 
-        net_forces = sensor.data.net_forces_w.torch
+        net_forces = sensor.data.net_normal_forces_w.torch
         num_in_contact = int((net_forces.norm(dim=-1) > 0.1).sum().item())
         if num_in_contact != args_cli.num_envs:
             raise RuntimeError(f"Expected {args_cli.num_envs} contacting sensors, received {num_in_contact}.")

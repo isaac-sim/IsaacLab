@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-register-rl-env-gym:
 
 Registering an Environment

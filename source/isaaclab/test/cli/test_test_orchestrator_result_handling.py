@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import signal
 import sys
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
@@ -16,10 +18,22 @@ from types import ModuleType
 
 import pytest
 
+TOOLS_DIR = Path(__file__).resolve().parents[4] / "tools"
+"""Repo ``tools/`` directory, holding the orchestrator and the stack-dump plugin it signals."""
+
+posix_only = pytest.mark.skipif(
+    not hasattr(signal, "SIGUSR1"),
+    reason="the orchestrator's process handling and the stack-dump signal are both POSIX-only",
+)
+"""Skip on platforms where ``capture_test_output_with_timeout`` cannot run.
+
+It needs ``select`` on pipes, ``os.killpg``, and ``start_new_session``, and the dump needs ``SIGUSR1``.
+"""
+
 
 def _load_orchestrator_module() -> ModuleType:
     """Load ``tools/conftest.py`` without registering it as a pytest plugin."""
-    module_path = Path(__file__).resolve().parents[4] / "tools" / "conftest.py"
+    module_path = TOOLS_DIR / "conftest.py"
     module_name = "isaaclab_test_orchestrator"
     tools_dir = str(module_path.parent)
     if tools_dir not in sys.path:
@@ -483,21 +497,25 @@ def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
     assert journal_path.parent.is_dir()
 
 
-def test_ovrtx_log_directory_is_named_for_the_subprocess(monkeypatch, tmp_path: Path) -> None:
-    """Each pass must tell the test process where to save renderer logs, or none are saved at all.
+def test_artifact_paths_handed_to_the_subprocess_are_uploadable(monkeypatch, tmp_path: Path) -> None:
+    """Each pass must tell the test process where to save renderer logs and stack dumps.
 
-    ``tools/ovrtx_log.py`` saves a test's renderer log only when this variable names a directory, and
-    the reports quote a bounded tail of the log, so without it CI uploads nothing to read past the cap.
-    The path is absolute for the journal's reason: the save happens in a fixture, so a test using
-    ``monkeypatch.chdir`` would otherwise leave its log under the temporary directory.
+    ``tools/ovrtx_log.py`` saves a renderer log only when its variable names a directory, and
+    ``tools/hang_dump.py`` writes no dump unless its own names a file. The reports quote only a bounded
+    amount of either, so a path outside the tree CI collects leaves nothing to read past that cap. Both
+    are absolute for the journal's reason: the log is saved from a fixture and the dump file is opened
+    at plugin load, so a test using ``monkeypatch.chdir`` would otherwise leave either under the
+    temporary directory.
     """
     orchestrator = _load_orchestrator_module()
     test_file = tmp_path / "test_sample.py"
     test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
     log_dirs: list[str] = []
+    dump_paths: list[str] = []
 
     def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
         log_dirs.append(env[orchestrator.ovrtx_log.LOG_DIR_ENV_VAR])
+        dump_paths.append(env[orchestrator.hang_dump.DUMP_PATH_ENV_VAR])
         _write_partial_junit_report(report_file)
         return 0, b"", b"", "", 0.1, ""
 
@@ -523,6 +541,13 @@ def test_ovrtx_log_directory_is_named_for_the_subprocess(monkeypatch, tmp_path: 
     assert log_dir.is_absolute()
     # Under the reports directory, since that is the tree CI collects as a job artifact.
     assert log_dir == tmp_path / orchestrator.OVRTX_LOG_DIR
+
+    assert len(dump_paths) == 1
+    dump_path = Path(dump_paths[0])
+    assert dump_path.is_absolute()
+    assert dump_path.parent == tmp_path / orchestrator.HANG_DUMP_DIR
+    # hang_dump.register() opens this path as the child starts, so it cannot be created later.
+    assert dump_path.parent.is_dir()
 
 
 def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch, tmp_path: Path) -> None:
@@ -624,3 +649,73 @@ def test_result_summary_includes_fast_failure_after_thirty_slower_files():
     assert "Slowest 30 Test Files" not in summary
     assert "fast_failure.py" in summary
     assert all(test_path in summary for test_path in test_files)
+
+
+@posix_only
+def test_hung_process_report_names_where_it_is_stuck(monkeypatch, tmp_path: Path) -> None:
+    """A hang must report the stack it is stuck in, not just that it stopped.
+
+    Without a dump the runner escalates straight to ``SIGKILL``, which cannot be caught, and the report
+    carries only system tables -- nothing that points at the hung code. Every property of the dump is
+    asserted against a single hung child: each one costs a real timeout to reproduce, and they are all
+    facets of the same ``pre_kill_diag``.
+    """
+    orchestrator = _load_orchestrator_module()
+    # A marker rather than "" so the ordering assertion below has something to find.
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "=== SYSTEM DIAGNOSTICS BODY ===")
+    # raising=False so a build without the dump still reaches the assertions below, and fails on the
+    # missing stack rather than on the missing constant.
+    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
+
+    # The child has to be pytest, not a bare script. pytest captures at the file-descriptor level, so it has
+    # already redirected fd 2 by the time a test runs; a dump written there is discarded when the process is
+    # killed. A bare script has no such capture and would pass whether or not the dump reaches a file.
+    test_file = tmp_path / "test_wedges.py"
+    test_file.write_text(
+        "import threading\n\n\ndef test_wedges():\n    wedged_call()\n\n\ndef wedged_call():\n"
+        "    threading.Event().wait()\n",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    # `-p hang_dump` needs tools/ importable; the orchestrator gets this from the repo-root conftest.
+    env["PYTHONPATH"] = str(TOOLS_DIR) + os.pathsep + env.get("PYTHONPATH", "")
+    env["ISAACLAB_HANG_DUMP"] = str(tmp_path / "hangdump.log")
+    cmd = [sys.executable, "-m", "pytest", "-p", "hang_dump", "-p", "no:cacheprovider", str(test_file)]
+
+    # The timeout is wall clock the test has to sit through, so it is only as long as the child needs to
+    # reach the wedge -- measured at ~2.6 s spawning eight of these at once, against ~1.4 s idle.
+    _returncode, _stdout, _stderr, kill_reason, _wall_time, pre_kill_diag = (
+        orchestrator.capture_test_output_with_timeout(cmd, timeout=8, env=env)
+    )
+
+    assert kill_reason == "timeout"
+    assert "HANG STACK DUMP" in pre_kill_diag
+    assert "wedged_call" in pre_kill_diag, "the dump must name the hung call, not just that a hang happened"
+    assert pre_kill_diag.count("----- dump ") > 1, "repeated dumps are what tell a wedged process from a slow one"
+    # The stack must sit ahead of the system tables, which ``_get_diagnostics`` truncates off the end.
+    assert pre_kill_diag.index("HANG STACK DUMP") < pre_kill_diag.index("SYSTEM DIAGNOSTICS BODY")
+
+
+def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
+    """The plugin loads on every platform, so it must no-op where the signal does not exist."""
+    if str(TOOLS_DIR) not in sys.path:
+        sys.path.insert(0, str(TOOLS_DIR))
+    import hang_dump
+
+    monkeypatch.setattr(hang_dump, "DUMP_SIGNAL", None)
+
+    assert hang_dump.is_supported() is False
+    assert hang_dump.register() is False
+    hang_dump.pytest_configure(config=None)  # must not raise
+
+
+def test_external_git_asset_tests_receive_extended_startup_deadline():
+    """Environment discovery must allow a cold external Git asset clone to complete."""
+    orchestrator = _load_orchestrator_module()
+
+    startup_deadline = orchestrator._resolve_startup_deadline(
+        "test_environments_isaacsim_physx.py", timeout=10000, is_cold_cache_test=False
+    )
+
+    assert startup_deadline == orchestrator.test_settings.GIT_ASSET_STARTUP_TIMEOUT
+    assert orchestrator._resolve_startup_deadline("test_sample.py", timeout=10000, is_cold_cache_test=False) == 120

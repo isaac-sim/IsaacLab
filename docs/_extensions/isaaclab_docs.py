@@ -189,13 +189,20 @@ def _quickstart_kitless(branch: str, platform: str) -> str:
 
 
 class IsaacLabIsaacSimInstall(SphinxDirective):
-    """Render the ``uv pip install isaacsim`` command pinned to the pyproject version."""
+    """Render the Isaac Sim install command pinned to the pyproject version."""
 
-    has_content = False
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
 
     def run(self) -> list[nodes.Node]:
         version = self.config.isaacsim_version
-        content = f"""\
+        if self.arguments and self.arguments[0] == "pip":
+            content = f"""\
+.. code-block:: bash
+
+   python -m pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com
+"""
+        else:
+            content = f"""\
 .. code-block:: bash
 
    uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
@@ -260,7 +267,7 @@ class IsaacLabTorchInstall(SphinxDirective):
 
     def run(self) -> list[nodes.Node]:
         cuda_tag = self.arguments[0]
-        installer = "pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
+        installer = "python -m pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
         torch_version = self.config.torch_version
         torchvision_version = self.config.torchvision_version
         content = f"""\

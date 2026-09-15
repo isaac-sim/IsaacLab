@@ -44,7 +44,7 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
     size=(12.0, 12.0),

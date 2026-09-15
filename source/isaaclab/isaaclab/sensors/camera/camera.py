@@ -198,6 +198,7 @@ class Camera(SensorBase):
 
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
+            settings.set_bool("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
                 settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
@@ -427,6 +428,9 @@ class Camera(SensorBase):
         idx_wp = self._resolve_env_ids_wp(env_ids)
         with self._view.xform_world_space_writer() as writer:
             writer.set_poses(pos_wp, ori_wp, idx_wp)
+        # write through to the data buffers so explicitly set poses are never stale,
+        # regardless of :attr:`CameraCfg.update_latest_camera_pose`
+        self._update_poses(env_ids=idx_wp, frame_op=0)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -490,6 +494,9 @@ class Camera(SensorBase):
                 wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
                 idx_wp,
             )
+        # write through to the data buffers so explicitly set poses are never stale,
+        # regardless of :attr:`CameraCfg.update_latest_camera_pose`
+        self._update_poses(env_ids=idx_wp, frame_op=0)
 
     """
     Operations

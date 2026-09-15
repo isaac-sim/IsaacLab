@@ -11,9 +11,10 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -23,7 +24,6 @@ from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
-from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -39,6 +39,9 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
+
+
+_BackendT = TypeVar("_BackendT")
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
@@ -124,6 +127,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
+        self._backend_registry: dict[type[object], object] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -176,6 +180,11 @@ class SimulationContext:
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
 
+        # Select the process device before constructing any physics, rendering, or visualization backend.
+        if "cuda" in self.cfg.device:
+            torch.cuda.set_device(self.cfg.device)
+        wp.set_device(self.cfg.device)
+
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         # Must be set before physics_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
@@ -190,9 +199,8 @@ class SimulationContext:
         # Set by the visualizers and renderers in use; read by the scene data provider.
         self.requires_usd_stage = False
         self.requires_newton_model = False
-        # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
-        # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
-        # their own backend args. None until a replication session publishes a plan.
+        # Clone plan published before cfg-owned scene construction. Constructors and
+        # backends therefore consume the same immutable layout through one lifecycle.
         self._clone_plan: ClonePlan | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -208,6 +216,9 @@ class SimulationContext:
         # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
         # cameras created for this instance re-set it to True before it is read.
         self.set_setting("/isaaclab/render/rtx_sensors", False)
+        # Preserve rendering initialization, then avoid continuous Fabric synchronization when
+        # the only visualizer is used for on-demand headless capture.
+        self.set_setting("/physics/fabricUpdateTransformations", self.is_rendering)
         # Set by camera sensors, which draw visual-only geometry regardless of renderer backend.
         self._visual_shapes_required = False
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -233,8 +244,6 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-
-        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -341,7 +350,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.resolve_visualizer_types())
+            or self._has_continuous_visualizers()
             or self._xr_enabled
         )
 
@@ -428,7 +437,7 @@ class SimulationContext:
 
         Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
         (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
-        AND are still at the backend cfg's own factory default (i.e. not already
+        AND are still at the backend cfg's own class default (i.e. not already
         customised by the caller).  This prevents base-class defaults such as
         ``streaming_view=False`` from stomping backend-specific defaults like
         ``NewtonGLVisualizerCfg.streaming_view=True``.
@@ -444,14 +453,14 @@ class SimulationContext:
             base_defaults = VisualizerCfg()
         except Exception:
             base_defaults = None
-        # Backend-specific factory defaults — used to detect which fields on cfg
+        # Backend-specific class defaults — used to detect which fields on cfg
         # the caller has already customised beyond the class defaults.
         try:
             factory_defaults = type(cfg)()
         except Exception:
             factory_defaults = None
         for field in fields(default_cfg):
-            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+            if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
             default_val = getattr(default_cfg, field.name)
             # Skip fields that were not explicitly set in default_cfg (still at base default).
@@ -514,6 +523,31 @@ class SimulationContext:
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
+
+    def _has_continuous_visualizers(self) -> bool:
+        """Return whether the resolved visualizers require per-step updates."""
+        visualizer_types = self.resolve_visualizer_types()
+        if not visualizer_types:
+            return False
+
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            visualizer_cfgs = []
+        elif not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
+
+        if self._is_cli_visualizer_explicit():
+            for visualizer_type in visualizer_types:
+                matching_cfgs = [
+                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) == visualizer_type
+                ]
+                if not matching_cfgs or any(not getattr(cfg, "headless", False) for cfg in matching_cfgs):
+                    return True
+            return False
+
+        return any(
+            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False) for cfg in visualizer_cfgs
+        )
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Resolve final visualizer configs from cfg and optional CLI override.
@@ -646,7 +680,7 @@ class SimulationContext:
                 pending_cfgs.append(cfg)
                 continue
             try:
-                visualizer = cfg.create_visualizer()
+                visualizer = cfg.class_type(cfg)
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
                 new_visualizers.append(visualizer)
@@ -685,14 +719,13 @@ class SimulationContext:
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
 
-        Set after replication. Consumed by scene data providers that build backend models
-        (e.g. Newton visualizer model on a PhysX backend) from the same plan the cloner used.
-        ``None`` until the scene replicates.
+        Set before cfg-owned scene construction and retained through backend replication.
+        ``None`` until a clone lifecycle begins.
         """
         return self._clone_plan
 
     def set_clone_plan(self, plan: ClonePlan | None) -> None:
-        """Set the cloner's clone plan."""
+        """Set the cloner's active clone plan."""
         self._clone_plan = plan
 
     @property
@@ -948,21 +981,23 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    # ------------------------------------------------------------------
-    # Service locator
-    # ------------------------------------------------------------------
+    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
+        """Return the simulation-scoped native backend for a type.
 
-    @property
-    def services(self) -> ServiceLocator:
-        """Typed service registry for backend-specific singletons.
+        Consumers that register the same backend type resolve one shared native resource
+        instead of constructing state to synchronize.
 
-        Usage::
+        Args:
+            backend_type: Backend class to construct when the resource does not exist.
+            *args: Positional arguments used only when constructing the resource.
+            **kwargs: Keyword arguments used only when constructing the resource.
 
-            sim_context.services[FabricStageCache] = cache
-            cache = sim_context.services[FabricStageCache]
-            del sim_context.services[FabricStageCache]  # closes and removes
+        Returns:
+            The existing or newly constructed native backend.
         """
-        return self._services
+        if backend_type not in self._backend_registry:
+            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
+        return cast(_BackendT, self._backend_registry[backend_type])
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -990,10 +1025,10 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
 
-                # Close and drop all registered singleton services.
-                service_errors: list[Exception] = []
-                run_cleanup(lambda: instance._services.close_all(caught_exceptions=service_errors))
-                teardown_errors.extend(service_errors)
+                for resource in instance._backend_registry.values():
+                    if (clear := getattr(resource, "clear", None)) is not None:
+                        run_cleanup(clear)
+                instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
                 # close_stage() + app shutdown destroy the entire stage at once.

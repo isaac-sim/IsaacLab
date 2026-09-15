@@ -1,9 +1,11 @@
+:orphan:
+
 .. seealso::
 
    This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
    (`skills/user/domain-randomization-events/ <../../../../skills/user/domain-randomization-events/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 .. _tutorial-create-direct-rl-env:
 
@@ -215,7 +217,7 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 
       .. code-block:: bash
 
-         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct
+         uv run --extra rl-games isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

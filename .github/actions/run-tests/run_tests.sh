@@ -37,6 +37,7 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  local ovrtx_shader_cache_host_dir="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -107,50 +108,50 @@ run_tests() {
   mkdir -p "$reports_dir"
 
   # Clean up any existing container
-  docker rm -f $container_name 2>/dev/null || true
+  docker rm -f "$container_name" 2>/dev/null || true
 
   # Build Docker environment variables
-  docker_env_vars="\
-    -e OMNI_KIT_ACCEPT_EULA=yes \
-    -e ACCEPT_EULA=Y \
-    -e OMNI_KIT_DISABLE_CUP=1 \
-    -e ISAAC_SIM_HEADLESS=1 \
-    -e ISAAC_SIM_LOW_MEMORY=1 \
-    -e PYTHONUNBUFFERED=1 \
-    -e PYTHONIOENCODING=utf-8 \
-    -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
-    -e TEST_RESULT_FILE=$result_file"
+  local -a docker_env_args=(
+    -e "OMNI_KIT_ACCEPT_EULA=yes"
+    -e "ACCEPT_EULA=Y"
+    -e "OMNI_KIT_DISABLE_CUP=1"
+    -e "ISAAC_SIM_HEADLESS=1"
+    -e "ISAAC_SIM_LOW_MEMORY=1"
+    -e "PYTHONUNBUFFERED=1"
+    -e "PYTHONIOENCODING=utf-8"
+    -e "GITHUB_ACTIONS=${GITHUB_ACTIONS:-}"
+    -e "TEST_RESULT_FILE=$result_file"
+  )
 
   if [ "$curobo_only" = "true" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
+    docker_env_args+=(-e "TEST_CUROBO_ONLY=true")
     echo "Setting TEST_CUROBO_ONLY=true"
   fi
 
   if [ "$quarantined_only" = "true" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_QUARANTINED_ONLY=true"
+    docker_env_args+=(-e "TEST_QUARANTINED_ONLY=true")
     echo "Setting TEST_QUARANTINED_ONLY=true"
   fi
 
   if [ -n "$include_files" ]; then
-    # Strip spaces so the value is safe to embed in an unquoted docker_env_vars string.
     # conftest.py splits on commas and strips whitespace, so compact form works fine.
     include_files_compact="${include_files// /}"
-    docker_env_vars="$docker_env_vars -e TEST_INCLUDE_FILES=$include_files_compact"
+    docker_env_args+=(-e "TEST_INCLUDE_FILES=$include_files_compact")
     echo "Setting TEST_INCLUDE_FILES=$include_files_compact"
   fi
 
   if [ -n "${TEST_NODE_IDS:-}" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_NODE_IDS"
+    docker_env_args+=(-e TEST_NODE_IDS)
     echo "Setting TEST_NODE_IDS"
   fi
 
   if [ -n "${TEST_NODE_IDS_FILE:-}" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_NODE_IDS_FILE -e TEST_NODE_IDS_KEY"
+    docker_env_args+=(-e TEST_NODE_IDS_FILE -e TEST_NODE_IDS_KEY)
     echo "Setting TEST_NODE_IDS_FILE=$TEST_NODE_IDS_FILE TEST_NODE_IDS_KEY=$TEST_NODE_IDS_KEY"
   fi
 
   if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_SHARD_INDEX=$shard_index -e TEST_SHARD_COUNT=$shard_count"
+    docker_env_args+=(-e "TEST_SHARD_INDEX=$shard_index" -e "TEST_SHARD_COUNT=$shard_count")
     echo "Setting TEST_SHARD_INDEX=$shard_index TEST_SHARD_COUNT=$shard_count"
   fi
 
@@ -166,7 +167,7 @@ run_tests() {
       fi
     else
       # Handle positive pattern case
-      docker_env_vars="$docker_env_vars -e TEST_FILTER_PATTERN=$filter_pattern"
+      docker_env_args+=(-e "TEST_FILTER_PATTERN=$filter_pattern")
       echo "Setting include pattern: $filter_pattern"
     fi
   else
@@ -174,47 +175,47 @@ run_tests() {
   fi
 
   if [ -n "$exclude_pattern" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
+    docker_env_args+=(-e "TEST_EXCLUDE_PATTERN=$exclude_pattern")
     echo "Setting exclude pattern: $exclude_pattern"
   fi
 
   if [ -n "$extra_pip_packages" ]; then
     export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
-    docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+    docker_env_args+=(-e TEST_EXTRA_PIP_PACKAGES)
   fi
   if [ -n "$extra_uv_packages" ]; then
     export TEST_EXTRA_UV_PACKAGES="$extra_uv_packages"
-    docker_env_vars="$docker_env_vars -e TEST_EXTRA_UV_PACKAGES"
+    docker_env_args+=(-e TEST_EXTRA_UV_PACKAGES)
   fi
 
   if [ -n "$test_k_expr" ]; then
     export TEST_K_EXPR="$test_k_expr"
-    docker_env_vars="$docker_env_vars -e TEST_K_EXPR"
+    docker_env_args+=(-e TEST_K_EXPR)
     echo "Setting per-file pytest -k expression: $test_k_expr"
   fi
 
   if [ -n "$ci_marker" ]; then
-    docker_env_vars="$docker_env_vars -e CI_MARKER=$ci_marker"
+    docker_env_args+=(-e "CI_MARKER=$ci_marker")
     echo "Setting CI_MARKER=$ci_marker"
   fi
 
   if [ -n "$standalone_script_scope" ]; then
-    docker_env_vars="$docker_env_vars \
-      -e ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1 \
-      -e ISAACLAB_STANDALONE_SCRIPT_SCOPE=$standalone_script_scope \
-      -e ISAACLAB_STANDALONE_VISUALIZER=$standalone_script_visualizer"
+    docker_env_args+=(
+      -e "ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1"
+      -e "ISAACLAB_STANDALONE_SCRIPT_SCOPE=$standalone_script_scope"
+      -e "ISAACLAB_STANDALONE_VISUALIZER=$standalone_script_visualizer"
+    )
     echo "Running standalone scripts in scope '$standalone_script_scope' with visualizer '$standalone_script_visualizer'"
     if [ -n "$standalone_script_runtime_group" ]; then
-      docker_env_vars="$docker_env_vars \
-        -e ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP=$standalone_script_runtime_group"
+      docker_env_args+=(-e "ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP=$standalone_script_runtime_group")
       echo "Standalone backend-runtime group: $standalone_script_runtime_group"
     fi
   fi
 
   # Volume mount for deps-cache-hit mode: bind-mount the checked-out
   # source code over /workspace/isaaclab instead of baking it into the image.
-  docker_volume_args=""
-  docker_user_args=""
+  local -a docker_volume_args=()
+  local -a docker_user_args=()
   if [ -n "$volume_mount_source" ]; then
     host_uid="$(id -u)"
     host_gid="$(id -g)"
@@ -240,20 +241,27 @@ run_tests() {
       "${docker_runtime_dir}/isaac-sim/data" \
       "${docker_runtime_dir}/isaac-sim/logs" \
       "${docker_runtime_dir}/isaac-sim/pkg"
-    docker_volume_args="\
-      -v ${volume_mount_source}:/workspace/isaaclab:rw \
-      -v ${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw \
-      -v ${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw \
-      -v ${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw \
-      -v ${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw \
-      -v ${docker_runtime_dir}/isaac-sim/cache:/isaac-sim/.cache:rw \
-      -v ${docker_runtime_dir}/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw \
-      -v ${docker_runtime_dir}/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw \
-      -v ${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw \
-      -v ${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw \
-      -v ${docker_runtime_dir}/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw"
-    docker_user_args="--user ${host_uid}:${host_gid}"
-    docker_env_vars="$docker_env_vars -e HOME=/tmp/isaaclab-ci-home -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share -e USER=${host_user} -e LOGNAME=${host_user}"
+    docker_volume_args=(
+      -v "${volume_mount_source}:/workspace/isaaclab:rw"
+      -v "${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw"
+      -v "${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw"
+      -v "${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw"
+      -v "${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw"
+      -v "${docker_runtime_dir}/isaac-sim/cache:/isaac-sim/.cache:rw"
+      -v "${docker_runtime_dir}/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw"
+      -v "${docker_runtime_dir}/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw"
+      -v "${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw"
+      -v "${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw"
+      -v "${docker_runtime_dir}/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw"
+    )
+    docker_user_args=(--user "${host_uid}:${host_gid}")
+    docker_env_args+=(
+      -e "HOME=/tmp/isaaclab-ci-home"
+      -e "XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache"
+      -e "XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share"
+      -e "USER=${host_user}"
+      -e "LOGNAME=${host_user}"
+    )
     echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"
     echo "🔵 Mounting writable Docker runtime storage from ${docker_runtime_dir}"
     echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
@@ -262,10 +270,32 @@ run_tests() {
   # Must follow the volume_mount_source block, which assigns rather than
   # appends to docker_volume_args. The caller creates the directory.
   if [ -n "$warp_cache_host_dir" ]; then
-    docker_volume_args="$docker_volume_args \
-      -v ${warp_cache_host_dir}:/tmp/isaaclab-warp-cache:rw"
-    docker_env_vars="$docker_env_vars \
-      -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache"
+    docker_volume_args+=(-v "${warp_cache_host_dir}:/tmp/isaaclab-warp-cache:rw")
+    docker_env_args+=(-e "WARP_CACHE_PATH=/tmp/isaaclab-warp-cache")
+  fi
+
+  if [ -n "$ovrtx_shader_cache_host_dir" ]; then
+    # Canonical OVRTX shader cache mount layout; other boundaries refer here.
+    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit / AppLauncher rendering)
+    #   host kitless/ -> OVRTX_SHADER_CACHE_PATH              (standalone OVRTXRenderer)
+    #
+    # kit/ is a nested bind mount overlaying the nv_shadercache directory that the
+    # enclosing kit/cache tmpdir mount would otherwise present as empty; Docker
+    # sorts mounts by destination depth, so the deeper path wins regardless of
+    # declaration order. kitless/ goes through an env var instead because
+    # OVRTXRenderer applies it as a carb setting. Both paths are exported so
+    # verify_ovrtx_shader_cache.py can confirm each mount landed.
+    kit_cache_dir="${ovrtx_shader_cache_host_dir}/kit"
+    kitless_cache_dir="${ovrtx_shader_cache_host_dir}/kitless"
+    mkdir -p "$kit_cache_dir" "$kitless_cache_dir"
+    docker_volume_args+=(
+      -v "${kit_cache_dir}:/isaac-sim/kit/cache/nv_shadercache:rw"
+      -v "${kitless_cache_dir}:/tmp/isaaclab-ovrtx-kitless-cache:rw"
+    )
+    docker_env_args+=(
+      -e "OVRTX_SHADER_CACHE_PATH=/tmp/isaaclab-ovrtx-kitless-cache"
+      -e "OVRTX_KIT_SHADER_CACHE_PATH=/isaac-sim/kit/cache/nv_shadercache"
+    )
   fi
 
   if [ -n "$wheelhouse_host_dir" ]; then
@@ -283,18 +313,35 @@ run_tests() {
     fi
 
     export TEST_WHEELHOUSE_PACKAGES="$wheelhouse_packages"
-    docker_volume_args="$docker_volume_args \
-      -v ${wheelhouse_host_dir}/wheelhouse:/tmp/ovphysx-wheelhouse:ro \
-      -v ${wheelhouse_host_dir}/manifest.json:/tmp/ovphysx-wheelhouse-manifest.json:ro"
-    docker_env_vars="$docker_env_vars \
-      -e TEST_WHEELHOUSE_PATH=/tmp/ovphysx-wheelhouse \
-      -e TEST_WHEELHOUSE_MANIFEST=/tmp/ovphysx-wheelhouse-manifest.json \
-      -e TEST_WHEELHOUSE_PACKAGES"
+    docker_volume_args+=(
+      -v "${wheelhouse_host_dir}/wheelhouse:/tmp/ovphysx-wheelhouse:ro"
+      -v "${wheelhouse_host_dir}/manifest.json:/tmp/ovphysx-wheelhouse-manifest.json:ro"
+    )
+    docker_env_args+=(
+      -e "TEST_WHEELHOUSE_PATH=/tmp/ovphysx-wheelhouse"
+      -e "TEST_WHEELHOUSE_MANIFEST=/tmp/ovphysx-wheelhouse-manifest.json"
+      -e TEST_WHEELHOUSE_PACKAGES
+    )
     echo "Mounting wheelhouse at /tmp/ovphysx-wheelhouse"
   fi
 
-  echo "Docker environment variables: '$docker_env_vars'"
+  printf "Docker environment arguments:"
+  printf " %q" "${docker_env_args[@]}"
+  printf "\n"
   echo "::endgroup::"
+
+  local -a pytest_args=()
+  if [ -n "$pytest_options" ]; then
+    if ! python3 -c "import shlex, sys; shlex.split(sys.argv[1])" "$pytest_options"; then
+      echo "::error::pytest-options contains invalid shell-style quoting"
+      return 1
+    fi
+    mapfile -d '' -t pytest_args < <(
+      python3 -c \
+        "import shlex, sys; [sys.stdout.buffer.write(arg.encode() + b'\\0') for arg in shlex.split(sys.argv[1])]" \
+        "$pytest_options"
+    )
+  fi
 
   # Run tests in a detached container and follow logs.  Running detached
   # means the container lifecycle is independent of the shell - if the
@@ -302,28 +349,37 @@ run_tests() {
   # step can still `docker kill` the container reliably.
   # `docker logs -f` is the foreground process and is trivially killable.
   echo "🔵 Starting Docker container for tests..."
-  docker run -d --name $container_name \
+  docker run -d --name "$container_name" \
     --init --stop-timeout 5 \
     --entrypoint bash --gpus all --network=host \
     -v "$PWD/.github/actions/_lib/with-python-package-retries.sh:/with-python-package-retries.sh:ro" \
     --security-opt=no-new-privileges:true \
-    --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
-    --cpus=$(echo "$(nproc) * 0.9" | bc) \
+    --memory="$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m" \
+    --cpus="$(echo "$(nproc) * 0.9" | bc)" \
     --oom-kill-disable=false \
     --ulimit nofile=65536:65536 \
     --ulimit nproc=4096:4096 \
-    $docker_volume_args \
-    $docker_user_args \
-    $docker_env_vars \
-    $image_tag \
+    "${docker_volume_args[@]}" \
+    "${docker_user_args[@]}" \
+    "${docker_env_args[@]}" \
+    "$image_tag" \
     -c "
       set -e
+      test_path=\"\$1\"
+      result_file=\"\$2\"
+      shift 2
       cd /workspace/isaaclab
       mkdir -p tests
-      rm _isaac_sim || true
-      ln -s /isaac-sim _isaac_sim
+      # The runtime mounts above create /isaac-sim in every image. Link it only where Kit
+      # lives there: in the kit-less image the link would read as a downloaded Isaac Sim,
+      # which isaaclab.sh refuses to combine with the image's VIRTUAL_ENV.
+      rm -f _isaac_sim
+      if [ -x /isaac-sim/python.sh ]; then ln -s /isaac-sim _isaac_sim; fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
+      fi
+      if [ -n \"\${OVRTX_SHADER_CACHE_PATH:-}\" ] || [ -n \"\${OVRTX_KIT_SHADER_CACHE_PATH:-}\" ]; then
+        ./isaaclab.sh -p tools/verify_ovrtx_shader_cache.py
       fi
       if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
         if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
@@ -357,13 +413,19 @@ run_tests() {
       fi
       if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
         echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
-        # isaaclab.sh prints an informational line before command output, and pip
-        # installs scripts into the user base when Isaac Sim site-packages is read-only.
-        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | tail -n 1)\"
-        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | tail -n 1)\"
-        uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | tail -n 1)\"
-        if [ ! -x \"\${uv_executable}\" ]; then
-          bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
+        # isaaclab.sh prints an [INFO] banner on stdout around the command output, so the
+        # banner is filtered rather than positionally skipped.
+        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | grep -v '^\[INFO\]' | tail -n 1)\"
+        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | grep -v '^\[INFO\]' | tail -n 1)\"
+        # The image ships uv on PATH. Fall back to the user base only for images that do
+        # not: pip installs into the venv, not the user base, when the interpreter is a venv,
+        # so the user-base path is never created there.
+        uv_executable=\"\$(command -v uv || true)\"
+        if [ -z \"\${uv_executable}\" ]; then
+          uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | grep -v '^\[INFO\]' | tail -n 1)\"
+          if [ ! -x \"\${uv_executable}\" ]; then
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
+          fi
         fi
         bash /with-python-package-retries.sh \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
         # Isaac Sim puts bundled packages ahead of the user site. Overlay only
@@ -373,9 +435,9 @@ run_tests() {
         bash /with-python-package-retries.sh \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_uv_overlay}\" --no-deps \${TEST_EXTRA_UV_PACKAGES}
         export PYTHONPATH=\"\${isaac_uv_overlay}\${PYTHONPATH:+:\${PYTHONPATH}}\"
       fi
-      echo 'Starting pytest with path: $test_path'
-      ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
-    "
+      echo \"Starting pytest with path: \${test_path}\"
+      ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py \"\${test_path}\" \"\$@\" -v --junitxml=\"tests/\${result_file}\"
+    " bash "$test_path" "$result_file" "${pytest_args[@]}"
 
   # Stream container logs in background.
   docker logs -f "$container_name" &
@@ -469,6 +531,17 @@ run_tests() {
     echo "🟢 OVRTX renderer logs copied to $ovrtx_dir"
   elif docker cp "$container_name:/workspace/isaaclab/tests/ovrtx-logs" "$ovrtx_dir" 2>/dev/null; then
     echo "🟢 OVRTX renderer logs copied from container to $ovrtx_dir"
+  fi
+
+  # Copy per-file thread stack dumps (written by tools/hang_dump.py when the runner kills a hung test).
+  # The reports carry these truncated to 10 000 chars; the whole dump is only here. Absent unless
+  # something hung, which is the normal case.
+  local hang_dir="$reports_dir/hang-dumps"
+  if [ -n "$volume_mount_source" ] && [ -d "${volume_mount_source}/tests/hang-dumps" ]; then
+    cp -r "${volume_mount_source}/tests/hang-dumps" "$hang_dir"
+    echo "🟢 Hang stack dumps copied to $hang_dir"
+  elif docker cp "$container_name:/workspace/isaaclab/tests/hang-dumps" "$hang_dir" 2>/dev/null; then
+    echo "🟢 Hang stack dumps copied from container to $hang_dir"
   fi
   echo "::endgroup::"
 

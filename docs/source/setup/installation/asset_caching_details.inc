@@ -75,59 +75,11 @@ root resolves to the same value when you use one of the provided Isaac Lab exper
 load ``isaacsim.storage.native``. A custom experience that does not build on one of them may leave the
 Isaac Sim asset root pointing at the cloud.
 
-The environment variable is the only supported runtime override for the Isaac Lab asset paths. Isaac Lab
-resolves them once, when :mod:`isaaclab.utils.assets` is imported, so setting
+Isaac Lab supports the ``ISAACSIM_ASSET_ROOT`` and ``ISAACSIM_ASSET_REGION_PROFILE`` environment variables
+for runtime asset selection. It resolves asset paths once, when :mod:`isaaclab.utils.assets` is imported, so setting
 ``persistent.isaac.asset_root.default`` on the command line or changing it at runtime does not move them,
 even though Isaac Sim itself honors those forms. Editing ``persistent.isaac.asset_root.default`` in the
 experience file does work, because that is the value Isaac Lab reads when the variable is unset.
-
-.. rubric:: Using the China Storage Profile
-
-To use the public China asset mirror, select the same named storage profile used by Isaac Sim before launch:
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code:: bash
-
-         export ISAACSIM_STORAGE_PROFILE=china
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code:: batch
-
-         set ISAACSIM_STORAGE_PROFILE=china
-
-Isaac Lab uses the same versioned public bucket paths shown by Isaac Sim and routes reads through the profile's CDN.
-This also works in kitless mode without Isaac Sim installed. ``ISAACSIM_ASSET_ROOT`` still takes precedence when
-both variables are set.
-
-Isaac Lab launchers and asset helpers apply the profile automatically. A standalone kitless script that calls
-``omni.client`` before launching an Isaac Lab runtime must initialize the profile first:
-
-.. code:: python
-
-   from isaaclab.utils.assets import configure_storage_profile
-
-   configure_storage_profile()
-
-.. note::
-   The China service mirrors a subset of the global asset set, and that subset can change between releases.
-   Check the `Isaac 6.0 asset availability manifest
-   <https://assets.simready.cn/manifests/isaac/6.0/asset-availability.csv>`__ before choosing an asset. The manifest lists
-   service path records relative to the versioned ``Isaac`` folder. A path with no row is not mirrored, and a listed
-   path must have an ``available`` status to load from the service. Use an available asset or a local asset pack when
-   needed.
-
-   Build paths from profile-resolved constants such as :attr:`~isaaclab.utils.assets.ISAAC_NUCLEUS_DIR` or
-   :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR` instead of hard-coding bucket or CDN URLs. This keeps the
-   selected storage profile and asset release applicable when routing changes. Access the resolved paths through
-   Isaac Lab or ``omni.client``; opening the object-storage URL directly in a browser or with ``curl`` can return
-   HTTP 403 because it bypasses the profile's CDN routing.
 
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an
