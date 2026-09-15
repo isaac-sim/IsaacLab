@@ -142,11 +142,14 @@ def test_spawn_ground_plane(sim):
 
     mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath("/World/ground_plane/Environment/Geometry"))
     assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()] == [
-        (-1.0, -2.0),
-        (1.0, -2.0),
-        (1.0, 2.0),
-        (-1.0, 2.0),
+        (-2.5, -5.0),
+        (2.5, -5.0),
+        (2.5, 5.0),
+        (-2.5, 5.0),
     ]
+
+    shader = UsdShade.Shader.Get(sim.stage, "/World/ground_plane/Looks/theGrid/Shader")
+    assert tuple(shader.GetInput("diffuse_tint").Get()) == pytest.approx((0.1, 0.1, 0.1))
 
 
 @pytest.mark.isaacsim_ci

@@ -166,10 +166,14 @@ runs:
 
     - name: Prepare Docker disk space
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          "isaacsim-pin-${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
           "pre-test-cleanup" \
           "true"
 
@@ -463,8 +467,10 @@ runs:
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
       run: |
-        CONTAINER="${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        CONTAINER="${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}"
         echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
         docker kill "${CONTAINER}" 2>/dev/null || true
         docker rm -f "${CONTAINER}" 2>/dev/null || true
@@ -472,9 +478,13 @@ runs:
     - name: Cleanup old Docker images
       if: always()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          "isaacsim-pin-${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
           "post-job-cleanup" \
           "false"

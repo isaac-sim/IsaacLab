@@ -39,6 +39,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
+from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_VERSION, requires_legacy_joint_sign_correction
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .actuator_control import OvPhysxActuatorControl
@@ -3958,11 +3959,13 @@ class Articulation(BaseArticulation):
                 self._root_view.try_binding_for(tt)
 
         # construct the data container; counts come from the view's bindings
-        joint_dof_signs = self._resolve_joint_dof_signs(stage)
         self._data = ArticulationData(self._root_view, self._device)
-        if -1 in joint_dof_signs:
-            self._data._joint_dof_signs = wp.array(joint_dof_signs, dtype=wp.int32, device=self.device)
-            self._data._has_reversed_joints = True
+        # OvPhysX 0.6 already corrects reversed-joint dynamics in the runtime.
+        if requires_legacy_joint_sign_correction(OVPHYSX_VERSION):
+            joint_dof_signs = self._resolve_joint_dof_signs(stage)
+            if -1 in joint_dof_signs:
+                self._data._joint_dof_signs = wp.array(joint_dof_signs, dtype=wp.int32, device=self.device)
+                self._data._has_reversed_joints = True
         self._resolve_and_install_ordering_maps()
         self._data.fixed_tendon_names = self._fixed_tendon_names
         self._data.spatial_tendon_names = self._spatial_tendon_names

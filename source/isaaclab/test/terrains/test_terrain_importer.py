@@ -139,10 +139,10 @@ def test_plane(device, use_custom_material):
         assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
         visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
         assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
-            (-26.0, -26.0),
-            (26.0, -26.0),
-            (26.0, 26.0),
-            (-26.0, 26.0),
+            (-65.0, -65.0),
+            (65.0, -65.0),
+            (65.0, 65.0),
+            (-65.0, 65.0),
         ]
 
         # Direct imports use the same bounded default instead of the legacy 2,000 km visual mesh.
@@ -153,10 +153,10 @@ def test_plane(device, use_custom_material):
             sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment/Geometry")
         )
         assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get()] == [
-            (-26.0, -26.0),
-            (26.0, -26.0),
-            (26.0, 26.0),
-            (-26.0, 26.0),
+            (-65.0, -65.0),
+            (65.0, -65.0),
+            (65.0, 65.0),
+            (-65.0, 65.0),
         ]
 
         # obtain underling mesh

@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+1.11.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dynamic mesh logging through the public Newton visualizer interface.
+
+Changed
+^^^^^^^
+
+* Made Kit, Newton GL, and Newton RTX honor ``VisualizerCfg.background_color`` and use its solid
+  sky-blue default. Setting it to ``None`` preserved each backend's native background.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` so it honored its configured particle color.
+
+
 1.10.5 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -198,6 +198,7 @@ class Camera(SensorBase):
 
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
+            settings.set_bool("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
                 settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
