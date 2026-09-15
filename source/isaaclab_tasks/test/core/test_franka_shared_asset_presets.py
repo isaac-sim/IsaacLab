@@ -9,6 +9,8 @@ import re
 
 import pytest
 
+from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetSceneCfg
 from isaaclab_tasks.utils.hydra import resolve_presets
@@ -52,6 +54,17 @@ def test_rigid_franka_tasks_use_validated_collider_lods(
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
     assert cfg.scene.robot.spawn.variants == expected_variants
     assert all(actuator.viscous_friction == 0.0 for actuator in cfg.scene.robot.actuators.values())
+
+
+def test_lift_auto_physx_uses_ovphysx_compatible_object_setup() -> None:
+    """Automatic PhysX keeps Lift compatible with the kitless OvPhysX fast path."""
+    auto_cfg = resolve_presets(load_cfg_from_registry("Isaac-Lift-Franka", "env_cfg_entry_point"), selected=("physx",))
+    isaacsim_cfg = resolve_presets(
+        load_cfg_from_registry("Isaac-Lift-Franka", "env_cfg_entry_point"), selected=("isaacsim_physx",)
+    )
+
+    assert isinstance(auto_cfg.scene.object.spawn, CuboidCfg)
+    assert isinstance(isaacsim_cfg.scene.object.spawn, MultiAssetSpawnerCfg)
 
 
 @pytest.mark.parametrize(
