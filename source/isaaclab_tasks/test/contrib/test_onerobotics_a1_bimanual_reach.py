@@ -130,6 +130,7 @@ def test_task_registration_and_configuration():
     assert all(len(entry) == 4 for entry in env_cfg.commands.right_ee_pose.chain)
     assert all(len(entry) == 4 for entry in env_cfg.commands.left_ee_pose.chain)
     assert env_cfg.scene.robot.init_state.joint_pos == {"joint_[rl][1-7]": 0.0}
+    assert not env_cfg.scene.replicate_physics
     assert env_cfg.sim.dt == 1.0 / 200.0
     assert env_cfg.decimation == 4
     assert env_cfg.sim.render_interval == 4

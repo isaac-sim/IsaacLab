@@ -75,6 +75,9 @@ class OneRoboticsA1BimanualReachEnvCfg(BimanualReachEnvCfg):
         self.sim.physics = self.sim.physics.isaacsim_physx
         self.scene.robot = ONEROBOTICS_A1_BIMANUAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.joint_pos = {"joint_[rl][1-7]": 0.0}
+        # The source URDF retains two fixed shoulder joints. PhysX scene replication
+        # drops one cloned fixed-root body relation and destabilizes later environments.
+        self.scene.replicate_physics = False
 
         # Match the A1 control stack: 200 Hz implicit servo and 50 Hz policy actions.
         self.sim.dt = 1.0 / 200.0
