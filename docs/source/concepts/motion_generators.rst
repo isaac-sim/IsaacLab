@@ -162,7 +162,7 @@ It is possible to compute the pseudo-inverse of the Jacobian using different for
 * Adaptive singular-vale decomposition (SVD) pseduo-inverse from :cite:t:`buss2004ik`.
 
 These implementations are available through the :class:`DifferentialIKController` class.
-See :doc:`../tutorials/05_controllers/run_diff_ik` for a runnable example.
+See :doc:`../how-to/run_diff_ik` for a runnable example.
 
 Impedance controller
 ~~~~~~~~~~~~~~~~~~~~
@@ -177,7 +177,7 @@ Operational-space controller
 
 Similar to task-space impedance
 control but uses the Equation of Motion (EoM) for computing the
-task-space force. See :doc:`../tutorials/05_controllers/run_osc` for a runnable example.
+task-space force. See :doc:`../how-to/run_osc` for a runnable example.
 
 Closed-loop proportional force controller
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

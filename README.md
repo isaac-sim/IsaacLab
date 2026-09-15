@@ -52,7 +52,7 @@ detailed tutorials and step-by-step guides. Follow these links to learn more abo
 
 - [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html#local-installation)
 - [Reinforcement learning](docs/source/concepts/reinforcement_learning.rst)
-- [Tutorials](https://isaac-sim.github.io/IsaacLab/develop/source/tutorials/index.html)
+- [Tutorials](https://isaac-sim.github.io/IsaacLab/develop/source/how-to/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/setup/environments.html)
 
 ## Performance Dashboard

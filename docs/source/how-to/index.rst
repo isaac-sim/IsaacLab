@@ -41,19 +41,19 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Creating an empty scene </source/tutorials/00_sim/create_empty>`
+         :doc:`Creating an empty scene </source/how-to/create_empty>`
 
          Launch an empty simulation and learn the core startup sequence.
 
       .. container:: guide-entry
 
-         :doc:`Spawning prims into the scene </source/tutorials/00_sim/spawn_prims>`
+         :doc:`Spawning prims into the scene </source/how-to/spawn_prims>`
 
          Add lights, ground planes, and primitive shapes to a simulation stage.
 
       .. container:: guide-entry
 
-         :doc:`Deep-dive into AppLauncher </source/tutorials/00_sim/launch_app>`
+         :doc:`Deep-dive into AppLauncher </source/how-to/launch_app>`
 
          Configure and launch simulation applications from Python and the command line.
 
@@ -65,25 +65,25 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Interacting with a rigid object </source/tutorials/01_assets/run_rigid_object>`
+         :doc:`Interacting with a rigid object </source/how-to/run_rigid_object>`
 
          Create, reset, and command a cone; includes the runnable run_rigid_object.py example.
 
       .. container:: guide-entry
 
-         :doc:`Interacting with an articulation </source/tutorials/01_assets/run_articulation>`
+         :doc:`Interacting with an articulation </source/how-to/run_articulation>`
 
          Work with joint state, commands, and articulation data.
 
       .. container:: guide-entry
 
-         :doc:`Interacting with a deformable object </source/tutorials/01_assets/run_deformable_object>`
+         :doc:`Interacting with a deformable object </source/how-to/run_deformable_object>`
 
          Spawn and manipulate deformable bodies in a scene.
 
       .. container:: guide-entry
 
-         :doc:`Interacting with a surface gripper </source/tutorials/01_assets/run_surface_gripper>`
+         :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
          Attach and release rigid objects with a surface gripper.
 
@@ -123,7 +123,7 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Using the interactive scene </source/tutorials/02_scene/create_scene>`
+         :doc:`Using the interactive scene </source/how-to/create_scene>`
 
          Compose assets and sensors with the higher-level interactive scene interface.
 
@@ -139,49 +139,49 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Creating a manager-based base environment </source/tutorials/03_envs/create_manager_base_env>`
+         :doc:`Creating a manager-based base environment </source/how-to/create_manager_base_env>`
 
          Build a non-RL environment from reusable manager terms.
 
       .. container:: guide-entry
 
-         :doc:`Creating a manager-based RL environment </source/tutorials/03_envs/create_manager_rl_env>`
+         :doc:`Creating a manager-based RL environment </source/how-to/create_manager_rl_env>`
 
          Add rewards, terminations, curricula, and commands for reinforcement learning.
 
       .. container:: guide-entry
 
-         :doc:`Creating a direct workflow RL environment </source/tutorials/03_envs/create_direct_rl_env>`
+         :doc:`Creating a direct workflow RL environment </source/how-to/create_direct_rl_env>`
 
          Implement an RL task with direct control over the environment loop.
 
       .. container:: guide-entry
 
-         :doc:`Registering an environment </source/tutorials/03_envs/register_rl_env_gym>`
+         :doc:`Registering an environment </source/how-to/register_rl_env_gym>`
 
          Register an Isaac Lab task with Gymnasium and expose its configurations.
 
       .. container:: guide-entry
 
-         :doc:`Training with an RL agent </source/tutorials/03_envs/run_rl_training>`
+         :doc:`Training with an RL agent </source/how-to/run_rl_training>`
 
          Launch training and inference with a supported reinforcement learning library.
 
       .. container:: guide-entry
 
-         :doc:`Configuring an RL agent </source/tutorials/03_envs/configuring_rl_training>`
+         :doc:`Configuring an RL agent </source/how-to/configuring_rl_training>`
 
          Customize agent settings and training hyperparameters.
 
       .. container:: guide-entry
 
-         :doc:`Modifying an existing direct RL environment </source/tutorials/03_envs/modify_direct_rl_env>`
+         :doc:`Modifying an existing direct RL environment </source/how-to/modify_direct_rl_env>`
 
          Extend and adjust a direct workflow task without rebuilding it from scratch.
 
       .. container:: guide-entry
 
-         :doc:`Policy inference in a USD environment </source/tutorials/03_envs/policy_inference_in_usd>`
+         :doc:`Policy inference in a USD environment </source/how-to/policy_inference_in_usd>`
 
          Run a trained policy against an environment defined in a USD stage.
 
@@ -221,7 +221,7 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Adding sensors on a robot </source/tutorials/04_sensors/add_sensors_on_robot>`
+         :doc:`Adding sensors on a robot </source/how-to/add_sensors_on_robot>`
 
          Add camera, ray-caster, and contact sensors to an environment.
 
@@ -255,13 +255,13 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Using a task-space controller </source/tutorials/05_controllers/run_diff_ik>`
+         :doc:`Using a task-space controller </source/how-to/run_diff_ik>`
 
          Control a robot end effector with differential inverse kinematics.
 
       .. container:: guide-entry
 
-         :doc:`Using an operational space controller </source/tutorials/05_controllers/run_osc>`
+         :doc:`Using an operational space controller </source/how-to/run_osc>`
 
          Apply operational-space control to a robot manipulator.
 

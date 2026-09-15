@@ -27,7 +27,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the
 .. dropdown:: Code for run_diff_ik.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
+   .. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
       :language: python
       :emphasize-lines: 98-100, 121-136, 155-157, 161-171
       :linenos:
@@ -69,7 +69,7 @@ In this tutorial, we will use the damped least-squares method to compute the des
 joint positions. Additionally, since we want to track desired end-effector poses, we
 will use the absolute pose command mode.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # Create controller
    :end-at: diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
@@ -98,7 +98,7 @@ calls the above methods to obtain the indices. However, it also performs some ad
 checks to ensure that the provided names are valid. Thus, it is a safer option to use
 this class.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # Specify robot-specific parameters
    :end-before: # Define simulation stepping
@@ -115,7 +115,7 @@ The :meth:`~controllers.DifferentialIKController.set_command` method takes in
 the desired end-effector pose as a single batched array. The pose is specified in
 the robot's base frame.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # reset controller
    :end-at: diff_ik_controller.set_command(ik_commands)
@@ -127,7 +127,7 @@ current joint positions. We read the Jacobian matrix from the robot's data, whic
 its value computed from the physics engine.
 
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # obtain quantities from simulation
    :end-at: joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
@@ -135,7 +135,7 @@ its value computed from the physics engine.
 The computed joint position targets can then be applied on the robot, as done in the
 previous tutorials.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # apply actions
    :end-at: scene.write_data_to_sim()
@@ -165,7 +165,7 @@ The script will start a simulation with 128 robots. The robots will be controlle
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches
 the desired pose, the command should cycle through to the next pose specified in the script.
 
-.. figure:: ../../_static/tutorials/tutorial_task_space_controller.jpg
+.. figure:: ../_static/tutorials/tutorial_task_space_controller.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_diff_ik.py

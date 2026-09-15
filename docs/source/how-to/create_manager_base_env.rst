@@ -39,7 +39,7 @@ directory.
 .. dropdown:: Code for create_cartpole_base_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
+   .. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
       :emphasize-lines: 47-51, 54-71, 74-108, 111-130, 135-139, 144, 148, 153-154, 160-161
       :linenos:
@@ -85,7 +85,7 @@ different control schemes for different aspects of the environment.
 In the cartpole environment, we want to control the force applied to the cart to balance the pole.
 Thus, we will create an action term that controls the force applied to the cart.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ActionsCfg
 
@@ -115,7 +115,7 @@ callable class that computes the observation for that term. It includes other pa
 defining the noise model, clipping, scaling, etc. However, we leave these parameters to their
 default values for this tutorial.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ObservationsCfg
 
@@ -145,7 +145,7 @@ For this example, we define events that randomize the pole's mass on startup. Th
 operation is expensive and we don't want to do it on every reset. We also create an event to randomize the initial
 joint state of the cartpole and the pole at every reset.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: EventCfg
 
@@ -161,7 +161,7 @@ parameters such as the timestep, gravity, etc. This is initialized to the defaul
 be modified as needed. We recommend doing so by defining the :meth:`__post_init__` method in the
 :class:`envs.ManagerBasedEnvCfg` class, which is called after the configuration is initialized.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: CartpoleEnvCfg
 
@@ -179,7 +179,7 @@ The :class:`envs.ManagerBasedEnv` class does not have any notion of terminations
 specific for episodic tasks. Thus, the user is responsible for defining the termination condition
 for the environment. In this tutorial, we reset the simulation at regular intervals.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
+.. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: main
 
@@ -214,7 +214,7 @@ right corner of the screen named ``"Isaac Lab"``. This window contains different
 can be used for debugging and visualization.
 
 
-.. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.jpg
+.. figure:: ../_static/tutorials/tutorial_create_manager_rl_env.jpg
     :align: center
     :figwidth: 100%
     :alt: result of create_cartpole_base_env.py

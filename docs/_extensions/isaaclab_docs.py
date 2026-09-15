@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
+import posixpath
+from html import escape
 import re
 import sys
 from pathlib import Path
@@ -16,6 +19,7 @@ from pathlib import Path
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
+from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
@@ -408,8 +412,31 @@ class IsaacLabContainerCli(SphinxDirective):
         return _parse_rst(self, _list_table(header, rows))
 
 
+def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
+    """Preserve old HTML URLs without retaining duplicate guide sources."""
+    if exception is not None or app.builder.format != "html":
+        return
+    for old, new in app.config.isaaclab_doc_redirects.items():
+        destination = Path(app.builder.get_outfilename(new))
+        if not destination.is_file():
+            raise ValueError(f"Documentation redirect target was not built: {new}")
+        output = Path(app.builder.get_outfilename(old))
+        target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            '<!doctype html><meta charset="utf-8"><title>Page moved</title>'
+            f'<meta http-equiv="refresh" content="0; url={escape(target, quote=True)}">'
+            f'<link rel="canonical" href="{escape(target, quote=True)}">'
+            f'<script>location.replace({json.dumps(target)} + location.search + location.hash);</script>'
+            f'<p>This page moved to <a href="{escape(target, quote=True)}">{escape(new)}</a>.</p>',
+            encoding="utf-8",
+        )
+
+
 def setup(app):
     """Register Isaac Lab documentation directives."""
+    app.add_config_value("isaaclab_doc_redirects", {}, "html")
+    app.connect("build-finished", _write_doc_redirects)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
     app.add_config_value("isaacsim_version", "", "env")
     app.add_config_value("torch_version", "", "env")
