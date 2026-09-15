@@ -33,7 +33,7 @@ from .robot_config import H2RobotPresets, h2_body_joint_offsets
 
 # Reuse the proven bimanual, camera-facing H2 teleop pose until a pack-task
 # recording supplies a task-specific frame-zero pose.
-_H2_PACK_AGX_ORIN_POLICY_58_POS: tuple[float, ...] = (
+_FRAME0_POLICY_58_POS: tuple[float, ...] = (
     0.2754,
     0.0215,
     -0.0674,
@@ -93,10 +93,14 @@ _H2_PACK_AGX_ORIN_POLICY_58_POS: tuple[float, ...] = (
     0.0611,
     0.0884,
 )
-assert len(_H2_PACK_AGX_ORIN_POLICY_58_POS) == ACTION_DIM
-H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS = dict(zip(POLICY_58_ORDER, _H2_PACK_AGX_ORIN_POLICY_58_POS, strict=True))
-H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
+assert len(_FRAME0_POLICY_58_POS) == ACTION_DIM
+CUSTOM_JOINT_POS = dict(zip(POLICY_58_ORDER, _FRAME0_POLICY_58_POS, strict=True))
+CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
 
+
+# Task-specific start pose.
+INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
+INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
 TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256.usd"
 AGX_ORIN_USD = f"{PROP_ASSET_ROOT}/Assets/MiniPc001/MiniPc001.usd"
@@ -104,14 +108,41 @@ PROTECTIVE_BOX_USD = f"{PROP_ASSET_ROOT}/Assets/ProtectiveBox001/ProtectiveBox00
 BACKGROUND_USD = f"{NUREC_ASSET_ROOT}/IMG_6246_nurec_aligned_scaled.usdz"
 
 
+# Reset-pose randomization half-ranges. PACK_AGX_XY_RANGE (metres) drives the x
+# half-range and the y magnitude; PACK_AGX_YAW_RANGE_DEG drives yaw. The defaults
+# reproduce the ranges the MimicGen dataset was generated with. The OSMO
+# workflows set both from `--set xy_range=... yaw_range_deg=...`.
+XY_RANGE = float(os.environ.get("PACK_AGX_XY_RANGE", "0.05"))
+YAW_RANGE = math.radians(float(os.environ.get("PACK_AGX_YAW_RANGE_DEG", "10")))
+
+
+def _randomize_asset_pose(
+    asset_name: str,
+    y_range: tuple[float, float],
+) -> EventTermCfg:
+    return EventTermCfg(
+        func=base_mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {
+                "x": (-XY_RANGE, XY_RANGE),
+                "y": y_range,
+                "yaw": (-YAW_RANGE, YAW_RANGE),
+            },
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg(asset_name),
+        },
+    )
+
+
 @configclass
-class H2PackAgxOrinSceneCfg(InteractiveSceneCfg):
+class PackAgxOrinSceneCfg(InteractiveSceneCfg):
     """Independent H2 scene for packing an AGX Orin."""
 
     robot = H2RobotPresets.h2_sharpa_base_fix(
-        init_pos=(-0.95, 0.0, 1.05),
-        init_rot=(0.0, 0.0, 0.0, 1.0),
-        custom_joint_pos=H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS,
+        init_pos=INIT_POS,
+        init_rot=INIT_ROT,
+        custom_joint_pos=CUSTOM_JOINT_POS,
     )
 
     background = AssetBaseCfg(
@@ -254,21 +285,7 @@ class H2PackAgxOrinSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class H2PackAgxOrinActionsCfg:
-    """Direct joint-angle control in the H2 action order."""
-
-    joint_pos = mdp.JointPositionActionCfg(
-        asset_name="robot",
-        joint_names=H2_ACTION_JOINT_ORDER,
-        scale=1.0,
-        use_default_offset=False,
-        offset=h2_body_joint_offsets(H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS),
-        preserve_order=True,
-    )
-
-
-@configclass
-class H2PackAgxOrinRLActionsCfg:
+class ActionsCfg:
     """RL joint control with PhysX gravity feed-forward on both arms."""
 
     joint_pos = mdp.JointPositionActionCfg(
@@ -277,13 +294,13 @@ class H2PackAgxOrinRLActionsCfg:
         joint_names=H2_ACTION_JOINT_ORDER,
         scale=1.0,
         use_default_offset=False,
-        offset=h2_body_joint_offsets(H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS),
+        offset=h2_body_joint_offsets(CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
 
 @configclass
-class H2PackAgxOrinObservationsCfg:
+class ObservationsCfg:
     """Robot state and three camera observations."""
 
     @configclass
@@ -336,42 +353,7 @@ class H2PackAgxOrinObservationsCfg:
 
 
 @configclass
-class H2PackAgxOrinTerminationsCfg:
-    """Timeout and successful placement termination."""
-
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    success = DoneTerm(func=mdp.agx_in_box, time_out=False)
-
-
-# Reset-pose randomization half-ranges. PACK_AGX_XY_RANGE (metres) drives the x
-# half-range and the y magnitude; PACK_AGX_YAW_RANGE_DEG drives yaw. The defaults
-# reproduce the ranges the MimicGen dataset was generated with. The OSMO
-# workflows set both from `--set xy_range=... yaw_range_deg=...`.
-XY_RANGE = float(os.environ.get("PACK_AGX_XY_RANGE", "0.05"))
-YAW_RANGE = math.radians(float(os.environ.get("PACK_AGX_YAW_RANGE_DEG", "10")))
-
-
-def _randomize_asset_pose(
-    asset_name: str,
-    y_range: tuple[float, float],
-) -> EventTermCfg:
-    return EventTermCfg(
-        func=base_mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-XY_RANGE, XY_RANGE),
-                "y": y_range,
-                "yaw": (-YAW_RANGE, YAW_RANGE),
-            },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg(asset_name),
-        },
-    )
-
-
-@configclass
-class H2PackAgxOrinEventCfg:
+class EventCfg:
     """Reset the scene, then randomize the AGX Orin on the tabletop."""
 
     align_table_material = EventTermCfg(
@@ -404,21 +386,6 @@ class H2PackAgxOrinEventCfg:
         mode="reset",
         params={"reset_joint_targets": True},
     )
-    randomize_agx_orin_xy = EventTermCfg(
-        func=base_mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.005, 0.005), "y": (-0.005, 0.005)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("agx_orin"),
-        },
-    )
-
-
-@configclass
-class H2PackAgxOrinRandomizedEventCfg(H2PackAgxOrinEventCfg):
-    """Shared AGX and box pose randomization for RL and MimicGen."""
-
     randomize_agx_orin_xy = _randomize_asset_pose(
         "agx_orin",
         y_range=(-XY_RANGE, 0.0),
@@ -428,45 +395,18 @@ class H2PackAgxOrinRandomizedEventCfg(H2PackAgxOrinEventCfg):
         y_range=(0.0, XY_RANGE),
     )
 
-
-@configclass
-class H2PackAgxOrinEnvCfg(ManagerBasedRLEnvCfg):
-    """Independent joint-control environment for the AGX Orin packing task."""
-
-    scene: H2PackAgxOrinSceneCfg = H2PackAgxOrinSceneCfg(
-        num_envs=1,
-        env_spacing=10.0,
-        replicate_physics=False,
+    reset_task_stage = EventTermCfg(
+        func=mdp.reset_task_stage,
+        mode="reset",
+        params={
+            "agx_orin_cfg": SceneEntityCfg("agx_orin"),
+            "print_log": False,
+        },
     )
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(0.2, -0.2, 2.2),
-        lookat=(-0.40, 0.0, 1.10),
-        cam_prim_path="/OmniverseKit_Persp",
-    )
-    observations: H2PackAgxOrinObservationsCfg = H2PackAgxOrinObservationsCfg()
-    actions: H2PackAgxOrinActionsCfg = H2PackAgxOrinActionsCfg()
-    terminations: H2PackAgxOrinTerminationsCfg = H2PackAgxOrinTerminationsCfg()
-    events: H2PackAgxOrinEventCfg = H2PackAgxOrinEventCfg()
-    commands = None
-    rewards = None
-    curriculum = None
-
-    def __post_init__(self):
-        from isaaclab_physx.physics import PhysxCfg
-
-        self.decimation = 4
-        self.episode_length_s = 15.0
-        self.sim.dt = 1 / 120
-        if self.sim.physics is None:
-            self.sim.physics = PhysxCfg()
-        self.sim.physics.gpu_max_num_partitions = 32
-        self.sim.render_interval = 4
-        if hasattr(self.sim, "render"):
-            self.sim.render.antialiasing_mode = "DLAA"
 
 
 @configclass
-class H2PackAgxOrinRLTerminationsCfg:
+class TerminationsCfg:
     """Timeout and stage-based completion for RL post-training."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -478,7 +418,7 @@ class H2PackAgxOrinRLTerminationsCfg:
 
 
 @configclass
-class H2PackAgxOrinRLRewardsCfg:
+class RewardsCfg:
     """Sparse stage rewards plus stage-specific positive progress shaping."""
 
     lift_agx = RewTerm(
@@ -510,30 +450,39 @@ class H2PackAgxOrinRLRewardsCfg:
 
 
 @configclass
-class H2PackAgxOrinRLEventCfg(H2PackAgxOrinRandomizedEventCfg):
-    """Base reset/randomization plus Pack-AGX stage-state reset."""
+class PackAgxOrinEnvCfg(ManagerBasedRLEnvCfg):
+    """Independent joint-control environment for the AGX Orin packing task."""
 
-    reset_task_stage = EventTermCfg(
-        func=mdp.reset_task_stage,
-        mode="reset",
-        params={
-            "agx_orin_cfg": SceneEntityCfg("agx_orin"),
-            "print_log": False,
-        },
+    scene: PackAgxOrinSceneCfg = PackAgxOrinSceneCfg(
+        num_envs=1,
+        env_spacing=10.0,
+        replicate_physics=False,
     )
-
-
-@configclass
-class H2PackAgxOrinRLEnvCfg(H2PackAgxOrinEnvCfg):
-    """Pack-AGX environment with staged PPO rewards and lower-res cameras."""
-
-    actions: H2PackAgxOrinRLActionsCfg = H2PackAgxOrinRLActionsCfg()
-    terminations: H2PackAgxOrinRLTerminationsCfg = H2PackAgxOrinRLTerminationsCfg()
-    events: H2PackAgxOrinRLEventCfg = H2PackAgxOrinRLEventCfg()
-    rewards: H2PackAgxOrinRLRewardsCfg = H2PackAgxOrinRLRewardsCfg()
+    viewer: ViewerCfg = ViewerCfg(
+        eye=(0.2, -0.2, 2.2),
+        lookat=(-0.40, 0.0, 1.10),
+        cam_prim_path="/OmniverseKit_Persp",
+    )
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
+    rewards: RewardsCfg = RewardsCfg()
+    commands = None
+    curriculum = None
 
     def __post_init__(self):
-        super().__post_init__()
+        from isaaclab_physx.physics import PhysxCfg
+
+        self.decimation = 4
+        self.episode_length_s = 15.0
+        self.sim.dt = 1 / 120
+        if self.sim.physics is None:
+            self.sim.physics = PhysxCfg()
+        self.sim.physics.gpu_max_num_partitions = 32
+        self.sim.render_interval = 4
+        if hasattr(self.sim, "render"):
+            self.sim.render.antialiasing_mode = "DLAA"
         self.scene.front_camera = CameraPresets.h2_front_fisheye_camera(height=240, width=320)
         self.scene.left_wrist_camera = CameraPresets.left_shf3l_fisheye_camera(height=240, width=320)
         self.scene.right_wrist_camera = CameraPresets.right_shf3l_fisheye_camera(height=240, width=320)

@@ -14,7 +14,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": (
-            "isaaclab_tasks.contrib.pick_and_place_apple.config.env_config:H2PnpAppleRLEnvCfg"
+            "isaaclab_tasks.contrib.pick_and_place_apple.config.env_config:PnpAppleEnvCfg"
         ),
     },
 )
@@ -25,7 +25,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": (
-            "isaaclab_tasks.contrib.pick_and_place_apple.config.env_config:H2PnpAppleRLEnvCfg"
+            "isaaclab_tasks.contrib.pick_and_place_apple.config.env_config:PnpAppleEnvCfg"
         ),
     },
 )
