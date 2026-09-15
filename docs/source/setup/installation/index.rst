@@ -239,6 +239,22 @@ See :ref:`installation-optional-extras` for the available extras.
 ``uv run --extra <name> <command>`` syncs the selected extra into the project environment
 and then runs the command.
 
+In a source checkout, PyTorch defaults to CUDA 12.8 on Linux x86_64 and Windows. Select
+the ``cu128`` (default) or ``cu130`` dependency group when syncing and running commands:
+
+.. code-block:: bash
+
+   uv sync --no-group cu128 --group cu130
+   uv run --no-group cu128 --group cu130 isaaclab zero_agent --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+Keep the selector on subsequent ``uv run`` commands; omitting it restores the platform default.
+The CUDA groups are mutually exclusive. Linux aarch64 uses CUDA 13.0 with either group.
+Keep a CUDA group enabled when using ``--no-default-groups``.
+Run ``uv sync`` with the desired groups when switching builds to remove the previous CUDA packages.
+These selectors choose PyTorch's bundled CUDA runtime,
+which requires a compatible NVIDIA driver. They use this checkout's ``tool.uv.sources`` settings;
+downstream uv projects must configure their own PyTorch indexes.
+
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
 

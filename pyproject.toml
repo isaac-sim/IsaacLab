@@ -38,9 +38,9 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
-    "torchaudio>=2.11",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "torchaudio==2.11.0",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
     "psutil",
@@ -112,6 +112,11 @@ dependencies = [
     "imgui-bundle>=1.92.5",
     "typing-extensions>=4.15.0",
 ]
+
+# CUDA selection for uv source checkouts. Linux aarch64 always uses CUDA 13.0.
+[dependency-groups]
+cu128 = ["torch", "torchvision", "torchaudio"]
+cu130 = ["torch", "torchvision", "torchaudio"]
 
 [project.optional-dependencies]
 
@@ -396,6 +401,8 @@ explicit = true
 # unsafe-best-match resolves NVIDIA deps with versions mismatched across
 # pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
 [tool.uv]
+default-groups = ["cu128"]
+conflicts = [[{ group = "cu128" }, { group = "cu130" }]]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
@@ -407,10 +414,10 @@ environments = [
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
-# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
+# Isaac Lab owns the Newton and MuJoCo versions. Overrides replace requirements
 # for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
-# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
+# Torch is pinned in project.dependencies and routes through [tool.uv.sources].
 override-dependencies = [
     "numpy>=2",
     "mujoco~=3.12.0",
@@ -418,9 +425,6 @@ override-dependencies = [
     "newton[sim]==1.6.0rc1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
-    "torch==2.11.0",
-    "torchvision==0.26.0",
-    "torchaudio==2.11.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
@@ -448,19 +452,19 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
 torch = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cu128", group = "cu128", marker = "platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", group = "cu130", marker = "platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", marker = "platform_machine == 'aarch64'" },
 ]
 torchaudio = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cu128", group = "cu128", marker = "platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", group = "cu130", marker = "platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", marker = "platform_machine == 'aarch64'" },
 ]
 torchvision = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cu128", group = "cu128", marker = "platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", group = "cu130", marker = "platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", marker = "platform_machine == 'aarch64'" },
 ]
 
 [tool.uv.pip]
