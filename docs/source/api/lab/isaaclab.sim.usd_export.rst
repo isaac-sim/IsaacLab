@@ -3,9 +3,6 @@ isaaclab.sim.usd_export
 
 .. automodule:: isaaclab.sim.usd_export
 
-.. autoclass:: isaaclab.sim.usd_export.SceneExporter
-   :members:
-
 Fixed deployment export
 -----------------------
 
@@ -24,19 +21,55 @@ standard scene boundary; physical assets created only after that boundary are ou
 Direct tasks must register their physical assets in the scene. Unregistered rigid bodies fail
 coverage checks. Unimportable task classes/configurations cannot be sent to the isolated worker.
 
-For a standalone fixed scene, launch the backend normally and call::
+For a standalone robot and box, launch the backend normally and use the scene's export method.
+Here ``sim_cfg`` is the resolved simulation configuration for that backend::
 
-    from isaaclab.sim import SceneExporter
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.utils import configclass
+    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
-    SceneExporter.export_from_cfg(scene_cfg, sim_cfg, "environment.usda")
+    @configclass
+    class DeploymentSceneCfg(InteractiveSceneCfg):
+        robot = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        box = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Box",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(1.0, 0.0, 0.5)),
+        )
 
-This requires ``num_envs=1`` and no active ``SimulationContext``. There is no runtime snapshot
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(DeploymentSceneCfg(num_envs=1, env_spacing=2.0))
+        sim.reset()
+        scene.reset_to_default()
+        sim.forward()
+        scene.update(0.0)
+        scene.export_to_usd("environment.usda")
+
+There is no runtime snapshot
 mode, model-only reconstruction, articulation-only export or replicated-environment extraction.
 A task that requires randomized parameters for deployment must first express them as a fixed
 configuration. Event functions are not evaluated by the export process.
 
 Preservation and authoring
 --------------------------
+
+``InteractiveScene.export_to_usd`` copies the stage and calls each registered asset's
+``author_fixed_configuration(stage, adapter)``. In this example the robot supplies its
+link state and joint properties; the box supplies its body state. Both write into the
+same copy through shared body/joint writers. Collections use that same body writer for
+all members. Scene-wide settings, dependencies and completeness are checked before saving.
+Backend managers provide the adapter; the scene does not select a backend by package name.
+
+Task construction and the pre-event callback belong to the training worker. Because a task
+constructor has no normal return at this boundary, a worker-local exception stops its remaining
+controller/observation setup. This hook is a construction constraint, not part of USD authoring.
 
 The in-memory USD stage carries geometry, mass/inertia/COM, topology, collision materials,
 filtering, static objects, terrain, shared resources, tendon schemas and other authored settings.
@@ -100,8 +133,9 @@ Deployment must restore policies, observations, sensor sampling/rendering, contr
 and task logic. Complete same-backend fresh-load tests are the first gate; use on a different
 backend requires a separate physical-semantics validation.
 
-``deployment.metrics.json`` reports scene construction, initialization, data reading, flattening,
-fixed authoring, dependency/coverage validation and file saving separately, in seconds. It also
+``deployment.metrics.json`` reports scene construction, initialization, flattening,
+fixed configuration, dependency/coverage validation and file saving separately, in seconds.
+The configuration phase includes object/backend data reading and authoring. It also
 reports the child process's peak resident memory, output size and total process wall time including
 startup/shutdown. Peak resident memory includes imported libraries and backend initialization;
 it is not incremental GPU memory. The extra process and scene have a measurable startup cost,

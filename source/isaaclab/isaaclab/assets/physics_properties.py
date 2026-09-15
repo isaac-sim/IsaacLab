@@ -15,12 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 if TYPE_CHECKING:
     import torch
 
-    from isaaclab.assets import BaseArticulationData, BaseRigidObjectCollectionData, BaseRigidObjectData
+    from isaaclab.assets import BaseArticulationData
 
 
 # The payload consumed by ActuatorControl.write_resolved_joint_properties. Adding a solver
@@ -155,23 +153,3 @@ JOINT_USD_PROPERTIES = {
     "position": UsdProperty("joint_pos", (("PhysicsJointStateAPI:{axis}", "state:{axis}:physics:position"),), 1),
     "velocity": UsdProperty("joint_vel", (("PhysicsJointStateAPI:{axis}", "state:{axis}:physics:velocity"),), 1),
 }
-
-
-@dataclass(frozen=True)
-class BodyInitialState:
-    """Public body-link world poses [m, xyzw] and COM velocities [m/s, rad/s], shape [B, 7/6]."""
-
-    pose: np.ndarray
-    velocity: np.ndarray
-
-    @classmethod
-    def from_data(
-        cls, data: BaseArticulationData | BaseRigidObjectData | BaseRigidObjectCollectionData
-    ) -> BodyInitialState:
-        """Copy the single environment's initialized state in public body order."""
-        return cls(
-            *(
-                getattr(data, name).torch[0].detach().cpu().numpy().reshape(-1, width).copy()
-                for name, width in (("body_link_pose_w", 7), ("body_com_vel_w", 6))
-            )
-        )

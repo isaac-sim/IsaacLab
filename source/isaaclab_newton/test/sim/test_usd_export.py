@@ -119,7 +119,8 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path):
     """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
     from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 
-    from isaaclab.sim import SceneExporter, SimulationCfg
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import make_fixed_scene_cfg
 
     cfg = make_fixed_scene_cfg(tmp_path)
@@ -130,17 +131,19 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path):
     expected = {}
     expected_state = {}
 
-    class CaptureBeforeExport(SceneExporter):
-        def export(self, usd_path):
-            manager = self.scene.sim.physics_manager
-            pairs = manager._collision_pipeline.shape_pairs_filtered.numpy()
-            expected.update(_capture_environment_physics(manager.get_model(), 0, pairs))
-            state = manager.get_state_0()
-            for index, path in enumerate(manager.get_model().body_label):
-                expected_state[path] = (state.body_q.numpy()[index].copy(), state.body_qd.numpy()[index].copy())
-            return super().export(usd_path)
-
-    CaptureBeforeExport.export_from_cfg(cfg, simulation_cfg, str(output))
+    with build_simulation_context(sim_cfg=simulation_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.reset_to_default()
+        sim.forward()
+        scene.update(0.0)
+        manager = scene.sim.physics_manager
+        pairs = manager._collision_pipeline.shape_pairs_filtered.numpy()
+        expected.update(_capture_environment_physics(manager.get_model(), 0, pairs))
+        state = manager.get_state_0()
+        for index, path in enumerate(manager.get_model().body_label):
+            expected_state[path] = (state.body_q.numpy()[index].copy(), state.body_qd.numpy()[index].copy())
+        scene.export_to_usd(str(output))
     stage = Usd.Stage.Open(str(output))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
     assert bodies == {

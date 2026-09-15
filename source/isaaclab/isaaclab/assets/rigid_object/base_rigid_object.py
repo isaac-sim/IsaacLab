@@ -19,6 +19,10 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.sim.usd_export import SceneExportAdapter
+
     from .rigid_object_cfg import RigidObjectCfg
     from .rigid_object_data import RigidObjectData
 
@@ -123,6 +127,14 @@ class BaseRigidObject(AssetBase):
     """
     Operations.
     """
+
+    def author_fixed_configuration(self, stage: Usd.Stage, adapter: SceneExportAdapter) -> set[str]:
+        """Supplement this rigid object's initial body state in the export stage."""
+        from isaaclab.assets.physics_properties import validate_configuration_coverage
+        from isaaclab.sim.usd_export import author_bodies
+
+        validate_configuration_coverage(self.cfg)
+        return author_bodies(stage, self.data, adapter.paths(self).bodies)
 
     @abstractmethod
     def reset(

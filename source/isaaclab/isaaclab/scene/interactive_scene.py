@@ -482,6 +482,62 @@ class InteractiveScene:
     Operations.
     """
 
+    def export_to_usd(self, path: str, *, timings: dict[str, float] | None = None) -> str:
+        """Export the complete fixed scene to USD without modifying the live simulation.
+
+        Call after initialization/warmup and default-state application, before task events
+        or application steps, with exactly one environment. All registered rigid assets
+        supplement the same isolated copy of the authored stage. Controllers, observations
+        and sensor execution require separate deployment integration.
+
+        Args:
+            path: Destination USD file. External asset dependencies must remain accessible.
+            timings: Optional output of flatten/configuration/validate/save durations [s].
+                Configuration includes backend reads and object/scene authoring.
+        """
+        from itertools import chain
+        from time import perf_counter
+
+        from isaaclab.sim.usd_export import (
+            author_fixed_root_frames,
+            author_scene_settings,
+            check_body_coverage,
+            copy_scene_stage,
+            save_stage,
+            validate_dependencies,
+        )
+
+        if self.num_envs != 1 or self.sim.get_physics_step_count() != 0:
+            raise ValueError("Fixed export requires exactly one environment before its first physics step.")
+        if self.deformable_objects or self.cable_objects or self.surface_grippers:
+            raise NotImplementedError("Fixed export does not support deformables, cables or surface grippers.")
+        durations = timings if timings is not None else {}
+        start = perf_counter()
+        stage = copy_scene_stage(self.sim.stage)
+        durations["flatten"] = perf_counter() - start
+        start = perf_counter()
+        adapter = self.sim.physics_manager.create_usd_export_adapter(self)
+        written = set()
+        for asset in chain(
+            self.articulations.values(), self.rigid_objects.values(), self.rigid_object_collections.values()
+        ):
+            bodies = asset.author_fixed_configuration(stage, adapter)
+            if written.intersection(bodies):
+                raise RuntimeError(f"Multiply owned bodies: {sorted(written.intersection(bodies))}")
+            written.update(bodies)
+        author_fixed_root_frames(stage, written)
+        adapter.write_extensions(stage)
+        author_scene_settings(stage, self)
+        durations["configuration"] = perf_counter() - start
+        start = perf_counter()
+        check_body_coverage(stage, written)
+        validate_dependencies(stage)
+        durations["validate"] = perf_counter() - start
+        start = perf_counter()
+        result = save_stage(stage, path, validate=False)
+        durations["save"] = perf_counter() - start
+        return result
+
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 

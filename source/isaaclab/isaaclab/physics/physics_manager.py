@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
     from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim.usd_export import SceneExportAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,11 @@ class PhysicsManager(ABC):
 
     Overridden by backends that implement the recorder (currently PhysX-only).
     """
+
+    @classmethod
+    def create_usd_export_adapter(cls, scene: InteractiveScene) -> SceneExportAdapter:
+        """Provide source identities and native extensions for fixed scene export."""
+        raise NotImplementedError(f"Fixed USD export is not supported for {cls.__name__}.")
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:

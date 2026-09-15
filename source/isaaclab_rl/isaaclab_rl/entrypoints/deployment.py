@@ -74,13 +74,45 @@ def _worker(payload: Path, output: Path) -> None:
     try:
         import importlib
 
-        from isaaclab.sim import SceneExporter
+        from isaaclab.envs.utils.scene_export import _scene_export_callback
+        from isaaclab.sim import SimulationContext
+        from isaaclab.sim.utils import use_stage
 
         entry, cfg = pickle.loads(payload.read_bytes())
         if isinstance(entry, str):
             module, symbol = entry.split(":")
             entry = getattr(importlib.import_module(module), symbol)
-        timings = SceneExporter.export_task(lambda: entry(cfg=cfg), str(output))
+        timings = {}
+        started = perf_counter()
+
+        class ExportComplete(Exception):
+            """Stop task construction before it creates managers or executes events."""
+
+        def capture(env):
+            timings["construction"] = perf_counter() - started
+            initialized = perf_counter()
+            with use_stage(env.sim.stage):
+                env.sim.reset()
+                env.scene.reset_to_default()
+                env.sim.forward()
+                env.scene.update(0.0)
+            timings["initialize"] = perf_counter() - initialized
+            env.scene.export_to_usd(str(output), timings=timings)
+            raise ExportComplete
+
+        # Constructors do not return at the pre-event boundary. The worker-local
+        # exception prevents the remaining controller/observation/task setup from running.
+        token = _scene_export_callback.set(capture)
+        try:
+            entry(cfg=cfg)
+            raise RuntimeError("Task did not expose the pre-event scene construction boundary.")
+        except ExportComplete:
+            pass
+        finally:
+            _scene_export_callback.reset(token)
+            sim = SimulationContext.instance()
+            if sim is not None:
+                sim.clear_instance()
         metrics = {
             "seconds": timings,
             "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,

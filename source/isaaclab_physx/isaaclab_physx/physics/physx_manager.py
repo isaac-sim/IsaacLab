@@ -48,7 +48,9 @@ from isaaclab.utils.string import to_camel_case
 from isaaclab_physx.cloner import PhysxReplicateContext
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
     from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim.usd_export import SceneExportAdapter
 
     from .physx_cfg import PhysxCfg
 
@@ -417,6 +419,13 @@ class PhysxManager(PhysicsManager):
     _simulation_manager_interface: ClassVar[_SimManagerStub] = _SimManagerStub()
     _physics_scene_apis: ClassVar[dict[str, Any]] = {}
     _message_bus = _event_bus
+
+    @classmethod
+    def create_usd_export_adapter(cls, scene: InteractiveScene) -> SceneExportAdapter:
+        """Provide source identities and native extensions for fixed scene export."""
+        from ..sim.usd_export import SceneAdapter
+
+        return SceneAdapter(scene)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:

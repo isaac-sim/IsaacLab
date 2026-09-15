@@ -15,7 +15,8 @@ from isaaclab_ov.stage import create_ovstage
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim import SceneExporter, SimulationCfg
+from isaaclab.scene import InteractiveScene
+from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.usd_export import (
     assert_physics_structure_equal,
     capture_physics_structure,
@@ -58,30 +59,30 @@ def test_fixed_environment_round_trip(tmp_path):
         TT.RIGID_BODY_VELOCITY,
     )
 
-    class Capture(SceneExporter):
-        def export(self, path):
-            structure.update(capture_physics_structure(self.scene.sim.stage))
-            structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.array(cfg.robot.init_state.pos)
-            for group in (self.scene.articulations, self.scene.rigid_objects, self.scene.rigid_object_collections):
-                for asset in group.values():
-                    articulation = asset in self.scene.articulations.values()
-                    view = asset.root_view
-                    props = art_props if articulation else rigid_props
-                    for row, root in enumerate(view.prim_paths):
-                        expected[root] = (
-                            {token: view.get_attribute(token).numpy()[row].copy() for token in props},
-                            list(view.body_names) if articulation else [],
-                            list(view.dof_names) if articulation else [],
-                        )
-            before = self.scene.sim.stage.GetRootLayer().ExportToString()
-            result = super().export(path)
-            assert self.scene.sim.stage.GetRootLayer().ExportToString() == before
-            return result
-
     output = tmp_path / "fixed.usda"
-    Capture.export_from_cfg(
-        cfg, SimulationCfg(device="cpu", physics=OvPhysxCfg(), dt=1 / 120, gravity=(0.2, -0.1, -4.0)), str(output)
-    )
+    simulation_cfg = SimulationCfg(device="cpu", physics=OvPhysxCfg(), dt=1 / 120, gravity=(0.2, -0.1, -4.0))
+    with build_simulation_context(sim_cfg=simulation_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.reset_to_default()
+        sim.forward()
+        scene.update(0.0)
+        structure.update(capture_physics_structure(scene.sim.stage))
+        structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.array(cfg.robot.init_state.pos)
+        for group in (scene.articulations, scene.rigid_objects, scene.rigid_object_collections):
+            for asset in group.values():
+                articulation = asset in scene.articulations.values()
+                view = asset.root_view
+                props = art_props if articulation else rigid_props
+                for row, root in enumerate(view.prim_paths):
+                    expected[root] = (
+                        {token: view.get_attribute(token).numpy()[row].copy() for token in props},
+                        list(view.body_names) if articulation else [],
+                        list(view.dof_names) if articulation else [],
+                    )
+        before = scene.sim.stage.GetRootLayer().ExportToString()
+        scene.export_to_usd(str(output))
+        assert scene.sim.stage.GetRootLayer().ExportToString() == before
     stage = Usd.Stage.Open(str(output))
     assert_physics_structure_equal(structure, capture_physics_structure(stage))
     assert len([p for p in stage.Traverse() if p.HasAPI(UsdPhysics.RigidBodyAPI)]) == 5

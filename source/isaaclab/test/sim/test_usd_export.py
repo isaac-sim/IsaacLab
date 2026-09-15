@@ -21,7 +21,8 @@ from isaaclab.assets.physics_properties import (
     JOINT_USD_PROPERTIES,
     validate_configuration_coverage,
 )
-from isaaclab.sim.usd_export import SceneExporter, copy_scene_stage, save_stage, write_properties
+from isaaclab.scene import InteractiveScene
+from isaaclab.sim.usd_export import copy_scene_stage, save_stage, write_properties
 
 
 @pytest.fixture
@@ -108,11 +109,11 @@ def test_declared_joint_mapping_authors_effective_values(angular):
 def test_fixed_export_rejects_replication_and_poststep(scene, tmp_path):
     scene.num_envs = 2
     with pytest.raises(ValueError, match="exactly one"):
-        SceneExporter(scene).export(str(tmp_path / "scene.usda"))
+        InteractiveScene.export_to_usd(scene, str(tmp_path / "scene.usda"))
     scene.num_envs = 1
     scene.sim.get_physics_step_count = lambda: 1
     with pytest.raises(ValueError, match="first physics step"):
-        SceneExporter(scene).export(str(tmp_path / "scene.usda"))
+        InteractiveScene.export_to_usd(scene, str(tmp_path / "scene.usda"))
 
 
 def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
@@ -134,14 +135,21 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
     scene.cable_objects = {}
     scene.surface_grippers = {}
     scene.physics_scene_path = "/physicsScene"
-    scene.sim.physics_manager = SimpleNamespace(__module__="isaaclab_physx.physics")
+    from isaaclab_physx.sim.usd_export import SceneAdapter
+
+    from isaaclab.assets import BaseRigidObject
+
+    asset.author_fixed_configuration = lambda stage, adapter: BaseRigidObject.author_fixed_configuration(
+        asset, stage, adapter
+    )
+    scene.sim.physics_manager = SimpleNamespace(create_usd_export_adapter=lambda scene: SceneAdapter(scene))
     scene.sim.get_physics_step_count = lambda: 0
     scene.sim.get_physics_dt = lambda: 1 / 60
     output = tmp_path / "complete.usda"
     output.write_text("previous destination")
     before = scene.sim.stage.GetRootLayer().ExportToString()
     with pytest.raises(RuntimeError, match="Incomplete body export"):
-        SceneExporter(scene).export(str(output))
+        InteractiveScene.export_to_usd(scene, str(output))
     assert output.read_text() == "previous destination"
     assert scene.sim.stage.GetRootLayer().ExportToString() == before
 

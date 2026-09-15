@@ -26,6 +26,8 @@ from isaaclab.utils.warp import ProxyArray
 if TYPE_CHECKING:
     from pxr import Usd
 
+    from isaaclab.sim.usd_export import SceneExportAdapter
+
     from .asset_base_cfg import AssetBaseCfg
 
 
@@ -287,6 +289,16 @@ class AssetBase(ABC):
         selector_cache = getattr(self, "_selector_cache", None)
         if selector_cache is not None:
             selector_cache.clear()
+
+    def author_fixed_configuration(self, stage: Usd.Stage, adapter: SceneExportAdapter) -> set[str]:
+        """Supplement this asset's prims in an isolated fixed single-environment stage.
+
+        Implementations read initialized public data without modifying the live stage or
+        physics buffers. Existing authored geometry and schemas remain in ``stage``.
+        Returns the rigid-body prim identities written, for scene-wide coverage checks.
+        Unsupported asset types raise rather than produce an incomplete environment.
+        """
+        raise NotImplementedError(f"Fixed USD export is not supported for {type(self).__name__}.")
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):

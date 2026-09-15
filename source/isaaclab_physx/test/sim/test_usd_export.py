@@ -18,8 +18,6 @@ import pytest
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim import build_simulation_context
-
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("native_actuator", [False, True])
@@ -30,7 +28,8 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
 
     from pxr import Gf, Sdf, UsdGeom
 
-    from isaaclab.sim import SceneExporter, SimulationCfg
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import (
         assert_physics_structure_equal,
         capture_physics_structure,
@@ -82,59 +81,58 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         "get_dof_velocities",
     )
 
-    class CaptureBeforeExport(SceneExporter):
-        def export(self, usd_path):
-            # Independent reference: the live backend and complete original USD, not exporter selection.
-            expected_structure.update(capture_physics_structure(self.scene.sim.stage))
-            # The configured fixed-base root pose moves its world anchor in the backend.
-            expected_structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.asarray(
-                cfg.robot.init_state.pos
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.reset_to_default()
+        sim.forward()
+        scene.update(0.0)
+        # Independent reference: the live backend and complete original USD, not exporter selection.
+        expected_structure.update(capture_physics_structure(scene.sim.stage))
+        # The configured fixed-base root pose moves its world anchor in the backend.
+        expected_structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.asarray(
+            cfg.robot.init_state.pos
+        )
+        for prim in scene.sim.stage.Traverse():
+            if not prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
+                authored[str(prim.GetPath())] = {prop.GetName(): prop.Get() for prop in prim.GetAuthoredAttributes()}
+        assets = {**scene.articulations, **scene.rigid_objects, **scene.rigid_object_collections}
+        for name, asset in assets.items():
+            view = asset.root_view
+            articulation = name in scene.articulations
+            getters = (
+                (getter_names + joint_getters + ("get_link_transforms", "get_link_velocities"))
+                if articulation
+                else getter_names + ("get_transforms", "get_velocities")
             )
-            for prim in self.scene.sim.stage.Traverse():
-                if not prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
-                    authored[str(prim.GetPath())] = {
-                        prop.GetName(): prop.Get() for prop in prim.GetAuthoredAttributes()
-                    }
-            assets = {**self.scene.articulations, **self.scene.rigid_objects, **self.scene.rigid_object_collections}
-            for name, asset in assets.items():
-                view = asset.root_view
-                articulation = name in self.scene.articulations
-                getters = (
-                    (getter_names + joint_getters + ("get_link_transforms", "get_link_velocities"))
-                    if articulation
-                    else getter_names + ("get_transforms", "get_velocities")
+            for row, root in enumerate(view.prim_paths):
+                expected[root] = (
+                    articulation,
+                    list(view.link_paths[row]) if articulation else [root],
+                    list(view.dof_paths[row]) if articulation else [],
+                    {getter: getattr(view, getter)().numpy()[row].copy() for getter in getters},
                 )
-                for row, root in enumerate(view.prim_paths):
-                    expected[root] = (
-                        articulation,
-                        list(view.link_paths[row]) if articulation else [root],
-                        list(view.dof_paths[row]) if articulation else [],
-                        {getter: getattr(view, getter)().numpy()[row].copy() for getter in getters},
-                    )
-            before = self.scene.sim.stage.GetRootLayer().ExportToString()
-            result = super().export(usd_path)
-            assert self.scene.sim.stage.GetRootLayer().ExportToString() == before
-            # The fresh backend performs two integration warmup steps. Advance this
-            # independent reference by the same amount only after the snapshot is saved.
-            import omni.physx
+        before = scene.sim.stage.GetRootLayer().ExportToString()
+        scene.export_to_usd(str(output))
+        assert scene.sim.stage.GetRootLayer().ExportToString() == before
+        # The fresh backend performs two integration warmup steps. Advance this
+        # independent reference by the same amount only after the snapshot is saved.
+        import omni.physx
 
-            physics = omni.physx.get_physx_interface()
-            physics.update_simulation(self.scene.sim.get_physics_dt(), 0.0)
-            omni.physx.get_physx_simulation_interface().fetch_results()
-            physics.update_simulation(self.scene.sim.get_physics_dt(), 0.0)
-            for name, asset in assets.items():
-                view = asset.root_view
-                states = (
-                    ("get_dof_positions", "get_dof_velocities", "get_link_transforms", "get_link_velocities")
-                    if name in self.scene.articulations
-                    else ("get_transforms", "get_velocities")
-                )
-                for row, root in enumerate(view.prim_paths):
-                    for getter in states:
-                        expected[root][3][getter] = getattr(view, getter)().numpy()[row].copy()
-            return result
-
-    CaptureBeforeExport.export_from_cfg(cfg, sim_cfg, str(output))
+        physics = omni.physx.get_physx_interface()
+        physics.update_simulation(scene.sim.get_physics_dt(), 0.0)
+        omni.physx.get_physx_simulation_interface().fetch_results()
+        physics.update_simulation(scene.sim.get_physics_dt(), 0.0)
+        for name, asset in assets.items():
+            view = asset.root_view
+            states = (
+                ("get_dof_positions", "get_dof_velocities", "get_link_transforms", "get_link_velocities")
+                if name in scene.articulations
+                else ("get_transforms", "get_velocities")
+            )
+            for row, root in enumerate(view.prim_paths):
+                for getter in states:
+                    expected[root][3][getter] = getattr(view, getter)().numpy()[row].copy()
     stage = Usd.Stage.Open(str(output))
     assert_physics_structure_equal(expected_structure, capture_physics_structure(stage))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}

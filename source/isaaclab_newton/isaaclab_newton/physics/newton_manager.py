@@ -117,6 +117,8 @@ if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import SceneExportAdapter
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -559,6 +561,13 @@ class NewtonManager(PhysicsManager):
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
+
+    @classmethod
+    def create_usd_export_adapter(cls, scene: InteractiveScene) -> SceneExportAdapter:
+        """Provide source identities and native extensions for fixed scene export."""
+        from ..sim.usd_export import SceneAdapter
+
+        return SceneAdapter(scene)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
