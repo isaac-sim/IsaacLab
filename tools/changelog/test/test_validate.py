@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import checks
 import cli
+import fragments
 import packages
 import pytest
+from paths import RepositoryPaths
 
 from conftest import version_file_for, write_version_file
 
@@ -30,17 +33,17 @@ def _write(path: Path, body: str) -> Path:
 
 def test_validate_accepts_well_formed(tmp_path):
     p = _write(tmp_path / "1234.rst", "Added\n^^^^^\n\n* Added X.\n")
-    assert packages.Fragment(p).validate() is None
+    assert fragments.Fragment(p).validate() is None
 
 
 def test_validate_accepts_minor_suffix(tmp_path):
     p = _write(tmp_path / "1234.minor.rst", "Added\n^^^^^\n\n* Added X.\n")
-    assert packages.Fragment(p).validate() is None
+    assert fragments.Fragment(p).validate() is None
 
 
 def test_validate_accepts_major_suffix(tmp_path):
     p = _write(tmp_path / "1234.major.rst", "Removed\n^^^^^^^\n\n* Removed X.\n")
-    assert packages.Fragment(p).validate() is None
+    assert fragments.Fragment(p).validate() is None
 
 
 # ---------------------------------------------------------------------------
@@ -49,27 +52,27 @@ def test_validate_accepts_major_suffix(tmp_path):
 
 
 def test_validate_rejects_unknown_filename_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_filenames" / "has..consecutive-dots.rst").validate()
+    err = fragments.Fragment(FIXTURES / "invalid_filenames" / "has..consecutive-dots.rst").validate()
     assert err is not None and "invalid filename" in err
 
 
 def test_validate_rejects_unknown_bump_tier_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_filenames" / "-leading-dash.rst").validate()
+    err = fragments.Fragment(FIXTURES / "invalid_filenames" / "-leading-dash.rst").validate()
     assert err is not None and "invalid filename" in err
 
 
 def test_validate_rejects_empty_file_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_content" / "3001.rst").validate()
+    err = fragments.Fragment(FIXTURES / "invalid_content" / "3001.rst").validate()
     assert err is not None and "empty" in err
 
 
 def test_validate_rejects_missing_section_heading_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_content" / "3002.rst").validate()
+    err = fragments.Fragment(FIXTURES / "invalid_content" / "3002.rst").validate()
     assert err is not None and "section" in err.lower()
 
 
 def test_validate_rejects_section_without_bullets_from_fixture():
-    err = packages.Fragment(FIXTURES / "invalid_content" / "3003.rst").validate()
+    err = fragments.Fragment(FIXTURES / "invalid_content" / "3003.rst").validate()
     assert err is not None and "bullet" in err.lower()
 
 
@@ -77,7 +80,7 @@ def test_validate_rejects_orphan_paragraph_from_fixture():
     """A flush-left paragraph between bullets / after the last bullet must be
     rejected — the compile step would splice it verbatim into ``CHANGELOG.rst``
     and Sphinx then fails the doc build with ``Unexpected indentation``."""
-    err = packages.Fragment(FIXTURES / "invalid_content" / "3004.rst").validate()
+    err = fragments.Fragment(FIXTURES / "invalid_content" / "3004.rst").validate()
     assert err is not None and "orphan" in err.lower()
 
 
@@ -102,7 +105,7 @@ def test_check_fragments_immutability_rejects_modified_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-fix-bug.rst"}
     added = {"source/isaaclab/code.py"}  # fragment exists already; the PR only modified it
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == ["isaaclab"]
     invalid_map = dict(invalid)
     assert "source/isaaclab/changelog.d/jdoe-fix-bug.rst" in invalid_map
@@ -123,7 +126,7 @@ def test_check_fragments_chain_allows_other_pr_fragment(tmp_path):
         "source/isaaclab/changelog.d/bob-feature-b.rst",  # this PR's own fragment
     }
     added = changed
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -138,7 +141,7 @@ def test_check_fragments_slug_collision_with_existing(tmp_path):
     (pkg.root / "changelog.d" / "jdoe-fix-bug.minor.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
     changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"}
     added = changed
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     invalid_map = dict(invalid)
     assert "source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst" in invalid_map
     assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"]
@@ -170,7 +173,7 @@ def test_check_fragments_collision_independent_of_iterdir_order(tmp_path, monkey
 
     monkeypatch.setattr(Path, "iterdir", ordered_iterdir)
 
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     invalid_map = dict(invalid)
     assert "source/isaaclab/changelog.d/jdoe-foo.minor.rst" in invalid_map
     assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-foo.minor.rst"]
@@ -188,7 +191,7 @@ def test_check_fragments_slug_collision_within_pr(tmp_path):
         "source/isaaclab/changelog.d/jdoe-fix.minor.rst",
     }
     added = changed
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     # One of the two is the offender; the other is the first-seen "winner".
     invalid_paths = [p for p, _ in invalid]
     assert any("jdoe-fix" in p for p in invalid_paths)
@@ -202,7 +205,7 @@ def test_check_fragments_skip_file_satisfies_requirement(tmp_path):
     (pkg.root / "changelog.d" / "ci-only.skip").write_text("", encoding="utf-8")
     changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/ci-only.skip"}
     added = changed
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -212,7 +215,7 @@ def test_check_fragments_no_source_changes_means_no_required_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"docs/something.rst"}  # not under source/isaaclab/
     added = changed
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -222,7 +225,7 @@ def test_check_fragments_missing_when_source_touched_without_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"source/isaaclab/code.py"}
     added = changed
-    missing, invalid = packages.PRDiff(changed=changed, added=added).evaluate([pkg])
+    missing, invalid = checks.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == ["isaaclab"]
     assert invalid == []
 
@@ -235,7 +238,7 @@ def test_check_fragments_missing_when_source_touched_without_fragment(tmp_path):
 def test_display_path_strips_repo_root_for_internal_paths():
     """Inside-repo paths are shown relative for terse log lines."""
     p = packages.REPO_ROOT / "tools" / "changelog" / "cli.py"
-    assert packages._display_path(p) == "tools/changelog/cli.py"
+    assert RepositoryPaths.display(p) == "tools/changelog/cli.py"
 
 
 def test_display_path_falls_back_to_absolute_for_external(tmp_path):
@@ -245,7 +248,7 @@ def test_display_path_falls_back_to_absolute_for_external(tmp_path):
     external = tmp_path / "external_fragments" / "1234.rst"
     external.parent.mkdir(parents=True)
     external.write_text("", encoding="utf-8")
-    assert packages._display_path(external) == str(external)
+    assert RepositoryPaths.display(external) == str(external)
 
 
 # ---------------------------------------------------------------------------

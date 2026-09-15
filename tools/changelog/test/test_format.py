@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
-import packages
+import fragments
 import pytest
+import versions
 
 # ---------------------------------------------------------------------------
 # merge_fragments — collapses bullets across fragments under the same section
@@ -18,7 +19,7 @@ import pytest
 def test_merge_fragments_collapses_same_section_across_fragments():
     f1 = {"Added": ["* a1\n"]}
     f2 = {"Added": ["* a2\n"], "Fixed": ["* f1\n"]}
-    merged = packages.FragmentBatch._merge_sections([f1, f2])
+    merged = fragments.FragmentBatch._merge_sections([f1, f2])
     # Bullets from separate fragments concatenate with no blank line in between
     # (matching IsaacLab's repo convention, where successive bullets are run-on).
     assert merged["Added"] == ["* a1\n", "* a2\n"]
@@ -36,7 +37,7 @@ def test_format_entry_orders_canonical_sections():
         "Added": ["* a1\n"],
         "Removed": ["* r1\n"],
     }
-    out = packages.FragmentBatch._format_entry("1.2.4", sections)
+    out = fragments.FragmentBatch._format_entry("1.2.4", sections)
     # Canonical order is Added, Changed, Deprecated, Removed, Fixed.
     a_pos = out.index("Added")
     r_pos = out.index("Removed")
@@ -45,14 +46,14 @@ def test_format_entry_orders_canonical_sections():
 
 
 def test_format_entry_includes_version_heading():
-    out = packages.FragmentBatch._format_entry("9.9.9", {"Added": ["* x\n"]})
+    out = fragments.FragmentBatch._format_entry("9.9.9", {"Added": ["* x\n"]})
     assert "9.9.9 (" in out
     assert "~~~~~~" in out  # tilde underline
 
 
 def test_format_entry_unknown_sections_appear_after_canonical():
     sections = {"Performance": ["* p1\n"], "Added": ["* a1\n"]}
-    out = packages.FragmentBatch._format_entry("1.0.0", sections)
+    out = fragments.FragmentBatch._format_entry("1.0.0", sections)
     assert out.index("Added") < out.index("Performance")
 
 
@@ -72,23 +73,23 @@ def test_format_entry_unknown_sections_appear_after_canonical():
     ],
 )
 def test_version_bumped(current, part, expected):
-    assert packages.Version(current).bumped(part).text == expected
-    assert str(packages.Version(current).bumped(part)) == expected
+    assert versions.Version(current).bumped(part).text == expected
+    assert str(versions.Version(current).bumped(part)) == expected
 
 
 def test_version_bumped_rejects_non_semver():
     # Construction itself rejects malformed input — fail-fast for bad ``--version``.
     with pytest.raises(ValueError):
-        packages.Version("1.2")
+        versions.Version("1.2")
     with pytest.raises(ValueError):
-        packages.Version("not-semver")
+        versions.Version("not-semver")
     with pytest.raises(ValueError):
-        packages.Version("1.2.3.4.5")
+        versions.Version("1.2.3.4.5")
 
 
 def test_version_accepts_dev_suffix():
     """PEP 440 ``.devN`` suffixes are tolerated on construction (they appear in
     real ``pyproject.toml`` files between releases) and stripped on bump."""
-    v = packages.Version("4.6.21.dev20260301")
+    v = versions.Version("4.6.21.dev20260301")
     assert v.text == "4.6.21.dev20260301"
     assert v.bumped("patch").text == "4.6.22"

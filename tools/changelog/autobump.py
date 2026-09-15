@@ -22,7 +22,8 @@ from pathlib import Path
 from gitrepo import GitError as GitError
 from gitrepo import GitRepo as GitRepo
 from lockfile import LockFile
-from packages import REPO_ROOT, Package, RootPackage
+from packages import Package, RootPackage
+from paths import REPO_ROOT
 
 
 class AutoBumpRun:

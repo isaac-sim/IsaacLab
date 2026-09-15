@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import packages
+import checks
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -42,8 +42,8 @@ def test_from_git_include_worktree_collects_tracked_local_changes(tmp_path, monk
     (package_dir / "changelog.d").mkdir()
     (package_dir / "changelog.d" / "untracked.skip").touch()
 
-    monkeypatch.setattr(packages, "REPO_ROOT", tmp_path)
-    assert packages.PRDiff.from_git("develop", include_worktree=True) == packages.PRDiff(
+    monkeypatch.setattr(checks, "REPO_ROOT", tmp_path)
+    assert checks.PRDiff.from_git("develop", include_worktree=True) == checks.PRDiff(
         changed={
             "source/example/base.py",
             "source/example/committed.py",

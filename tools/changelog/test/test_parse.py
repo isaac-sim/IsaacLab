@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import fragments
 import packages
 
 from conftest import write_version_file
@@ -28,14 +29,14 @@ def _write(path: Path, body: str) -> Path:
 
 def test_parse_fragment_single_section(tmp_path):
     p = _write(tmp_path / "1.rst", "Added\n^^^^^\n\n* Added :class:`~pkg.Foo`.\n")
-    sections = packages.Fragment(p).parse()
+    sections = fragments.Fragment(p).parse()
     assert list(sections.keys()) == ["Added"]
     assert sections["Added"] == ["* Added :class:`~pkg.Foo`.\n"]
 
 
 def test_parse_fragment_multiple_sections_preserves_dict_order(tmp_path):
     p = _write(tmp_path / "1.rst", "Added\n^^^^^\n\n* a1\n\nFixed\n^^^^^\n\n* f1\n* f2\n")
-    sections = packages.Fragment(p).parse()
+    sections = fragments.Fragment(p).parse()
     assert list(sections.keys()) == ["Added", "Fixed"]
     assert sections["Added"] == ["* a1\n"]
     assert sections["Fixed"] == ["* f1\n", "* f2\n"]
@@ -44,17 +45,17 @@ def test_parse_fragment_multiple_sections_preserves_dict_order(tmp_path):
 def test_parse_fragment_underline_must_be_at_least_heading_length(tmp_path):
     """Heading 'Added' (5 chars) needs >=5 carets; '^^' must not match."""
     p = _write(tmp_path / "1.rst", "Added\n^^\n\n* a1\n")
-    assert packages.Fragment(p).parse() == {}
+    assert fragments.Fragment(p).parse() == {}
 
 
 def test_parse_fragment_empty_file(tmp_path):
     p = _write(tmp_path / "1.rst", "")
-    assert packages.Fragment(p).parse() == {}
+    assert fragments.Fragment(p).parse() == {}
 
 
 def test_parse_fragment_no_section_headings(tmp_path):
     p = _write(tmp_path / "1.rst", "Just a free-form note with no headings.\n")
-    assert packages.Fragment(p).parse() == {}
+    assert fragments.Fragment(p).parse() == {}
 
 
 # ---------------------------------------------------------------------------
@@ -69,14 +70,14 @@ def test_parse_fragment_no_section_headings(tmp_path):
 
 def test_fragment_batch_flags_invalid_filenames_from_fixture():
     """Files with dotted slugs or unknown bump tiers go in ``invalid``."""
-    batch = packages.FragmentBatch.from_dir(FIXTURES / "invalid_filenames")
+    batch = fragments.FragmentBatch.from_dir(FIXTURES / "invalid_filenames")
     assert batch.valid == []
     assert {p.name for p in batch.invalid} == {"-leading-dash.rst", "has..consecutive-dots.rst"}
 
 
 def test_fragment_batch_missing_directory(tmp_path):
     """A non-existent directory is treated as empty, not an error."""
-    batch = packages.FragmentBatch.from_dir(tmp_path / "does-not-exist")
+    batch = fragments.FragmentBatch.from_dir(tmp_path / "does-not-exist")
     assert batch.valid == []
     assert batch.invalid == []
     assert batch.skip_paths == []
@@ -86,7 +87,7 @@ def test_fragment_batch_collects_skip_files_separately(tmp_path):
     """``.skip`` files are tolerated — exposed via ``skip_paths``, not ``valid``."""
     (tmp_path / "1234.skip").write_text("", encoding="utf-8")
     (tmp_path / "1235.rst").write_text("Added\n^^^^^\n\n* x\n", encoding="utf-8")
-    batch = packages.FragmentBatch.from_dir(tmp_path)
+    batch = fragments.FragmentBatch.from_dir(tmp_path)
     assert {f.name for f in batch.valid} == {"1235.rst"}
     assert {p.name for p in batch.skip_paths} == {"1234.skip"}
 

@@ -98,9 +98,13 @@ import sys
 from pathlib import Path
 
 from autobump import AutoBumpRun
+from checks import PRDiff
+from fragments import FragmentFilename
 from gitrepo import GitRepo
 from lockfile import LockFile
-from packages import REPO_ROOT, FragmentFilename, Package, PRDiff, RootPackage, Version
+from packages import Package, RootPackage
+from paths import REPO_ROOT
+from versions import Version
 
 # ---------------------------------------------------------------------------
 # Subcommand handlers
@@ -211,7 +215,7 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print("::error::Missing changelog fragments for the following packages:")
         for pkg_name in missing:
             print(f"  • {pkg_name}")
-            for line in FragmentFilename.help_lines_for_package(pkg_name):
+            for line in FragmentFilename.help_lines(Package.fragment_dir_prefix(pkg_name)):
                 print(f"    → {line}")
         print()
         print("Slug = your branch name with `/` replaced by `-` (or any short, unique name).")

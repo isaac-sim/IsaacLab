@@ -15,7 +15,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import packages
+import fragments
 import pytest
 
 EXAMPLES = Path(__file__).parent / "integration"
@@ -28,7 +28,7 @@ EXAMPLES = Path(__file__).parent / "integration"
 
 def test_patch_bump_demo_aggregates_to_patch():
     """``examples/01_patch_bump/`` has two ``.rst`` files (no suffix) → patch."""
-    batch = packages.FragmentBatch.from_dir(EXAMPLES / "01_patch_bump" / "fragments")
+    batch = fragments.FragmentBatch.from_dir(EXAMPLES / "01_patch_bump" / "fragments")
     assert batch.invalid == []
     assert {f.name for f in batch.valid} == {
         "jdoe-fix-mass-units.rst",
@@ -40,7 +40,7 @@ def test_patch_bump_demo_aggregates_to_patch():
 
 def test_minor_bump_demo_aggregates_to_minor():
     """``examples/02_minor_bump/`` mixes patch + minor fragments → minor wins."""
-    batch = packages.FragmentBatch.from_dir(EXAMPLES / "02_minor_bump" / "fragments")
+    batch = fragments.FragmentBatch.from_dir(EXAMPLES / "02_minor_bump" / "fragments")
     assert batch.invalid == []
     assert {f.name for f in batch.valid} == {
         "jdoe-fix-rotation-frame.rst",
@@ -54,7 +54,7 @@ def test_minor_bump_demo_aggregates_to_minor():
 
 def test_major_bump_demo_aggregates_to_major():
     """``examples/03_major_bump/`` mixes patch + minor + major → major wins."""
-    batch = packages.FragmentBatch.from_dir(EXAMPLES / "03_major_bump" / "fragments")
+    batch = fragments.FragmentBatch.from_dir(EXAMPLES / "03_major_bump" / "fragments")
     assert batch.invalid == []
     assert {f.name for f in batch.valid} == {
         "jdoe-fix-articulation-state.rst",
@@ -84,7 +84,7 @@ def test_major_bump_demo_aggregates_to_major():
     ],
 )
 def test_aggregate_bump_logic(bumps, expected):
-    assert packages.FragmentBatch._aggregate(bumps) == expected
+    assert fragments.FragmentBatch._aggregate(bumps) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ def test_aggregate_bump_logic(bumps, expected):
     ],
 )
 def test_fragment_filename_classifies(name, is_fragment, is_skip):
-    fn = packages.FragmentFilename(name)
+    fn = fragments.FragmentFilename(name)
     assert fn.is_fragment is is_fragment
     assert fn.is_skip is is_skip
 
@@ -140,18 +140,18 @@ def test_dotted_slug_round_trips_with_its_tier():
     The motivating case: branch names routinely carry version numbers,
     and the old pattern reserved every dot for the tier suffix.
     """
-    fn = packages.FragmentFilename("bump-newton-1.2.0rc2.minor.rst")
+    fn = fragments.FragmentFilename("bump-newton-1.2.0rc2.minor.rst")
     assert fn.slug == "bump-newton-1.2.0rc2"
     assert fn.tier == "minor"
 
 
 def test_user_facing_patterns_derive_from_the_suffix_list():
     """One source of truth: adding a tier updates every message at once."""
-    assert packages.FragmentFilename.pattern_summary() == (
+    assert fragments.FragmentFilename.pattern_summary() == (
         "<slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip"
     )
-    lines = packages.FragmentFilename.help_lines_for_package("isaaclab_newton")
-    assert len(lines) == len(packages.FragmentFilename.SUFFIXES)
+    lines = fragments.FragmentFilename.help_lines_for_package("isaaclab_newton")
+    assert len(lines) == len(fragments.FragmentFilename.SUFFIXES)
     assert all("source/isaaclab_newton/changelog.d/" in line for line in lines)
 
 
@@ -172,7 +172,7 @@ def test_user_facing_patterns_derive_from_the_suffix_list():
     ],
 )
 def test_parse_slug_for_filenames(name, expected_slug):
-    assert packages.Fragment.parse_slug(name) == expected_slug
+    assert fragments.Fragment.parse_slug(name) == expected_slug
 
 
 @pytest.mark.parametrize(
@@ -219,7 +219,7 @@ def test_slug_rules_track_git_branch_rules(slug):
     ``/`` is the one deliberate exception, covered separately below: git
     allows it in a branch, a filename cannot contain it.
     """
-    ours = packages.FragmentFilename(f"{slug}.rst").is_valid
+    ours = fragments.FragmentFilename(f"{slug}.rst").is_valid
     theirs = subprocess.run(["git", "check-ref-format", "--branch", slug], capture_output=True).returncode == 0
     assert ours is theirs, f"{slug!r}: ours={ours} git={theirs}"
 
@@ -231,4 +231,4 @@ def test_slug_rejects_the_path_separator_git_allows():
     the documented convention is to replace ``/`` with ``-``.
     """
     assert subprocess.run(["git", "check-ref-format", "--branch", "nested/path"], capture_output=True).returncode == 0
-    assert packages.FragmentFilename("nested/path.rst").is_valid is False
+    assert fragments.FragmentFilename("nested/path.rst").is_valid is False
