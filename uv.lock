@@ -2082,7 +2082,7 @@ requires-dist = [
     { name = "resolve-robotics-uri-py", specifier = ">=0.4.0" },
     { name = "rich" },
     { name = "rich", marker = "extra == 'sb3'" },
-    { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=02d19580d184efc9d2279af715407723ffecfdeb" },
+    { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
     { name = "rsl-rl-lib", specifier = "==5.4.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.4.1" },
@@ -4943,7 +4943,7 @@ wheels = [
 [[package]]
 name = "rl-games"
 version = "1.6.1"
-source = { git = "https://github.com/isaac-sim/rl_games.git?rev=02d19580d184efc9d2279af715407723ffecfdeb#02d19580d184efc9d2279af715407723ffecfdeb" }
+source = { git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c#5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" }
 dependencies = [
     { name = "gym" },
     { name = "psutil" },
