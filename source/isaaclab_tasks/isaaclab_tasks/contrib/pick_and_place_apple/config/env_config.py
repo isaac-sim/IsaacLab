@@ -17,8 +17,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
-from . import mdp
-from .config import (
+from .. import mdp
+from . import (
     APPLE_USD,
     BACKGROUND_USD,
     H2_PNP_APPLE_CUSTOM_JOINT_POS,

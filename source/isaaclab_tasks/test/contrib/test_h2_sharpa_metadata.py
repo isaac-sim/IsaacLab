@@ -7,10 +7,10 @@
 
 import pytest
 
-from isaaclab_tasks.contrib.pack_agx import metadata as pack_agx_metadata
-from isaaclab_tasks.contrib.pack_agx.robot_config import h2_body_joint_offsets as pack_agx_offsets
-from isaaclab_tasks.contrib.pick_and_place_apple import metadata as apple_metadata
-from isaaclab_tasks.contrib.pick_and_place_apple.robot_config import h2_body_joint_offsets as apple_offsets
+from isaaclab_tasks.contrib.pack_agx.config import metadata as pack_agx_metadata
+from isaaclab_tasks.contrib.pack_agx.config.robot_config import h2_body_joint_offsets as pack_agx_offsets
+from isaaclab_tasks.contrib.pick_and_place_apple.config import metadata as apple_metadata
+from isaaclab_tasks.contrib.pick_and_place_apple.config.robot_config import h2_body_joint_offsets as apple_offsets
 
 TASK_METADATA = {"pick_and_place_apple": apple_metadata, "pack_agx": pack_agx_metadata}
 

@@ -329,9 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_checkpoint:
         download_checkpoints(args.checkpoint_root.resolve(), profile)
 
-    config = (
-        "isaaclab_ppo_gr00t_assemble_trocar" if args.gr00t == "n15" else "isaaclab_ppo_gr00t_pick_and_place_apple_n17"
-    )
+    config = "isaaclab_ppo_gr00t_assemble_trocar" if args.gr00t == "n15" else "PPO_GR00T_PnPApple"
     print_info(f"RLinf demo setup complete for GR00T {args.gr00t}. Train with:")
     print_info(f"  uv run --no-sync isaaclab train --rl_library rlinf --config_name {config}")
     return 0

@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.envs import mdp as base_mdp
 
-from ..metadata import POLICY_58_ORDER
+from ..config.metadata import POLICY_58_ORDER
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

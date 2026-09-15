@@ -143,7 +143,7 @@ env:
       hold_pose_on_midchunk_reset: true
       obs_converter_type: "h2_sharpa"
       # N1.7 takes no data_config_class; this module registers the H2 modalities instead.
-      modality_config_module: "isaaclab_tasks.contrib.pack_agx.gr00t_config"
+      modality_config_module: "isaaclab_tasks.contrib.pack_agx.config.gr00t_config"
       embodiment_tag: "new_embodiment"
       embodiment_tag_id: 31
 
