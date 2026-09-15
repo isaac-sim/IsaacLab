@@ -679,7 +679,10 @@ def test_retry_fetch_prefers_the_branch_over_a_same_named_tag(synthetic_repo: Pa
     assert "decoy commit" not in subjects
 
 
-def test_partial_compile_failure_is_rolled_back_not_committed(synthetic_repo: Path, tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("failure", ["version", "skip_deletion"])
+def test_partial_compile_failure_is_rolled_back_not_committed(
+    synthetic_repo: Path, tmp_path: Path, monkeypatch, failure
+):
     """A compile that raises after writing must be undone, not shipped.
 
     Half a compile is a changelog entry announcing a version the manifest
@@ -695,6 +698,8 @@ def test_partial_compile_failure_is_rolled_back_not_committed(synthetic_repo: Pa
     bad = _write_managed_pkg(synthetic_repo / "source", "isaaclab_assets")
     _drop_fragment(good, "feat-x")
     bad_fragment = _drop_fragment(bad, "feat-y")
+    bad_skip = bad / "changelog.d" / "chore.skip"
+    bad_skip.touch()
     _commit_baseline(synthetic_repo)
 
     real_write_version = packages.Package.write_version
@@ -704,7 +709,17 @@ def test_partial_compile_failure_is_rolled_back_not_committed(synthetic_repo: Pa
             raise ValueError("simulated failure after the changelog was written")
         return real_write_version(self, new_version, dry_run=dry_run)
 
-    monkeypatch.setattr(packages.Package, "write_version", fail_after_changelog)
+    if failure == "version":
+        monkeypatch.setattr(packages.Package, "write_version", fail_after_changelog)
+    else:
+        real_unlink = Path.unlink
+
+        def fail_deleting_skip(path, *args, **kwargs):
+            if path == bad_skip:
+                raise PermissionError("simulated failure deleting a skip marker")
+            return real_unlink(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", fail_deleting_skip)
 
     assert (
         autobump.AutoBumpRun(
@@ -837,7 +852,8 @@ def test_dirty_tree_is_refused_before_anything_is_written(synthetic_repo: Path, 
     assert autobump.AutoBumpRun.AUTHOR_NAME not in _author_log(tmp_path / "origin.git")
 
 
-def test_manual_compile_rolls_back_a_half_applied_package(synthetic_repo: Path, monkeypatch):
+@pytest.mark.parametrize("local_changes", [False, True])
+def test_manual_compile_rolls_back_a_half_applied_package(synthetic_repo: Path, monkeypatch, local_changes):
     """``cli.py compile`` must undo a compile that failed after writing.
 
     Same hazard as the nightly path, reached manually: an entry written over
@@ -847,6 +863,11 @@ def test_manual_compile_rolls_back_a_half_applied_package(synthetic_repo: Path, 
     pkg_root = _write_managed_pkg(synthetic_repo / "source", "isaaclab")
     frag = _drop_fragment(pkg_root, "feat-x")
     _commit_baseline(synthetic_repo)
+    changelog = pkg_root / "docs" / "CHANGELOG.rst"
+    if local_changes:
+        changelog.write_text(changelog.read_text() + "\nUncommitted notes.\n", encoding="utf-8")
+    original = changelog.read_bytes()
+    original_status = _git(synthetic_repo, "status", "--porcelain")
     monkeypatch.setattr(cli, "REPO_ROOT", synthetic_repo)
     monkeypatch.setattr(packages.Package, "discover", classmethod(lambda cls, **kw: [packages.Package(pkg_root)]))
     monkeypatch.setattr(
@@ -860,4 +881,5 @@ def test_manual_compile_rolls_back_a_half_applied_package(synthetic_repo: Path, 
 
     assert frag.exists(), "fragment must survive a failed compile"
     assert "0.1.1" not in (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
-    assert _git(synthetic_repo, "status", "--porcelain").strip() == ""
+    assert changelog.read_bytes() == original
+    assert _git(synthetic_repo, "status", "--porcelain") == original_status

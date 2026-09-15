@@ -7,17 +7,15 @@
 
 ``cli.py compile`` bumps ``version`` in each package's version metadata
 file, but ``uv.lock`` pins those same workspace members by version. Left
-behind, every ``uv sync --locked`` / ``--frozen`` consumer (notably the
-install-ci suite) fails with "the lockfile needs to be updated".
+behind, lock freshness checks such as ``uv sync --locked`` fail.
+``--frozen`` uses the existing lock without checking freshness.
 
 Running ``uv lock`` in the nightly job would fix that, but it is a full
 resolve: it can rewrite third-party pins, hashes, and markers in ways that
 warrant human review and must not land unreviewed in an auto-commit.
 :class:`LockFile` does the narrow thing instead — rewrite the ``version``
 line of the workspace members' own ``[[package]]`` blocks and nothing else.
-No network, no resolution, no third-party churn. Measured on this repo, that
-is an 8-line diff where a full ``uv lock`` rewrote 3136 lines; both satisfy
-``uv lock --check``.
+No network, no resolution, no third-party churn.
 
 That narrowness is also its limit, and the limit is enforced rather than
 just documented: :meth:`LockFile.assert_repairable` refuses to touch a lock
@@ -169,41 +167,33 @@ class LockFile:
             Error: The result is not a sound realisation of ``drifts``.
         """
 
-        def pins(text: str) -> list[tuple[str, str]]:
-            """``(name, version)`` per ``[[package]]`` block, in file order."""
-            data = tomllib.loads(text)
-            return [(p["name"], p["version"]) for p in data.get("package", []) if "version" in p]
-
-        # V1 — still TOML. Anything else here is unsafe to reason about.
         try:
-            after_pins = pins(after)
+            after_data = tomllib.loads(after)
         except tomllib.TOMLDecodeError as e:
             raise cls.Error(f"the {cls.LOCK_NAME} rewrite produced invalid TOML: {e}") from e
 
-        # V2 — a version rewrite replaces lines; it never adds or drops any.
-        if (a := len(after.splitlines())) != (b := len(before.splitlines())):
-            raise cls.Error(
-                f"the {cls.LOCK_NAME} rewrite changed the line count ({b} -> {a}); expected in-place edits only."
-            )
+        before_lines, after_lines = before.splitlines(keepends=True), after.splitlines(keepends=True)
+        if len(before_lines) != len(after_lines):
+            raise cls.Error(f"the {cls.LOCK_NAME} rewrite changed the line count; expected in-place edits only.")
 
-        before_pins = pins(before)
-        if len(before_pins) != len(after_pins):
-            raise cls.Error(
-                f"the {cls.LOCK_NAME} rewrite changed the package count ({len(before_pins)} -> {len(after_pins)})."
-            )
+        # Build the expected document independently of the text rewriter.
+        # Editable source identity matters even when a registry pin has the same name/version.
+        expected_data = tomllib.loads(before)
+        pending = {(d.package, d.old): d.new for d in drifts}
+        for pkg in expected_data.get("package", []):
+            key = (pkg["name"], pkg.get("version"))
+            if pkg.get("source", {}).get("editable") is not None and key in pending:
+                pkg["version"] = pending.pop(key)
+        if pending or after_data != expected_data:
+            raise cls.Error(f"the {cls.LOCK_NAME} rewrite did not match the drift it reported.")
 
-        # V3/V4 — exactly the reported moves happened, and nothing else did.
-        # Compared position-wise: two blocks may share a name (an editable
-        # member and a registry release of the same project), so a name-keyed
-        # comparison would let a rewrite of the wrong one pass unnoticed.
-        moved = {i for i, (b_pin, a_pin) in enumerate(zip(before_pins, after_pins)) if b_pin != a_pin}
-        expected = {(d.package, d.old, d.new) for d in drifts}
-        actual = {(after_pins[i][0], before_pins[i][1], after_pins[i][1]) for i in moved}
-        if actual != expected:
-            raise cls.Error(
-                f"the {cls.LOCK_NAME} rewrite did not match the drift it reported "
-                f"(reported {sorted(expected)}, applied {sorted(actual)})."
-            )
+        # Parsed equality cannot detect changed comments or whitespace. Only complete
+        # version lines may differ; all other bytes must survive unchanged.
+        changes = [(old, new) for old, new in zip(before_lines, after_lines) if old != new]
+        if len(changes) != len(drifts) or any(
+            re.fullmatch(r'version = "[^"\n]+"\n?', line) is None for pair in changes for line in pair
+        ):
+            raise cls.Error(f"the {cls.LOCK_NAME} rewrite changed text outside the reported version lines.")
 
     def assert_repairable(self) -> None:
         """Raise :class:`MembershipMismatch` when a version rewrite cannot fix this lock.

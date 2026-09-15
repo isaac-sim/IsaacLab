@@ -163,7 +163,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
             # path has to as well.
             print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
             failures.append((pkg.name, str(e)))
-            GitRepo(REPO_ROOT).restore(e.written)
+            GitRepo(REPO_ROOT).restore(e.written, original_contents=e.original_contents)
             continue
         except (OSError, ValueError) as e:
             print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
@@ -267,6 +267,7 @@ def cmd_auto_bump(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
         remote=args.remote,
         event_name=args.event_name,
         dry_run=args.dry_run,
+        repo_root=REPO_ROOT,
     ).run()
 
 

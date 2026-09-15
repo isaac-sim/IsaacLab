@@ -32,8 +32,8 @@ def test_from_git_include_worktree_collects_tracked_local_changes(tmp_path, monk
     _git(tmp_path, "update-ref", "refs/remotes/origin/develop", "HEAD")
     _git(tmp_path, "switch", "-c", "feature")
 
-    (package_dir / "committed.py").write_text("committed\n", encoding="utf-8")
-    _git(tmp_path, "add", "source/example/committed.py")
+    (package_dir / "josé.py").write_text("committed\n", encoding="utf-8")
+    _git(tmp_path, "add", "source/example/josé.py")
     _git(tmp_path, "commit", "-m", "Add committed change")
 
     (package_dir / "staged.py").write_text("staged\n", encoding="utf-8")
@@ -46,11 +46,11 @@ def test_from_git_include_worktree_collects_tracked_local_changes(tmp_path, monk
     assert checks.PRDiff.from_git("develop", include_worktree=True) == checks.PRDiff(
         changed={
             "source/example/base.py",
-            "source/example/committed.py",
+            "source/example/josé.py",
             "source/example/staged.py",
         },
         added={
-            "source/example/committed.py",
+            "source/example/josé.py",
             "source/example/staged.py",
         },
     )

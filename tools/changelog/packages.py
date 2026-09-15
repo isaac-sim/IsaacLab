@@ -135,7 +135,8 @@ class Package:
         """A compile that raised *after* it had already written to disk.
 
         Carries the paths it had written when it failed, so the caller can
-        put them back. They must not be kept: a compile is only meaningful
+        put them back. ``original_contents`` preserves pre-compile bytes,
+        including local edits that Git cannot restore. A compile is only meaningful
         whole, and half of one is a changelog entry announcing a version the
         manifest never received, over a fragment that was never consumed —
         which the next run would compile into a second, identical entry.
@@ -146,10 +147,13 @@ class Package:
         clean *and* the branch must not carry a half-applied compile.
         """
 
-        def __init__(self, cause: Exception, written: list[Path]):
+        def __init__(
+            self, cause: Exception, written: list[Path], *, original_contents: dict[Path, bytes] | None = None
+        ):
             super().__init__(str(cause))
             self.cause = cause
             self.written = written
+            self.original_contents = original_contents
 
     root: Path
 
@@ -307,6 +311,12 @@ class Package:
         """
         batch = FragmentBatch.from_dir(self._resolve_fragments_dir(fragments_dir))
 
+        # Snapshot the compiler's inputs before mutation, including uncommitted edits.
+        original_contents = None
+        if not dry_run and (batch.valid or batch.skip_paths):
+            paths = [self.changelog.path, self.toml_path, *[f.path for f in batch.valid], *batch.skip_paths]
+            original_contents = {path: path.read_bytes() for path in paths if path.is_file()}
+
         for p in batch.invalid:
             print(
                 f"  WARNING: {RepositoryPaths.display(p)} does not match any recognised fragment "
@@ -329,7 +339,7 @@ class Package:
                     except FragmentBatch.PartialDeletion as e:
                         # Same contract as the main path: whatever went is
                         # reported, wrapped so the caller can undo it.
-                        raise self.CompileFailed(e, e.deleted) from e
+                        raise self.CompileFailed(e, e.deleted, original_contents=original_contents) from e
             else:
                 print(f"  {self.name}: no fragments, skipping.")
             return False, []
@@ -392,14 +402,14 @@ class Package:
             # Deletions that did land are changes like any other, so they
             # join the set the caller has to undo.
             touched.extend(e.deleted)
-            raise self.CompileFailed(e, touched) from e
+            raise self.CompileFailed(e, touched, original_contents=original_contents) from e
         except (OSError, ValueError) as e:
             if not touched:
                 # Nothing reached disk, so there is nothing to undo and the
                 # original exception type is the more useful one. Only a
                 # genuinely half-applied compile needs the wrapper.
                 raise
-            raise self.CompileFailed(e, touched) from e
+            raise self.CompileFailed(e, touched, original_contents=original_contents) from e
 
         return True, touched
 

@@ -59,13 +59,13 @@ class PRDiff:
 
         def _diff(extra_args: list[str]) -> set[str]:
             result = subprocess.run(
-                ["git", "diff", "--name-only", *extra_args, diff_target],
+                ["git", "diff", "--name-only", "-z", *extra_args, diff_target],
                 capture_output=True,
                 text=True,
                 check=True,
                 cwd=REPO_ROOT,
             )
-            return {f for f in result.stdout.splitlines() if f}
+            return {f for f in result.stdout.split("\0") if f}
 
         return cls(changed=_diff([]), added=_diff(["--diff-filter=A"]))
 

@@ -66,15 +66,21 @@ class GitRepo:
         if dirty:
             raise GitError("working tree is not clean; auto-bump needs sole ownership of it:\n" + dirty)
 
-    def restore(self, paths: Iterable[Path | str]) -> None:
+    def restore(self, paths: Iterable[Path | str], *, original_contents: dict[Path, bytes] | None = None) -> None:
         """Undo working-tree changes to ``paths``, including deletions.
 
-        Used to roll back a compile that failed part-way. Only paths git
+        Supplied pre-compile contents take precedence over Git so rollback
+        preserves local edits. For other paths, only paths Git
         already tracks can be restored; anything the compile created fresh is
         removed instead, so a half-applied compile leaves nothing behind
         either way.
         """
-        path_strs = [str(p) for p in paths]
+        path_strs = []
+        for path in paths:
+            if original_contents is not None and Path(path) in original_contents:
+                Path(path).write_bytes(original_contents[Path(path)])
+            else:
+                path_strs.append(str(path))
         if not path_strs:
             return
         tracked = set(self._tracked(path_strs))

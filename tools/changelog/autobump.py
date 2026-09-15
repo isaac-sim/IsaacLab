@@ -148,7 +148,7 @@ class AutoBumpRun:
                 print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
                 self.failures.append((pkg.name, str(e)))
                 if not self.dry_run:
-                    self.repo.restore(e.written)
+                    self.repo.restore(e.written, original_contents=e.original_contents)
                 continue
             except (OSError, ValueError) as e:
                 # Matches what ``Package.compile`` raises when it fails before

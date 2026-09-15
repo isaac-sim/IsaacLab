@@ -314,26 +314,32 @@ def test_line_count_change_is_refused():
         LockFile._assert_rewrite_is_sound(LOCK, _applied(LOCK) + "\n", _SOUND_DRIFT)
 
 
-def test_unreported_extra_move_is_refused():
+@pytest.mark.parametrize("extra_change", ["pin", "metadata"])
+def test_unreported_extra_move_is_refused(extra_change):
     """A second pin moving without being reported must not slip through — that
     is a silent third-party change riding along in an unreviewed commit."""
     sneaky = _applied(LOCK).replace(
         'name = "warp-lang"\nversion = "13.0.0"', 'name = "warp-lang"\nversion = "99.0.0"', 1
     )
+    if extra_change == "metadata":
+        sneaky = _applied(LOCK).replace('specifier = "==13.0.0"', 'specifier = "==99.0.0"')
     with pytest.raises(LockFile.Error, match="did not match the drift"):
         LockFile._assert_rewrite_is_sound(LOCK, sneaky, _SOUND_DRIFT)
 
 
-def test_rewrite_of_the_wrong_duplicate_block_is_refused():
+@pytest.mark.parametrize("registry_version", ["12.4.0", "13.0.0"])
+def test_rewrite_of_the_wrong_duplicate_block_is_refused(registry_version):
     """The motivating case: two ``[[package]]`` blocks share the name
     ``isaaclab`` — the editable member and a registry release. Moving the
     registry pin instead yields perfectly valid TOML with the right line count
     and the right *name*, so only a position-wise comparison catches it."""
-    wrong = DUPLICATE_NAME_LOCK.replace(
-        'name = "isaaclab"\nversion = "12.4.0"', 'name = "isaaclab"\nversion = "13.1.0"', 1
+    before = DUPLICATE_NAME_LOCK.replace('version = "12.4.0"', f'version = "{registry_version}"')
+    wrong = before.replace(
+        f'version = "{registry_version}"\nsource = {{ registry',
+        'version = "13.1.0"\nsource = { registry',
     )
     with pytest.raises(LockFile.Error, match="did not match the drift"):
-        LockFile._assert_rewrite_is_sound(DUPLICATE_NAME_LOCK, wrong, _SOUND_DRIFT)
+        LockFile._assert_rewrite_is_sound(before, wrong, _SOUND_DRIFT)
 
 
 def test_sync_refuses_to_write_an_unsound_rewrite(tmp_path, monkeypatch):

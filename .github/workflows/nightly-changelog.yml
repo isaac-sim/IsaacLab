@@ -216,9 +216,8 @@ jobs:
         # previously carried a duplicate of "which files cli.py writes" and
         # that copy went stale twice, bricking the cron both times.
         #
-        # ``continue-on-error`` keeps a partial failure from discarding the
-        # packages that did compile; the step below re-asserts it so the tile
-        # still goes red.
+        # auto-bump publishes healthy packages before returning a failure.
+        # The following step reports that exit status as a failed job.
         id: compile
         continue-on-error: true
         env:
@@ -227,20 +226,18 @@ jobs:
           # adversarial branch name could escape the surrounding quotes.
           TARGET_BRANCH: ${{ matrix.branch }}
         run: |
-          ARGS="--branch $TARGET_BRANCH --remote origin"
+          ARGS=(--branch "$TARGET_BRANCH" --remote origin)
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
+            ARGS+=(--dry-run)
           fi
           # --event-name is not passed: cli.py reads GITHUB_EVENT_NAME, which
           # Actions exports into every step.
-          echo "Running: python3 tools/changelog/cli.py auto-bump $ARGS"
-          python3 tools/changelog/cli.py auto-bump $ARGS
+          echo "Running: python3 tools/changelog/cli.py auto-bump ${ARGS[*]}"
+          python3 tools/changelog/cli.py auto-bump "${ARGS[@]}"
 
       - name: Re-propagate compile failure
-        # ``continue-on-error: true`` above lets the commit/push step run on
-        # partial success, but the job tile must still stay red so the
-        # maintainer notices the failed package. This step re-asserts the
-        # original exit code AFTER successful packages have shipped.
+        # Healthy packages have already shipped within auto-bump. Keep
+        # the job red when another package or the lock failed.
         if: ${{ steps.compile.outcome == 'failure' }}
         run: |
           echo "::error::One or more packages failed to compile (see the Compile fragments step above)."

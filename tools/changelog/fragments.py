@@ -487,7 +487,12 @@ class FragmentBatch:
 
     def delete_all(self) -> tuple[list[Path], list[Path]]:
         """Delete every consumed fragment + skip file. Returns ``(fragments, skips)`` deleted."""
-        return self._delete_valid(), self.delete_skips()
+        deleted = self._delete_valid()
+        try:
+            return deleted, self.delete_skips()
+        except self.PartialDeletion as e:
+            # A skip failure must retain deletions from the preceding fragment phase.
+            raise self.PartialDeletion(e.cause, [*deleted, *e.deleted]) from e
 
     def delete_skips(self) -> list[Path]:
         """Delete the ``.skip`` files. Returns the paths removed.
