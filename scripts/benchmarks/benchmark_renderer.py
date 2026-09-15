@@ -61,6 +61,7 @@ PROFILES = [
 
 TASK_NAME = "Isaac-RenderBenchmark-Franka-Cabinet"
 FRAME_PADDING = 5
+STAT_KEYS = ("median", "mean", "min", "max", "stdev")
 
 # Resolved from this file rather than the working directory, so the script runs from anywhere.
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -88,6 +89,21 @@ times this script reports.
 
 RENDER_SCOPE_PATTERN = re.compile(rf"{re.escape(RENDER_SCOPE)} took ([\d.]+) ms")
 PHYSICS_SCOPE_PATTERN = re.compile(rf"{re.escape(PHYSICS_SCOPE)} took ([\d.]+) ms")
+
+FRAME_SCOPE = "render"
+"""Key of the :data:`SCOPE_PATTERNS` entry whose timing closes a frame."""
+
+SCOPE_PATTERNS = {
+    FRAME_SCOPE: RENDER_SCOPE_PATTERN,
+    "physics": PHYSICS_SCOPE_PATTERN,
+}
+"""Scope name to the pattern pulling that scope's ``wp.ScopedTimer`` time [ms] out of a run log.
+
+:func:`parse_log` ingests every entry, so putting another timer in the report is a matter of
+adding its pattern here. :data:`FRAME_SCOPE` delimits a frame; every other scope is summed across
+the steps that precede one, since decimation means a frame carries several physics steps but only
+ever one render.
+"""
 
 log_stream = sys.stdout
 """Destination for progress and diagnostics. ``--json`` points it at stderr so stdout holds only JSON."""
@@ -123,54 +139,159 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
 
     Returns:
         A record carrying the profile's identity plus either its timings or the log to inspect.
+        The unqualified ``*_ms`` keys are the render ones; every other scope is prefixed with its
+        name. ``pixels_per_second`` stays derived from the render time alone, so it remains
+        comparable against a run whose physics cost differed.
     """
     record = {"name": profile["name"], "preset": profile["preset"], "settings": profile["settings"]}
     if not results:
         return record | {"status": "failed", "log": os.path.join(OUTPUT_PATH, profile["name"] + ".log")}
-    return (
-        record
-        | {
-            "status": "ok",
-            "size": results["size"],
-            "pixels_per_second": pixels_per_second(results["median"], num_envs, resolution),
-        }
-        | {f"{key}_ms": results[key] for key in ("median", "mean", "min", "max", "stdev")}
+
+    record |= {
+        "status": "ok",
+        "size": results["size"],
+        "pixels_per_second": pixels_per_second(results["median"], num_envs, resolution),
+    }
+    record |= {f"{key}_ms": results[key] for key in STAT_KEYS}
+    for group, stats in results.items():
+        if isinstance(stats, dict):
+            record |= {f"{group}_{key}_ms": stats[key] for key in STAT_KEYS}
+    return record
+
+
+TABLE_COLUMNS = [
+    ("RENDER", "median_ms"),
+    ("MEAN", "mean_ms"),
+    ("MIN", "min_ms"),
+    ("MAX", "max_ms"),
+    ("STDEV", "stdev_ms"),
+    ("PHYSICS", "physics_median_ms"),
+    ("TOTAL", "total_median_ms"),
+]
+"""``(heading, record key)`` pairs for the report's timing columns, in display order.
+
+The unqualified statistics are the render ones, so ``RENDER`` leads and the physics and total
+medians close the row rather than interrupting the render spread.
+"""
+
+
+def format_table(records: list[dict]) -> list[str]:
+    """Render the results table as lines of text.
+
+    Widths follow the longest profile name rather than a fixed column, so a row stays aligned
+    whichever profiles were selected.
+
+    Args:
+        records: Records from :func:`build_record`, in the order they should appear.
+
+    Returns:
+        The heading, separators, and one row per record.
+    """
+    name_width = max([len("PROFILE")] + [len(record["name"]) for record in records])
+    separator = (
+        "|" + "-" * (name_width + 2) + "|------|--------------|" + "|".join(["-" * 14] * len(TABLE_COLUMNS)) + "|"
     )
+    headings = "|".join(f"{heading:^14}" for heading, _ in TABLE_COLUMNS)
+
+    lines = ["| " + "PROFILE".ljust(name_width) + " | SIZE |  PIXEL / SEC |" + headings + "|", separator]
+    for record in records:
+        if record["status"] == "ok":
+            cells = "|".join(f" {record[key]:>10.2f}ms " for _, key in TABLE_COLUMNS)
+            gpxs = record["pixels_per_second"] / 1e9
+            lines.append(f"| {record['name']:<{name_width}} | {record['size']:>4} | {gpxs:>6.2f} Gpx/s |{cells}|")
+        else:
+            lines.append(f"| {record['name']:<{name_width}} | FAILED {record['log']} |")
+    lines.append(separator)
+    return lines
 
 
-def parse_log(filename: str, num_frames: int):
-    """Summarize per-frame render times [ms] from a run's captured log.
+def summarize(samples: list[float]) -> dict:
+    """Reduce a list of per-frame times [ms] to the statistics the report shows.
+
+    Args:
+        samples: One time per frame [ms]. Must be non-empty.
+
+    Returns:
+        Median, mean, min, max, and standard deviation [ms].
+    """
+    return {
+        "median": statistics.median(samples),
+        "mean": statistics.mean(samples),
+        "min": min(samples),
+        "max": max(samples),
+        "stdev": statistics.stdev(samples) if len(samples) > 1 else 0,
+    }
+
+
+def parse_frames(filename: str, scopes: dict[str, re.Pattern] | None = None) -> list[dict[str, float]]:
+    """Read per-frame scope times [ms] out of a run's captured log, in order.
+
+    A rendered frame is preceded by however many physics steps the task's decimation implies, so
+    non-frame scopes are accumulated until the frame scope's timing closes them out rather than
+    assumed to be one per frame. A scope absent from the log reads as zero for every frame, which
+    is what makes a log captured without ``ISAACLAB_PHYSICS_PROFILE`` still parse.
+
+    Args:
+        filename: Path to the captured run log.
+        scopes: Scope name to pattern, defaulting to :data:`SCOPE_PATTERNS`. Must contain
+            :data:`FRAME_SCOPE`.
+
+    Returns:
+        One ``{scope: time_ms}`` dict per frame, each carrying every key in ``scopes``.
+    """
+    scopes = SCOPE_PATTERNS if scopes is None else scopes
+    frames: list[dict[str, float]] = []
+    pending = dict.fromkeys(scopes, 0.0)
+
+    with open(filename) as file:
+        for line in file:
+            for name, pattern in scopes.items():
+                if not (match := pattern.search(line)):
+                    continue
+                if name == FRAME_SCOPE:
+                    frames.append(pending | {name: float(match.group(1))})
+                    pending = dict.fromkeys(scopes, 0.0)
+                else:
+                    pending[name] += float(match.group(1))
+                break
+
+    return frames
+
+
+def parse_log(filename: str, num_frames: int, scopes: dict[str, re.Pattern] | None = None):
+    """Summarize per-frame times [ms] from a run's captured log, one entry per scope.
 
     Every backend is measured the same way: the wall time of :data:`RENDER_SCOPE`, printed once per
     render by ``wp.ScopedTimer`` when ``ISAACLAB_RENDER_PROFILE`` is set. The timer synchronizes the
     device on both ends, so it covers completed rather than merely submitted work — including for
     the RTX backends, whose Vulkan render is consumed by warp extraction kernels inside the scope.
 
+    ``ISAACLAB_PHYSICS_PROFILE`` times :data:`PHYSICS_SCOPE` the same way, so a frame also carries
+    what its physics steps cost and the two summed.
+
     Args:
         filename: Path to the captured run log.
         num_frames: Number of frames to measure, after skipping :data:`FRAME_PADDING` warm-up frames.
+        scopes: Scope name to pattern, defaulting to :data:`SCOPE_PATTERNS`.
 
     Returns:
-        Timing statistics, or ``None`` if the log holds no usable frames.
+        The :data:`FRAME_SCOPE` statistics flat, a sub-dict per remaining scope, and a ``total``
+        sub-dict summing all of them. ``None`` if the log holds no usable frames.
     """
-    with open(filename) as file:
-        frames = [float(match.group(1)) for line in file if (match := RENDER_SCOPE_PATTERN.search(line))]
+    scopes = SCOPE_PATTERNS if scopes is None else scopes
+    frames = parse_frames(filename, scopes)
 
     if not frames:
         log(f"No '{RENDER_SCOPE}' timings in {filename}; was ISAACLAB_RENDER_PROFILE set for this run?")
         return None
     out = frames[FRAME_PADDING : FRAME_PADDING + num_frames]
 
-    if out:
-        return {
-            "size": len(out),
-            "median": statistics.median(out),
-            "mean": statistics.mean(out),
-            "min": min(out),
-            "max": max(out),
-            "stdev": statistics.stdev(out) if len(out) > 1 else 0,
-        }
-    return None
+    if not out:
+        return None
+
+    results = {"size": len(out)} | summarize([frame[FRAME_SCOPE] for frame in out])
+    results |= {name: summarize([frame[name] for frame in out]) for name in scopes if name != FRAME_SCOPE}
+    return results | {"total": summarize([sum(frame.values()) for frame in out])}
 
 
 def run_profile(profile: dict, args: argparse.Namespace):
@@ -344,21 +465,9 @@ def main() -> None:
             )
         )
     else:
-        separator = "|------------------------------------------|------|--------------|--------------|--------------|--------------|--------------|--------------|"  # noqa: E501
         log("")
-        log(
-            "| PROFILE                                  | SIZE |  PIXEL / SEC |    MEDIAN    |     MEAN     |     MIN      |     MAX      |    STDEV     |"  # noqa: E501
-        )
-        log(separator)
-        for record in records:
-            if record["status"] == "ok":
-                gpxs = record["pixels_per_second"] / 1e9
-                log(
-                    f"| {record['name']:<40} | {record['size']:>4} | {gpxs:>6.2f} Gpx/s | {record['median_ms']:>10.2f}ms | {record['mean_ms']:>10.2f}ms | {record['min_ms']:>10.2f}ms | {record['max_ms']:>10.2f}ms | {record['stdev_ms']:>10.2f}ms |"  # noqa: E501
-                )
-            else:
-                log(f"| {record['name']:<40} | FAILED {record['log']:<87} |")
-        log(separator)
+        for line in format_table(records):
+            log(line)
         log("")
 
     if benchmark_failed:
