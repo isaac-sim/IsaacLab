@@ -1,3 +1,5 @@
+:orphan:
+
 .. _isaac-lab-robots:
 
 Robot Configurations

@@ -1107,12 +1107,18 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_jacobian_w_ta
 
     def _refresh_generalized_dynamics_buffer(
-        self, buffer: TimestampedBuffer, backend_buffer: wp.array, tensor_type: int, reorder_kernel: wp.Kernel
+        self,
+        buffer: TimestampedBuffer,
+        backend_buffer: wp.array,
+        tensor_type: int,
+        reorder_kernel: wp.Kernel,
+        *,
+        correct_joint_signs: bool = True,
     ) -> None:
         """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
         if buffer.timestamp >= self._sim_timestamp:
             return
-        if self.has_joint_ordering or self._has_reversed_joints:
+        if self.has_joint_ordering or (correct_joint_signs and self._has_reversed_joints):
             self._binding_read(tensor_type, backend_buffer)
             self._read_launch_cache.launch(
                 (id(buffer), "generalized_dynamics"),
@@ -1121,7 +1127,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[
                     backend_buffer,
                     self._jacobian_joint_user_to_backend,
-                    self._joint_dof_signs,
+                    self._joint_dof_signs if correct_joint_signs else None,
                     self._num_base_dofs,
                     self.has_joint_ordering,
                 ],
@@ -1145,11 +1151,13 @@ class ArticulationData(BaseArticulationData):
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
+        # Gravity forces already use the public joint basis on both 0.5.11 and 0.6.
         self._refresh_generalized_dynamics_buffer(
             self._gravity_compensation_forces,
             self._gravity_compensation_forces_backend,
             TT.GRAVITY_FORCE,
             ordering_kernels.reorder_generalized_vector_backend_to_user,
+            correct_joint_signs=False,
         )
         return self._gravity_compensation_forces_ta
 
@@ -1780,6 +1788,8 @@ class ArticulationData(BaseArticulationData):
         self._fixed_tendon_offset = TimestampedBuffer((N, T_fix), dev, wp.float32)
         # Legacy alias kept for any internal callers that used the old vec2f buffer.
         self._fixed_tendon_pos_limits = TimestampedBuffer((N, T_fix), dev, wp.vec2f)
+        # scratch for the tendon target setters: rest_length - target before the masked/indexed write
+        self._fixed_tendon_offset_scratch = wp.zeros((N, T_fix), dtype=wp.float32, device=dev)
         self._spatial_tendon_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_damping = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_limit_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)

@@ -1,6 +1,151 @@
 Changelog
 ---------
 
+0.17.4 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Moved the LEAPP policy exporters into the installed ``isaaclab_rl`` package.
+
+Fixed
+^^^^^
+
+* Fixed RL environment wrapper validation errors reporting the outer Gymnasium wrapper type instead
+  of the rejected unwrapped environment type.
+* Rejected incompatible agent configurations in RL-Games playback before launching simulation,
+  with guidance to select a matching RL library instead of failing with an opaque ``TypeError``.
+  Camera feature presets use ``--rl_library rsl_rl --agent rsl_rl_cfg_entry_point`` with
+  ``presets=resnet18`` or ``presets=theia_tiny``.
+* Restored launch-safe lazy imports for RSL-RL LEAPP exports, preventing Isaac Sim 6.1 PhysX exports from exiting
+  without producing ONNX artifacts.
+
+
+0.17.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed SKRL train, play, and LEAPP export to default to the canonical task config and derive the algorithm from
+  ``agent.class``. ``--algorithm`` now explicitly selects an algorithm recipe and is rejected when ``--agent`` resolves
+  to a different class. Older runs named after a config suffix such as ``box_discrete`` require an explicit checkpoint
+  path.
+
+
+0.17.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added policy frequency metadata to LEAPP export artifacts for all supported RL libraries.
+
+
+0.17.1 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed published checkpoint lookup ignoring non-default domain presets, which could fetch an
+  incompatible policy or miss an available preset-specific checkpoint. Preset-specific checkpoints
+  can now also be trained, collected, reviewed, and published through the checkpoint management tool.
+* Fixed the zero and random agents overriding task-defined simulation devices when ``--device`` was omitted.
+
+
+0.17.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added mode-specific terminal messages when policy playback, the zero-action agent, or the random-action agent
+  finished initialization.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_published_pretrained_checkpoint` to raise
+  ``RuntimeError`` when a published checkpoint cannot be downloaded, for instance when the
+  ``.pretrained_checkpoints`` cache directory is not writable, instead of returning ``None``. The
+  originating error is chained as the cause. ``None`` is now returned only when the asset server does not
+  report the checkpoint, which covers both an unpublished checkpoint and a server that could not be
+  reached; callers that relied on ``None`` to mask local download failures must catch ``RuntimeError``.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL play video filenames missing the numeric checkpoint stem used for playback.
+* Fixed RLinf training launched with ``uv run`` failing when Ray attempted to upload working directories larger than 512 MiB.
+* Fixed :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_published_pretrained_checkpoint` reporting
+  every download failure as ``A pre-trained checkpoint is currently unavailable for this task.``. A
+  checkpoint the asset server does not provide is still reported that way, but the message now names the
+  location that was tried, the task and backends it was derived from, and what to do instead.
+* Fixed ``--deterministic`` not making camera observations reproducible. The flag configured the
+  physics solver but left :attr:`warp.config.deterministic` at ``NOT_GUARANTEED``, and Newton's
+  sensor and geometry kernels -- unlike its solvers -- take no per-module determinism option and
+  fall back to that global. The scene BVH is built over an atomically compacted shape list, so its
+  primitive order varied between processes and a tiled camera rendered a few pixels differently
+  from identical simulation state, which was enough to make image-observation training diverge.
+
+
+0.16.4 (2026-09-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the zero and random agents to use the Newton GL visualizer by default. Pass ``--viz kit`` to keep using
+  the Kit visualizer.
+
+Fixed
+^^^^^
+
+* Fixed single-GPU reinforcement learning entrypoints eagerly importing the multi-GPU Torch Elastic launcher.
+* Fixed pretrained checkpoint resolution for coupled tasks such as ``Isaac-Lift-Cable-Franka``,
+  ``Isaac-Lift-Cloth-Franka``, and ``Isaac-Lift-Soft-Franka``, which raised
+  ``Unsupported Newton solver for pretrained checkpoints: CouplerProxyCfg``. A Newton coupled
+  solver is now named by its entry solvers in order followed by its coupling scheme, so a proxy
+  coupler over MJWarp and VBD entries resolves to the ``newtonmjwarpvbdproxy`` physics token.
+  Checkpoint names for uncoupled solvers are unchanged.
+* Fixed ``play.py`` (all RL library backends) stopping the rollout after
+  ``video_recorders[0].video_length`` steps instead of ``video_length + step_offset`` steps
+  when ``--video`` is passed without an explicit ``--video_length``, which silently truncated
+  clips recorded with a nonzero :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.step_offset`.
+
+
+0.16.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``--deterministic`` to set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the
+  resolved physics config. The entrypoint no longer selects backend-specific determinism settings or
+  validates solvers; each physics manager translates the request and rejects what it cannot support.
+  Deterministic physics costs runtime and memory; drop the flag to opt out.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL training resolving agent metadata before external task registration callbacks run.
+* Fixed ``--deterministic`` not making training runs reproducible. The flag configured PyTorch and
+  the Isaac RTX renderer but never reached the physics solver, so runs on Newton backends stayed
+  free-running and their reward curves diverged.
+
+
+0.16.2 (2026-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the zero agent to infer finite hold commands for absolute task-space controllers, support composite and
+  multi-agent action spaces, and reject invalid task configurations before launching the simulator.
+
+
 0.16.1 (2026-08-25)
 ~~~~~~~~~~~~~~~~~~~
 

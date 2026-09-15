@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-add-sensors-on-robot:
 
 Adding sensors on a robot
@@ -164,7 +166,7 @@ to access the data for the different sensors created in this tutorial:
 .. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
    :start-at: # print information from the sensors
-   :end-at: print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
+   :end-at: print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_normal_forces_w).item())
 
 
 The Code Execution

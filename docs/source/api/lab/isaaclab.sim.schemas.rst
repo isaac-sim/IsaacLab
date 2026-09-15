@@ -8,7 +8,7 @@ isaaclab.sim.schemas
   These base classes carry the universal-physics fields that every backend honors.
   They live in core ``isaaclab`` and have no backend dependency. For backend-specific
   knobs, use the matching subclass in :mod:`isaaclab_physx.sim.schemas` or
-  :mod:`isaaclab_newton.sim.schemas`. See :doc:`/source/overview/core-concepts/schema_cfgs`
+  :mod:`isaaclab_newton.sim.schemas`. See :doc:`/source/concepts/schema_cfgs`
   for the full design.
 
   .. autosummary::

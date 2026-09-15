@@ -53,7 +53,7 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
     from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 SIM_DT = 1.0 / 60.0

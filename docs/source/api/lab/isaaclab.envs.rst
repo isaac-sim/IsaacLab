@@ -139,3 +139,8 @@ The following classes are part of the public :mod:`isaaclab.envs` API.
 
 .. autoclass:: VideoRecorderCfg
    :show-inheritance:
+
+.. toctree::
+   :hidden:
+
+   isaaclab.envs.leapp_deployment_env

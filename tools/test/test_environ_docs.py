@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import gymnasium as gym
 import pytest
 from gymnasium.envs.registration import EnvSpec
 
@@ -42,6 +43,7 @@ from environ_docs import (  # noqa: E402
     ENVIRONMENT_BROWSER_TASKS_END_MARKER,
     ENVIRONMENT_BROWSER_TASKS_START_MARKER,
     EnvironmentDocRow,
+    _apply_preset_exclusions,
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_browser_preview_images,
@@ -112,15 +114,30 @@ def test_parse_rl_libraries_from_kwargs_handles_multi_agent_and_amp():
     assert agents["skrl"] == ["PPO", "AMP", "IPPO", "MAPPO"]
 
 
-def test_parse_rl_libraries_detects_vision_config_from_filename():
+def test_parse_rl_libraries_does_not_label_canonical_amp_alias_as_ppo():
+    kwargs = {
+        "env_cfg_entry_point": "ignored",
+        "skrl_cfg_entry_point": "agents:skrl_amp_cfg.yaml",
+        "skrl_amp_cfg_entry_point": "agents:skrl_amp_cfg.yaml",
+    }
+
+    assert parse_rl_libraries_from_kwargs(kwargs) == {"skrl": ["AMP"]}
+
+
+def test_parse_rl_libraries_does_not_treat_recipe_names_as_algorithms():
     kwargs = {
         "env_cfg_entry_point": "ignored",
         "rl_games_cfg_entry_point": "agents:rl_games_ppo_vision_cfg.yaml",
+        "rl_games_recurrent_cfg_entry_point": "agents:rl_games_recurrent_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": "agents.rsl_rl_ppo_cfg:RunnerCfg",
+        "rsl_rl_recurrent_cfg_entry_point": "agents.rsl_rl_ppo_cfg:RecurrentRunnerCfg",
+        "skrl_cfg_entry_point": "agents:skrl_ppo_cfg.yaml",
+        "skrl_recurrent_cfg_entry_point": "agents:skrl_recurrent_ppo_cfg.yaml",
     }
     agents = parse_rl_libraries_from_kwargs(kwargs)
-    assert agents["rl_games"] == ["VISION"]
+    assert agents["rl_games"] == ["PPO"]
     assert agents["rsl_rl"] == ["PPO"]
+    assert agents["skrl"] == ["PPO"]
 
 
 def test_apply_rl_library_overrides_supplements_registry_gaps():
@@ -200,6 +217,45 @@ def test_physics_names_for_docs_infers_physx_from_default():
     assert names == ["newton_mjwarp", "physx"]
 
 
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-Stack-Cube-Franka",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
+    ],
+)
+def test_preset_exclusions_remove_runtime_disabled_task_combinations(task_name: str):
+    presets = {
+        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+
+    excluded = _apply_preset_exclusions(task_name, presets)
+
+    assert excluded == {
+        PresetTarget.PHYSICS: ["isaacsim_physx"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+
+
+def test_preset_exclusions_keep_supported_task_combinations():
+    presets = {
+        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+
+    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
+
+    assert unchanged == presets
+
+
 def test_collect_environment_doc_rows_from_mock_specs():
     specs = [
         EnvSpec(
@@ -226,29 +282,13 @@ def test_collect_environment_doc_rows_from_mock_specs():
     assert "sb3" in rows[0].rl_libraries
 
 
-def test_collect_environment_doc_rows_includes_registered_agent_preset_compatibility():
-    specs = [
-        EnvSpec(
-            id="Isaac-Camera",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
-            kwargs={
-                "env_cfg_entry_point": "cfg:CameraEnvCfg",
-                "rsl_rl_cfg_entry_point": "agents:state_cfg",
-                "rsl_rl_feature_cfg_entry_point": "agents:feature_cfg",
-                "agent_preset_compatibility": {
-                    "rsl_rl_cfg_entry_point": ("rgb",),
-                    "rsl_rl_feature_cfg_entry_point": ("resnet18",),
-                    "missing_cfg_entry_point": ("unused",),
-                },
-            },
-        )
-    ]
+def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility():
+    """Checkpoint preset availability must be carried into generated browser rows."""
+    row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
 
-    rows = collect_environment_doc_rows(specs)
-
-    assert rows[0].agent_preset_compatibility == {
-        "rsl_rl_cfg_entry_point": ("rgb",),
-        "rsl_rl_feature_cfg_entry_point": ("resnet18",),
+    assert row.pretrained_checkpoint_preset_compatibility == {
+        "*": ("rgb",),
+        "rl_games": ("depth",),
     }
 
 
@@ -378,11 +418,8 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
                 PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
                 PresetTarget.DOMAIN: ["rgb"],
             },
-            agent_preset_compatibility={
-                "rsl_rl_cfg_entry_point": ("rgb",),
-                "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
-            },
             supports_warp_frontend=True,
+            pretrained_checkpoint_preset_compatibility={"*": ("rgb",), "rsl_rl": ("depth",)},
         ),
         EnvironmentDocRow(
             task_name="IsaacContrib-Cartpole",
@@ -413,19 +450,36 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert '"isaacsim_physx,newton_mjwarp"' in updated
     assert '"isaacsim_rtx,ovrtx"' in updated
     assert '"rgb"' in updated
-    assert '"rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]' in updated
     assert '"IsaacContrib-Cartpole"' in updated
     assert '"ovphysx"' in updated
     assert '"tasks/classic/cartpole.jpg"' in updated
     assert '"tasks/classic/cartpole.jpg", true' in updated
+    assert '"*": ["rgb"]' in updated
+    assert '"rsl_rl": ["depth"]' in updated
     assert updated.index('"Isaac-Cartpole"') < updated.index('"IsaacContrib-Cartpole"')
     assert "const preserved = true;" in updated
+
+
+def test_environment_browser_rows_include_mappo_as_the_skrl_default():
+    """Tasks offering MAPPO must make it the generated SKRL command default."""
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Multi-Agent-Direct",
+            workflow="Direct",
+            rl_libraries={"skrl": ["IPPO", "MAPPO", "PPO"]},
+            presets=None,
+        )
+    ]
+
+    rendered = render_environment_browser_task_rows(rows)
+
+    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", "", false, {}, {"skrl": "MAPPO"}]' in rendered
 
 
 def test_collect_environment_browser_preview_images_preserves_generated_assignments():
     content = (
         f"{ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
-        'const taskRows = [\n    ["Isaac-Cartpole", "rsl_rl", "newton_mjwarp", "", "", {}, '
+        'const taskRows = [\n    ["Isaac-Cartpole", "rsl_rl", "newton_mjwarp", "", "", '
         '"tasks/classic/cartpole.jpg"],\n];\n'
         f"{ENVIRONMENT_BROWSER_TASKS_END_MARKER}\n"
     )

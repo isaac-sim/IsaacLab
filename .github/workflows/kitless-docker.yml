@@ -49,6 +49,8 @@ jobs:
           ^docker/docker-compose\.yaml$ :: Kit-less Compose definition
           ^docker/test/test_container_profiles\.py$ :: Kit-less profile tests
           ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
+          ^docker/test/test_security_dependencies\.py$ :: Container dependency tests
+          ^docker/scripts/install_git_lfs\.sh$ :: Verified Git LFS installer
           ^docker/utils/container_interface\.py$ :: Container profile implementation
           ^docker/utils/volume_mounts\.py$ :: Container volume helper
           ^isaaclab\.sh$ :: Install CLI wrapper
@@ -69,7 +71,7 @@ jobs:
 
     - name: Set up uv
       if: steps.detect.outputs.should_run == 'true'
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         enable-cache: true
 
@@ -78,10 +80,11 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        uv run --no-project --with pytest --with pyyaml \
+        uv run --no-project --no-build --with pytest==9.1.1 --with pyyaml==6.0.3 \
           python -m pytest -q \
           docker/test/test_container_profiles.py \
-          docker/test/test_dockerfile_nonroot.py
+          docker/test/test_dockerfile_nonroot.py \
+          docker/test/test_security_dependencies.py
         (
           cd docker
           docker compose \

@@ -166,9 +166,10 @@ The display will be forwarded to the host machine.
 
 .. rubric:: Python Interpreter
 
-The Isaac Sim-based profiles use the Python interpreter provided by Isaac Sim at ``/isaac-sim/python.sh``.
-The kit-less profile instead uses the locked Python 3.12 virtual environment at
-``/workspace/isaaclab/.venv``. In either container, use the following command:
+Every profile installs from ``uv.lock`` into a Python 3.12 virtual environment at
+``/opt/isaaclab-venv``. On the Isaac Sim-based profiles the environment is built on Isaac Sim's
+own interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim``
+symlink; ``isaaclab.sh`` puts it on the path. In either container, use the following command:
 
 .. code:: bash
 
@@ -289,7 +290,7 @@ release version tag.
 
 .. code:: bash
 
-    docker pull nvcr.io/nvidia/isaac-lab:<version>-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Start a named container in the background. The ``--interactive`` and ``--tty`` options keep the image's Bash
 process running so that you can execute multiple commands in the same container:
@@ -297,7 +298,7 @@ process running so that you can execute multiple commands in the same container:
 .. code:: bash
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
-        nvcr.io/nvidia/isaac-lab:<version>-kitless
+        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Train a policy in the running container:
 
@@ -401,7 +402,7 @@ To pull the minimal Isaac Lab container, run:
 
 .. code:: bash
 
-  docker pull nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+  docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 .. attention::
 
@@ -432,7 +433,7 @@ To run the Isaac Lab container with an interactive bash session, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 To enable rendering through X11 forwarding, run:
 
@@ -451,7 +452,7 @@ To enable rendering through X11 forwarding, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 To run an example within the container, run:
 

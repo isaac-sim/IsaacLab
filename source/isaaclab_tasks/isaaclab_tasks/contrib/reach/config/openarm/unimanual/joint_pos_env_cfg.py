@@ -5,7 +5,7 @@
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.reach.config.openarm.unimanual.reach_openarm_uni_env_cfg import (
     ReachEnvCfg,

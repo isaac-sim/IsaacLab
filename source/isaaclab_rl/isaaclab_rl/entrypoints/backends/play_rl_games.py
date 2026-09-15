@@ -30,6 +30,7 @@ from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
     create_isaaclab_env,
     pre_launch_video_config,
+    request_determinism,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -86,7 +87,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 add_frontend_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser, agent_library="rl_games")
+args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
@@ -98,6 +99,12 @@ sys.argv = [sys.argv[0]] + hydra_args
 def main():
     """Play with RL-Games agent."""
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
+    if not isinstance(agent_cfg, dict) or not isinstance(agent_cfg.get("params"), dict):
+        raise SystemExit(
+            f"Invalid RL-Games agent configuration from --agent {args_cli.agent}: expected a dictionary with"
+            f" a 'params' dictionary, got {type(agent_cfg).__name__}. Select an RL-Games configuration with"
+            " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
+        )
     pre_launch_video_config(env_cfg, args_cli=args_cli)
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
@@ -107,6 +114,8 @@ def main():
             train_task_name = task_name.replace("-Play", "")
 
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            # Warp reads its determinism mode at module build time, so request it before the env exists.
+            request_determinism(args_cli, env_cfg)
             env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
             if args_cli.seed == -1:
@@ -199,6 +208,7 @@ def main():
             _ = agent.get_batch_size(obs, 1)
             if agent.is_rnn:
                 agent.init_rnn()
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
@@ -216,7 +226,7 @@ def main():
                         video_stop = args_cli.video_length
                         if video_stop is None:
                             recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length if recorders else None
+                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
                         if video_stop is not None and timestep >= video_stop:
                             break
 

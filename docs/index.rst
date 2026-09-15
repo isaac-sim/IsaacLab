@@ -92,6 +92,9 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
+   source/setup/tutorial
+   source/setup/demos
+   source/how-to/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -100,46 +103,51 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/backend_architecture
+   source/concepts/physics_backends
+   source/concepts/solver_differences
+   source/concepts/solver-tuning/index
+   source/concepts/native-physics-api/index
+   source/concepts/renderers
    source/concepts/actuators
+   source/concepts/sensors/index
    source/concepts/coupled_solvers
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
-   :titlesonly:
-
-   source/overview/own-project/index
-   source/setup/walkthrough/index
-   source/tutorials/index
-   source/how-to/index
-   source/overview/developer-guide/index
-   source/testing/index
-
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Overview
-   :titlesonly:
-
-
-   source/overview/core-concepts/index
-   source/overview/reinforcement-learning/index
-   source/overview/imitation-learning/index
-   source/overview/showroom
+   source/concepts/visualization
+   source/concepts/reinforcement_learning
+   source/concepts/deformables
+   source/concepts/schema_cfgs
+   source/concepts/schema_fragments
+   source/concepts/task_workflows
+   source/concepts/motion_generators
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Features
 
+   source/features/imitation-learning/index
    source/features/isaac_teleop
    source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   source/features/ray
    source/features/reproducibility
+   source/features/draw_markers
+   source/features/record_video
+   source/features/visualizer_tiled_camera
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/editor_setup
+   source/developer-tools/template_generator
+   source/developer-tools/add_physics_backend
+   source/developer-tools/extending_newton_solvers
+   source/developer-tools/scene_data_providers
+   source/developer-tools/agent_skills
+   source/developer-tools/benchmarking/index
 
 
 .. toctree::
@@ -147,6 +155,7 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
+   source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
 

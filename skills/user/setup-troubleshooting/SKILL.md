@@ -1,6 +1,6 @@
 ---
 name: isaaclab-setup-troubleshooting
-description: Routes Isaac Lab installation, verification, and common troubleshooting issues to official docs and canonical commands. Use when installing Isaac Lab, verifying setup, debugging launch failures, or diagnosing environment problems.
+description: Use when installing Isaac Lab, verifying setup, debugging launch failures, or diagnosing environment and simulation-performance problems.
 audience: user
 status: experimental
 owners:
@@ -11,7 +11,7 @@ owners:
 
 ## When To Use
 
-Use this skill when a user asks for help installing Isaac Lab, verifying a local setup, or diagnosing common setup and launch failures.
+Use this skill when a user asks for help installing Isaac Lab, verifying a local setup, or diagnosing common setup, launch, and simulation-performance problems.
 
 Do not duplicate installation or troubleshooting docs in this skill. The official docs are the source of truth.
 
@@ -24,9 +24,10 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 5. Use suffixless task names in verification and training commands.
 6. Ask for the smallest relevant error output when the failure mode is unclear.
 7. Prefer a minimal verification command before running examples, training, or rendering workflows.
-8. Route backend-specific setup to the relevant PhysX or Newton docs.
-9. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
-10. If the docs are incomplete or stale, update the docs rather than expanding this skill.
+8. Route backend-specific setup to the unified installation guide and backend choice questions to the physics-backends concept.
+9. For unexpectedly slow simulation or training, route to the performance section in the troubleshooting reference and profile a representative workload before prescribing tuning changes.
+10. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
+11. If the docs are incomplete or stale, update the docs rather than expanding this skill.
 
 ## Validation
 
@@ -46,7 +47,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with the unified installation guide, the Docker/Cloud feature guide, quick installation docs, backend installation docs, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
+Keep this skill synchronized with the unified installation guide, the Docker/Cloud feature guide, quick installation docs, the physics-backends concept, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
 
 ## References
 
@@ -56,6 +57,5 @@ Keep this skill synchronized with the unified installation guide, the Docker/Clo
 - [Installation](../../../docs/source/setup/installation/index.rst)
 - [XR teleoperation setup](../../../docs/source/how-to/cloudxr_teleoperation.rst)
 - [Docker/Cloud](../../../docs/source/features/docker_cloud.rst)
-- [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)
-- [Newton installation](../../../docs/source/overview/core-concepts/physical-backends/newton/installation.rst)
+- [Physics backends](../../../docs/source/concepts/physics_backends.rst)
 - [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)

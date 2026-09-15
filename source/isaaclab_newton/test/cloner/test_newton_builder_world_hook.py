@@ -10,8 +10,8 @@ from types import SimpleNamespace
 from unittest import mock
 
 import newton
+import numpy as np
 import pytest
-import torch
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonManager
 
@@ -80,7 +80,9 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
     add_usd = mock.Mock(wraps=builder.add_usd)
     monkeypatch.setattr(builder, "add_usd", add_usd)
     manager = SimpleNamespace(
-        create_builder=mock.Mock(return_value=builder), _inject_terrain_heightfields=mock.Mock(return_value=[])
+        create_builder=mock.Mock(return_value=builder),
+        _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
+        _inject_terrain_heightfields=mock.Mock(return_value=[]),
     )
     monkeypatch.setattr(
         replicate_module.PhysicsManager,
@@ -96,8 +98,8 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
         stage,
         (),
         (),
-        torch.arange(2),
-        torch.empty((0, 2), dtype=torch.bool),
+        np.arange(2, dtype=np.int64),
+        np.empty((0, 2), dtype=np.bool_),
         global_paths=global_paths,
         load_visual_shapes=False,
     )

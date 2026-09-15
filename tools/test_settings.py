@@ -73,6 +73,17 @@ PER_TEST_TIMEOUTS = {
 Note: Any tests not listed here will use the default timeout.
 """
 
+GIT_ASSET_STARTUP_TIMEOUT = 1000
+"""Startup timeout for tests that may populate the external Git asset cache."""
+
+PER_TEST_STARTUP_TIMEOUTS = {
+    "test_environments_isaacsim_physx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+}
+"""Per-test startup timeouts for cold external asset downloads."""
+
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",

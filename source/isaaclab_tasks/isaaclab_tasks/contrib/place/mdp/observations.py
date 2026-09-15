@@ -70,7 +70,9 @@ def object_grasped(
     pose_diff = torch.linalg.vector_norm(object_pos - end_effector_pos, dim=1)
 
     if "contact_grasp" in env.scene.keys() and env.scene["contact_grasp"] is not None:
-        contact_force_grasp = env.scene["contact_grasp"].data.net_forces_w.torch  # shape:(N, 2, 3) for two fingers
+        contact_force_grasp = env.scene[
+            "contact_grasp"
+        ].data.net_normal_forces_w.torch  # shape:(N, 2, 3) for two fingers
         contact_force_norm = torch.linalg.vector_norm(
             contact_force_grasp, dim=2
         )  # shape:(N, 2) - force magnitude per finger
@@ -84,7 +86,7 @@ def object_grasped(
     ):
         contact_force_object = env.scene[
             f"contact_grasp_{object_cfg.name}"
-        ].data.net_forces_w.torch  # shape:(N, 2, 3) for two fingers
+        ].data.net_normal_forces_w.torch  # shape:(N, 2, 3) for two fingers
         contact_force_norm = torch.linalg.vector_norm(
             contact_force_object, dim=2
         )  # shape:(N, 2) - force magnitude per finger
@@ -97,7 +99,7 @@ def object_grasped(
 
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
-        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1, 1)  # 1: closed, 0: closing, -1: open
+        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_closed = (suction_cup_status == 1).to(torch.float32)
         grasped = torch.logical_and(suction_cup_is_closed, pose_diff < diff_threshold)
 
