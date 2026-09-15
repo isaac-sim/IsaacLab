@@ -136,6 +136,8 @@ class TestSecurityDependencies(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, valid_checksum, result.stderr)
                 self.assertEqual((root / "executed").exists(), valid_checksum)
                 self.assertEqual(pip_dir.exists(), not valid_checksum)
+
+
 class TestGitLfsInstaller(unittest.TestCase):
     """Exercise the shell installer with no network, root writes or package-manager changes."""
 
