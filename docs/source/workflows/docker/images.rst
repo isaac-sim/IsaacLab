@@ -137,7 +137,11 @@ otherwise every start recompiles shaders:
      nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 For windowed use, follow the X11 setup in :ref:`deployment-docker`; the container needs
-access to the host display and matching authorization. Offscreen Newton rendering does
+access to the host display and matching authorization. For direct ``docker run`` use, add
+``-e DISPLAY -e XAUTHORITY=/tmp/isaaclab.xauth`` and the mounts
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` and
+``-v "${XAUTHORITY:-$HOME/.Xauthority}":/tmp/isaaclab.xauth:ro`` to the command above.
+The host authority file must exist and be readable by the container user. Offscreen Newton rendering does
 not require X11. Follow the graphics-driver requirements above for GL or RTX.
 
 .. attention::

@@ -54,7 +54,7 @@ Choosing shared and backend-specific settings
 Use the shared :class:`~assets.ArticulationCfg` for the robot's initial state and actuators.
 The simulation selects the physics backend separately.
 
-For common USD properties, use classes from ``isaaclab.sim.schemas`, such as
+For common USD properties, use classes from ``isaaclab.sim.schemas``, such as
 :class:`~sim.schemas.RigidBodyBaseCfg` and :class:`~sim.schemas.ArticulationRootBaseCfg`.
 Use ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
@@ -153,7 +153,7 @@ to combine them into a single actuator model.
    .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
       :language: python
       :start-at:     actuators=
-      :end-before: )
+      :end-at:     },
       :dedent:
 
 

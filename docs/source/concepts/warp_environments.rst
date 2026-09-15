@@ -109,14 +109,7 @@ Stable-Baselines3.
 
    ``--video`` is rejected on the warp path, for both ``train`` and ``play``: video
    recording requires the standard torch frontend. To record a rollout, replay the same
-   checkpoint with ``--frontend torch``.
-
-
-.. note::
-
-   Video recording is not currently supported with ``--frontend warp``.
-   To record a rollout, replay the checkpoint with ``--frontend torch``;
-   see :ref:`how_to_record_video`.
+   checkpoint with ``--frontend torch``; see :ref:`how_to_record_video`.
 
 
 Performance Comparison

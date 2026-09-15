@@ -394,6 +394,7 @@ class IsaacLabContainerCli(SphinxDirective):
         if section not in ("commands", "options"):
             raise self.error(f"Unknown section '{section}' for isaaclab-container-cli. Use 'commands' or 'options'.")
 
+        self.env.note_dependency(str((Path(self.env.srcdir).parent / "docker/container.py").resolve()))
         action = _subparsers_action(_container_parser(self.env.srcdir))
         if action is None:
             raise self.error("Could not find sub-commands in docker/container.py.")

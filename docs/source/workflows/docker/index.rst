@@ -71,7 +71,8 @@ one set of environment files, and one image name:
 Every command below takes the profile as its first positional argument and defaults to ``base``.
 Only one profile applies at a time, and the resulting image and container are both named
 ``isaac-lab-<profile>``. Pass ``--suffix`` to append a name suffix when you want several variants of
-the same profile side by side.
+the same profile side by side. Do not use ``--suffix`` with cluster deployments, whose export
+commands expect the unsuffixed image name.
 
 For what each image actually contains and how to choose between them, see :ref:`docker-images`.
 
@@ -106,7 +107,9 @@ the container:
     ./docker/container.py stop
 
 The log is now at ``docker/artifacts/logs/docker_tutorial/log.txt`` on the host.
-Stopping removes the container but preserves its image and named volumes.
+Stopping removes the container but preserves its image and named volumes. To remove the image
+after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
+`Docker pruning <https://docs.docker.com/engine/manage-resources/pruning/>`__ for other cleanup options.
 
 .. dropdown:: Code for log_time.py
    :icon: code
@@ -146,7 +149,7 @@ Streaming to XR devices is the worked example -- it adds the CloudXR Runtime ser
 
 .. code:: bash
 
-    ./docker/container.py start --files docker-compose.cloudxr-runtime.patch.yaml --env-file .env.cloudxr-runtime
+    ./docker/container.py start --files docker-compose.cloudxr-runtime.patch.yaml --env-files .env.cloudxr-runtime
 
 Stop it with the same arguments. The teleoperation setup, firewall rules, and client connection
 steps are covered in :ref:`cloudxr-teleoperation`. Use ``./docker/container.py config`` to print the
