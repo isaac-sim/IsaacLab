@@ -68,6 +68,33 @@ def feet_air_time_positive_biped(env, command_name: str, threshold: float, senso
     return reward
 
 
+def feet_air_time_variance(
+    env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, max_time: float = 0.5
+) -> torch.Tensor:
+    """Penalize an uneven swing/stance split between the feet.
+
+    :func:`feet_air_time_positive_biped` scores the duration of the current single-stance phase and
+    is blind to which foot is swinging, so holding one foot planted and the other airborne sits at
+    its clamp while a symmetric gait, whose timers reset at every touchdown, scores lower. This term
+    prices that in as the variance across feet of the last completed swing and stance durations
+    [s], and vanishes when both feet are loaded equally.
+
+    Durations are clipped at ``max_time`` so a single long stand does not dominate. The penalty is
+    zero for near-zero commands, matching the gate on the air-time term it balances.
+    """
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    # compute the penalty
+    last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
+    last_contact_time = contact_sensor.data.last_contact_time.torch[:, sensor_cfg.body_ids]
+    penalty = torch.var(torch.clip(last_air_time, max=max_time), dim=1) + torch.var(
+        torch.clip(last_contact_time, max=max_time), dim=1
+    )
+    # no penalty for zero command
+    penalty *= torch.linalg.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+    return penalty
+
+
 def feet_slide(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize feet sliding.
 

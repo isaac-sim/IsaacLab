@@ -27,6 +27,8 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         # rewards
         self.rewards.flat_orientation_l2.weight = -2.5
         self.rewards.feet_air_time.weight = 5.0
+        # Doubled with the air-time weight above, which is what it counterbalances.
+        self.rewards.air_time_variance.weight = -10.0
         self.rewards.joint_deviation_hip.params["asset_cfg"].joint_names = ["hip_rotation_.*"]
         # curriculum
         self.curriculum.terrain_levels = None
