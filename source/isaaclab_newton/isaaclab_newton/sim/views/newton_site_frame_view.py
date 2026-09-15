@@ -599,9 +599,8 @@ class NewtonSiteFrameView(BaseFrameView):
     def _initialize_fabric_mirror(self) -> bool:
         """Build the Fabric selection backing :meth:`_mirror_to_fabric` (a ``False`` result is sticky).
 
-        Seeding from USD matches the PhysX view: the mirror keeps whatever scale it decomposes out of the
-        prim's existing Fabric world matrix, so an unseeded matrix bakes a garbage scale into every pose it
-        writes. Coverage can be partial -- Newton clones physics without USD, so a site can outlive its prim.
+        Seeding from USD is off: Newton never writes poses back, so it would reset the prim to its spawn
+        pose. Coverage can be partial -- Newton clones physics without USD, so a site can outlive its prim.
         """
         if self._mirror_disabled or self._site_prim_paths is None or self._count == 0:
             self._mirror_disabled = True
@@ -611,7 +610,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 self._site_prim_paths,
                 self._device,
                 owner=type(self).__name__,
-                seed_from_usd=True,
+                seed_from_usd=False,
                 skip_missing_prims=True,
             )
         except ImportError:
