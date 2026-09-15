@@ -690,7 +690,7 @@ class DirectMARLEnv(gym.Env):
         # set up state space
         if not self.cfg.state_space:
             self.state_space = None
-        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+        elif isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
             self.state_space = gym.spaces.flatten_space(
                 gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
             )
