@@ -639,12 +639,12 @@ have dedicated commands below.
      - Both OV backends: OV PhysX and OV RTX.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
-   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
+   * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
      - The corresponding RL framework.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
-     - Imitation learning / XR teleoperation.
+     - Isaac Lab Mimic / XR teleoperation. The wheel's ``mimic`` extra does not include Robomimic.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
@@ -652,7 +652,7 @@ have dedicated commands below.
    * - ``importers``
      - Standalone URDF and MJCF conversion without Isaac Sim.
    * - ``all``
-     - The curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
+     - The curated ``ov``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
        extras. Isaac Sim is not included.
    * - ``test``
      - Developer test and documentation tooling.
@@ -660,6 +660,13 @@ have dedicated commands below.
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
 (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
 developer ``test`` tooling remain opt-in.
+
+.. note::
+
+   RL-Games and Robomimic are not included in the published wheel metadata because the versions
+   used by Isaac Lab are installed from Git and do not provide package-index wheels. To use either
+   integration, install Isaac Lab from a source checkout and select the ``rl-games`` or ``mimic``
+   extra there.
 
 .. note::
 
