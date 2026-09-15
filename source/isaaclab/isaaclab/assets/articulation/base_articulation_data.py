@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.assets.physics_properties import UsdAttribute, usd_field
 from isaaclab.utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
@@ -433,6 +434,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", angular_power=-1))
     def joint_stiffness(self) -> ProxyArray:
         """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
 
@@ -444,6 +446,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(UsdAttribute("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", angular_power=-1))
     def joint_damping(self) -> ProxyArray:
         """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
 
@@ -455,6 +458,10 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", type_name="float"),
+        UsdAttribute("physxJoint:armature", "PhysxJointAPI", type_name="float"),
+    )
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -465,6 +472,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field()
     def joint_friction_coeff(self) -> ProxyArray:
         """Backend-specific joint friction values provided to the simulation.
 
@@ -480,6 +488,10 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("physics:lowerLimit", angular_power=1, component=0),
+        UsdAttribute("physics:upperLimit", angular_power=1, component=1),
+    )
     def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits provided to the simulation.
 
@@ -493,6 +505,12 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute(
+            "physxJointAxis:{axis}:maxJointVelocity", "PhysxJointAxisAPI:{axis}", angular_power=1, type_name="float"
+        ),
+        UsdAttribute("physxJoint:maxJointVelocity", "PhysxJointAPI", angular_power=1, type_name="float"),
+    )
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 
@@ -503,6 +521,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(UsdAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}"))
     def joint_effort_limits(self) -> ProxyArray:
         """Joint maximum effort provided to the simulation.
 
@@ -963,6 +982,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
+    @usd_field(
+        UsdAttribute("state:{axis}:physics:position", "PhysicsJointStateAPI:{axis}", angular_power=1, type_name="float")
+    )
     def joint_pos(self) -> ProxyArray:
         """Joint positions of all joints.
 
@@ -974,6 +996,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
+    @usd_field(
+        UsdAttribute("state:{axis}:physics:velocity", "PhysicsJointStateAPI:{axis}", angular_power=1, type_name="float")
+    )
     def joint_vel(self) -> ProxyArray:
         """Joint velocities of all joints.
 

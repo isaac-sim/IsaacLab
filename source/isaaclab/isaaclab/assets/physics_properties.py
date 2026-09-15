@@ -12,35 +12,9 @@ tendons and other spawn schemas remain owned by the authored USD stage.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import torch
-
-    from isaaclab.assets import BaseArticulationData
-
-
-# The payload consumed by ActuatorControl.write_resolved_joint_properties. Adding a solver
-# property extends this contract; exporter coverage checks require its USD semantics too.
-JOINT_PROPERTY_SOURCES = {
-    "stiffness": "joint_stiffness",
-    "damping": "joint_damping",
-    "armature": "joint_armature",
-    "friction": "joint_friction_coeff",
-    "dynamic_friction": "joint_dynamic_friction_coeff",
-    "viscous_friction": "joint_viscous_friction_coeff",
-    "joint_effort_limit": "joint_effort_limits",
-    "joint_velocity_limit": "joint_vel_limits",
-}
-"""Resolved solver properties and their public data sources.
-
-Stiffness [N/m or N*m/rad], damping and viscous friction [N*s/m or N*m*s/rad],
-armature [kg or kg*m^2], effort limit [N or N*m], and velocity limit [m/s or rad/s]
-depend on joint type. Static/dynamic friction follow the backend's documented convention;
-an adapter must not silently reinterpret a dimensionless coefficient as an effort.
-Explicit actuator controller gains are separate from these solver drive gains.
-"""
+from functools import lru_cache
 
 # Routes describe ownership, not a second cfg interpreter. Spawner/schema fields are
 # consumed by their existing writers and preserved wholesale in USD. Keep the exceptions
@@ -61,7 +35,6 @@ ASSET_CONFIGURATION_SOURCES = {
 }
 ACTUATOR_CONFIGURATION_SOURCES = {
     "construction": {"class_type", "joint_names_expr"},
-    "solver": set(JOINT_PROPERTY_SOURCES),
     "controller": {"actuator_effort_limit", "actuator_velocity_limit"},
     "aliases": {"effort_limit_sim", "velocity_limit_sim", "effort_limit", "velocity_limit"},
 }
@@ -77,7 +50,9 @@ def validate_configuration_coverage(cfg: object, *, actuator: bool = False) -> N
         from isaaclab.actuators import ActuatorBaseCfg
 
         names = {field.name for field in fields(ActuatorBaseCfg)}
-        routes = ACTUATOR_CONFIGURATION_SOURCES
+        from isaaclab.actuators.actuator_control import _JOINT_PROPERTY_KEYS
+
+        routes = {**ACTUATOR_CONFIGURATION_SOURCES, "solver": set(_JOINT_PROPERTY_KEYS)}
     else:
         names = {field.name for field in fields(cfg)}
         routes = ASSET_CONFIGURATION_SOURCES
@@ -86,70 +61,53 @@ def validate_configuration_coverage(cfg: object, *, actuator: bool = False) -> N
         raise NotImplementedError(f"Undeclared physical configuration export fields on {type(cfg).__name__}: {missing}")
 
 
-def read_joint_properties(data: BaseArticulationData) -> dict[str, torch.Tensor]:
-    """Read resolved solver properties in public joint order, shape [N, J].
-
-    Returns views of the public data tensors. Callers retaining a snapshot must copy them.
-    """
-    values = {}
-    for name, source in JOINT_PROPERTY_SOURCES.items():
-        value = getattr(data, source, None)
-        if value is None and name in {"dynamic_friction", "viscous_friction"}:
-            values[name] = data.joint_stiffness.torch.new_zeros(data.joint_stiffness.torch.shape)
-        else:
-            values[name] = value.torch
-    return values
-
-
 @dataclass(frozen=True)
-class UsdProperty:
-    """Fixed buffer-to-USD mapping in the PhysX target dialect.
+class UsdAttribute:
+    """One exact USD target bound to a data property.
 
-    ``source`` names public asset data; ``targets`` pairs an applied schema with
-    an attribute (``{axis}`` expands to angular/linear). Angular conversion is
-    an exponent of degrees per radian: 1 for state/limits, -1 for drive gains.
-    ``component`` selects one component of a vector property. All physical
-    source values use SI units; this contract requires a metre/kilogram stage.
+    ``schema`` names a registered schema, optionally followed by ``:{axis}`` for
+    multi-apply instances. Unregistered extensions require an explicit ``type_name``.
+    ``angular_power`` converts SI angular values by (degrees/radian)**power;
+    linear values are unchanged. ``component`` selects a vector element.
     """
 
-    source: str
-    targets: tuple[tuple[str, str], ...]
+    attribute: str
+    schema: str | None = None
     angular_power: int = 0
     component: int | None = None
-    absent_value: float | None = None
+    type_name: str | None = None
 
 
-def _drive(name: str) -> tuple[tuple[str, str], ...]:
-    return (("PhysicsDriveAPI:{axis}", "drive:{axis}:physics:" + name),)
+def usd_field(*targets: UsdAttribute, extend: bool = False) -> Callable:
+    """Bind USD targets to the decorated property's getter without wrapping it.
+
+    Place below ``@property``. Getter overrides inherit the nearest declaration;
+    decorated overrides replace it, or append targets with ``extend=True``.
+    An empty declaration requires a concrete backend to supply its semantics.
+    """
+
+    def bind(getter: Callable) -> Callable:
+        getter._usd_field = (targets, extend)
+        return getter
+
+    return bind
 
 
-def _axis(name: str) -> tuple[tuple[str, str], ...]:
-    return (("PhysxJointAxisAPI:{axis}", "physxJointAxis:{axis}:" + name),)
-
-
-# Real write targets, shared with actuator initialization's property sources above.
-# Additional physical fields need a mapping here, not a parallel exporter switch.
-JOINT_USD_PROPERTIES = {
-    "stiffness": UsdProperty(JOINT_PROPERTY_SOURCES["stiffness"], _drive("stiffness"), -1),
-    "damping": UsdProperty(JOINT_PROPERTY_SOURCES["damping"], _drive("damping"), -1),
-    "armature": UsdProperty(
-        JOINT_PROPERTY_SOURCES["armature"], _axis("armature") + (("PhysxJointAPI", "physxJoint:armature"),)
-    ),
-    "friction": UsdProperty(JOINT_PROPERTY_SOURCES["friction"], _axis("staticFrictionEffort")),
-    "dynamic_friction": UsdProperty(
-        JOINT_PROPERTY_SOURCES["dynamic_friction"], _axis("dynamicFrictionEffort"), absent_value=0.0
-    ),
-    "viscous_friction": UsdProperty(
-        JOINT_PROPERTY_SOURCES["viscous_friction"], _axis("viscousFrictionCoefficient"), -1, absent_value=0.0
-    ),
-    "joint_effort_limit": UsdProperty(JOINT_PROPERTY_SOURCES["joint_effort_limit"], _drive("maxForce")),
-    "joint_velocity_limit": UsdProperty(
-        JOINT_PROPERTY_SOURCES["joint_velocity_limit"],
-        _axis("maxJointVelocity") + (("PhysxJointAPI", "physxJoint:maxJointVelocity"),),
-        1,
-    ),
-    "lower_limit": UsdProperty("joint_pos_limits", (("", "physics:lowerLimit"),), 1, 0),
-    "upper_limit": UsdProperty("joint_pos_limits", (("", "physics:upperLimit"),), 1, 1),
-    "position": UsdProperty("joint_pos", (("PhysicsJointStateAPI:{axis}", "state:{axis}:physics:position"),), 1),
-    "velocity": UsdProperty("joint_vel", (("PhysicsJointStateAPI:{axis}", "state:{axis}:physics:velocity"),), 1),
-}
+@lru_cache
+def usd_fields(data_type: type) -> dict[str, tuple[UsdAttribute, ...]]:
+    """Discover inherited declarations statically, without invoking any getter."""
+    result = {}
+    for base in reversed(data_type.__mro__):
+        for name, prop in vars(base).items():
+            if not isinstance(prop, property):
+                if name in result:
+                    raise NotImplementedError(f"USD data property {name} was shadowed by a non-property.")
+                continue
+            declaration = getattr(prop.fget, "_usd_field", None)
+            if declaration is not None:
+                targets, extend = declaration
+                result[name] = result.get(name, ()) + targets if extend else targets
+    for name, targets in result.items():
+        if not targets:
+            raise NotImplementedError(f"Missing backend USD declaration for {data_type.__name__}.{name}.")
+    return result

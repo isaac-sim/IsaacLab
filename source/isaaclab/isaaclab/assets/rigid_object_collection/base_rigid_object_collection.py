@@ -19,9 +19,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
-    from isaaclab.sim.usd_export import SceneExportAdapter
+    from isaaclab.sim.usd_export import UsdWriter
 
     from .rigid_object_collection_cfg import RigidObjectCollectionCfg
     from .rigid_object_collection_data import RigidObjectCollectionData
@@ -128,15 +126,15 @@ class BaseRigidObjectCollection(AssetBase):
     Operations.
     """
 
-    def author_fixed_configuration(self, stage: Usd.Stage, adapter: SceneExportAdapter) -> set[str]:
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Supplement all collection members' initial body states in the export stage."""
         from isaaclab.assets.physics_properties import validate_configuration_coverage
-        from isaaclab.sim.usd_export import author_bodies
 
         validate_configuration_coverage(self.cfg)
         for cfg in self.cfg.rigid_objects.values():
             validate_configuration_coverage(cfg)
-        return author_bodies(stage, self.data, adapter.paths(self).bodies)
+        assert writer.adapter is not None, "Asset authoring requires a source backend adapter."
+        writer.write_bodies(self.data, writer.adapter.paths(self).bodies)
 
     @abstractmethod
     def reset(

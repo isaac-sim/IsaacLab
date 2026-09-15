@@ -29,5 +29,5 @@ class SceneAdapter:
             )
         return AssetPaths([(str(path), row) for row, path in enumerate(view.prim_paths)], [])
 
-    def write_extensions(self, stage) -> None:
+    def write_extensions(self, writer) -> None:
         """PhysX fixed configuration is already authored by spawners and scene initialization."""

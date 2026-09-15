@@ -12,18 +12,13 @@ import numpy as np
 
 from pxr import Sdf, Usd, UsdPhysics, UsdShade
 
-from isaaclab.assets.physics_properties import UsdProperty
-from isaaclab.sim.usd_export import AssetPaths, write_properties
+from isaaclab.assets.physics_properties import UsdAttribute
+from isaaclab.sim.usd_export import AssetPaths, UsdWriter
 
-JOINT_PROPERTIES = {
-    name: UsdProperty(source, (("", "newton:" + name),), power)
-    for name, source, power in (
-        ("armature", "joint_armature", 0),
-        ("friction", "joint_friction", 0),
-        ("limitStiffness", "joint_limit_ke", -1),
-        ("limitDamping", "joint_limit_kd", -1),
-        ("velocityLimit", "joint_velocity_limit", 1),
-    )
+# Native limit compliance has no public articulation-data property.
+JOINT_LIMIT_FIELDS = {
+    "joint_limit_ke": UsdAttribute("newton:limitStiffness", angular_power=-1, type_name="float"),
+    "joint_limit_kd": UsdAttribute("newton:limitDamping", angular_power=-1, type_name="float"),
 }
 SHAPE_PROPERTIES = {"newton:contactGap": "shape_gap", "newton:contactMargin": "shape_margin"}
 MATERIAL_PROPERTIES = {
@@ -73,7 +68,7 @@ class SceneAdapter:
         self.scene = scene
         self.model = scene.sim.physics_manager.get_model()
         sources = (
-            {rule.source for rule in JOINT_PROPERTIES.values()}
+            set(JOINT_LIMIT_FIELDS)
             | set(SHAPE_PROPERTIES.values())
             | set(MATERIAL_PROPERTIES.values())
             | {
@@ -115,9 +110,10 @@ class SceneAdapter:
             )
         return AssetPaths([(path, row) for row, path in enumerate(bodies)], [])
 
-    def write_extensions(self, stage: Usd.Stage) -> None:
+    def write_extensions(self, writer: UsdWriter) -> None:
         from isaaclab_newton.physics import XPBDSolverCfg
 
+        stage = writer.stage
         model = self.model
         cfg = self.scene.sim.cfg.physics
         solver = cfg.solver_cfg
@@ -157,8 +153,9 @@ class SceneAdapter:
         for index, path in enumerate(model.joint_label):
             joint = stage.GetPrimAtPath(path)
             if joint and kinds[index] in (int(newton.JointType.REVOLUTE), int(newton.JointType.PRISMATIC)):
-                write_properties(joint, values, int(starts[index]), JOINT_PROPERTIES)
                 axis = "angular" if kinds[index] == int(newton.JointType.REVOLUTE) else "linear"
+                for source, target in JOINT_LIMIT_FIELDS.items():
+                    writer.write_attribute(path, target, values[source][int(starts[index])], axis=axis)
                 # Pinned Newton reads angular initial velocity in rad/s; standard USD uses deg/s.
                 for name in ("position", "velocity"):
                     value = joint.GetAttribute(f"state:{axis}:physics:{name}").Get()

@@ -61,9 +61,10 @@ Preservation and authoring
 --------------------------
 
 ``InteractiveScene.export_to_usd`` copies the stage and calls each registered asset's
-``author_fixed_configuration(stage, adapter)``. In this example the robot supplies its
+``author_fixed_configuration(writer)``. In this example the robot supplies its
 link state and joint properties; the box supplies its body state. Both write into the
-same copy through shared body/joint writers. Collections use that same body writer for
+same copy through a shared ``UsdWriter``. Articulation resolves and traverses its own joints;
+the writer discovers data declarations and performs the common attribute writes. Collections use that same body writer for
 all members. Scene-wide settings, dependencies and completeness are checked before saving.
 Backend managers provide the adapter; the scene does not select a backend by package name.
 
@@ -77,8 +78,28 @@ Native Flatten/Stage.Export preserve that content. Only initialized values absen
 written onto the isolated copy: body/joint initial state and resolved actuator solver properties.
 The live stage, backend buffers and caller's configuration are not authored by the exporter.
 
-``isaaclab.assets.physics_properties`` declares public data sources, target attributes/schemas,
-DOF identity and angular conversions. The common writer targets standard USD Physics plus the
+Data properties declare targets alongside their getters with ``@usd_field(UsdAttribute(...))``.
+Source names come from the decorated properties, without a second exporter field list. For example::
+
+    @property
+    @usd_field(UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", angular_power=-1))
+    def joint_stiffness(self):
+        ...
+
+``usd_fields`` discovers declarations through the class MRO without evaluating getters.
+Backend getter overrides inherit declarations; an explicit decorator replaces them, or appends
+with ``extend=True``. Empty declarations require a backend definition. Joint friction is declared
+by each concrete backend: OVPhysX's raw binding values are not converted into another backend's
+effort units. Abstract-property and existing observation metadata are preserved.
+
+Registered schemas supply exact attribute names and types through ``GetSchemaAttributeNames``
+and ``Prim.GetAttribute``. Single/multi-apply and typed schemas are distinguished. Generic writing
+supports scalar and vector attributes, and declared components such as lower/upper limits.
+Arrays, matrices, transforms and relationship semantics need dedicated operations; body transforms,
+fixed-root frames and Newton material bindings remain explicit. Unregistered extensions require
+an explicit target type. Schema discovery cannot infer source fields, units or backend semantics.
+
+The common writer targets standard USD Physics plus the
 PhysX extension dialect used by Isaac Sim. Backend adapters supply source identities and required
 native extensions; this does not make PhysX-specific friction or drive semantics backend-neutral.
 Explicit controller gains never become implicit solver gains.

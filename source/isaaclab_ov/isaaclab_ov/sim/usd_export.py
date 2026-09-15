@@ -46,5 +46,5 @@ class SceneAdapter:
 
         return AssetPaths(resolve(asset.body_names, bodies), resolve(asset.joint_names, joints))
 
-    def write_extensions(self, stage) -> None:
+    def write_extensions(self, writer) -> None:
         """Fixed OVPhysX schemas are already authored; common mappings cover initialized joints."""

@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.physics_properties import UsdAttribute, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
@@ -395,6 +396,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_damping_ta
 
     @property
+    @usd_field(UsdAttribute("newton:armature", type_name="float"), extend=True)
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -403,6 +405,10 @@ class ArticulationData(BaseArticulationData):
         return self._joint_armature_ta
 
     @property
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float"),
+        UsdAttribute("newton:friction", type_name="float"),
+    )
     def joint_friction_coeff(self) -> ProxyArray:
         """Newton joint friction force/torque provided to the simulation.
 
@@ -418,6 +424,14 @@ class ArticulationData(BaseArticulationData):
         return self._joint_friction_coeff_ta
 
     @property
+    @usd_field(
+        UsdAttribute(
+            "physxJointAxis:{axis}:viscousFrictionCoefficient",
+            "PhysxJointAxisAPI:{axis}",
+            angular_power=-1,
+            type_name="float",
+        )
+    )
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Newton passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
 
@@ -473,6 +487,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos_limits_ta
 
     @property
+    @usd_field(UsdAttribute("newton:velocityLimit", angular_power=1, type_name="float"), extend=True)
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 

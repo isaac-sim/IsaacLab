@@ -27,10 +27,8 @@ from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build
 from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from isaaclab.actuators import ActuatorCollection
-    from isaaclab.sim.usd_export import SceneExportAdapter
+    from isaaclab.sim.usd_export import UsdWriter
     from isaaclab.utils.wrench_composer import WrenchComposer
 
     from .articulation_cfg import ArticulationCfg
@@ -488,21 +486,30 @@ class BaseArticulation(AssetBase):
     Operations.
     """
 
-    def author_fixed_configuration(self, stage: Usd.Stage, adapter: SceneExportAdapter) -> set[str]:
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Supplement link initial state and fixed joint parameters in the export stage."""
         from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
         from isaaclab.assets.physics_properties import validate_configuration_coverage
-        from isaaclab.sim.usd_export import author_bodies, author_joints
 
         validate_configuration_coverage(self.cfg)
         for name, cfg in self.cfg.actuators.items():
             validate_configuration_coverage(cfg, actuator=True)
             if not _is_implicit_actuator_cfg(cfg) and name not in self.actuators.usd_actuator_groups:
                 raise NotImplementedError(f"Controller {name!r} has no native USD representation.")
-        paths = adapter.paths(self)
-        written = author_bodies(stage, self.data, paths.bodies)
-        author_joints(stage, self.data, paths.joints)
-        return written
+        assert writer.adapter is not None, "Asset authoring requires a source backend adapter."
+        paths = writer.adapter.paths(self)
+        data = self.data
+        writer.write_bodies(data, paths.bodies)
+        if sorted(row for _, row in paths.joints) != list(range(self.num_joints)):
+            raise RuntimeError(f"Incomplete DOF identities for {self.cfg.prim_path}.")
+        for path, row in paths.joints:
+            prim = writer.stage.GetPrimAtPath(path)
+            if not prim:
+                raise RuntimeError(f"Missing joint {path}.")
+            axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.GetTypeName())
+            if axis is None:
+                raise NotImplementedError(f"Unsupported driven joint {path} ({prim.GetTypeName()}).")
+            writer.write_properties(path, axis, data, row=row)
 
     @abstractmethod
     def reset(

@@ -498,14 +498,7 @@ class InteractiveScene:
         from itertools import chain
         from time import perf_counter
 
-        from isaaclab.sim.usd_export import (
-            author_fixed_root_frames,
-            author_scene_settings,
-            check_body_coverage,
-            copy_scene_stage,
-            save_stage,
-            validate_dependencies,
-        )
+        from isaaclab.sim.usd_export import UsdWriter, copy_scene_stage
 
         if self.num_envs != 1 or self.sim.get_physics_step_count() != 0:
             raise ValueError("Fixed export requires exactly one environment before its first physics step.")
@@ -517,24 +510,20 @@ class InteractiveScene:
         durations["flatten"] = perf_counter() - start
         start = perf_counter()
         adapter = self.sim.physics_manager.create_usd_export_adapter(self)
-        written = set()
+        writer = UsdWriter(stage, adapter)
         for asset in chain(
             self.articulations.values(), self.rigid_objects.values(), self.rigid_object_collections.values()
         ):
-            bodies = asset.author_fixed_configuration(stage, adapter)
-            if written.intersection(bodies):
-                raise RuntimeError(f"Multiply owned bodies: {sorted(written.intersection(bodies))}")
-            written.update(bodies)
-        author_fixed_root_frames(stage, written)
-        adapter.write_extensions(stage)
-        author_scene_settings(stage, self)
+            asset.author_fixed_configuration(writer)
+        writer.write_fixed_root_frames()
+        adapter.write_extensions(writer)
+        writer.write_scene_settings(self)
         durations["configuration"] = perf_counter() - start
         start = perf_counter()
-        check_body_coverage(stage, written)
-        validate_dependencies(stage)
+        writer.validate()
         durations["validate"] = perf_counter() - start
         start = perf_counter()
-        result = save_stage(stage, path, validate=False)
+        result = writer.save(path, validate=False)
         durations["save"] = perf_counter() - start
         return result
 

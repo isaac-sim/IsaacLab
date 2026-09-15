@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.physics_properties import UsdAttribute, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
@@ -486,7 +487,12 @@ class ArticulationData(BaseArticulationData):
             self._joint_armature_ta = ProxyArray(self._joint_armature.data)
         return self._joint_armature_ta
 
+    # OVPhysX maps its raw friction binding to these USD slots; this is not a
+    # conversion of dimensionless coefficients to another backend's friction effort.
     @property
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
+    )
     def joint_friction_coeff(self) -> ProxyArray:
         """Joint static friction coefficient [dimensionless].
 
@@ -502,6 +508,9 @@ class ArticulationData(BaseArticulationData):
         return self._joint_friction_coeff_ta
 
     @property
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
+    )
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
         """Joint dynamic friction coefficient [dimensionless].
 
@@ -517,6 +526,14 @@ class ArticulationData(BaseArticulationData):
         return self._joint_dynamic_friction_coeff_ta
 
     @property
+    @usd_field(
+        UsdAttribute(
+            "physxJointAxis:{axis}:viscousFrictionCoefficient",
+            "PhysxJointAxisAPI:{axis}",
+            angular_power=-1,
+            type_name="float",
+        )
+    )
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient [N*m*s/rad or N*s/m, depending on joint type].
 

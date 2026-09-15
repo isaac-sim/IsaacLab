@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.physics_properties import UsdAttribute, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
@@ -418,6 +419,9 @@ class ArticulationData(BaseArticulationData):
         return self._joint_armature_ta
 
     @property
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
+    )
     def joint_friction_coeff(self) -> ProxyArray:
         """PhysX joint static friction value provided to the simulation.
 
@@ -431,6 +435,9 @@ class ArticulationData(BaseArticulationData):
         return self._joint_friction_coeff_ta
 
     @property
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
+    )
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
         """PhysX joint dynamic friction effort provided to the simulation.
 
@@ -443,6 +450,14 @@ class ArticulationData(BaseArticulationData):
         return self._joint_dynamic_friction_coeff_ta
 
     @property
+    @usd_field(
+        UsdAttribute(
+            "physxJointAxis:{axis}:viscousFrictionCoefficient",
+            "PhysxJointAxisAPI:{axis}",
+            angular_power=-1,
+            type_name="float",
+        )
+    )
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient provided to the simulation.
 

@@ -22,9 +22,8 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.assets.physics_properties import (
-    JOINT_PROPERTY_SOURCES,
-    JOINT_USD_PROPERTIES,
-    UsdProperty,
+    UsdAttribute,
+    usd_fields,
 )
 
 if TYPE_CHECKING:
@@ -58,87 +57,9 @@ class SceneExportAdapter(Protocol):
         """Resolve all bodies and supported DOFs to prims, in public data order."""
         ...
 
-    def write_extensions(self, stage: Usd.Stage) -> None:
+    def write_extensions(self, writer: UsdWriter) -> None:
         """Preserve source-specific initialized semantics or fail before saving."""
         ...
-
-
-def write_properties(prim: Usd.Prim, values: dict[str, np.ndarray], row: int, rules: dict[str, UsdProperty]) -> None:
-    """Execute a declared joint-property mapping on an isolated SI stage."""
-    axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.GetTypeName())
-    if axis is None:
-        raise NotImplementedError(f"Unsupported driven joint {prim.GetPath()} ({prim.GetTypeName()}).")
-    for rule in rules.values():
-        value = values[rule.source][row]
-        if rule.component is not None:
-            value = value[rule.component]
-        scale = (180 / math.pi) ** rule.angular_power if axis == "angular" else 1.0
-        for schema, name in rule.targets:
-            if schema:
-                if not prim.AddAppliedSchema(schema.format(axis=axis)):
-                    raise RuntimeError(f"Could not apply {schema} at {prim.GetPath()}.")
-            attr = prim.CreateAttribute(name.format(axis=axis), Sdf.ValueTypeNames.Float, custom=False)
-            if not attr.Set(float(value) * scale):
-                raise RuntimeError(f"Could not author {attr.GetPath()}.")
-
-
-def author_bodies(
-    stage: Usd.Stage,
-    data: BaseArticulationData | BaseRigidObjectData | BaseRigidObjectCollectionData,
-    paths: list[tuple[str, int]],
-) -> set[str]:
-    """Write initialized public body state into its existing prims and return their identities."""
-    poses = data.body_link_pose_w.torch[0].detach().cpu().numpy().reshape(-1, 7).copy()
-    velocities = data.body_com_vel_w.torch[0].detach().cpu().numpy().reshape(-1, 6).copy()
-    if sorted(row for _, row in paths) != list(range(len(poses))):
-        raise RuntimeError("Incomplete body identities for fixed configuration.")
-    written = set()
-    for path, row in sorted(paths, key=lambda item: Sdf.Path(item[0]).pathElementCount):
-        prim = stage.GetPrimAtPath(path)
-        if path in written or not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            raise RuntimeError(f"Missing or multiply owned body {path}.")
-        author_body_state(prim, poses[row], velocities[row])
-        written.add(path)
-    return written
-
-
-def author_joints(stage: Usd.Stage, data: BaseArticulationData, paths: list[tuple[str, int]]) -> None:
-    """Write public fixed joint properties using the shared semantic mapping."""
-    if set(JOINT_PROPERTY_SOURCES) - JOINT_USD_PROPERTIES.keys():
-        raise NotImplementedError("Actuator initialization properties lack USD mappings.")
-    count = data.joint_pos.shape[1]
-    if sorted(row for _, row in paths) != list(range(count)):
-        raise RuntimeError("Incomplete DOF identities for fixed configuration.")
-    values = {}
-    for rule in JOINT_USD_PROPERTIES.values():
-        if rule.source in values:
-            continue
-        value = getattr(data, rule.source, None)
-        if value is None:
-            if rule.absent_value is None:
-                raise NotImplementedError(f"Missing required initialized property {rule.source}.")
-            values[rule.source] = np.full(count, rule.absent_value)
-        else:
-            values[rule.source] = value.torch[0].detach().cpu().numpy().copy()
-    for path, row in paths:
-        prim = stage.GetPrimAtPath(path)
-        if not prim:
-            raise RuntimeError(f"Missing joint {path}.")
-        write_properties(prim, values, row, JOINT_USD_PROPERTIES)
-
-
-def author_scene_settings(stage: Usd.Stage, scene: InteractiveScene) -> None:
-    """Preserve fixed simulation timing and identify the configuration boundary."""
-    frequency = 1 / scene.sim.get_physics_dt()
-    if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
-        raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this timestep.")
-    physics = stage.GetPrimAtPath(scene.physics_scene_path)
-    physics.AddAppliedSchema("PhysxSceneAPI")
-    physics.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(round(frequency))
-    stage.GetRootLayer().customLayerData = {
-        **stage.GetRootLayer().customLayerData,
-        "isaaclab:configuration": "fixed initialization before task events; controller/sensor runtime excluded",
-    }
 
 
 def copy_scene_stage(stage: Usd.Stage) -> Usd.Stage:
@@ -154,95 +75,222 @@ def copy_scene_stage(stage: Usd.Stage) -> Usd.Stage:
             prim.SetInstanceable(False)
 
 
-def validate_dependencies(stage: Usd.Stage) -> None:
-    """Reject dangling prim/property connections and unresolved external resources."""
-    for prim in stage.Traverse():
-        for prop in prim.GetProperties():
-            targets = prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.GetConnections()
-            for path in targets:
-                target = stage.GetPropertyAtPath(path) if path.IsPropertyPath() else stage.GetPrimAtPath(path)
-                if not target:
-                    raise RuntimeError(f"Unresolved export dependency {prop.GetPath()}: {path}")
-    _, _, unresolved = UsdUtils.ComputeAllDependencies(Sdf.AssetPath(stage.GetRootLayer().identifier))
-    unresolved = [p for p in unresolved if p not in {"OmniPBR.mdl", "OmniGlass.mdl", "OmniSurface.mdl"}]
-    if unresolved:
-        raise RuntimeError(f"Unresolved export asset dependencies: {unresolved}")
+class UsdWriter:
+    """Write declared fixed properties onto one preserved, isolated SI stage.
 
+    Registered schemas provide exact target names and types, not source fields or
+    units. Unregistered extensions need explicit declarations. Data properties use
+    [environment, row, ...] layout and are read once per writer; getter discovery
+    never evaluates them. Tasks, spawning and training are outside this object.
+    """
 
-def save_stage(stage: Usd.Stage, usd_path: str, *, validate: bool = True) -> str:
-    """Save a complete snapshot atomically, leaving an existing destination intact on failure."""
-    if validate:
-        validate_dependencies(stage)
-    destination = os.path.abspath(usd_path)
-    os.makedirs(os.path.dirname(destination), exist_ok=True)
-    suffix = os.path.splitext(destination)[1]
-    with tempfile.NamedTemporaryFile(dir=os.path.dirname(destination), suffix=suffix, delete=False) as stream:
-        temporary = stream.name
-    try:
-        if not stage.Export(temporary):
-            raise RuntimeError(f"Could not export USD to {destination}.")
-        os.replace(temporary, destination)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    return str(usd_path)
+    def __init__(self, stage: Usd.Stage, adapter: SceneExportAdapter | None = None):
+        self.stage = stage
+        self.adapter = adapter
+        self.body_paths: set[str] = set()
+        # Retain owners with their arrays, so ids cannot be reused during an export.
+        self._values: dict[int, tuple[object, dict[str, np.ndarray]]] = {}
 
+    def write_properties(self, path: str, axis: str | None, data: object, *, row: int) -> None:
+        """Write inherited property declarations from environment zero at one data row."""
+        declarations = usd_fields(type(data))
+        if not declarations:
+            raise NotImplementedError(f"No USD declarations on {type(data).__name__}.")
+        values = self._values.setdefault(id(data), (data, {}))[1]
+        for source, targets in declarations.items():
+            if source not in values:
+                value = getattr(data, source)
+                if hasattr(value, "torch"):
+                    value = value.torch.detach().cpu().numpy()
+                array = np.asarray(value)
+                if array.ndim < 2 or array.shape[0] != 1:
+                    raise ValueError(f"Expected one environment and row dimension for {source}.")
+                values[source] = array[0].copy()
+            for target in targets:
+                value = values[source][row]
+                if target.component is not None:
+                    value = value[target.component]
+                self.write_attribute(path, target, value, axis=axis)
 
-def author_world_transform(prim: Usd.Prim, transform: Gf.Matrix4d) -> None:
-    """Author a world transform in stage units while preserving the existing parent hierarchy."""
-    parent = UsdGeom.XformCache().GetLocalToWorldTransform(prim.GetParent())
-    local = transform * parent.GetInverse()
-    xform = UsdGeom.Xformable(prim)
-    xform.ClearXformOpOrder()
-    xform.AddTransformOp(opSuffix="export").Set(local)
-
-
-def check_body_coverage(stage: Usd.Stage, written: set[str]) -> None:
-    """Reject physical bodies retained from USD without a corresponding initialized backend data."""
-    authored = {
-        str(prim.GetPath())
-        for prim in stage.Traverse()
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI) and UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get()
-    }
-    if authored != written:
-        raise RuntimeError(
-            f"Incomplete body export: missing={sorted(authored - written)}, extra={sorted(written - authored)}"
-        )
-
-
-def author_fixed_root_frames(stage: Usd.Stage, body_paths: set[str]) -> None:
-    """Update world anchors moved by fixed-base default root-pose initialization."""
-    cache = UsdGeom.XformCache()
-    for prim in stage.Traverse():
-        if not prim.IsA(UsdPhysics.FixedJoint):
-            continue
-        joint = UsdPhysics.Joint(prim)
-        body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
-        if not body0 and len(body1) == 1 and str(body1[0]) in body_paths:
-            other, world = 1, 0
-            body = body1[0]
-        elif not body1 and len(body0) == 1 and str(body0[0]) in body_paths:
-            other, world = 0, 1
-            body = body0[0]
+    def write_attribute(self, path: str, target: UsdAttribute, value, *, axis: str | None = None) -> None:
+        """Write a scalar/vector target; schema names, instance kind and types must agree."""
+        if (target.angular_power or "{axis}" in target.attribute or "{axis}" in (target.schema or "")) and axis not in {
+            "angular",
+            "linear",
+        }:
+            raise ValueError(f"Missing supported axis for {target.attribute}.")
+        attr = self._attribute(path, target, axis)
+        converted = np.asarray(value)
+        if axis == "angular" and target.angular_power:
+            converted = converted * (180 / math.pi) ** target.angular_power
+        value_type = attr.GetTypeName()
+        default = value_type.defaultValue
+        dimension = getattr(default, "dimension", None)
+        if value_type.isArray or (dimension is not None and not isinstance(dimension, int)):
+            raise NotImplementedError(f"Use a dedicated writer for {value_type} at {attr.GetPath()}.")
+        if dimension is not None:
+            if converted.shape != (dimension,):
+                raise ValueError(f"Expected {dimension} vector components for {attr.GetPath()}.")
+            value = type(default)(*converted.tolist())
+        elif converted.ndim == 0:
+            value = converted.item()
         else:
-            continue
-        position = prim.GetAttribute(f"physics:localPos{other}").Get()
-        rotation = prim.GetAttribute(f"physics:localRot{other}").Get()
-        local = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(rotation))
-        local.SetTranslateOnly(Gf.Vec3d(position))
-        anchor = local * cache.GetLocalToWorldTransform(stage.GetPrimAtPath(body))
-        prim.GetAttribute(f"physics:localPos{world}").Set(Gf.Vec3f(anchor.ExtractTranslation()))
-        prim.GetAttribute(f"physics:localRot{world}").Set(Gf.Quatf(anchor.ExtractRotationQuat()))
+            raise NotImplementedError(f"No scalar/vector conversion for {value_type} at {attr.GetPath()}.")
+        if not attr.Set(value):
+            raise RuntimeError(f"Could not author {attr.GetPath()}.")
 
+    def _attribute(self, path: str, target: UsdAttribute, axis: str | None) -> Usd.Attribute:
+        """Resolve the exact registered schema attribute or an explicitly typed extension."""
+        prim = self.stage.GetPrimAtPath(path)
+        if not prim:
+            raise RuntimeError(f"Missing export prim {path}.")
+        name = target.attribute.format(axis=axis)
+        if target.schema:
+            schema, _, instance = target.schema.format(axis=axis).partition(":")
+            schema_type = Usd.SchemaRegistry.GetTypeFromSchemaTypeName(schema)
+            api = schema_type.pythonClass
+            if api is not None:
+                multiple = Usd.SchemaRegistry.IsMultipleApplyAPISchema(schema_type)
+                if bool(instance) != multiple:
+                    raise ValueError(f"Incorrect schema instance for {target.schema}.")
+                names = api.GetSchemaAttributeNames(True, instance) if multiple else api.GetSchemaAttributeNames(True)
+                if name not in names:
+                    raise NotImplementedError(f"{name} is not an attribute of {target.schema}.")
+                if Usd.SchemaRegistry.IsAppliedAPISchema(schema_type):
+                    applied = api.Apply(prim, instance) if multiple else api.Apply(prim)
+                    if not applied:
+                        raise RuntimeError(f"Could not apply {target.schema} at {path}.")
+                elif not prim.IsA(api):
+                    raise ValueError(f"{path} is not a {schema} prim.")
+            elif target.type_name is None:
+                raise NotImplementedError(f"Unregistered schema {schema} requires an explicit target type.")
+            elif not prim.AddAppliedSchema(target.schema.format(axis=axis)):
+                raise RuntimeError(f"Could not apply extension {target.schema} at {path}.")
+        attr = prim.GetAttribute(name)
+        if target.type_name:
+            value_type = Sdf.ValueTypeNames.Find(target.type_name)
+            if not value_type or (attr and attr.GetTypeName() != value_type):
+                raise ValueError(f"Invalid or conflicting type {target.type_name} for {path}.{name}.")
+            if not attr:
+                attr = prim.CreateAttribute(name, value_type, custom=False)
+        if not attr:
+            raise NotImplementedError(f"No declared USD attribute/type for {path}.{name}.")
+        return attr
 
-def author_body_state(prim: Usd.Prim, pose: np.ndarray, velocity: np.ndarray) -> None:
-    """Write body-link world pose [m, xyzw] and COM world velocity [m/s, rad/s]."""
-    length = UsdGeom.GetStageMetersPerUnit(prim.GetStage())
-    previous = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
-    scale = Gf.Transform(previous).GetScale()
-    transform = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(float(pose[6]), Gf.Vec3d(*map(float, pose[3:6]))))
-    transform.SetTranslateOnly(Gf.Vec3d(*map(float, pose[:3] / length)))
-    author_world_transform(prim, Gf.Matrix4d().SetScale(scale) * transform)
-    body = UsdPhysics.RigidBodyAPI(prim)
-    body.CreateVelocityAttr().Set(Gf.Vec3f(*map(float, velocity[:3] / length)))
-    body.CreateAngularVelocityAttr().Set(Gf.Vec3f(*map(float, np.rad2deg(velocity[3:]))))
+    def write_bodies(
+        self,
+        data: BaseArticulationData | BaseRigidObjectData | BaseRigidObjectCollectionData,
+        paths: list[tuple[str, int]],
+    ) -> None:
+        """Write initialized public body state into its existing prims and track their identities."""
+        poses = data.body_link_pose_w.torch[0].detach().cpu().numpy().reshape(-1, 7).copy()
+        velocities = data.body_com_vel_w.torch[0].detach().cpu().numpy().reshape(-1, 6).copy()
+        if sorted(row for _, row in paths) != list(range(len(poses))):
+            raise RuntimeError("Incomplete body identities for fixed configuration.")
+        for path, row in sorted(paths, key=lambda item: Sdf.Path(item[0]).pathElementCount):
+            prim = self.stage.GetPrimAtPath(path)
+            if path in self.body_paths or not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                raise RuntimeError(f"Missing or multiply owned body {path}.")
+            self._write_body_state(prim, poses[row], velocities[row])
+            self.body_paths.add(path)
+
+    def write_scene_settings(self, scene: InteractiveScene) -> None:
+        """Preserve fixed simulation timing and identify the configuration boundary."""
+        frequency = 1 / scene.sim.get_physics_dt()
+        if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
+            raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this timestep.")
+        physics = self.stage.GetPrimAtPath(scene.physics_scene_path)
+        physics.AddAppliedSchema("PhysxSceneAPI")
+        physics.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(round(frequency))
+        self.stage.GetRootLayer().customLayerData = {
+            **self.stage.GetRootLayer().customLayerData,
+            "isaaclab:configuration": "fixed initialization before task events; controller/sensor runtime excluded",
+        }
+
+    def validate(self) -> None:
+        """Reject physical bodies retained from USD without a corresponding initialized backend data."""
+        authored = {
+            str(prim.GetPath())
+            for prim in self.stage.Traverse()
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get()
+        }
+        if authored != self.body_paths:
+            raise RuntimeError(
+                f"Incomplete body export: missing={sorted(authored - self.body_paths)}, "
+                f"extra={sorted(self.body_paths - authored)}"
+            )
+        self.validate_dependencies()
+
+    def validate_dependencies(self) -> None:
+        """Reject dangling prim/property connections and unresolved external resources."""
+        for prim in self.stage.Traverse():
+            for prop in prim.GetProperties():
+                targets = prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.GetConnections()
+                for path in targets:
+                    target = (
+                        self.stage.GetPropertyAtPath(path) if path.IsPropertyPath() else self.stage.GetPrimAtPath(path)
+                    )
+                    if not target:
+                        raise RuntimeError(f"Unresolved export dependency {prop.GetPath()}: {path}")
+        _, _, unresolved = UsdUtils.ComputeAllDependencies(Sdf.AssetPath(self.stage.GetRootLayer().identifier))
+        unresolved = [p for p in unresolved if p not in {"OmniPBR.mdl", "OmniGlass.mdl", "OmniSurface.mdl"}]
+        if unresolved:
+            raise RuntimeError(f"Unresolved export asset dependencies: {unresolved}")
+
+    def save(self, usd_path: str, *, validate: bool = True) -> str:
+        """Save a complete snapshot atomically, leaving an existing destination intact on failure."""
+        if validate:
+            self.validate_dependencies()
+        destination = os.path.abspath(usd_path)
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        suffix = os.path.splitext(destination)[1]
+        with tempfile.NamedTemporaryFile(dir=os.path.dirname(destination), suffix=suffix, delete=False) as stream:
+            temporary = stream.name
+        try:
+            if not self.stage.Export(temporary):
+                raise RuntimeError(f"Could not export USD to {destination}.")
+            os.replace(temporary, destination)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        return str(usd_path)
+
+    def write_fixed_root_frames(self) -> None:
+        """Update world anchors moved by fixed-base default root-pose initialization."""
+        cache = UsdGeom.XformCache()
+        for prim in self.stage.Traverse():
+            if not prim.IsA(UsdPhysics.FixedJoint):
+                continue
+            joint = UsdPhysics.Joint(prim)
+            body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+            if not body0 and len(body1) == 1 and str(body1[0]) in self.body_paths:
+                other, world = 1, 0
+                body = body1[0]
+            elif not body1 and len(body0) == 1 and str(body0[0]) in self.body_paths:
+                other, world = 0, 1
+                body = body0[0]
+            else:
+                continue
+            position = prim.GetAttribute(f"physics:localPos{other}").Get()
+            rotation = prim.GetAttribute(f"physics:localRot{other}").Get()
+            local = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(rotation))
+            local.SetTranslateOnly(Gf.Vec3d(position))
+            anchor = local * cache.GetLocalToWorldTransform(self.stage.GetPrimAtPath(body))
+            prim.GetAttribute(f"physics:localPos{world}").Set(Gf.Vec3f(anchor.ExtractTranslation()))
+            prim.GetAttribute(f"physics:localRot{world}").Set(Gf.Quatf(anchor.ExtractRotationQuat()))
+
+    def _write_body_state(self, prim: Usd.Prim, pose: np.ndarray, velocity: np.ndarray) -> None:
+        """Write body-link world pose [m, xyzw] and COM world velocity [m/s, rad/s]."""
+        length = UsdGeom.GetStageMetersPerUnit(prim.GetStage())
+        previous = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
+        scale = Gf.Transform(previous).GetScale()
+        transform = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(float(pose[6]), Gf.Vec3d(*map(float, pose[3:6]))))
+        transform.SetTranslateOnly(Gf.Vec3d(*map(float, pose[:3] / length)))
+        parent = UsdGeom.XformCache().GetLocalToWorldTransform(prim.GetParent())
+        local = Gf.Matrix4d().SetScale(scale) * transform * parent.GetInverse()
+        xform = UsdGeom.Xformable(prim)
+        xform.ClearXformOpOrder()
+        xform.AddTransformOp(opSuffix="export").Set(local)
+        body = UsdPhysics.RigidBodyAPI(prim)
+        body.CreateVelocityAttr().Set(Gf.Vec3f(*map(float, velocity[:3] / length)))
+        body.CreateAngularVelocityAttr().Set(Gf.Vec3f(*map(float, np.rad2deg(velocity[3:]))))
