@@ -169,6 +169,7 @@ class UniformPose2dCommand(CommandTerm):
                 torch.zeros_like(self.heading_command_w),
                 self.heading_command_w,
             ),
+            environment_ids=self._env.scene._ALL_INDICES,
         )
 
 

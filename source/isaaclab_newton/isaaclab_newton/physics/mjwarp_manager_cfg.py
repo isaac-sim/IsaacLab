@@ -10,7 +10,7 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -57,6 +57,14 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
     disable_contacts: bool = False
     """Whether to disable contact computation in MuJoCo."""
+
+    disable_sensors: bool = False
+    """Whether to disable MuJoCo Warp's internal sensor computation.
+
+    This must be ``True`` when :attr:`NewtonCfg.deterministic_mode` requests a
+    determinism guarantee. Isaac Lab sensors use Newton state directly and do
+    not depend on MuJoCo Warp's internal sensor data.
+    """
 
     default_actuator_gear: float | None = None
     """Default gear ratio for all actuators."""

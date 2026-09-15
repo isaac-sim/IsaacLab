@@ -49,6 +49,12 @@ Usage:
     # CI invocation on every pull_request:
     cli.py check <base-branch>
 
+    # Local invocation used by pre-commit (defaults to develop):
+    cli.py check --include-worktree
+
+    # Override the local base for a release branch:
+    ISAACLAB_CHANGELOG_BASE_REF=release/6.0 cli.py check --include-worktree
+
     # ── compile ───────────────────────────────────────────────────
     # Normal release-time invocation — bump every managed package
     # from accumulated fragments, write entries, delete fragments:
@@ -174,7 +180,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
 
 def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     try:
-        diff = PRDiff.from_git(args.base_ref)
+        diff = PRDiff.from_git(args.base_ref, include_worktree=args.include_worktree)
     except subprocess.CalledProcessError as e:
         print(f"ERROR: git diff failed: {e.stderr}", file=sys.stderr)
         return 1
@@ -374,10 +380,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check.set_defaults(func=cmd_check)
     p_check.add_argument(
         "base_ref",
+        nargs="?",
+        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "develop"),
         help=(
             "Base branch to diff against (e.g. 'main' or 'develop'). "
-            "The diff is taken against ``origin/<base_ref>...HEAD``."
+            "The diff is taken against ``origin/<base_ref>...HEAD``. "
+            "Defaults to $ISAACLAB_CHANGELOG_BASE_REF, else 'develop'."
         ),
+    )
+    p_check.add_argument(
+        "--include-worktree",
+        action="store_true",
+        help="Include staged and unstaged tracked changes in the branch diff. Used by the local pre-commit hook.",
     )
 
     p_auto_bump = sub.add_parser(

@@ -27,7 +27,7 @@ from isaaclab.benchmark.microbenchmark import MicrobenchmarkFactory, run_microbe
         (
             "ovphysx",
             "ray_caster",
-            "source/isaaclab_ovphysx/benchmark/sensors/benchmark_ray_caster.py",
+            "source/isaaclab_ov/benchmark/sensors/benchmark_ray_caster.py",
             ["--physics_variant", "ovphysx"],
         ),
         (

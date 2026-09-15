@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
@@ -33,11 +35,13 @@ from parity_helpers import (
     MockCommandTerm,
     MockContactSensor,
     MockContactSensorData,
+    MockPoseCommandManager,
     MockScene,
     MockSceneEntityCfg,
     MockSensorCfg,
     MockTerminationManager,
     assert_equal,
+    make_pose_command_term,
     mutate_art_data,
     mutate_body_data,
     run_warp_term,
@@ -45,6 +49,7 @@ from parity_helpers import (
 )
 
 import isaaclab.envs.mdp.terminations as stable_term
+from isaaclab.managers.manager_term_cfg import TerminationTermCfg
 
 # ============================================================================
 # Fixtures
@@ -266,6 +271,80 @@ class TestTerminationParityNewTerms:
         )
         assert_equal(actual, expected)
         assert_equal(actual_cap, expected)
+
+
+class TestPoseCommandSuccessParity:
+    """The warp twin recomputes the pose error in a kernel, so it is checked against the
+    stable term for every threshold combination — a frame or quaternion-convention slip
+    would otherwise resolve cleanly and silently train against a different MDP."""
+
+    @pytest.mark.parametrize(
+        ("position_threshold", "orientation_threshold"),
+        [(0.5, 1.0), (0.5, None), (None, 1.0), (None, None)],
+        ids=["both", "position_only", "orientation_only", "neither"],
+    )
+    def test_pose_command_success(self, scene_bodies, position_threshold, orientation_threshold):
+        command = make_pose_command_term(
+            scene_bodies["robot"],
+            position_success_threshold=position_threshold,
+            orientation_success_threshold=orientation_threshold,
+        )
+        env = SimpleNamespace(
+            scene=scene_bodies,
+            command_manager=MockPoseCommandManager(command),
+            num_envs=NUM_ENVS,
+            device=DEVICE,
+        )
+        expected = stable_term.pose_command_success(env, command_name="ee_pose")
+        # a degenerate all-False expectation would pass against almost any kernel
+        if position_threshold is not None or orientation_threshold is not None:
+            assert expected.any(), "thresholds produced no successes; the comparison would be vacuous"
+
+        params = {"command_name": "ee_pose"}
+        command._succeeded.zero_()
+        warp_fn = warp_term.pose_command_success(
+            TerminationTermCfg(func=warp_term.pose_command_success, params=params), env
+        )
+        assert_equal(run_warp_term(warp_fn, env, **params), expected)
+        # the stable term ORs into the sticky tracker; the twin must too, or the terminating
+        # step is never recorded before ``reset()`` reads and clears it
+        assert_equal(command._succeeded, expected)
+        assert_equal(run_warp_term_captured(warp_fn, env, **params), expected)
+
+    def _run_both(self, scene_bodies, **thresholds):
+        """Return ``(stable, warp)`` results for one threshold configuration."""
+        command = make_pose_command_term(scene_bodies["robot"], **thresholds)
+        env = SimpleNamespace(
+            scene=scene_bodies,
+            command_manager=MockPoseCommandManager(command),
+            num_envs=NUM_ENVS,
+            device=DEVICE,
+        )
+        params = {"command_name": "ee_pose"}
+        expected = stable_term.pose_command_success(env, **params)
+        warp_fn = warp_term.pose_command_success(
+            TerminationTermCfg(func=warp_term.pose_command_success, params=params), env
+        )
+        return expected, run_warp_term(warp_fn, env, **params), command
+
+    def test_non_finite_error_denies_success(self, scene_bodies):
+        """A diverged env must not be reported as successful (and rewarded for it)."""
+        art_data = scene_bodies["robot"].data
+        art_data.body_pos_w.torch[:8, 0, :] = float("nan")
+
+        expected, actual, _ = self._run_both(scene_bodies)
+
+        assert not expected[:8].any(), "stable must deny success on NaN"
+        assert_equal(actual, expected)
+
+    def test_negative_threshold_is_configured_not_unset(self, scene_bodies):
+        """A negative threshold is a real (unsatisfiable) bound, not an absent one."""
+        expected, actual, _ = self._run_both(
+            scene_bodies, position_success_threshold=-0.5, orientation_success_threshold=None
+        )
+
+        assert not expected.any(), "no distance is below a negative threshold"
+        assert_equal(actual, expected)
 
 
 # ============================================================================

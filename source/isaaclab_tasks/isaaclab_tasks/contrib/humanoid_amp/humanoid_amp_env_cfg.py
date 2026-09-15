@@ -15,7 +15,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets import HUMANOID_28_CFG
 
@@ -61,13 +61,13 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=10.0, replicate_physics=True)
 
     # robot
-    robot: ArticulationCfg = HUMANOID_28_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
+    robot: ArticulationCfg = HUMANOID_28_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot").replace(
         actuators={
             "body": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
                 stiffness=None,
                 damping=None,
-                velocity_limit_sim={
+                joint_velocity_limit={
                     ".*": 100.0,
                 },
             ),

@@ -10,9 +10,10 @@ import sys
 
 from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.benchmark.measurements import DictMetadata, StringMetadata
+from isaaclab.paths import ISAACLAB_ROOT
 
-# Path to the repository root.
-_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
+# Path to the source checkout or installed wheel resources.
+_REPO_ROOT = str(ISAACLAB_ROOT)
 
 
 class VersionInfoRecorder(MeasurementDataRecorder):
@@ -117,7 +118,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # Renderers & physics engines
         self._record("ovrtx", self._get_pkg_version("ovrtx"), nullable=True)
-        self._record("ovphysx", self._get_pkg_version("isaaclab_ovphysx"), nullable=True)
+        self._record("ovphysx", self._get_pkg_version("ovphysx"), nullable=True)
         self._record("newton", self._get_pkg_version("newton"))
         self._record("mujoco", self._get_pkg_version("mujoco"))
         self._record("mujoco_warp", self._get_pkg_version("mujoco-warp"))
@@ -131,7 +132,10 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         # Key dependencies
         self._record("gymnasium", self._get_pkg_version("gymnasium"))
         self._record("cuda_bindings", self._get_pkg_version("cuda-bindings"))
+        # usd-exchange is the standalone USD provider; usd-core only appears in environments
+        # that predate the switch, so record whichever one is installed.
         self._record("usd_core", self._get_pkg_version("usd-core"))
+        self._record("usd_exchange", self._get_pkg_version("usd-exchange"))
 
         # Release version from root VERSION file
         version_file = os.path.join(_REPO_ROOT, "VERSION")

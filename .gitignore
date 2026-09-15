@@ -7,6 +7,9 @@
 # Omniverse
 **/*.dmp
 **/.thumbs
+# Kit's ImGui UI-state file, written to the process working directory by long
+# sessions with a GUI-backed visualizer (e.g. --visualizer kit).
+**/imgui.ini
 
 # No USD files allowed in the repo
 **/*.usd
@@ -65,6 +68,10 @@ _build
 # Teleop Recorded Dataset
 /datasets/
 
+# Local Franka Pour reset-generator references retained while the public one-file workflow is slimmed.
+/scripts/tools/generate_franka_pour_reset_dataset_legacy.py
+/source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pour/reset_dataset_generator_legacy.py
+
 # Tests
 /tests/
 
@@ -77,6 +84,9 @@ _build
 
 # No benchmarks output
 /benchmarks/
+benchmark_*.json
+/pyrightconfig.json
+
 
 # Ruff cache
 **/.ruff_cache/

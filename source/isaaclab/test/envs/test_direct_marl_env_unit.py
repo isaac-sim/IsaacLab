@@ -10,12 +10,14 @@
 
 from __future__ import annotations
 
+import inspect
 from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
 
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
 
 pytestmark = pytest.mark.unit
@@ -51,3 +53,44 @@ def test_agent_and_space_configuration():
     assert env.action_spaces["agent_1"].shape == (2,)
     assert isinstance(env.state_space, gym.spaces.Box)
     assert env.state_space.shape == (7,)
+
+
+class _DebugVisStubMARLEnv(_StubMARLEnv):
+    """Stub whose debug visualization is implemented, so ``set_debug_vis`` runs its handle logic."""
+
+    def __init__(self, cfg: DirectMARLEnvCfg) -> None:
+        super().__init__(cfg)
+        # mirrors what DirectMARLEnv.__init__ derives, which the stub skips
+        self.has_debug_vis_implementation = "NotImplementedError" not in inspect.getsource(self._set_debug_vis_impl)
+        self._debug_vis_handle = None
+        self.sim = SimpleNamespace(device=cfg.sim.device, vis_marker_registry=VisMarkerRegistry())
+        self.callback_count = 0
+
+    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
+        pass
+
+    def _debug_vis_callback(self, event) -> None:
+        self.callback_count += 1
+
+
+def test_set_debug_vis_registers_without_kit():
+    """Debug visualization registers through the marker registry, so it needs no Kit application.
+
+    Guards against reintroducing the deprecated ``IApp.get_post_update_event_stream`` subscription,
+    which raised ``NameError`` in kitless mode because ``omni.kit.app`` is only imported when Kit is
+    present.
+    """
+    env = _DebugVisStubMARLEnv(make_empty_direct_marl_env_cfg(device="cpu"))
+    registry = env.sim.vis_marker_registry
+
+    assert env.set_debug_vis(True) is True
+    assert isinstance(env._debug_vis_handle, str)
+
+    registry.dispatch_callbacks()
+    assert env.callback_count == 1
+
+    env.set_debug_vis(False)
+    assert env._debug_vis_handle is None
+
+    registry.dispatch_callbacks()
+    assert env.callback_count == 1

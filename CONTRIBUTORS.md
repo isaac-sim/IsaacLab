@@ -37,6 +37,7 @@ Guidelines for modifications:
 * Mayank Mittal
 * Mike Yan Michelis
 * Mikhail Yurasov
+* Mustafa Haiderbhai
 * Nikita Rudin
 * Octi (Zhengyu) Zhang
 * Ossama Ahmed
@@ -82,6 +83,7 @@ Guidelines for modifications:
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
+* Diego Ferigo
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
@@ -97,6 +99,7 @@ Guidelines for modifications:
 * Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
+* Henry Hu
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
@@ -120,6 +123,7 @@ Guidelines for modifications:
 * Jiwen Cai
 * Johnson Sun
 * Juana Du
+* Kai Pei
 * Kaixi Bao
 * Kourosh Darvish
 * Kousheek Chakraborty
@@ -164,6 +168,7 @@ Guidelines for modifications:
 * Peter Verswyvelen
 * Philipp Reist
 * Piotr Barejko
+* Pranav Shirgur
 * Pulkit Goyal
 * Qian Wan
 * Qingyang Jiang
@@ -200,6 +205,7 @@ Guidelines for modifications:
 * Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
+* Wang Ke
 * Wei Yang
 * Weihua Zhang
 * Welf Rehberg
@@ -217,6 +223,7 @@ Guidelines for modifications:
 * Yun Liu
 * YuTeh Shen
 * Zehao Wang
+* Zeng Qingcheng
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy

@@ -17,6 +17,9 @@ Reference:
 
 import math
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -40,13 +43,16 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
             max_depenetration_velocity=1000.0,
             max_contact_impulse=1e32,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0005,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0005,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -57,7 +63,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     actuators={
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            effort_limit_sim=0.5,
+            joint_effort_limit=0.5,
             stiffness=3.0,
             damping=0.1,
             friction=0.01,

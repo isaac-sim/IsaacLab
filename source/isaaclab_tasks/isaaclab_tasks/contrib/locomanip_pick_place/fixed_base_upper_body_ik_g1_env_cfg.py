@@ -16,8 +16,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
@@ -265,12 +265,12 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )

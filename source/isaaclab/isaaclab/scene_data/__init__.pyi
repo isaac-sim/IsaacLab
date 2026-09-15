@@ -4,10 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "REQUIRES_STAGE_AND_MODEL",
     "SceneDataBackend",
     "SceneDataFormat",
     "SceneDataProvider",
 ]
 
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
-from .scene_data_provider import SceneDataProvider
+from .scene_data_provider import REQUIRES_STAGE_AND_MODEL, SceneDataProvider

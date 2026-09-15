@@ -6,14 +6,72 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
+from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+_PRETRAINED_CHECKPOINT_DIR = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl"
+_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/"
+    "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth"
+)
+_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth"
+)
+
+
+def validate_shadow_hand_camera_settings(
+    tiled_camera: CameraCfg,
+    feature_extractor: FeatureExtractorCfg,
+) -> None:
+    """Validate one concrete Shadow Hand camera pipeline."""
+    if not isinstance(tiled_camera, CameraCfg):
+        raise TypeError(
+            f"Shadow Hand camera validation requires a concrete CameraCfg, got {type(tiled_camera).__name__}."
+        )
+    renderer_cfg = tiled_camera.renderer_cfg
+    if renderer_cfg is not None and not isinstance(renderer_cfg, RendererCfg):
+        raise TypeError(
+            f"Shadow Hand camera validation requires a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
+        )
+
+    renderer_type = getattr(renderer_cfg, "renderer_type", None)
+    warp_supported = {
+        "rgb",
+        "depth",
+        "distance_to_camera",
+        "distance_to_image_plane",
+        "normals",
+        "semantic_segmentation",
+        "instance_segmentation",
+    }
+    if renderer_type == "newton_warp":
+        unsupported = set(tiled_camera.data_types) - warp_supported
+        if unsupported:
+            raise ValueError(
+                f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
+                "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
+            )
+
+    non_depth_data_types = set(tiled_camera.data_types).difference(
+        {"depth", "distance_to_image_plane", "distance_to_camera"}
+    )
+    if tiled_camera.data_types and not non_depth_data_types and feature_extractor.enabled:
+        raise ValueError(
+            "Depth-only camera data type is intended for benchmarking only. "
+            "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
+            "Disable the feature extractor with 'feature_extractor.enabled=False' "
+            "(e.g. use IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct), "
+            "or choose a data type that includes colour, e.g. presets=rgb."
+        )
 
 
 @configclass
@@ -26,13 +84,17 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     still be selected via the ``presets`` CLI argument.
     """
 
-    prim_path: str = "/World/envs/env_.*/Camera"
+    prim_path: str = "{ENV_REGEX_NS}/Camera"
     offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
         pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        spawn_path="/World/envs/env_0/Camera",
+        focal_length=24.0,
+        focus_distance=400.0,
+        horizontal_aperture=20.955,
+        clipping_range=(0.1, 20.0),
     )
     width: int = 120
     height: int = 120
@@ -93,12 +155,11 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
     .. warning::
         This preset is intended for **benchmarking only**. The keypoint-regression CNN
-        cannot be meaningfully trained from depth alone. Use it with
-        :class:`ShadowHandCameraBenchmarkEnvCfg` (``feature_extractor.enabled=False``)
-        to measure pure depth-rendering throughput, e.g.::
+        cannot be meaningfully trained from depth alone. Use it with the contributed
+        benchmark task, which disables the feature extractor, to measure pure
+        depth-rendering throughput, e.g.::
 
-            presets=depth          # depth rendering, default renderer
-            presets=depth,newton_renderer     # depth rendering with Newton renderer
+            presets=depth          # depth rendering with the default Newton renderer
             presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
@@ -115,56 +176,23 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
     # camera — data-type and renderer backend selectable via CLI presets
     tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(
+        pretrained_checkpoint=preset(  # type: ignore[arg-type]
+            default=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            newton_mjwarp=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            isaacsim_physx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            ovphysx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            physx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+        )
+    )
 
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
 
-    def __post_init__(self):
-        # The vision env renders through the Isaac RTX tiled camera, whose render
-        # products require the Fabric cloning path. The Newton backend disables Fabric
-        # cloning (see the base env's ``clone_in_fabric`` scene preset), so under Newton
-        # the ``rgb`` annotator has no render products for ``num_envs > 1`` and the
-        # default RGB/depth/semantic render fails. Default the vision env to PhysX so it
-        # renders out of the box; Newton stays selectable via ``physics=newton_mjwarp``
-        # for the depth-only Newton-warp-renderer benchmark path (``presets=newton_renderer``).
-        super().__post_init__()
-        for backend_cfg in (self.sim.physics, self.robot_cfg, self.object_cfg):
-            backend_cfg.default = backend_cfg.physx
-
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
-        renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
-        warp_supported = {
-            "rgb",
-            "depth",
-            "distance_to_camera",
-            "distance_to_image_plane",
-            "normals",
-            "semantic_segmentation",
-            "instance_segmentation",
-        }
-        if renderer_type == "newton_warp":
-            unsupported = set(self.tiled_camera.data_types) - warp_supported
-            if unsupported:
-                raise ValueError(
-                    f"Warp renderer only supports data types {sorted(warp_supported)}, "
-                    f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
-                    "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
-                )
-
-        non_depth_data_types = set(self.tiled_camera.data_types).difference(
-            {"depth", "distance_to_image_plane", "distance_to_camera"}
-        )
-        if self.tiled_camera.data_types and not non_depth_data_types and self.feature_extractor.enabled:
-            raise ValueError(
-                "Depth-only camera data type is intended for benchmarking only. "
-                "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
-                "Disable the feature extractor with 'feature_extractor.enabled=False' "
-                "(e.g. use Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct), "
-                "or choose a data type that includes colour, e.g. presets=rgb."
-            )
+        validate_shadow_hand_camera_settings(self.tiled_camera, self.feature_extractor)
 
     def play_mode(self):
         # play-mode overrides of parent
@@ -175,22 +203,3 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True
-
-
-@configclass
-class ShadowHandCameraBenchmarkEnvCfg(ShadowHandCameraEnvCfg):
-    """Benchmark configuration with the feature extractor CNN disabled.
-
-    The tiled camera renders frames each step as normal, but the CNN forward pass is
-    bypassed — zero embeddings are returned instead. This isolates rendering throughput
-    from CNN inference overhead when profiling.
-
-    The renderer backend and camera data types can still be selected via ``presets``::
-
-        presets = newton_renderer  # benchmark with Newton renderer
-        presets = ovrtx  # benchmark with OVRTX renderer
-        presets = rgb  # benchmark RGB rendering only
-        presets = depth, newton_renderer  # benchmark depth rendering with Newton
-    """
-
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(enabled=False)

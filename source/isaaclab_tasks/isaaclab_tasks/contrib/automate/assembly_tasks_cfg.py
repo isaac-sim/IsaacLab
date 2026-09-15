@@ -5,8 +5,8 @@
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/AutoMate"
 
@@ -206,7 +206,7 @@ class Insertion(AssemblyTask):
 
     fixed_asset: ArticulationCfg = ArticulationCfg(
         # fixed_asset: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/FixedAsset",
+        prim_path="{ENV_REGEX_NS}/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{assembly_dir}{fixed_asset_cfg.usd_path}",
             activate_contact_sensors=True,
@@ -240,7 +240,7 @@ class Insertion(AssemblyTask):
     )
     # held_asset: ArticulationCfg = ArticulationCfg(
     held_asset: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/HeldAsset",
+        prim_path="{ENV_REGEX_NS}/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{assembly_dir}{held_asset_cfg.usd_path}",
             activate_contact_sensors=True,

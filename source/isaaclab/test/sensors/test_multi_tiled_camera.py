@@ -83,7 +83,7 @@ def test_multi_tiled_camera_init(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -174,7 +174,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
         camera_cfg.data_types = all_annotator_types
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -270,7 +270,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera_cfg.height, camera_cfg.width = resolutions[i]
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
@@ -336,7 +336,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -404,7 +404,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera_cfg.offset = TiledCameraCfg.OffsetCfg(pos=positions[i], rot=rotations[i], convention="ros")
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)

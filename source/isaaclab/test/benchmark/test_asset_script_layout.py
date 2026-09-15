@@ -17,6 +17,6 @@ def test_each_backend_retains_exactly_three_asset_scripts() -> None:
         "benchmark_rigid_object_collection.py",
     }
 
-    for package in ("isaaclab_physx", "isaaclab_newton", "isaaclab_ovphysx"):
+    for package in ("isaaclab_physx", "isaaclab_newton", "isaaclab_ov"):
         scripts = {path.name for path in (root / "source" / package / "benchmark" / "assets").glob("*.py")}
         assert scripts == expected

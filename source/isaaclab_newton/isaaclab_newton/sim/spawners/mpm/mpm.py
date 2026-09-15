@@ -14,6 +14,8 @@ import warp as wp
 from isaaclab.sim.utils import clone, create_prim
 
 if TYPE_CHECKING:
+    from newton import ModelBuilder
+
     from pxr import Usd
 
 from .mpm_cfg import MPMGridCfg, MPMParticleMaterialCfg, MPMParticleSpawnerCfg, MPMPointsCfg
@@ -25,13 +27,26 @@ def spawn_mpm_particles(
     cfg: MPMParticleSpawnerCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
+    **kwargs: object,
 ) -> Usd.Prim:
     """Create a lightweight placeholder prim for a Newton MPM particle object.
 
     MPM particles are inserted directly into the Newton model builder during
     Newton replication. The USD prim exists so Isaac Lab's normal asset spawning
     and clone-planning machinery can reason about the scene entity.
+
+    Args:
+        prim_path: Prim path or pattern at which to create the placeholder.
+        cfg: MPM particle spawner configuration.
+        translation: Translation relative to the parent prim [m]. If ``None``, the
+            placeholder uses the origin.
+        orientation: Orientation relative to the parent prim as an ``(x, y, z, w)``
+            quaternion. If ``None``, the placeholder uses the identity quaternion.
+        **kwargs: Additional keyword arguments consumed by the :func:`~isaaclab.sim.utils.clone`
+            decorator.
+
+    Returns:
+        The created placeholder prim.
     """
     return create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
 
@@ -57,13 +72,25 @@ def _material_custom_attributes(material: MPMParticleMaterialCfg) -> dict[str, f
 
 
 def emit_mpm_particles(
-    builder,
+    builder: ModelBuilder,
     cfg: MPMParticleSpawnerCfg,
     *,
     position: tuple[float, float, float],
     orientation: tuple[float, float, float, float],
 ) -> None:
-    """Emit particles described by ``cfg`` into a Newton ``ModelBuilder``."""
+    """Emit particles from a declarative configuration into a Newton model builder.
+
+    Args:
+        builder: Newton model builder that receives the particles.
+        cfg: Grid or explicit-point particle spawner configuration.
+        position: World-space translation applied to local particle positions [m].
+        orientation: World-space orientation applied to local particle positions and
+            velocities as an ``(x, y, z, w)`` quaternion.
+
+    Raises:
+        TypeError: If :paramref:`cfg` is not a supported MPM particle spawner configuration.
+        ValueError: If the configuration contains invalid particle geometry or physical values.
+    """
     if isinstance(cfg, MPMGridCfg):
         _emit_grid(builder, cfg, position=position, orientation=orientation)
     elif isinstance(cfg, MPMPointsCfg):
@@ -73,48 +100,82 @@ def emit_mpm_particles(
 
 
 def _emit_grid(
-    builder,
+    builder: ModelBuilder,
     cfg: MPMGridCfg,
     *,
     position: tuple[float, float, float],
     orientation: tuple[float, float, float, float],
 ) -> None:
-    lower = np.asarray(cfg.lower, dtype=np.float32)
-    upper = np.asarray(cfg.upper, dtype=np.float32)
+    lower = _as_finite_vector3(cfg.lower, "lower")
+    upper = _as_finite_vector3(cfg.upper, "upper")
     extent = upper - lower
     if np.any(extent <= 0.0):
         raise ValueError(f"MPMGridCfg upper corner must be greater than lower corner. Got {cfg.lower=} {cfg.upper=}.")
-    if cfg.voxel_size <= 0.0:
-        raise ValueError(f"MPMGridCfg voxel_size must be positive. Got {cfg.voxel_size}.")
-    if cfg.particles_per_cell <= 0.0:
-        raise ValueError(f"MPMGridCfg particles_per_cell must be positive. Got {cfg.particles_per_cell}.")
 
-    resolution = np.maximum(np.ceil(cfg.particles_per_cell * extent / cfg.voxel_size), 1).astype(np.int32)
+    voxel_size = float(cfg.voxel_size)
+    _validate_positive_finite(voxel_size, "voxel_size")
+    particles_per_cell = float(cfg.particles_per_cell)
+    _validate_positive_finite(particles_per_cell, "particles_per_cell")
+    jitter = float(cfg.jitter)
+    if not np.isfinite(jitter) or jitter < 0.0:
+        raise ValueError(f"MPMGridCfg `jitter` must be finite and non-negative. Got {cfg.jitter}.")
+
+    resolution = np.maximum(np.ceil(particles_per_cell * extent / voxel_size), 1).astype(np.int32)
     cell_size = extent / resolution
     cell_volume = float(np.prod(cell_size))
-    mass = float(cfg.mass) if cfg.mass is not None else cell_volume * float(cfg.material.density)
-    radius = float(cfg.radius) if cfg.radius is not None else 0.5 * float(np.max(cell_size))
+    if cfg.mass is None:
+        density = float(cfg.material.density)
+        if not np.isfinite(density) or density <= 0.0:
+            raise ValueError(
+                "MPMGridCfg `material.density` must be finite and positive when deriving particle mass. "
+                f"Got {cfg.material.density}."
+            )
+        mass = cell_volume * density
+    else:
+        mass = float(cfg.mass)
+    _validate_positive_finite(mass, "mass")
 
-    world_pos = _transform_point(lower, position, orientation)
+    if cfg.particle_placement == "boundary":
+        first_particle = lower
+        dimensions = resolution + 1
+    elif cfg.particle_placement == "cell_center":
+        first_particle = lower + 0.5 * cell_size
+        dimensions = resolution
+    else:
+        raise ValueError(
+            f"MPMGridCfg particle_placement must be 'boundary' or 'cell_center'. Got {cfg.particle_placement!r}."
+        )
+
+    if cfg.radius is not None:
+        radius = float(cfg.radius)
+    elif cfg.particle_placement == "cell_center":
+        # Newton represents MPM particle volume as ``(2 * radius) ** 3``.
+        radius = 0.5 * float(np.cbrt(cell_volume))
+    else:
+        # Preserve the historical boundary-placement behavior.
+        radius = 0.5 * float(np.max(cell_size))
+    _validate_positive_finite(radius, "radius")
+
+    world_pos = _transform_point(first_particle, position, orientation)
     builder.add_particle_grid(
         pos=wp.vec3(*world_pos.tolist()),
         rot=wp.quat(*orientation),
         vel=wp.vec3(0.0, 0.0, 0.0),
-        dim_x=int(resolution[0]) + 1,
-        dim_y=int(resolution[1]) + 1,
-        dim_z=int(resolution[2]) + 1,
+        dim_x=int(dimensions[0]),
+        dim_y=int(dimensions[1]),
+        dim_z=int(dimensions[2]),
         cell_x=float(cell_size[0]),
         cell_y=float(cell_size[1]),
         cell_z=float(cell_size[2]),
         mass=mass,
-        jitter=float(cfg.jitter),
+        jitter=jitter,
         radius_mean=radius,
         custom_attributes=_material_custom_attributes(cfg.material),
     )
 
 
 def _emit_points(
-    builder,
+    builder: ModelBuilder,
     cfg: MPMPointsCfg,
     *,
     position: tuple[float, float, float],
@@ -125,10 +186,17 @@ def _emit_points(
         raise ValueError(f"MPMPointsCfg positions must have shape (N, 3). Got {points.shape}.")
     if points.shape[0] == 0:
         raise ValueError("MPMPointsCfg positions must contain at least one particle.")
+    if not np.all(np.isfinite(points)):
+        raise ValueError("MPMPointsCfg `positions` must contain only finite values.")
 
     velocities = np.zeros_like(points) if cfg.velocities is None else np.asarray(cfg.velocities, dtype=np.float32)
     if velocities.shape != points.shape:
         raise ValueError(f"MPMPointsCfg velocities must match positions shape {points.shape}. Got {velocities.shape}.")
+    if not np.all(np.isfinite(velocities)):
+        raise ValueError("MPMPointsCfg `velocities` must contain only finite values.")
+
+    mass = _expand_scalar_or_sequence(cfg.mass, points.shape[0], "mass")
+    radius = _expand_scalar_or_sequence(cfg.radius, points.shape[0], "radius")
 
     world_points = _transform_points(points, position, orientation)
     world_velocities = _rotate_vectors(velocities, orientation)
@@ -136,18 +204,40 @@ def _emit_points(
     builder.add_particles(
         pos=world_points.tolist(),
         vel=world_velocities.tolist(),
-        mass=_expand_scalar_or_sequence(cfg.mass, points.shape[0], "mass"),
-        radius=_expand_scalar_or_sequence(cfg.radius, points.shape[0], "radius"),
+        mass=mass,
+        radius=radius,
         custom_attributes=_material_custom_attributes(cfg.material),
     )
 
 
 def _expand_scalar_or_sequence(value: float | Sequence[float], count: int, name: str) -> list[float]:
-    if isinstance(value, (int, float)):
-        return [float(value)] * count
-    if len(value) != count:
-        raise ValueError(f"MPMPointsCfg {name} must be scalar or have one value per particle. Got {len(value)} values.")
-    return [float(v) for v in value]
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        values = [float(value)] * count
+    else:
+        if len(value) != count:
+            raise ValueError(
+                f"MPMPointsCfg {name} must be scalar or have one value per particle. Got {len(value)} values."
+            )
+        values = [float(v) for v in value]
+    if not np.all(np.isfinite(values)) or np.any(np.asarray(values) <= 0.0):
+        raise ValueError(f"MPMPointsCfg `{name}` must contain only finite positive values.")
+    return values
+
+
+def _as_finite_vector3(value: Sequence[float], name: str) -> np.ndarray:
+    """Convert a sequence to a finite three-component float32 vector."""
+    vector = np.asarray(value, dtype=np.float32)
+    if vector.shape != (3,):
+        raise ValueError(f"MPMGridCfg `{name}` must have shape (3,). Got {vector.shape}.")
+    if not np.all(np.isfinite(vector)):
+        raise ValueError(f"MPMGridCfg `{name}` must contain only finite values.")
+    return vector
+
+
+def _validate_positive_finite(value: float, name: str) -> None:
+    """Validate a positive finite scalar used for grid particle generation."""
+    if not np.isfinite(value) or value <= 0.0:
+        raise ValueError(f"MPMGridCfg `{name}` must be finite and positive. Got {value}.")
 
 
 def _transform_point(

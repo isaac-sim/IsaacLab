@@ -1092,12 +1092,35 @@ class PRDiff:
     added: set[str]
 
     @classmethod
-    def from_git(cls, base_ref: str) -> PRDiff:
-        """Run ``git diff`` against ``origin/<base_ref>...HEAD`` to populate the diff."""
+    def from_git(cls, base_ref: str, *, include_worktree: bool = False) -> PRDiff:
+        """Run ``git diff`` against ``origin/<base_ref>`` to populate the diff.
+
+        Args:
+            base_ref: Base branch to diff against.
+            include_worktree: Whether to also count staged and unstaged
+                changes to tracked files. The pre-commit hook needs this
+                because the fragment it is gating is not committed yet;
+                CI diffs the branch as pushed and leaves it off.
+        """
+
+        remote_base = f"origin/{base_ref}"
+        if include_worktree:
+            # ``git diff <merge-base>`` (two-dot against the merge base)
+            # spans the worktree; the three-dot form used by CI compares
+            # two commits and cannot see uncommitted work.
+            diff_target = subprocess.run(
+                ["git", "merge-base", remote_base, "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=REPO_ROOT,
+            ).stdout.strip()
+        else:
+            diff_target = f"{remote_base}...HEAD"
 
         def _diff(extra_args: list[str]) -> set[str]:
             result = subprocess.run(
-                ["git", "diff", "--name-only", *extra_args, f"origin/{base_ref}...HEAD"],
+                ["git", "diff", "--name-only", *extra_args, diff_target],
                 capture_output=True,
                 text=True,
                 check=True,

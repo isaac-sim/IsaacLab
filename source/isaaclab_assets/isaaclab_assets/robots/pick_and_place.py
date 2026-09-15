@@ -45,22 +45,22 @@ PICK_AND_PLACE_CFG = ArticulationCfg(
     actuators={
         "x_gantry": ImplicitActuatorCfg(
             joint_names_expr=["x_axis"],
-            effort_limit=400.0,
-            velocity_limit=10.0,
+            joint_effort_limit=400.0,
+            joint_velocity_limit=10.0,
             stiffness=0.0,
             damping=10.0,
         ),
         "y_gantry": ImplicitActuatorCfg(
             joint_names_expr=["y_axis"],
-            effort_limit=400.0,
-            velocity_limit=10.0,
+            joint_effort_limit=400.0,
+            joint_velocity_limit=10.0,
             stiffness=0.0,
             damping=10.0,
         ),
         "z_gantry": ImplicitActuatorCfg(
             joint_names_expr=["z_axis"],
-            effort_limit=400.0,
-            velocity_limit=10.0,
+            joint_effort_limit=400.0,
+            joint_velocity_limit=10.0,
             stiffness=0.0,
             damping=10.0,
         ),

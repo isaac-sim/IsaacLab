@@ -56,8 +56,10 @@ jobs:
           ^uv\.lock$ :: Locked dependency graph
           ^source/[^/]+/pyproject\.toml$ :: Package manifests
           ^source/isaaclab/isaaclab/cli/ :: Install CLI implementation
-          ^source/isaaclab_newton/isaaclab_newton/test/mock_interfaces/ :: Mock-interface implementation
-          ^source/isaaclab_newton/test/test_mock_interfaces/ :: Kit-less pytest subset
+          ^source/isaaclab/isaaclab/test/fixtures/ :: Isolated asset fixture implementation
+          ^source/isaaclab_(physx|newton|ov)/isaaclab_.*/test/fixtures/ :: Backend fixture implementation
+          ^source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics\.py$ :: Kit-less pytest subset
+          ^tools/wheel_builder/uv-overrides\.txt$ :: Importer dependency overrides
           ^\.github/workflows/kitless-docker\.yml$ :: This workflow file
           ^\.github/actions/detect-changes/ :: Change-detection action
           ^\.github/actions/_lib/compute-deps-hash/ :: Dependency-cache identity
@@ -68,6 +70,8 @@ jobs:
     - name: Set up uv
       if: steps.detect.outputs.should_run == 'true'
       uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
 
     - name: Validate kit-less container profile
       if: steps.detect.outputs.should_run == 'true'

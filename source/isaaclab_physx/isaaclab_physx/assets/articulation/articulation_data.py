@@ -380,83 +380,6 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel.assign(value)
 
     """
-    Joint commands -- Set into simulation.
-    """
-
-    @property
-    def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
-        """
-        if self._joint_pos_target_ta is None:
-            self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
-        return self._joint_pos_target_ta
-
-    @property
-    def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
-        """
-        if self._joint_vel_target_ta is None:
-            self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
-        return self._joint_vel_target_ta
-
-    @property
-    def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
-        """
-        if self._joint_effort_target_ta is None:
-            self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
-        return self._joint_effort_target_ta
-
-    """
-    Joint commands -- Explicit actuators.
-    """
-
-    @property
-    def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping).
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-        It is exposed for users who want to inspect the computations inside the actuator model.
-        For instance, to penalize the learning agent for a difference between the computed and applied torques.
-        """
-        if self._computed_torque_ta is None:
-            self._computed_torque_ta = ProxyArray(self._computed_torque)
-        return self._computed_torque_ta
-
-    @property
-    def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping).
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-        actuator model.
-        """
-        if self._applied_torque_ta is None:
-            self._applied_torque_ta = ProxyArray(self._applied_torque)
-        return self._applied_torque_ta
-
-    """
     Joint properties
     """
 
@@ -593,29 +516,6 @@ class ArticulationData(BaseArticulationData):
         if self._soft_joint_pos_limits_ta is None:
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
         return self._soft_joint_pos_limits_ta
-
-    @property
-    def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
-        has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
-        """
-        if self._soft_joint_vel_limits_ta is None:
-            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-        return self._soft_joint_vel_limits_ta
-
-    @property
-    def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied Joint torques.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-        """
-        if self._gear_ratio_ta is None:
-            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
-        return self._gear_ratio_ta
 
     """
     Fixed tendon properties.
@@ -1859,12 +1759,6 @@ class ArticulationData(BaseArticulationData):
         self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(), device=self.device)
 
         # Pre-allocated buffers
-        # -- Joint commands (set into simulation)
-        self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_effort_target = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
         # -- Joint commands (explicit actuator model)
         self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -1914,7 +1808,6 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_vel_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- Fixed tendon properties
         if self._num_fixed_tendons > 0:
             self._fixed_tendon_stiffness = wp.clone(self._root_view.get_fixed_tendon_stiffnesses(), device=self.device)
@@ -2146,7 +2039,6 @@ class ArticulationData(BaseArticulationData):
         # Joint properties (custom)
         self._soft_joint_pos_limits_ta: ProxyArray | None = None
         self._soft_joint_vel_limits_ta: ProxyArray | None = None
-        self._gear_ratio_ta: ProxyArray | None = None
         # Fixed tendon properties
         self._fixed_tendon_stiffness_ta: ProxyArray | None = None
         self._fixed_tendon_damping_ta: ProxyArray | None = None

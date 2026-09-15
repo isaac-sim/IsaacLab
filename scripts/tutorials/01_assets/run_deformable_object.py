@@ -9,19 +9,22 @@ This script demonstrates how to work with the deformable object and interact wit
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    uv run python scripts/tutorials/01_assets/run_deformable_object.py
+    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py
 
     # Usage with Newton VBD physics and default kit visualizer.
-    uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd
+    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
+        --backend newton_vbd
 
     # Usage with OvPhysX physics without a visualizer.
-    uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend ovphysx
+    uv run --extra ovphysx --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
+        --backend ovphysx
 
 """
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -45,12 +48,16 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.physics import PhysicsCfg
+
+if TYPE_CHECKING:
+    from isaaclab.assets import DeformableObject
 
 
 def design_scene():
     """Designs the scene."""
+    from isaaclab.assets import DeformableObject, DeformableObjectCfg
+
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)

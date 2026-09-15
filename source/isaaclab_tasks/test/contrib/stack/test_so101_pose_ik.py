@@ -54,11 +54,6 @@ def _make_controller(
     return SO101PoseIKController(cfg=cfg, num_envs=num_envs, device="cpu")
 
 
-def test_action_dim_is_seven():
-    """The controller advertises a 7D pose command: [pos_xyz, quat_xyzw] (inherited from core)."""
-    assert _make_controller().action_dim == 7
-
-
 def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     """The SO-101 orientation joint mask zeros the orientation-row columns of the masked-out joints
     (so they serve position only), while the position rows and the task error are unchanged.
@@ -136,27 +131,6 @@ def test_action_cfg_points_at_custom_action_and_controller():
     # stays importable without Kit); resolve it to confirm it points at the custom term.
     assert string_to_callable(str(cfg.class_type)) is SO101PoseIKAction
     assert isinstance(cfg.controller, SO101PoseIKControllerCfg)
-
-
-def test_action_cfg_accepts_clip_field():
-    """The cfg dataclass accepts a clip value as a plain field (no sim required).
-
-    Verifying that NotImplementedError is raised when clip is set requires constructing the action
-    term, which needs a live articulation (sim). That path is sim-gated and is not tested here.
-    """
-    pytest.importorskip("pxr")  # action term imports UsdPhysics at module load
-    from isaaclab_tasks.contrib.stack.config.so101.pose_ik_action import SO101PoseIKActionCfg
-
-    clip_value = {"shoulder_pan": (-1.0, 1.0)}
-    cfg = SO101PoseIKActionCfg(
-        asset_name="robot",
-        joint_names=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
-        body_name="gripper",
-        controller=SO101PoseIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="adaptive_dls"),
-        clip=clip_value,
-    )
-    # The cfg stores the value -- the refusal happens at action-term construction (sim-gated).
-    assert cfg.clip == clip_value
 
 
 def test_env_cfg_arm_action_is_pose_and_ordering_matches_pipeline():

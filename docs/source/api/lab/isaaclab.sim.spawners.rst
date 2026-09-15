@@ -50,6 +50,7 @@ Shapes
   .. autosummary::
 
     ShapeCfg
+    CableCfg
     CapsuleCfg
     ConeCfg
     CuboidCfg
@@ -57,6 +58,12 @@ Shapes
     SphereCfg
 
 .. autoclass:: ShapeCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_cable
+
+.. autoclass:: CableCfg
     :members:
     :exclude-members: __init__, func
 
@@ -279,9 +286,11 @@ Materials
 
     VisualMaterialCfg
     PreviewSurfaceCfg
+    PbrMdlCfg
     MdlFileCfg
     GlassMdlCfg
     PhysicsMaterialCfg
+    CableMaterialCfg
     RigidBodyMaterialBaseCfg
     RigidBodyMaterialFragment
     UsdPhysicsRigidBodyMaterialCfg
@@ -304,6 +313,10 @@ Visual Materials
     :members:
     :exclude-members: __init__, func
 
+.. autoclass:: PbrMdlCfg
+    :members:
+    :exclude-members: __init__, func
+
 .. autofunction:: spawn_from_mdl_file
 
 .. autoclass:: MdlFileCfg
@@ -318,6 +331,10 @@ Physical Materials
 ~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: PhysicsMaterialCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: CableMaterialCfg
     :members:
     :exclude-members: __init__, func
 

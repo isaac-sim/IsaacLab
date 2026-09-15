@@ -1,9 +1,11 @@
+:orphan:
+
 .. seealso::
 
    This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
    (`skills/user/domain-randomization-events/ <../../../../skills/user/domain-randomization-events/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 .. _tutorial-create-manager-base-env:
 
@@ -71,7 +73,7 @@ Defining actions
 ----------------
 
 In the previous tutorial, we directly input the action to the cartpole using
-the :meth:`assets.Articulation.set_joint_effort_target` method. In this tutorial, we will
+``robot.actuators.target_command.set_effort_index``. In this tutorial, we will
 use the :class:`managers.ActionManager` to handle the actions.
 
 The action manager can comprise of multiple :class:`managers.ActionTerm`. Each action term

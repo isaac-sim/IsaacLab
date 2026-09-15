@@ -11,7 +11,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -31,7 +31,7 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass
@@ -261,5 +261,5 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        self.events.base_com.default.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_com.params["asset_cfg"].body_names = "torso_base"
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)

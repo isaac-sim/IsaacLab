@@ -17,6 +17,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import queue_replication
+from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
@@ -97,6 +98,10 @@ class AssetBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
+        # expand the namespace macro before the cfg is queued, so the clone plan keys its rows
+        # by a real path expression. The scene has already done this for the assets it collects;
+        # this covers the ones a direct environment builds itself.
+        cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # register the original cfg object for cloning: the clone plan keys rows by the
         # cfg identity the scene collected; contexts and policy resolve at replication time
         queue_replication(cfg)
@@ -501,13 +506,13 @@ class AssetBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks."""
-        if self._initialize_handle is not None:
+        if getattr(self, "_initialize_handle", None) is not None:
             self._initialize_handle.deregister()
             self._initialize_handle = None
-        if self._invalidate_initialize_handle is not None:
+        if getattr(self, "_invalidate_initialize_handle", None) is not None:
             self._invalidate_initialize_handle.deregister()
             self._invalidate_initialize_handle = None
-        if self._prim_deletion_handle is not None:
+        if getattr(self, "_prim_deletion_handle", None) is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         sim_ctx = SimulationContext.instance()

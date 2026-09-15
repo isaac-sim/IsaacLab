@@ -1,3 +1,5 @@
+:orphan:
+
 Profiling Isaac Lab with Nsight Systems
 =======================================
 
@@ -124,6 +126,6 @@ Troubleshooting
 See Also
 --------
 
-- :doc:`simulation_performance` - broader simulation performance tuning tips.
+- :ref:`simulation-performance-troubleshooting` - checks for unexpectedly slow simulation or training.
 - `Nsight Systems User Guide <https://docs.nvidia.com/nsight-systems/UserGuide/index.html>`_ - official ``nsys`` documentation.
 - `NVTX Python package <https://nvtx.readthedocs.io/>`_ - the package nsys uses to emit NVTX ranges from Python.

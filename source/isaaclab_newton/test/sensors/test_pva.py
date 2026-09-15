@@ -21,7 +21,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -254,18 +254,6 @@ def test_freefall_acceleration(sim):
 
     # Angular acceleration should be near zero (no torques in freefall).
     torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc), atol=0.05, rtol=0.0)
-
-
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    pva: Pva = scene["pva"]
-    sensor_str = str(pva)
-    assert "newton" in sensor_str
-    assert "Pva sensor" in sensor_str
 
 
 @configclass

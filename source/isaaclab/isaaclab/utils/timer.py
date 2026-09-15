@@ -96,6 +96,7 @@ class Timer(ContextDecorator):
         name: str | None = None,
         enable: bool = True,
         time_unit: Literal["s", "ms", "us", "ns"] = "s",
+        activity: str | None = None,
     ):
         """Initializes the timer.
 
@@ -106,9 +107,15 @@ class Timer(ContextDecorator):
                 dictionary. Defaults to None.
             enable: Whether to enable the timer. Defaults to True.
             time_unit: The unit to use for the elapsed time. Defaults to "s".
+            activity: Short description of the timed work, e.g.
+                ``"Initializing solver"``. Reported to the startup loading
+                screen while the block runs, so a user watching the console sees
+                the step in progress rather than its completion message.
+                Defaults to None, which reports nothing.
         """
         self._msg = msg
         self._name = name
+        self._activity = activity
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
@@ -211,12 +218,21 @@ class Timer(ContextDecorator):
 
     def __enter__(self) -> Timer:
         """Start timing and return this `Timer` instance."""
+        if self._activity is not None:
+            # imported here so that timers without an activity pay nothing for the hook
+            from isaaclab.app.loading_screen import report_activity
+
+            report_activity(self._activity)
         self.start()
         return self
 
     def __exit__(self, *exc_info: Any):
         """Stop timing."""
         self.stop()
+        if self._activity is not None:
+            from isaaclab.app.loading_screen import report_activity
+
+            report_activity(None)
         # print message
         if self._enable:
             if (self._msg is not None) and (Timer.enable_display_output):

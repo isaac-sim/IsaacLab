@@ -20,8 +20,9 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.place.config.agibot import place_toy2box_rmp_rel_env_cfg
@@ -159,9 +160,8 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
 
         self.events = EventCfgPlaceUprightMug()
 
-        # set viewer to see the robot and objects on the table
-        self.viewer.eye = [1.8, -1.8, 1.8]
-        self.viewer.lookat = [0.3, 0.0, 0.8]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, -1.8, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set Agibot as robot
         self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -183,7 +183,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
 
         # add contact force sensor for grasped checking
         self.scene.contact_grasp = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
+            prim_path="{ENV_REGEX_NS}/Robot/right_[^/]*_Pad_Link",
             update_period=0.0,
             history_length=6,
             debug_vis=True,

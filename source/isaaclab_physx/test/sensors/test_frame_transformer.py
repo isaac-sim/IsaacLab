@@ -30,7 +30,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -532,7 +532,7 @@ def test_frame_transformer_all_bodies(sim):
         prim_path="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
             ),
         ],
     )
@@ -624,7 +624,7 @@ def test_sensor_print(sim):
         prim_path="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
             ),
         ],
     )

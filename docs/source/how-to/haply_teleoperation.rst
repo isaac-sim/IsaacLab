@@ -1,3 +1,5 @@
+:orphan:
+
 .. _haply-teleoperation:
 
 Setting up Haply Teleoperation

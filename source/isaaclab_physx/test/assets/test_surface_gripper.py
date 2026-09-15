@@ -117,8 +117,8 @@ def generate_surface_gripper(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_surface_grippers):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
-    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_.*/Robot/Gripper/SurfaceGripper")
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
     return surface_gripper, articulation, translations
@@ -126,7 +126,7 @@ def generate_surface_gripper(
 
 def generate_grippable_object(sim, num_grippable_objects: int):
     object_cfg = RigidObjectCfg(
-        prim_path="/World/Env_.*/Object",
+        prim_path="/World/Env_[^/]*/Object",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),

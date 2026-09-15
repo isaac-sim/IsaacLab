@@ -49,7 +49,13 @@ def main():
     """Main function to spawn arl_robot_1."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # Create simulation context
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.01,
+            device=args_cli.device,
+            physics=physics_cfg,
+            use_newton_actuators=False,
+        )
         sim = sim_utils.SimulationContext(sim_cfg)
 
         # Create a dome light with light blue color

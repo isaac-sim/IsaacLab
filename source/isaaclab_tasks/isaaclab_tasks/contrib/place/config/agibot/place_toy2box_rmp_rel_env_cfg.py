@@ -24,8 +24,9 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
@@ -204,35 +205,15 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
-# Robot USD assets whose gripper revolute joints are authored with reversed
-# body0/body1 ordering, which the Newton MJWarp USD parser rejects.
-_NEWTON_REVERSED_JOINT_ASSETS = ("Robots/Agibot/A2D/",)
-
-
-def raise_if_reversed_joints_on_newton(env_cfg) -> None:
-    """Reject Newton physics for robots whose USD has reversed gripper joints.
-
-    The Newton MJWarp ``parse_usd`` importer requires each joint prim to define the parent
-    body as ``physics:body0`` and the child as ``physics:body1``. Some robot assets (e.g. the
-    Agibot A2D gripper support-link revolute joints) author these reversed; PhysX tolerates
-    this, but Newton raises ``Reversed joints are not supported`` deep in scene creation. This
-    raises an actionable error at config-validation time instead.
-
-    Args:
-        env_cfg: The resolved environment config to inspect.
-    """
-    robot_cfg = getattr(env_cfg.scene, "robot", None)
-    usd_path = getattr(getattr(robot_cfg, "spawn", None), "usd_path", None)
-    if usd_path is None or not isinstance(env_cfg.sim.physics, NewtonCfg):
-        return
-    if any(marker in usd_path for marker in _NEWTON_REVERSED_JOINT_ASSETS):
+def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Reject Newton physics while the Agibot collision mesh cannot compile."""
+    if isinstance(env_cfg.sim.physics, NewtonCfg):
         raise ValueError(
-            "This task's robot has gripper joints authored with reversed body0/body1 ordering, "
-            "which the Newton backend's USD parser does not support ('Reversed joints are not "
-            "supported'). Re-run this task with physics=physx (the default)."
+            "The Agibot A2D asset contains a generated convex collision mesh whose volume is too small for "
+            "Newton MJWarp. Re-run this task with physics=isaacsim_physx (the default)."
         )
 
 
@@ -241,7 +222,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=3.0, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -261,13 +242,12 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.physics = PhysicsCfg()
 
-        # set viewer to see the whole scene
-        self.viewer.eye = [1.5, -1.0, 1.5]
-        self.viewer.lookat = [0.5, 0.0, 0.0]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
 
     def validate_config(self):
         """Reject backend combinations that the configured robot cannot run on."""
-        raise_if_reversed_joints_on_newton(self)
+        raise_if_unsupported_newton_physics(self)
 
 
 """
@@ -379,7 +359,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
 
         # add contact force sensor for grasped checking
         self.scene.contact_grasp = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
+            prim_path="{ENV_REGEX_NS}/Robot/right_[^/]*_Pad_Link",
             update_period=0.05,
             history_length=6,
             debug_vis=True,

@@ -86,6 +86,39 @@ def test_set_command_renormalizes_quat():
     torch.testing.assert_close(stored, raw / torch.linalg.norm(raw), atol=1e-6, rtol=0.0)
 
 
+@pytest.mark.parametrize("bad_quat", [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1e-38]])
+def test_set_command_unnormalizable_quat_holds_current_orientation(bad_quat):
+    """An unnormalizable commanded quaternion holds that env's current orientation instead of NaN."""
+    c = _make_controller(num_envs=2)
+    good_quat = _quat_xyzw([0.0, 1.0, 0.0], 0.4)
+    held_quat = _quat_xyzw([1.0, 0.0, 0.0], 0.5)
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2], [0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_ID_QUAT, held_quat])
+    cmd = torch.tensor([[0.3, -0.1, 0.2] + good_quat, [0.3, -0.1, 0.2] + bad_quat])
+    c.set_command(cmd, ee_pos, ee_quat)
+    torch.testing.assert_close(c.ee_quat_des[0], torch.tensor(good_quat), atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(c.ee_quat_des[1], torch.tensor(held_quat), atol=1e-6, rtol=0.0)
+
+
+def test_set_command_unnormalizable_quat_without_current_orientation_is_identity():
+    """Without a current orientation to hold, an unnormalizable command falls back to identity."""
+    c = _make_controller()
+    cmd = torch.cat([torch.tensor([[0.3, -0.1, 0.2]]), torch.zeros(1, 4)], dim=-1)
+    c.set_command(cmd)
+    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]), atol=1e-6, rtol=0.0)
+
+
+@pytest.mark.parametrize("scale", [1e-7, 1e-20])
+def test_set_command_tiny_normalizable_quat_is_still_normalized(scale):
+    """A tiny but normalizable quaternion keeps its meaning instead of taking the fallback."""
+    c = _make_controller()
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])  # a fallback that is NOT identity
+    cmd = torch.cat([ee_pos, torch.tensor([[0.0, 0.0, 0.0, scale]])], dim=-1)  # scaled identity
+    c.set_command(cmd, ee_pos, ee_quat)
+    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]), atol=1e-5, rtol=0.0)
+
+
 def test_orientation_weight_none_is_unweighted():
     """With no orientation weight, the pose task Jacobian equals the raw Jacobian."""
     c = _make_controller(orientation_weight=None)

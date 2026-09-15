@@ -38,9 +38,15 @@ def test_warp_launch_cache(monkeypatch):
     assert calls[0]["record_cmd"] is True
     assert command.launches == 2
 
+    cache.launch("other", kernel, dim=1, inputs=[], outputs=[])
+    cache.clear("read")
+    cache.launch("read", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("other", kernel, dim=1, inputs=[], outputs=[])
+    assert len(calls) == 3
+
     cache.clear()
     cache.launch("read", kernel, dim=1, inputs=[], outputs=[])
-    assert len(calls) == 2
+    assert len(calls) == 4
 
     device.is_capturing = True
     cache.launch("capture", kernel, dim=1, inputs=[], outputs=[])
@@ -54,4 +60,4 @@ def test_warp_launch_cache(monkeypatch):
     result[0] = None
     cache.launch("empty", kernel, dim=0, inputs=[], outputs=[])
     cache.launch("empty", kernel, dim=0, inputs=[], outputs=[])
-    assert len(calls) == 6
+    assert len(calls) == 8

@@ -112,10 +112,13 @@ def test_valid_properties_cfg(setup_simulation):
     # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
     # field; exclude them from the all-non-None check.
     deprecation_aliases = {"max_velocity", "max_effort"}
+    # nested opt-in cfgs whose ``None`` means "leave the USD-authored value alone"
+    optional_nested_cfgs = {"mesh_collision_property"}
     for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
         for k, v in cfg.__dict__.items():
-            # skip class-metadata keys (``_usd_*``) and deprecation aliases nulled in __post_init__
-            if k.startswith("_") or k in deprecation_aliases:
+            # skip class-metadata keys (``_usd_*``), deprecation aliases nulled in __post_init__,
+            # and nested cfgs that are meaningfully unset
+            if k.startswith("_") or k in deprecation_aliases or k in optional_nested_cfgs:
                 continue
             assert v is not None, f"{cfg.__class__.__name__}:{k} is None. Please make sure schemas are valid."
 
@@ -503,8 +506,8 @@ def test_articulation_root_base_no_physx_schema_when_only_fix_root_link_set(setu
 
 @pytest.mark.isaacsim_ci
 def test_physx_articulation_root_writes_self_collisions(setup_simulation):
-    """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must
-    author ``physxArticulation:enabledSelfCollisions`` AND apply ``PhysxArticulationAPI``."""
+    """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must author
+    ``physxArticulation:enabledSelfCollisions`` and mirror onto ``newton:selfCollisionEnabled``."""
     sim, _, _, _, _, _ = setup_simulation
     stage = sim_utils.get_current_stage()
 
@@ -514,8 +517,35 @@ def test_physx_articulation_root_writes_self_collisions(setup_simulation):
 
     prim = stage.GetPrimAtPath("/World/arti_sc")
     assert prim.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert prim.GetAttribute("newton:selfCollisionEnabled").Get() is True
     applied = prim.GetAppliedSchemas()
     assert "PhysxArticulationAPI" in applied
+    assert "NewtonArticulationRootAPI" in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_articulation_root_self_collisions_follow_fixed_root(setup_simulation):
+    """Mirrored Newton self-collision properties must follow a relocated articulation root."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    parent = sim_utils.create_prim("/World/arti_fixed", prim_type="Xform")
+    child = sim_utils.create_prim("/World/arti_fixed/base", prim_type="Cube")
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    UsdPhysics.ArticulationRootAPI.Apply(child)
+    child.AddAppliedSchema("NewtonArticulationRootAPI")
+    child.GetAttribute("newton:selfCollisionEnabled").Set(False)
+
+    cfg = PhysxArticulationRootPropertiesCfg(enabled_self_collisions=True, fix_root_link=True)
+    schemas.modify_articulation_root_properties(child.GetPath(), cfg)
+
+    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == [parent]
+    assert parent.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert parent.GetAttribute("newton:selfCollisionEnabled").Get() is True
+    assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
+    assert "NewtonArticulationRootAPI" not in child.GetAppliedSchemas()
+    assert not child.GetAttribute("newton:selfCollisionEnabled").HasAuthoredValue()
 
 
 @pytest.mark.isaacsim_ci
@@ -904,13 +934,13 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
-    """Test that multi-instance PhysX tendon schemas are correctly detected via substring matching.
+    """Test that multi-instance PhysX tendon schema tokens are recognized with their instance suffixes.
 
     Multi-instance schemas (e.g. PhysxTendonAxisAPI, PhysxTendonAxisRootAPI) appear in
     GetAppliedSchemas() as 'SchemaName:instanceName' (e.g. 'PhysxTendonAxisAPI:inst0').
     An exact ``in list`` check fails because 'PhysxTendonAxisAPI' != 'PhysxTendonAxisAPI:inst0'.
-    This test ensures the substring-based detection used by modify_joint_drive_properties
-    and modify_fixed_tendon_properties handles multi-instance schemas correctly.
+    This test ensures both the joint-drive skip predicate and the fixed-tendon writer handle
+    multiple-apply schema tokens correctly.
 
     We call the unwrapped functions directly (via ``__wrapped__``) to bypass the
     ``@apply_nested`` decorator, which traverses children and does not return the
@@ -1057,7 +1087,11 @@ def _validate_collision_properties_on_prim(prim_path: str, collision_cfg, verbos
             if UsdPhysics.CollisionAPI(mesh_prim):
                 for attr_name, attr_value in collision_cfg.__dict__.items():
                     # skip names we know are not present and class-metadata keys
-                    if attr_name.startswith("_") or attr_name in ["func", "collision_enabled"]:
+                    if attr_name.startswith("_") or attr_name in [
+                        "func",
+                        "collision_enabled",
+                        "mesh_collision_property",
+                    ]:
                         continue
                     # convert attribute name in prim to cfg name
                     prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"

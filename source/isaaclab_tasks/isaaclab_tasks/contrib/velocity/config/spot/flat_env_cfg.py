@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import (
-    KaminoSolverCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -15,7 +15,6 @@ from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-from isaaclab.envs import ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -24,9 +23,10 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -38,7 +38,7 @@ from isaaclab_tasks.utils import PresetCfg
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=130,
@@ -49,11 +49,11 @@ class PhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
+    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
 
 
 ##
@@ -231,10 +231,10 @@ class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
 
 @configclass
 class SpotEventCfg(PresetCfg):
-    default = SpotPhysxEventCfg()
-    newton_mjwarp = SpotNewtonEventCfg()
-    physx = default
+    physx = SpotPhysxEventCfg()
     isaacsim_physx = physx
+    default = isaacsim_physx
+    newton_mjwarp = SpotNewtonEventCfg()
     newton_kamino = newton_mjwarp
 
 
@@ -364,9 +364,6 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
 
-    # Viewer
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -414,3 +411,4 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # no height scan
         self.scene.height_scanner = None
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3))

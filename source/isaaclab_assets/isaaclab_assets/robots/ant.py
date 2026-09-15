@@ -50,7 +50,7 @@ ANT_CFG = ArticulationCfg(
             stiffness=0.0,
             damping=0.1,
             armature=0.05,
-            effort_limit_sim=15.0,
+            joint_effort_limit=15.0,
         ),
     },
 )

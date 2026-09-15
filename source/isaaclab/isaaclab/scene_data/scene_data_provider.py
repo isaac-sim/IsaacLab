@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from collections import deque
@@ -22,6 +21,36 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pxr import Usd
+
+REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
+    "kit": (True, False),
+    "newton_gl": (False, True),
+    "newton": (False, True),
+    "newton_rtx": (False, True),
+    "rerun": (False, True),
+    "viser": (False, True),
+    "isaac_rtx": (True, False),
+    "newton_warp": (False, True),
+    "ovrtx": (True, True),
+}
+
+
+def _publication_device(data: Any) -> wp.Device:
+    """Return the common device of a populated scene-data publication."""
+    arrays = tuple(array for name in data._cls.vars if (array := getattr(data, name)) is not None)
+    if not arrays:
+        raise ValueError(f"{data._cls.__name__} contains no published arrays.")
+    device = arrays[0].device
+    if any(array.device != device for array in arrays[1:]):
+        raise ValueError(f"{data._cls.__name__} arrays must share one device.")
+    return device
+
+
+def _init_output(output: Any, count: int, device: wp.Device) -> None:
+    """Allocate missing output fields on the source publication device."""
+    for field_name, field_value in output._cls.vars.items():
+        if getattr(output, field_name) is None:
+            setattr(output, field_name, wp.empty(count, dtype=field_value.type.dtype, device=device))
 
 
 class SceneDataProvider:
@@ -161,7 +190,7 @@ class SceneDataProvider:
                 for field_name in input._cls.vars:
                     setattr(output, field_name, getattr(input, field_name))
             else:
-                self.init_output(output)
+                _init_output(output, self.transform_count, _publication_device(input))
                 for field_name in input._cls.vars:
                     wp.copy(getattr(output, field_name), getattr(input, field_name))
             return True
@@ -169,8 +198,15 @@ class SceneDataProvider:
         conversion_kernel_name = f"convert_{input._cls.__name__}_to_{output._cls.__name__}"
 
         if conversion_kernel := getattr(ConversionKernels, conversion_kernel_name, None):
-            self.init_output(output)
-            wp.launch(kernel=conversion_kernel, dim=self.transform_count, inputs=[input, mapping], outputs=[output])
+            device = _publication_device(input)
+            _init_output(output, self.transform_count, device)
+            wp.launch(
+                kernel=conversion_kernel,
+                dim=self.transform_count,
+                inputs=[input, mapping],
+                outputs=[output],
+                device=device,
+            )
             return True
 
         return False
@@ -191,9 +227,8 @@ class SceneDataProvider:
             output: A :class:`SceneDataFormat` struct whose ``None``-valued fields
                 will be replaced with empty arrays of length :attr:`transform_count`.
         """
-        for field_name, field_value in output._cls.vars.items():
-            if getattr(output, field_name) is None:
-                setattr(output, field_name, wp.empty(self.transform_count, dtype=field_value.type.dtype))
+        input = self.backend.transforms
+        _init_output(output, self.transform_count, _publication_device(input))
 
     def create_mapping(self, paths: list[str | None]) -> wp.array(dtype=wp.int32) | None:
         """Create an index mapping from sim backend transforms to desired output ordering.
@@ -213,12 +248,16 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
-            mapping = [-1] * len(input_paths)
-            for i, path in enumerate(input_paths):
-                with contextlib.suppress(ValueError):
-                    mapping[i] = paths.index(path)
+            # The map keeps resolution linear in the number of paths. For duplicate
+            # paths the first occurrence wins, matching ``list.index``.
+            path_to_out: dict[str | None, int] = {}
+            for out_idx, out_path in enumerate(paths):
+                if out_path not in path_to_out:
+                    path_to_out[out_path] = out_idx
+            mapping = [path_to_out.get(path, -1) for path in input_paths]
             if not np.array_equal(mapping, np.arange(len(input_paths))):
-                return wp.array(mapping, dtype=wp.int32)
+                input = self.backend.transforms
+                return wp.array(mapping, dtype=wp.int32, device=_publication_device(input))
         return None
 
     def create_geometry_mapping(
@@ -261,7 +300,8 @@ class SceneDataProvider:
 
         if identity and all(value >= 0 for value in mapping):
             return None
-        return wp.array(mapping, dtype=wp.int32)
+        points = self.backend.points
+        return wp.array(mapping, dtype=wp.int32, device=_publication_device(points))
 
     def get_points(
         self,
@@ -295,7 +335,7 @@ class SceneDataProvider:
             return True
 
         if output.points is None:
-            output.points = wp.empty(self.point_count, dtype=wp.vec3f)
+            output.points = wp.empty(self.point_count, dtype=wp.vec3f, device=input_points.points.device)
 
         entity_counts = self.backend.geometry_counts
         if not entity_counts:

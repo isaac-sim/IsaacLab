@@ -13,10 +13,18 @@ import runpy
 import sys
 from typing import TYPE_CHECKING
 
+import gymnasium as gym
+
 if TYPE_CHECKING:
     from .simple_agents import PolicyName
 
 _BACKEND_MODULES = {
+    "export": {
+        "rl_games": "isaaclab_rl.entrypoints.backends.export_rl_games",
+        "rsl_rl": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
+        "sb3": "isaaclab_rl.entrypoints.backends.export_sb3",
+        "skrl": "isaaclab_rl.entrypoints.backends.export_skrl",
+    },
     "train": {
         "rl_games": "isaaclab_rl.entrypoints.backends.train_rl_games",
         "rlinf": "isaaclab_rl.entrypoints.backends.train_rlinf",
@@ -42,6 +50,17 @@ def run_train_cli(argv: list[str] | None = None) -> int:
 def run_play_cli(argv: list[str] | None = None) -> int:
     """Dispatch unified playback command-line arguments to a backend."""
     return run_cli("play", argv)
+
+
+def run_export_cli(argv: list[str] | None = None) -> int:
+    """Dispatch unified LEAPP export command-line arguments to a backend."""
+    # imported locally so that importing train and play entrypoints stays lightweight
+    import torch
+
+    # Task registration imports decorated Isaac Lab math helpers, so disable
+    # TorchScript before resolving a task's default export backend.
+    torch.jit._state.disable()
+    return run_cli("export", argv)
 
 
 def run_zero_agent_cli(argv: list[str] | None = None) -> int:
@@ -86,7 +105,7 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     """Dispatch a unified RL command to its selected backend.
 
     Args:
-        action: Workflow to execute, either ``"train"`` or ``"play"``.
+        action: Workflow to execute, one of ``"train"``, ``"play"``, or ``"export"``.
         argv: Command-line arguments excluding the executable name.
 
     Returns:
@@ -107,13 +126,32 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     parser.add_argument("--rl_library", choices=sorted(backends))
     selected, backend_argv = parser.parse_known_args(argv)
     if selected.rl_library is None:
+        selected.rl_library = _resolve_default_library(argv, backends)
+    if selected.rl_library is None:
         _print_selector_help(action, sorted(backends))
         if "-h" in argv or "--help" in argv:
             return 0
         print(f"\n{action}: error: the following argument is required: --rl_library", file=sys.stderr)
         return 2
-    _run_backend(backends[selected.rl_library], backend_argv, run_as_script=action == "play")
-    return 0
+    status = _run_backend(backends[selected.rl_library], backend_argv, run_as_script=action == "play")
+    return status if status is not None else 0
+
+
+def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str | None:
+    """Return the task-registered default RL library requested by command-line arguments."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--task")
+    args, _ = parser.parse_known_args(argv)
+    if args.task is None:
+        return None
+
+    import isaaclab_tasks  # noqa: F401
+
+    try:
+        default_library = gym.spec(args.task.split(":")[-1]).kwargs.get("default_agent")
+    except gym.error.Error:
+        return None
+    return default_library if default_library in backends else None
 
 
 def _print_selector_help(action: str, backends: list[str]) -> None:
@@ -124,19 +162,18 @@ def _print_selector_help(action: str, backends: list[str]) -> None:
     parser.print_help()
 
 
-def _run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> None:
+def _run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> int | None:
     """Run a backend module while isolating its command-line arguments."""
     if not run_as_script:
         module = importlib.import_module(module_name)
         runner = getattr(module, "run", None)
         if not callable(runner):
-            raise TypeError(f"Training backend {module_name!r} does not define run(argv).")
+            raise TypeError(f"Backend module {module_name!r} does not define run(argv).")
         original_argv = sys.argv
         try:
-            runner(argv)
+            return runner(argv)
         finally:
             sys.argv = original_argv
-        return
     original_argv = sys.argv
     try:
         sys.argv = [module_name] + argv

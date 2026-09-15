@@ -45,6 +45,8 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.utils.string import to_camel_case
 
+from isaaclab_physx.cloner import PhysxReplicateContext
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -213,10 +215,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         rigid_body_paths: list[str] = []
         non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
-            if prim.IsA(UsdPhysics.Joint):
-                continue
             prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
                 rigid_body_paths.append(prim_path)
             elif re.search(r"/World/envs/env_\d+/", prim_path):
                 non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
@@ -376,7 +376,11 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = PhysxReplicateContext
+
     _cfg: ClassVar[PhysxCfg | None] = None
+
+    supports_anim_recording: ClassVar[bool] = True
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
@@ -426,6 +430,7 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
@@ -438,6 +443,19 @@ class PhysxManager(PhysicsManager):
         sim.set_setting("/app/player/playSimulations", False)  # type: ignore[union-attr]
         omni.kit.app.get_app().update()
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
+
+        # Register the headless video pump as a render callback so it fires after each
+        # visualizer step without depending on the now-deleted recording_hooks module.
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (  # noqa: PLC0415
+            pump_kit_app_for_headless_video_render_if_needed,
+        )
+
+        _sim = PhysicsManager._sim
+        _sim.add_render_callback(
+            "physx_headless_video_pump",
+            lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim),
+            order=-10,
+        )
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
@@ -486,6 +504,11 @@ class PhysxManager(PhysicsManager):
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
+
+    @classmethod
+    def video_capture_backend(cls) -> str:
+        """Kit/Replicator perspective video capture."""
+        return "kit"
 
     @classmethod
     def step(cls) -> None:
@@ -781,8 +804,15 @@ class PhysxManager(PhysicsManager):
         if bool(sim.get_setting("/isaaclab/has_gui")):
             cfg.enable_scene_query_support = True
 
+        # PhysX answers the backend-agnostic determinism request with enhanced determinism. An
+        # explicitly enabled flag stays enabled.
+        if cfg.deterministic:
+            cfg.enable_enhanced_determinism = True
+
         # apply remaining cfg attributes to scene (physxScene:*)
         skip = {
+            # generic request, translated above; PhysX has no physxScene:deterministic attribute
+            "deterministic",
             "solver_type",
             "enable_ccd",
             "solve_articulation_contact_last",
@@ -960,6 +990,8 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def _invalidate_views(cls) -> None:
         """Invalidate and clear simulation views."""
+        for key in [key for key in cls.views if key[0] is cls]:
+            del cls.views[key]
         for view in (cls._view, cls._view_warp):
             if view:
                 view.invalidate()
@@ -977,6 +1009,15 @@ class PhysxManager(PhysicsManager):
     def _on_stop(cls, event: Any) -> None:
         cls._warmup_needed = True
         cls._invalidate_views()
+        # Detach the stage `_warmup_and_create_views` attached (GPU pipeline only, matching its own
+        # is_gpu guard) so the next play() can reattach cleanly. Without this, a second
+        # `_warmup_and_create_views` (e.g. play() -> stop() -> play() with no reset() in between)
+        # calls attach_stage() on a stage that is still attached ("Stage already attached") and
+        # corrupts PhysX's native view registry (SIGSEGV inside omni.physx.tensors). Guarded by
+        # get_attached_stage() so this is a no-op when close() already detached it.
+        if "cuda" in PhysicsManager.get_device() and (physx_sim := omni.physx.get_physx_simulation_interface()):
+            if physx_sim.get_attached_stage():
+                physx_sim.detach_stage()
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:

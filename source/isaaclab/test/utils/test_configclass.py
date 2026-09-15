@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import copy
 import os
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
@@ -1240,3 +1242,36 @@ def test_checked_apply_rejects_non_dataclass_src():
 
     with pytest.raises(TypeError, match="must be a dataclass"):
         checked_apply(NotADataclass(), object())
+
+
+@pytest.mark.parametrize("import_first", ["sub-module", "decorator"])
+def test_configclass_name_works_for_every_import_form(import_first):
+    """``isaaclab.utils.configclass`` serves both the decorator and the sub-module, in either order.
+
+    The name belongs to a sub-module and to the decorator that sub-module defines, so whichever was
+    imported first used to decide which one the other import forms got. A fresh interpreter is
+    required because that is settled on the very first import.
+    """
+    prologue = {
+        "sub-module": "import isaaclab.utils.configclass",
+        "decorator": "from isaaclab.utils import configclass",
+    }[import_first]
+    script = f"""
+{prologue}
+
+import isaaclab.utils.configclass as configclass_module
+assert configclass_module.checked_apply is not None
+
+import isaaclab.utils
+assert isaaclab.utils.configclass._field_module_dir is not None
+
+from isaaclab.utils import configclass
+
+@configclass
+class DemoCfg:
+    value: int = 1
+
+assert DemoCfg().to_dict() == {{"value": 1}}
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

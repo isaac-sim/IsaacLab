@@ -26,6 +26,12 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Example on using the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
 parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -53,7 +59,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs

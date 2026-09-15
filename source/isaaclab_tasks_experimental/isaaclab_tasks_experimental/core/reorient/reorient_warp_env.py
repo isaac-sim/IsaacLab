@@ -687,9 +687,10 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.articulations["object"] = self.object
@@ -909,7 +910,11 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
 
     def _post_step_visualize(self) -> None:
         """Update goal markers outside CUDA graph scope."""
-        self.goal_markers.visualize(wp.to_torch(self.goal_pos_w), wp.to_torch(self.goal_rot))
+        self.goal_markers.visualize(
+            wp.to_torch(self.goal_pos_w),
+            wp.to_torch(self.goal_rot),
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
     def _compute_intermediate_values(self):
         # data for hand/object (Warp version of the Torch env's `_compute_intermediate_values`)

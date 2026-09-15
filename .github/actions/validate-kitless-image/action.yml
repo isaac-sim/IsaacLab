@@ -30,6 +30,7 @@ runs:
         -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
         -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
         -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
+        -v "${GITHUB_WORKSPACE}/.github/actions/_lib/with-python-package-retries.sh:/with-python-package-retries.sh:ro"
       )
 
       docker run --rm "$IMAGE_TAG" \
@@ -40,6 +41,20 @@ runs:
       missing = [name for name in modules if importlib.util.find_spec(name) is None]
       assert not missing, f"missing core RL frameworks: {missing}"
       print("core RL frameworks available:", ", ".join(modules))
+      '
+
+      # Nothing else in this action runs ``uv run``, the documented entry point -- every other
+      # step calls ``python`` directly, which is how nvbugs 6732972 stayed green here.
+      docker run --rm "${mount_args[@]}" "$IMAGE_TAG" \
+        bash -lc '
+      set -euo pipefail
+      prefix="$(uv run --extra ov python -c "import sys; print(sys.prefix)" | tail -n 1)"
+      test "$prefix" = "$VIRTUAL_ENV" || {
+        echo "::error::uv run resolved ${prefix}, not the image environment ${VIRTUAL_ENV}"
+        exit 1
+      }
+      test ! -e "${ISAACLAB_PATH}/.venv"
+      echo "uv run resolved the image environment: ${prefix}"
       '
 
       # Renderer construction loads the native OVRTX stack and creates a Vulkan
@@ -54,19 +69,19 @@ runs:
       print("ovrtx renderer initialized")
       '
 
-      # The Newton training probe is the shared one architecture CI also runs, so
-      # the command and its assertions live in one place. pytest goes only into
-      # this disposable layer; reinstalling the workspace would fail against the
-      # read-only source mount.
+      # Discover files by grep, not by pointing pytest at a directory: this image has no Isaac
+      # Sim, and collecting a directory imports every module to read its markers.
       docker run --rm --gpus all --network host \
         "${mount_args[@]}" \
         "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
-      uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+      bash /with-python-package-retries.sh uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
       python -m pytest \
         source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
-        source/isaaclab_newton/test/test_mock_interfaces \
+        source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics.py \
+        source/isaaclab/test/sim/test_urdf_converter.py \
+        source/isaaclab/test/sim/test_mjcf_converter.py \
         -q -p no:cacheprovider
       '
 

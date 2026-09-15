@@ -17,9 +17,9 @@ from unittest import mock
 import pytest
 import torch
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = pytest.mark.integration
 
-from isaaclab.envs.mdp.observations import stacked_image
+from isaaclab.envs.mdp.observations import image_features, stacked_image
 
 NUM_ENVS = 4
 HEIGHT = 8
@@ -241,3 +241,17 @@ class TestImageFunctionCloneKwarg:
         cfg = SimpleNamespace(name="tiled_camera")
         out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=True)
         assert out.data_ptr() != camera_buf.data_ptr()
+
+
+def test_image_features_flattens_encoder_output():
+    """Feature extractors return a flat observation after the environment batch dimension."""
+    env = _make_env()
+    term = image_features.__new__(image_features)
+    term._model = object()
+    term._inference_fn = lambda *_args, **_kwargs: torch.arange(NUM_ENVS * 6 * 8).reshape(NUM_ENVS, 6, 8)
+    image_data = torch.zeros((NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+
+    with mock.patch("isaaclab.envs.mdp.observations.image", return_value=image_data):
+        out = term(env)
+
+    assert out.shape == (NUM_ENVS, 48)

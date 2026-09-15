@@ -12,21 +12,12 @@ import torch
 import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
-    from isaaclab.assets import ArticulationData
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import FrameTransformerData
 
 
-def rel_ee_object_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """The distance between the end-effector and the object."""
-    ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
-    object_data: ArticulationData = env.scene["object"].data
-
-    return object_data.root_pos_w.torch - ee_tf_data.target_pos_w.torch[..., 0, :]
-
-
 def rel_ee_drawer_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """The distance between the end-effector and the object."""
+    """The vector [m] from the end-effector to the drawer handle."""
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
     cabinet_tf_data: FrameTransformerData = env.scene["cabinet_frame"].data
 

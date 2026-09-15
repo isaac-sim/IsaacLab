@@ -433,6 +433,11 @@ class TestLaunchSimulationDevicePropagation:
         mock_isaaclab_utils = types.ModuleType("isaaclab.utils")
         mock_isaaclab_utils.has_kit = lambda: False
         monkeypatch.setitem(sys.modules, "isaaclab.utils", mock_isaaclab_utils)
+        monkeypatch.setitem(
+            sys.modules,
+            "isaaclab.utils.assets",
+            types.SimpleNamespace(configure_storage_profile=lambda: None),
+        )
 
         monkeypatch.setitem(
             sys.modules,

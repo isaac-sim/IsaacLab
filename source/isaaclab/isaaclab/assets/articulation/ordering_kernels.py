@@ -171,6 +171,41 @@ def reorder_joint_targets_user_to_backend(
         backend_vel_target[env_id, backend_id] = user_vel_target[env_id, user_id]
 
 
+def launch_reorder_joint_targets_user_to_backend(
+    *,
+    user_effort: wp.array2d(dtype=wp.float32),
+    user_pos_target: wp.array2d(dtype=wp.float32),
+    user_vel_target: wp.array2d(dtype=wp.float32),
+    backend_to_user: wp.array(dtype=wp.int32),
+    write_effort: bool,
+    write_pos_target: bool,
+    write_vel_target: bool,
+    write_joint_act: bool,
+    backend_effort: wp.array2d(dtype=wp.float32),
+    backend_pos_target: wp.array2d(dtype=wp.float32),
+    backend_vel_target: wp.array2d(dtype=wp.float32),
+    backend_joint_act: wp.array2d(dtype=wp.float32) | None,
+    device: str,
+) -> None:
+    """Launch the fused public-to-backend joint-target reorder."""
+    wp.launch(
+        reorder_joint_targets_user_to_backend,
+        dim=user_effort.shape,
+        inputs=[
+            user_effort,
+            user_pos_target,
+            user_vel_target,
+            backend_to_user,
+            write_effort,
+            write_pos_target,
+            write_vel_target,
+            write_joint_act,
+        ],
+        outputs=[backend_effort, backend_pos_target, backend_vel_target, backend_joint_act],
+        device=device,
+    )
+
+
 @wp.kernel
 def reorder_joint_state_backend_to_user(
     backend_pos: wp.array2d(dtype=wp.float32),
@@ -410,7 +445,8 @@ def reorder_generalized_vector_backend_to_user(
             shaped [num_envs, num_dofs], in backend joint order.
         joint_user_to_backend: Read-only map from public actuated-joint indices
             to backend actuated-joint indices.
-        joint_dof_signs: Backend-to-USD direction sign for each joint DoF.
+        joint_dof_signs: Backend-to-USD direction sign for each joint DoF, or
+            ``None`` when the backend already uses the public joint basis.
         num_base_dofs: Number of leading floating-base DoFs, either 0 or 6.
         has_joint_ordering: Whether to apply the map after the leading base DoFs.
         user_data: Destination with the same shape and units in public joint
@@ -423,7 +459,7 @@ def reorder_generalized_vector_backend_to_user(
         backend_dof_id = num_base_dofs + joint_user_to_backend[user_dof_id - num_base_dofs]
 
     sign = 1.0
-    if user_dof_id >= num_base_dofs:
+    if user_dof_id >= num_base_dofs and joint_dof_signs.shape[0] > 0:
         sign = wp.float32(joint_dof_signs[backend_dof_id - num_base_dofs])
     user_data[env_id, user_dof_id] = sign * backend_data[env_id, backend_dof_id]
 

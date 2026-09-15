@@ -12,6 +12,12 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pick and Place.")
 parser.add_argument("--num_envs", type=int, default=32, help="Number of environments to spawn.")
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -45,7 +51,7 @@ from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
@@ -221,9 +227,13 @@ class PickAndPlaceEnv(DirectRLEnv):
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
+        # PhysX replication requires explicit collision filtering between environments.
+        if "physx" in self.scene.physics_backend:
+            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
         # add articulation to scene
         self.scene.articulations["pick_and_place"] = self.pick_and_place
         self.scene.rigid_objects["cube"] = self.cube

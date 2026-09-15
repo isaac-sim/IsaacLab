@@ -85,11 +85,8 @@ def align_grasp_around_handle(env: ManagerBasedRLEnv) -> torch.Tensor:
     lfinger_pos = ee_fingertips_w[..., 0, :]
     rfinger_pos = ee_fingertips_w[..., 1, :]
 
-    # Check if hand is in a graspable pose
-    is_graspable = (rfinger_pos[:, 2] < handle_pos[:, 2]) & (lfinger_pos[:, 2] > handle_pos[:, 2])
-
     # bonus if left finger is above the drawer handle and right below
-    return is_graspable
+    return ((rfinger_pos[:, 2] < handle_pos[:, 2]) & (lfinger_pos[:, 2] > handle_pos[:, 2])).float()
 
 
 def approach_gripper_handle(env: ManagerBasedRLEnv, offset: float = 0.04) -> torch.Tensor:
@@ -141,32 +138,30 @@ class open_drawer_bonus(ManagerTermBase):
 
     The bonus is given when the drawer is open. If the grasp is around the handle, the bonus is doubled.
 
-    If ``success_threshold`` is provided in the term params, this also tracks per-episode success
-    (sticky binary: drawer ever opened past ``success_threshold``) and logs the mean across
-    environments under ``Metrics/success_rate`` on reset.
+    The term also tracks how far the drawer was opened during the episode and flushes
+    ``Metrics/success_rate`` and ``Metrics/drawer_pos`` into ``extras["log"]`` on reset. The tracking
+    lives here rather than in a dedicated zero-weight term because
+    :meth:`~isaaclab.managers.RewardManager.compute` skips terms whose weight is zero, so such a term
+    would never run.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._track_success = cfg.params.get("success_threshold") is not None
-        if self._track_success:
-            self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        self.best_drawer_pos = torch.zeros(env.num_envs, device=env.device)
 
     def reset(self, env_ids: torch.Tensor):
-        if self._track_success:
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
-                self.succeeded[env_ids].float().mean().item()
-            )
-            self.succeeded[env_ids] = False
+        log = self._env.extras.setdefault("log", {})
+        log["Metrics/success_rate"] = self.succeeded[env_ids].float().mean().item()
+        log["Metrics/drawer_pos"] = self.best_drawer_pos[env_ids].mean().item()
+        self.succeeded[env_ids] = False
+        self.best_drawer_pos[env_ids] = 0.0
 
-    def __call__(
-        self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float | None = None
-    ) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float) -> torch.Tensor:
         drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
-        is_graspable = align_grasp_around_handle(env).float()
-        if success_threshold is not None:
-            self.succeeded |= drawer_pos > success_threshold
-        return (is_graspable + 1.0) * drawer_pos
+        self.succeeded |= drawer_pos > success_threshold
+        self.best_drawer_pos = torch.maximum(self.best_drawer_pos, drawer_pos)
+        return (align_grasp_around_handle(env) + 1.0) * drawer_pos
 
 
 def multi_stage_open_drawer(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -176,7 +171,7 @@ def multi_stage_open_drawer(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -
     This helps the agent to learn to open the drawer in a controlled manner.
     """
     drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
-    is_graspable = align_grasp_around_handle(env).float()
+    is_graspable = align_grasp_around_handle(env)
 
     open_easy = (drawer_pos > 0.01) * 0.5
     open_medium = (drawer_pos > 0.2) * is_graspable

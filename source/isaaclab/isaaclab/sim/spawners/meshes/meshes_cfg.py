@@ -11,7 +11,7 @@ from typing import Literal
 
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -75,6 +75,15 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no physics material will be added.
     """
 
+    edge_refinement: float = 4.0
+    """Mesh edge refinement factor for deformable bodies.
+
+    The maximum surface edge length is the bounding-box diagonal divided by this value. Volume deformables use the
+    same normalized target for automatic tetrahedralization. The factor must be at least ``1.0``. For volume
+    deformables, values near ``1.0`` should be avoided because they can make TetWild tetrahedralization significantly
+    slower. Defaults to ``4.0``.
+    """
+
 
 @configclass
 class MeshSphereCfg(MeshCfg):
@@ -99,7 +108,7 @@ class MeshCuboidCfg(MeshCfg):
     func: Callable | str = "{DIR}.meshes:spawn_mesh_cuboid"
 
     size: tuple[float, float, float] = MISSING
-    """Size of the cuboid (in m)."""
+    """Size of the cuboid [m]."""
 
 
 @configclass
@@ -164,5 +173,3 @@ class MeshRectangleCfg(MeshCfg):
 
     size: tuple[float, float] = MISSING
     """Edge lengths of the rectangle along the X and Y axes [m]."""
-    resolution: tuple[int, int] = (5, 5)
-    """Resolution of the rectangle (in elements/edges per side)."""

@@ -290,7 +290,7 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.applied_torque.torch[:, asset_cfg.joint_ids]
+    return asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]
 
 
 """
@@ -557,8 +557,8 @@ class image_features(ManagerTermBase):
         # forward the images through the model
         features = self._inference_fn(self._model, image_data, **(inference_kwargs or {}))
 
-        # move the features back to the image device
-        return features.detach().to(image_device)
+        # observation terms must be flat after the environment batch dimension
+        return features.flatten(start_dim=1).detach().to(image_device)
 
     """
     Helper functions.

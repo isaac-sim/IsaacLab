@@ -70,8 +70,8 @@ from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -104,7 +104,6 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
         ),
     },
 )
-
 
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -318,7 +317,12 @@ def main():
         from isaaclab.scene import InteractiveScene
 
         # Initialize the simulation context
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.005,
+            device=args_cli.device,
+            physics=physics_cfg,
+            visualizer_cfgs=None,
+        )
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

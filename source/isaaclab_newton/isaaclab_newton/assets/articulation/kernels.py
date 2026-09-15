@@ -12,6 +12,8 @@ import warp as wp
 from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
+from isaaclab_newton.assets.kernels import pack_body_wrench_to_world
+
 if TYPE_CHECKING:
     import torch
 
@@ -51,12 +53,13 @@ Articulation-specific warp kernels.
 def update_wrench_array_with_force_and_torque_ordered(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
     user_to_backend: wp.array(dtype=wp.int32),
     wrench: wp.array2d(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
     body_mask: wp.array(dtype=wp.bool),
 ) -> None:
-    """Write public-order force and torque into a backend-order wrench array.
+    """Write public-order body-frame COM wrenches into a backend-order array.
 
     Launched only under non-identity body ordering; the caller uses the
     reorder-free :func:`~isaaclab_newton.assets.kernels.update_wrench_array_with_force_and_torque`
@@ -65,20 +68,26 @@ def update_wrench_array_with_force_and_torque_ordered(
     Args:
         forces: Body-frame forces [N], shaped [num_envs, num_bodies], in public
             body order.
-        torques: Body-frame torques [N*m], shaped [num_envs, num_bodies], in
+        torques: Body-frame torques [N·m], shaped [num_envs, num_bodies], in
             public body order.
+        body_link_pose_w: World-frame body link poses, shaped [num_envs,
+            num_bodies], in public body order. Only each quaternion is used;
+            translation does not shift the COM-referenced wrench.
         user_to_backend: Read-only map shaped [num_bodies] from each public body
             index to its backend body index.
-        wrench: Backend-order wrench destination [N, N*m], shaped
-            [num_envs, num_bodies].
+        wrench: World-frame force and torque at each body center of mass [N,
+            N·m], shaped [num_envs, num_bodies], in backend body order.
         env_mask: Environment-selection mask shaped [num_envs].
         body_mask: Public-body selection mask shaped [num_bodies].
     """
     env_id, user_body_id = wp.tid()
     if env_mask[env_id] and body_mask[user_body_id]:
         backend_body_id = user_to_backend[user_body_id]
-        wrench[env_id, backend_body_id] = wp.spatial_vector(
-            forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
+        body_rot_w = wp.transform_get_rotation(body_link_pose_w[env_id, user_body_id])
+        wrench[env_id, backend_body_id] = pack_body_wrench_to_world(
+            forces[env_id, user_body_id],
+            torques[env_id, user_body_id],
+            body_rot_w,
         )
 
 
@@ -622,52 +631,6 @@ def update_targets(
 
 
 @wp.kernel
-def update_actuator_state_model(
-    source_computed_effort: wp.array2d(dtype=wp.float32),
-    source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: wp.array2d(dtype=wp.float32),
-    source_vel_limits: wp.array2d(dtype=wp.float32),
-    joint_indices: wp.array(dtype=wp.int32),
-    target_computed_effort: wp.array2d(dtype=wp.float32),
-    target_applied_effort: wp.array2d(dtype=wp.float32),
-    target_gear_ratio: wp.array2d(dtype=wp.float32),
-    target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
-):
-    """Update actuator state model parameters from source arrays using joint indices.
-
-    This kernel copies actuator state model parameters (computed effort, applied effort,
-    gear ratio, and velocity limits) from source arrays to target arrays, remapping
-    joint indices using the provided joint_indices array.
-
-    Args:
-        source_computed_effort: Input array of source computed effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_applied_effort: Input array of source applied effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_gear_ratio: Input array of source gear ratio values. Shape is
-            (num_envs, num_selected_joints). Can be None if not provided.
-        source_vel_limits: Input array of source velocity limit values. Shape is
-            (num_envs, num_selected_joints).
-        joint_indices: Input array of joint indices for remapping. Shape is
-            (num_selected_joints,). Specifies which joints in the target arrays to update.
-        target_computed_effort: Output array where computed effort values are written.
-            Shape is (num_envs, num_joints).
-        target_applied_effort: Output array where applied effort values are written.
-            Shape is (num_envs, num_joints).
-        target_gear_ratio: Output array where gear ratio values are written. Shape is
-            (num_envs, num_joints).
-        target_soft_joint_vel_limits: Output array where soft joint velocity limits are
-            written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    target_computed_effort[i, joint_indices[j]] = source_computed_effort[i, j]
-    target_applied_effort[i, joint_indices[j]] = source_applied_effort[i, j]
-    target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
-    if source_gear_ratio:
-        target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
-
-
-@wp.kernel
 def extract_friction_properties(
     friction_props: wp.array3d(dtype=wp.float32),
     out_friction: wp.array2d(dtype=wp.float32),
@@ -1105,3 +1068,21 @@ def write_joint_state_data_mask(
         joint_vel[i, j] = vel_data[i, j]
         prev_joint_vel[i, j] = vel_data[i, j]
         joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def scatter_fixed_tendon_position_targets(
+    position_target: wp.array2d(dtype=wp.float32),
+    actuator_columns: wp.array(dtype=wp.int32),
+    target_tendon_ids: wp.array(dtype=wp.int32),
+    commands: wp.array3d(dtype=wp.float32),
+) -> None:
+    """Scatter buffered fixed-tendon targets into the view-shaped MuJoCo control buffer.
+
+    ``commands`` is the buffer the articulation view writes to ``mujoco.ctrl``, so the view owns
+    the mapping onto the flat control array and this kernel does no layout arithmetic. One thread
+    per *actuator* that transmits to a tendon: a tendon nothing drives has no entry, and several
+    actuators may name the same tendon.
+    """
+    env_id, entry = wp.tid()
+    commands[env_id, 0, actuator_columns[entry]] = position_target[env_id, target_tendon_ids[entry]]

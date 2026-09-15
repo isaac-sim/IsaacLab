@@ -13,7 +13,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
-from . import observations as obs
+import isaaclab_tasks.core.locomotion.mdp.observations as obs
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -39,6 +39,17 @@ def move_to_target_bonus(
     return torch.where(heading_proj > threshold, 1.0, heading_proj / threshold)
 
 
+def terminated_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """One-off penalty for terminating early, independent of the environment step size.
+
+    :class:`~isaaclab.managers.RewardManager` scales every term by the step interval, which would
+    make a plain terminal penalty depend on ``sim.dt`` and ``decimation``. Dividing by the step
+    interval here cancels that scaling, so the term contributes exactly its weight on the step the
+    episode terminates and stays equal to the death cost the direct workflow applies.
+    """
+    return env.termination_manager.terminated.float() / env.step_dt
+
+
 class progress_reward(ManagerTermBase):
     """Reward for making progress towards the target."""
 
@@ -52,15 +63,13 @@ class progress_reward(ManagerTermBase):
     def reset(self, env_ids: torch.Tensor):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = self._env.scene["robot"]
-        # compute projection of current heading to desired heading vector
-        target_pos = torch.tensor(self.cfg.params["target_pos"], device=self.device)
-        to_target_pos = target_pos - asset.data.root_pos_w.torch[env_ids, :3]
+        # compute the planar distance to the target, matching __call__ so the first step scores no progress
+        to_target_pos = obs.walk_target_w(self._env, self.cfg.params["target_pos"])[env_ids]
+        to_target_pos = to_target_pos - asset.data.root_pos_w.torch[env_ids, :3]
+        to_target_pos[:, 2] = 0.0
         # reward terms
         self.potentials[env_ids] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
         self.prev_potentials[env_ids] = self.potentials[env_ids]
-        # flush survival success rate (survived = timed out without falling)
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
 
     def __call__(
         self,
@@ -71,14 +80,29 @@ class progress_reward(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
         # compute vector to target
-        target_pos = torch.tensor(target_pos, device=env.device)
-        to_target_pos = target_pos - asset.data.root_pos_w.torch[:, :3]
+        to_target_pos = obs.walk_target_w(env, target_pos) - asset.data.root_pos_w.torch[:, :3]
         to_target_pos[:, 2] = 0.0
         # update history buffer and compute new potential
         self.prev_potentials[:] = self.potentials[:]
         self.potentials[:] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / env.step_dt
 
         return self.potentials - self.prev_potentials
+
+
+class survival_success_rate(ManagerTermBase):
+    """Tracks episode survival as the success metric.
+
+    Returns zero reward (pure metric tracking). Flushes ``Metrics/success_rate``
+    into ``extras["log"]`` on episode reset, where success = timed out without
+    early termination.
+    """
+
+    def reset(self, env_ids: torch.Tensor):
+        survived = self._env.termination_manager.time_outs[env_ids]
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
+
+    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
+        return torch.zeros(env.num_envs, device=env.device)
 
 
 class joint_pos_limits_penalty_ratio(ManagerTermBase):

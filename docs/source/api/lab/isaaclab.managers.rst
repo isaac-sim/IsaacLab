@@ -158,3 +158,26 @@ Recorder Manager
 .. autoclass:: RecorderTermCfg
     :members:
     :exclude-members: __init__
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.managers` API.
+
+.. currentmodule:: isaaclab.managers
+
+.. autosummary::
+   :nosignatures:
+
+   DatasetExportMode
+   RecorderManagerBaseCfg
+   RecorderTerm
+
+.. autoclass:: DatasetExportMode
+   :show-inheritance:
+
+.. autoclass:: RecorderManagerBaseCfg
+   :show-inheritance:
+
+.. autoclass:: RecorderTerm
+   :show-inheritance:

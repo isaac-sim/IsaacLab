@@ -22,11 +22,17 @@ Shared @wp.func helpers.
 
 
 @wp.func
-def update_wrench_with_force_and_torque(
-    force: wp.vec3f,
-    torque: wp.vec3f,
+def pack_body_wrench_to_world(
+    force_b: wp.vec3f,
+    torque_b: wp.vec3f,
+    body_rot_w: wp.quatf,
 ) -> wp.spatial_vectorf:
-    return wp.spatial_vector(force, torque, wp.float32)
+    """Rotate a body-frame COM wrench into world frame and pack it."""
+    return wp.spatial_vector(
+        wp.quat_rotate(body_rot_w, force_b),
+        wp.quat_rotate(body_rot_w, torque_b),
+        wp.float32,
+    )
 
 
 @wp.func
@@ -1522,13 +1528,31 @@ def derive_body_acceleration_from_body_com_velocities(
 def update_wrench_array_with_force_and_torque(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
     wrench: wp.array2d(dtype=wp.spatial_vectorf),
     env_ids: wp.array(dtype=wp.bool),
     body_ids: wp.array(dtype=wp.bool),
 ):
+    """Write body-frame COM wrenches into a world-frame destination array.
+
+    Args:
+        forces: Body-frame forces at each body center of mass [N], shape
+            (num_envs, num_bodies).
+        torques: Body-frame torques at each body center of mass [N·m], shape
+            (num_envs, num_bodies).
+        body_link_pose_w: Public-order body link poses in the world frame,
+            shape (num_envs, num_bodies). Only each pose quaternion is used;
+            the link translation does not shift the COM-referenced wrench.
+        wrench: World-frame force and torque at each body center of mass [N,
+            N·m], shape (num_envs, num_bodies).
+        env_ids: Environment-selection mask, shape (num_envs,).
+        body_ids: Body-selection mask, shape (num_bodies,).
+    """
     env_index, body_index = wp.tid()
     if env_ids[env_index] and body_ids[body_index]:
-        wrench[env_index, body_index] = update_wrench_with_force_and_torque(
+        body_rot_w = wp.transform_get_rotation(body_link_pose_w[env_index, body_index])
+        wrench[env_index, body_index] = pack_body_wrench_to_world(
             forces[env_index, body_index],
             torques[env_index, body_index],
+            body_rot_w,
         )

@@ -173,21 +173,10 @@ class BinaryJointVelocityAction(BinaryJointAction):
 class AbsBinaryJointPositionAction(BinaryJointAction):
     """Absolute Binary joint action that sets the binary action into joint position targets.
 
-    This class extends BinaryJointAction to accept absolute position control
-    for gripper joints. It converts continuous input actions into binary open/close commands
-    using a configurable threshold mechanism.
-
-    The key difference from the base BinaryJointAction is that this class:
-    - Receives absolute joint position actions for gripper control
-    - Implements a threshold-based decision system to determine open/close state
-
-    The action processing works by:
-    1. Taking a continuous input action value
-    2. Comparing it against the configured threshold value
-    3. Based on the threshold comparison and positive_threshold flag, determining
-       whether to open or close the gripper
-    4. Setting the target joint positions to either the open or close configuration
-
+    This class extends :class:`BinaryJointAction` to accept absolute joint-position
+    actions [m or rad, depending on joint type] for gripper control. It compares
+    each continuous action with the configured threshold and selects the open or
+    closed joint-position target.
     """
 
     cfg: actions_cfg.AbsBinaryJointPositionActionCfg

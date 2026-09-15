@@ -15,7 +15,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -95,9 +95,9 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     events: EventCfg = EventCfg()
 
     # robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     contact_sensor: ContactSensorCfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, update_period=0.005, track_air_time=True
     )
 
     # reward scales
@@ -148,7 +148,7 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
 
     # we add a height scanner for perceptive locomotion
     height_scanner = RayCasterCfg(
-        prim_path="/World/envs/env_.*/Robot/base",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),

@@ -41,3 +41,31 @@ def register_joint_drive_skip_predicate(predicate: Callable) -> None:
 def _skip_joint_drive(prim) -> bool:
     """Return whether any backend-registered predicate excludes ``prim`` from joint-drive authoring."""
     return any(predicate(prim) for predicate in _JOINT_DRIVE_SKIP_PREDICATES)
+
+
+# Backend applied schemas that travel with an articulation root when a backend relocates it.
+# Newton ships some of these as unregistered token schemas, which the USD schema registry cannot
+# resolve, so the relocation helper has no way to discover their namespace on its own. Backends
+# register the pairing here via :func:`register_articulation_root_companion`.
+_ARTICULATION_ROOT_COMPANIONS: dict[str, str] = {}
+
+
+def register_articulation_root_companion(schema_name: str, namespace: str) -> None:
+    """Register a backend applied schema that belongs with an articulation root.
+
+    When a backend relocates an articulation root to another prim, every schema that describes the
+    root must move with it, together with the attributes it owns. Registered applied schemas are
+    resolved through the USD schema registry, but a backend may ship a schema as an unregistered
+    token, which the registry cannot describe. Registering it here supplies the namespace the
+    relocation helper needs to carry the schema's authored attributes across.
+
+    Args:
+        schema_name: The applied schema name, e.g. ``"NewtonArticulationRootAPI"``.
+        namespace: The attribute namespace the schema owns, e.g. ``"newton"``.
+    """
+    _ARTICULATION_ROOT_COMPANIONS[schema_name] = namespace
+
+
+def _articulation_root_companion_namespace(schema_name: str) -> str | None:
+    """Return the registered attribute namespace for an articulation-root companion schema."""
+    return _ARTICULATION_ROOT_COMPANIONS.get(schema_name)

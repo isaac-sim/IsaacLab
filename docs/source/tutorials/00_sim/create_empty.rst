@@ -1,3 +1,5 @@
+:orphan:
+
 Creating an empty scene
 =======================
 

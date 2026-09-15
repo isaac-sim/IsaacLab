@@ -53,6 +53,8 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+# Camera sensors require the rendering extensions in headless and viewport-free launches.
+args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -86,7 +88,7 @@ def define_sensor() -> Camera:
     sim_utils.create_prim("/World/Origin_00", "Xform")
     sim_utils.create_prim("/World/Origin_01", "Xform")
     camera_cfg = CameraCfg(
-        prim_path="/World/Origin_.*/CameraSensor",
+        prim_path="/World/Origin_[^/]+/CameraSensor",
         update_period=0,
         height=480,
         width=640,

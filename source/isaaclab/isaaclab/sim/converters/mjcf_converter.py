@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import os
 
-from ._importer_api import ImporterProvider
+from isaaclab.utils.version import has_kit
+
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
 
@@ -62,7 +63,13 @@ class MjcfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        MJCFImporter, MJCFImporterConfig = ImporterProvider.load_api("mjcf")
+        # Inside Kit the importer ships as an extension and must be enabled before it can be
+        # imported; kitlessly the same module resolves from the standalone importer wheel.
+        if has_kit():
+            from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
+
+            enable_extension("isaacsim.asset.importer.mjcf")
+        from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig  # noqa: PLC0415
 
         import_config = MJCFImporterConfig(
             mjcf_path=cfg.asset_path,

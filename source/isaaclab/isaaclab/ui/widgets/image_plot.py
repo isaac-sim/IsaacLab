@@ -31,26 +31,26 @@ logger = logging.getLogger(__name__)
 class ImagePlot(UIWidgetWrapper):
     """An image plot widget to display live data.
 
-    It has the following Layout where the mode frame is only useful for depth images:
-    +-------------------------------------------------------+
-    |                  containing_frame                     |
-    |+-----------------------------------------------------+|
-    |                   main_plot_frame                     |
-    ||+---------------------------------------------------+||
-    |||                    plot_frames                    |||
-    |||                                                   |||
-    |||                                                   |||
-    |||               (Image Plot Data)                   |||
-    |||                                                   |||
-    |||                                                   |||
-    |||+-------------------------------------------------+|||
-    |||                   mode_frame                      |||
-    |||                                                   |||
-    |||    [Dropdown: Mode Selection]                     |||
-    |||    [Collapsible: Manual Normalization Options]    |||
-    ||+---------------------------------------------------+||
-    |+-----------------------------------------------------+|
-    +-------------------------------------------------------+
+    The mode frame in the following layout is only useful for depth images:
+
+    .. code-block:: text
+
+       +-------------------------------------------------------+
+       |                  containing_frame                     |
+       |+-----------------------------------------------------+|
+       |                   main_plot_frame                     |
+       ||+---------------------------------------------------+||
+       |||                    plot_frames                    |||
+       |||                                                   |||
+       |||               (Image Plot Data)                   |||
+       |||                                                   |||
+       |||+-------------------------------------------------+|||
+       |||                   mode_frame                      |||
+       |||    [Dropdown: Mode Selection]                     |||
+       |||    [Collapsible: Manual Normalization Options]    |||
+       ||+---------------------------------------------------+||
+       |+-----------------------------------------------------+|
+       +-------------------------------------------------------+
 
     """
 
