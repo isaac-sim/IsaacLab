@@ -320,7 +320,8 @@ def _apply_mesh_deformable_slot(prim_path: str, cfg: meshes_cfg.MeshCfg, deforma
 
     Runs the ``volume``/``surface`` writer over each mapping entry (creating missing setups), then
     applies any ``collision_props`` mapping keyed to the created simulation mesh (anchored at the
-    spawn prim, e.g. ``{"/sim_mesh": [...]}``).
+    spawn prim, e.g. ``{"/sim_mesh": [...]}``). On the volume path, :attr:`~isaaclab.sim.MeshCfg.edge_refinement`
+    sets the tetrahedralization target edge length.
 
     Args:
         prim_path: The path of the spawn prim that anchors the target patterns.
@@ -333,11 +334,14 @@ def _apply_mesh_deformable_slot(prim_path: str, cfg: meshes_cfg.MeshCfg, deforma
         ValueError: If ``mass_props`` is set, which is not supported for deformable bodies.
     """
     deformable_type, mapping = deformable_slot
-    writer = (
-        schemas.apply_volume_deformable_properties
-        if deformable_type == "volume"
-        else schemas.apply_surface_deformable_properties
-    )
+    writer_kwargs = {}
+    if deformable_type == "volume":
+        writer = schemas.apply_volume_deformable_properties
+        # only volume deformables are tetrahedralized, so the configured mesh resolution carries
+        # over as the tetrahedralization target here and nowhere else
+        writer_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
+    else:
+        writer = schemas.apply_surface_deformable_properties
     # the spawner binds ``physics_material`` after this authoring pass, so suppress the writer's
     # missing-material advisory when a material is configured to avoid a spurious warning
     warn_missing_material = cfg.physics_material is None
@@ -348,6 +352,7 @@ def _apply_mesh_deformable_slot(prim_path: str, cfg: meshes_cfg.MeshCfg, deforma
             create_if_missing=True,
             stage=stage,
             warn_missing_material=warn_missing_material,
+            **writer_kwargs,
         )
     # collision tuning rides the collision family, anchored at the spawn prim so the created
     # sim mesh child is reachable (e.g. {"/sim_mesh": [...]})

@@ -172,6 +172,36 @@ def test_edge_refinement_sets_tetrahedralization_resolution(
         assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(expected_factor)
 
 
+@pytest.mark.parametrize(
+    "slot,writer_name,expected_factor",
+    [
+        ("volume_deformable_props", "apply_volume_deformable_properties", 0.25),
+        ("surface_deformable_props", "apply_surface_deformable_properties", None),
+    ],
+)
+def test_edge_refinement_sets_tetrahedralization_resolution_on_fragment_slots(
+    sim, monkeypatch, slot, writer_name, expected_factor
+):
+    """Test edge refinement reaches the fragment deformable writers, volume only."""
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    captured_kwargs = {}
+
+    def capture_deformable_properties(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return True
+
+    monkeypatch.setattr(mesh_spawner.schemas, writer_name, capture_deformable_properties)
+    cfg = sim_utils.MeshCuboidCfg(size=(1.0, 1.0, 1.0), **{slot: OmniPhysicsDeformableBodyCfg()})
+    cfg.func("/World/DeformableFragments", cfg)
+
+    if expected_factor is None:
+        # surface deformables are not tetrahedralized, so the refinement target must not be forwarded
+        assert "tetrahedralization_edge_length_fac" not in captured_kwargs
+    else:
+        assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(expected_factor)
+
+
 def test_spawn_sphere(sim):
     """Test spawning of UsdGeomMesh as a sphere prim."""
     # Spawn sphere
