@@ -78,6 +78,47 @@ def test_body_contacts_respect_nested_body_ownership(scene):
         assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == friction
 
 
+@pytest.mark.parametrize(
+    "purpose, inherited_purpose",
+    [("", None), ("physics", None), ("custom", None), ("", ""), ("custom", "custom"), ("physics", "physics")],
+)
+def test_copy_removes_only_ineffective_dangling_material_bindings(purpose, inherited_purpose, tmp_path):
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
+    root = UsdGeom.Xform.Define(stage, "/Root").GetPrim()
+    body = UsdGeom.Xform.Define(stage, "/Root/Body").GetPrim()
+    child = UsdGeom.Cube.Define(stage, "/Root/Body/Visual").GetPrim()
+    material = UsdShade.Material.Define(stage, "/Material")
+    UsdShade.MaterialBindingAPI.Apply(child).Bind(material, materialPurpose=purpose)
+    if inherited_purpose is not None:
+        UsdShade.MaterialBindingAPI.Apply(root).Bind(material, materialPurpose=inherited_purpose)
+    UsdShade.MaterialBindingAPI.Apply(body)
+    name = "material:binding" + (":" + purpose if purpose else "")
+    body.CreateRelationship(name).SetTargets(["/Missing"])
+    before = stage.GetRootLayer().ExportToString()
+    purposes = ("", "preview", "full", "physics", "custom")
+    expected = {
+        (str(prim.GetPath()), purpose): UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(purpose)[0].GetPath()
+        for prim in (root, body, child)
+        for purpose in purposes
+    }
+
+    writer = UsdWriter.from_stage(stage)
+    output = str(tmp_path / "scene.usda")
+    if inherited_purpose is None:
+        writer.save(output)
+        fresh = Usd.Stage.Open(output)
+        assert not fresh.GetPrimAtPath(body.GetPath()).GetRelationship(name).GetTargets()
+        for (path, purpose), material_path in expected.items():
+            actual = UsdShade.MaterialBindingAPI(fresh.GetPrimAtPath(path)).ComputeBoundMaterial(purpose)[0]
+            assert actual.GetPath() == material_path
+    else:
+        with pytest.raises(RuntimeError, match="Unresolved export dependency"):
+            writer.save(output)
+    assert stage.GetRootLayer().ExportToString() == before
+
+
 def test_selected_variant_preserves_transitive_resources(scene):
     from isaaclab.cloner.clone_plan import ClonePlan
 

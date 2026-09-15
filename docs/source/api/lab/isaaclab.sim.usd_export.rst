@@ -232,6 +232,9 @@ separate validation. A successful physical export does not certify policy observ
 cameras, ray/contact sensors, sampling schedules and controller histories need deployment
 integration even when their authored scene prims are present.
 
-Unreachable external resources and dangling material bindings fail completeness checks.
+Unreachable external resources and dangling dependencies fail completeness checks.
+Missing direct material targets are cleared only when all resolved materials on the
+affected subtree remain unchanged, including inherited bindings and material purposes.
+Bindings whose removal would change material resolution still fail completeness checks.
 A reachable authored URL is checked in its original form when USD dependency discovery
 normalizes its scheme incorrectly. Missing source materials are not invented or replaced.

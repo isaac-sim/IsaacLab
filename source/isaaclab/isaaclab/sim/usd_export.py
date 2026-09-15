@@ -74,9 +74,44 @@ class UsdWriter:
         while True:
             instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
             if not instances:
-                return cls(Usd.Stage.Open(snapshot.Flatten()))
+                writer = cls(Usd.Stage.Open(snapshot.Flatten()))
+                writer._remove_unused_material_bindings()
+                return writer
             for prim in instances:
                 prim.SetInstanceable(False)
+
+    def _remove_unused_material_bindings(self) -> None:
+        """Clear missing direct material targets only when resolved materials stay unchanged."""
+        purposes = set(UsdShade.MaterialBindingAPI.GetMaterialPurposes()) | {"physics"}
+        candidates = []
+        for prim in self.stage.Traverse():
+            for relationship in prim.GetRelationships():
+                tokens = relationship.GetName().split(":")
+                if tokens[:2] != ["material", "binding"]:
+                    continue
+                if len(tokens) == 5 and tokens[2] == "collection":
+                    purposes.add(tokens[3])
+                elif len(tokens) in (2, 3):
+                    purposes.add(tokens[2] if len(tokens) == 3 else "")
+                    targets = relationship.GetTargets()
+                    if len(targets) == 1 and targets[0].IsPrimPath() and not self.stage.GetPrimAtPath(targets[0]):
+                        candidates.append(relationship)
+
+        for relationship in candidates:
+            bindings = [UsdShade.MaterialBindingAPI(prim) for prim in Usd.PrimRange(relationship.GetPrim())]
+
+            def resolved_materials():
+                return [
+                    binding.ComputeBoundMaterial(purpose)[0].GetPath() for binding in bindings for purpose in purposes
+                ]
+
+            before = resolved_materials()
+            targets = relationship.GetTargets()
+            relationship.SetTargets([])
+            # An invalid direct binding can mask an inherited material. Keep rejecting
+            # that case instead of changing the appearance or physics-material fallback.
+            if resolved_materials() != before:
+                relationship.SetTargets(targets)
 
     def select_environment(self, plan: ClonePlan | None, env_id: int, env_paths: list[str]) -> None:
         """Materialize the selected USD variant and retain its shared resources.
