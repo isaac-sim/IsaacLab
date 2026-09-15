@@ -1,0 +1,47 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Recover Runner Disconnect
+
+on:
+  # This workflow must also be installed on the repository default branch.
+  workflow_run:
+    workflows: [Docker + Tests]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: recover-runner-disconnect-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      checks: read
+      contents: read
+      pull-requests: read
+    steps:
+      # github.sha is the trusted default-branch commit for workflow_run.
+      # Never check out the triggering PR or download its artifacts/caches here.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Recover pre-step runner disconnects
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          retries: 0
+          script: |
+            const { recover } = require('./.github/scripts/recover-runner-disconnect.cjs');
+            await recover({ github, context, core });

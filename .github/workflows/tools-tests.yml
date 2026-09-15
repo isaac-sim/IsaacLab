@@ -16,6 +16,8 @@ on:
       - "tools/*.py"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
+      - ".github/scripts/*runner-disconnect*"
+      - ".github/workflows/recover-runner-disconnect.yml"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
@@ -36,6 +38,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      - name: Test runner disconnect recovery
+        run: node --test .github/scripts/recover-runner-disconnect.test.cjs
 
       - uses: actions/setup-python@v5
         with:
