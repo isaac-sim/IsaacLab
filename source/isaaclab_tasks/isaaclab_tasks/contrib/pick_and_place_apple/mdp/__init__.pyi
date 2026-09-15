@@ -15,7 +15,6 @@ __all__ = [
     "left_grasp_lift_reward",
     "place_on_plate_reward",
     "release_on_plate_reward",
-    "reset_robot_to_default_joint_positions",
     "reset_task_stage",
     "task_success_termination",
     "update_task_stage",
@@ -23,7 +22,7 @@ __all__ = [
 ]
 
 from .actions import H2GravityCompensatedJointPositionAction
-from .events import reset_robot_to_default_joint_positions, reset_task_stage
+from .events import reset_task_stage
 from .observations import get_robot_joint_states, get_robot_policy_joint_positions, warm_rgb_image
 from .rewards import (
     PnpAppleState,

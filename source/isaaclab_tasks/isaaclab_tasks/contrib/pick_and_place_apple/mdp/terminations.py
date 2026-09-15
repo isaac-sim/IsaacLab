@@ -22,6 +22,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def task_success_termination(
+    env: ManagerBasedRLEnv,
+    success_stage: int = 4,
+    print_log: bool = False,
+) -> torch.Tensor:
+    """Terminate when the stage machine reaches the success stage."""
+    stage = get_task_stage(env)
+    task_complete = stage >= success_stage
+
+    if print_log and task_complete.any():
+        logger.info("Task completed in %d environment(s)!", task_complete.sum().item())
+
+    return task_complete
+
+
 def apple_on_plate_and_released(
     env: ManagerBasedRLEnv,
     apple_cfg: SceneEntityCfg = SceneEntityCfg("apple"),
@@ -55,18 +70,3 @@ def apple_on_plate_and_released(
     released = wrist_dist > release_wrist_distance
 
     return in_xy & in_z & released
-
-
-def task_success_termination(
-    env: ManagerBasedRLEnv,
-    success_stage: int = 4,
-    print_log: bool = False,
-) -> torch.Tensor:
-    """Terminate when the stage machine reaches the success stage."""
-    stage = get_task_stage(env)
-    task_complete = stage >= success_stage
-
-    if print_log and task_complete.any():
-        logger.info("Task completed in %d environment(s)!", task_complete.sum().item())
-
-    return task_complete

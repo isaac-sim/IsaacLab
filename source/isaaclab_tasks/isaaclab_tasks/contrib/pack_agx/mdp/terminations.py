@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import torch
@@ -22,6 +23,19 @@ if TYPE_CHECKING:
 # world coordinates. Thresholds are calibrated from a successful settled replay:
 # AGX=(-0.564771, -0.018734, 0.945549),
 # box=(-0.565000, -0.025000, 0.965000), so dz=-0.019451 m.
+logger = logging.getLogger(__name__)
+
+
+def task_success_termination(
+    env: ManagerBasedRLEnv,
+    success_stage: int = 3,
+) -> torch.Tensor:
+    """Terminate after all monotonic Pack-AGX reward stages complete."""
+    from .rewards import get_task_stage
+
+    return get_task_stage(env) >= success_stage
+
+
 def agx_is_horizontal_from_quat(
     agx_orin_quat: torch.Tensor,
     rotation_tolerance: float = 0.2,
@@ -76,13 +90,3 @@ def agx_in_box(
         z_tolerance=z_tolerance,
         rotation_tolerance=rotation_tolerance,
     )
-
-
-def task_success_termination(
-    env: ManagerBasedRLEnv,
-    success_stage: int = 3,
-) -> torch.Tensor:
-    """Terminate after all monotonic Pack-AGX reward stages complete."""
-    from .rewards import get_task_stage
-
-    return get_task_stage(env) >= success_stage

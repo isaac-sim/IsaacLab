@@ -20,131 +20,36 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-__all__ = [
-    "PnpAppleState",
-    "get_pnp_apple_state",
-    "get_task_stage",
-    "update_task_stage",
-    "left_grasp_lift_reward",
-    "handover_to_right_reward",
-    "place_on_plate_reward",
-    "release_on_plate_reward",
-]
-
-
-@dataclass
-class PnpAppleState:
-    """Per-env task state for the pick-and-place apple environment.
-
-    Stage semantics:
-        0 - Reach & left grasp + lift
-        1 - Right hand catches apple while left releases
-        2 - Place apple on plate
-        3 - Release apple while it remains on plate
-        4 - Task complete
-    """
-
-    task_stage: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_left_grasp: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_handover: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_place: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_release: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    initial_apple_z: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    left_dist_at_grasp: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    stage_hold_counter: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    last_debug_print_step: int = -1
-
-
-def get_pnp_apple_state(env: ManagerBasedRLEnv) -> PnpAppleState:
-    """Get or lazily initialise :class:`PnpAppleState` on *env*."""
-    if not hasattr(env, "pnp_apple_state"):
-        device = env.device
-        n = env.num_envs
-        env.pnp_apple_state = PnpAppleState(
-            task_stage=torch.zeros(n, dtype=torch.long, device=device),
-            prev_stage_left_grasp=torch.zeros(n, dtype=torch.long, device=device),
-            prev_stage_handover=torch.zeros(n, dtype=torch.long, device=device),
-            prev_stage_place=torch.zeros(n, dtype=torch.long, device=device),
-            prev_stage_release=torch.zeros(n, dtype=torch.long, device=device),
-            initial_apple_z=torch.zeros(n, device=device),
-            left_dist_at_grasp=torch.full((n,), float("inf"), device=device),
-            stage_hold_counter=torch.zeros(n, dtype=torch.long, device=device),
-        )
-    return env.pnp_apple_state
-
 
 def get_task_stage(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return the current per-env task stage tensor."""
     return get_pnp_apple_state(env).task_stage
 
 
-def _wrist_positions(
-    env: ManagerBasedRLEnv,
-    robot_cfg: SceneEntityCfg,
+def _advance_with_hold(
+    stage: torch.Tensor,
+    hold_counter: torch.Tensor,
+    current: int,
+    cond: torch.Tensor,
+    hold_steps: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    robot = env.scene[robot_cfg.name]
-    body_names = list(robot.body_names)
-    left_bid = body_names.index("left_wrist_yaw_link")
-    right_bid = body_names.index("right_wrist_yaw_link")
-    body_pos = robot.data.body_pos_w.torch
-    return body_pos[:, left_bid], body_pos[:, right_bid]
-
-
-def _right_thumb_open(
-    env: ManagerBasedRLEnv,
-    robot_cfg: SceneEntityCfg,
-) -> torch.Tensor:
-    """Classify the right thumb as open using demo-calibrated joint thresholds."""
-    robot = env.scene[robot_cfg.name]
-    thumb_joint_names = (
-        "right_thumb_CMC_FE",
-        "right_thumb_CMC_AA",
-        "right_thumb_MCP_AA",
-        "right_thumb_IP",
+    """Count consecutive satisfied steps before advancing from *current*."""
+    in_stage = stage == current
+    # Only the active stage owns the shared counter.  Calls that check later
+    # stages in the same update must preserve it; otherwise the stage-1/stage-2
+    # checks reset stage 0's progress every step and no transition can ever
+    # reach hold_steps.
+    active_counter = torch.where(
+        cond,
+        hold_counter + 1,
+        torch.zeros_like(hold_counter),
     )
-    joint_names = list(robot.joint_names)
-    joint_ids = torch.tensor(
-        [joint_names.index(name) for name in thumb_joint_names],
-        dtype=torch.long,
-        device=env.device,
-    )
-    joint_pos = robot.data.joint_pos.torch
-    thumb_pos = joint_pos.index_select(dim=1, index=joint_ids)
-    # 1.5x the demo open-pose means, in degrees:
-    # CMC_FE 2.55, CMC_AA 10.35, MCP_AA 23.4, IP 18.75.
-    thresholds = torch.tensor(
-        [2.55, 10.35, 23.4, 18.75],
-        dtype=thumb_pos.dtype,
-        device=env.device,
-    ) * (torch.pi / 180.0)
-    open_votes = thumb_pos < thresholds
-    return open_votes.sum(dim=1) >= 3
-
-
-def _apple_plate_positions(
-    env: ManagerBasedRLEnv,
-    apple_cfg: SceneEntityCfg,
-    plate_cfg: SceneEntityCfg,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    apple_pos = env.scene[apple_cfg.name].data.root_pos_w.torch
-    plate_pos = env.scene[plate_cfg.name].data.root_pos_w.torch
-    return apple_pos, plate_pos
-
-
-def _apple_on_plate(
-    apple_pos: torch.Tensor,
-    plate_pos: torch.Tensor,
-    xy_radius: float,
-    z_above: float,
-    z_window: float,
-) -> torch.Tensor:
-    dx = apple_pos[:, 0] - plate_pos[:, 0]
-    dy = apple_pos[:, 1] - plate_pos[:, 1]
-    horiz = torch.sqrt(dx * dx + dy * dy)
-    in_xy = horiz < xy_radius
-    dz = apple_pos[:, 2] - plate_pos[:, 2]
-    in_z = (dz > z_above) & (dz < (z_above + z_window))
-    return in_xy & in_z
+    hold_counter = torch.where(in_stage, active_counter, hold_counter)
+    advance = in_stage & (hold_counter >= hold_steps)
+    next_stage = torch.full_like(stage, current + 1)
+    stage = torch.where(advance, next_stage, stage)
+    hold_counter = torch.where(advance, torch.zeros_like(hold_counter), hold_counter)
+    return stage, hold_counter
 
 
 def update_task_stage(
@@ -238,32 +143,6 @@ def update_task_stage(
     return stage
 
 
-def _advance_with_hold(
-    stage: torch.Tensor,
-    hold_counter: torch.Tensor,
-    current: int,
-    cond: torch.Tensor,
-    hold_steps: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Count consecutive satisfied steps before advancing from *current*."""
-    in_stage = stage == current
-    # Only the active stage owns the shared counter.  Calls that check later
-    # stages in the same update must preserve it; otherwise the stage-1/stage-2
-    # checks reset stage 0's progress every step and no transition can ever
-    # reach hold_steps.
-    active_counter = torch.where(
-        cond,
-        hold_counter + 1,
-        torch.zeros_like(hold_counter),
-    )
-    hold_counter = torch.where(in_stage, active_counter, hold_counter)
-    advance = in_stage & (hold_counter >= hold_steps)
-    next_stage = torch.full_like(stage, current + 1)
-    stage = torch.where(advance, next_stage, stage)
-    hold_counter = torch.where(advance, torch.zeros_like(hold_counter), hold_counter)
-    return stage, hold_counter
-
-
 def _sparse_stage_reward(
     env: ManagerBasedRLEnv,
     stage: torch.Tensor,
@@ -280,6 +159,116 @@ def _sparse_stage_reward(
     )
     setattr(state, prev_stage_attr, stage.clone())
     return reward
+
+
+@dataclass
+class PnpAppleState:
+    """Per-env task state for the pick-and-place apple environment.
+
+    Stage semantics:
+        0 - Reach & left grasp + lift
+        1 - Right hand catches apple while left releases
+        2 - Place apple on plate
+        3 - Release apple while it remains on plate
+        4 - Task complete
+    """
+
+    task_stage: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_left_grasp: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_handover: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_place: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_release: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    initial_apple_z: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    left_dist_at_grasp: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    stage_hold_counter: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    last_debug_print_step: int = -1
+
+
+def get_pnp_apple_state(env: ManagerBasedRLEnv) -> PnpAppleState:
+    """Get or lazily initialise :class:`PnpAppleState` on *env*."""
+    if not hasattr(env, "pnp_apple_state"):
+        device = env.device
+        n = env.num_envs
+        env.pnp_apple_state = PnpAppleState(
+            task_stage=torch.zeros(n, dtype=torch.long, device=device),
+            prev_stage_left_grasp=torch.zeros(n, dtype=torch.long, device=device),
+            prev_stage_handover=torch.zeros(n, dtype=torch.long, device=device),
+            prev_stage_place=torch.zeros(n, dtype=torch.long, device=device),
+            prev_stage_release=torch.zeros(n, dtype=torch.long, device=device),
+            initial_apple_z=torch.zeros(n, device=device),
+            left_dist_at_grasp=torch.full((n,), float("inf"), device=device),
+            stage_hold_counter=torch.zeros(n, dtype=torch.long, device=device),
+        )
+    return env.pnp_apple_state
+
+
+def _wrist_positions(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    robot = env.scene[robot_cfg.name]
+    body_names = list(robot.body_names)
+    left_bid = body_names.index("left_wrist_yaw_link")
+    right_bid = body_names.index("right_wrist_yaw_link")
+    body_pos = robot.data.body_pos_w.torch
+    return body_pos[:, left_bid], body_pos[:, right_bid]
+
+
+def _right_thumb_open(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Classify the right thumb as open using demo-calibrated joint thresholds."""
+    robot = env.scene[robot_cfg.name]
+    thumb_joint_names = (
+        "right_thumb_CMC_FE",
+        "right_thumb_CMC_AA",
+        "right_thumb_MCP_AA",
+        "right_thumb_IP",
+    )
+    joint_names = list(robot.joint_names)
+    joint_ids = torch.tensor(
+        [joint_names.index(name) for name in thumb_joint_names],
+        dtype=torch.long,
+        device=env.device,
+    )
+    joint_pos = robot.data.joint_pos.torch
+    thumb_pos = joint_pos.index_select(dim=1, index=joint_ids)
+    # 1.5x the demo open-pose means, in degrees:
+    # CMC_FE 2.55, CMC_AA 10.35, MCP_AA 23.4, IP 18.75.
+    thresholds = torch.tensor(
+        [2.55, 10.35, 23.4, 18.75],
+        dtype=thumb_pos.dtype,
+        device=env.device,
+    ) * (torch.pi / 180.0)
+    open_votes = thumb_pos < thresholds
+    return open_votes.sum(dim=1) >= 3
+
+
+def _apple_plate_positions(
+    env: ManagerBasedRLEnv,
+    apple_cfg: SceneEntityCfg,
+    plate_cfg: SceneEntityCfg,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    apple_pos = env.scene[apple_cfg.name].data.root_pos_w.torch
+    plate_pos = env.scene[plate_cfg.name].data.root_pos_w.torch
+    return apple_pos, plate_pos
+
+
+def _apple_on_plate(
+    apple_pos: torch.Tensor,
+    plate_pos: torch.Tensor,
+    xy_radius: float,
+    z_above: float,
+    z_window: float,
+) -> torch.Tensor:
+    dx = apple_pos[:, 0] - plate_pos[:, 0]
+    dy = apple_pos[:, 1] - plate_pos[:, 1]
+    horiz = torch.sqrt(dx * dx + dy * dy)
+    in_xy = horiz < xy_radius
+    dz = apple_pos[:, 2] - plate_pos[:, 2]
+    in_z = (dz > z_above) & (dz < (z_above + z_window))
+    return in_xy & in_z
 
 
 def left_grasp_lift_reward(
