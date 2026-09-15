@@ -149,13 +149,13 @@ def _deprecations(func):
 
 
 def _assert_deprecated_once(cls, replacement: str) -> None:
-    """Instantiating ``cls`` raises exactly one deprecation naming ``replacement`` and 4.0."""
+    """Instantiating ``cls`` raises exactly one deprecation naming ``replacement`` and 5.0."""
     deprecations = _deprecations(cls)
     assert len(deprecations) == 1, f"{cls.__name__}: expected one DeprecationWarning, got {len(deprecations)}"
     message = str(deprecations[0].message)
     assert cls.__name__ in message
     assert replacement in message, f"{cls.__name__}: warning does not name '{replacement}': {message}"
-    assert "4.0" in message, f"{cls.__name__}: warning does not state the removal version: {message}"
+    assert "5.0" in message, f"{cls.__name__}: warning does not state the removal version: {message}"
 
 
 """
@@ -289,7 +289,7 @@ def test_legacy_writer_documents_its_replacement(name, replacement):
     doc = getattr(schemas, name).__doc__ or ""
     assert ".. deprecated:: 3.0" in doc, f"{name}: missing deprecation directive"
     assert replacement in doc, f"{name}: docstring does not name '{replacement}'"
-    assert "removed" in doc and "4.0" in doc, f"{name}: docstring does not state the removal version"
+    assert "removed" in doc and "5.0" in doc, f"{name}: docstring does not state the removal version"
 
 
 def test_modify_mass_properties_warns_and_writes():
@@ -304,7 +304,7 @@ def test_modify_mass_properties_warns_and_writes():
     message = str(deprecations[0].message)
     assert "modify_mass_properties is deprecated" in message
     assert "apply_mass_properties" in message
-    assert "4.0" in message
+    assert "5.0" in message
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(3.0)
 
 

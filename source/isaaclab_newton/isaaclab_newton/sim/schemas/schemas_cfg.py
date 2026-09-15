@@ -47,7 +47,7 @@ class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
         Use rigid-body fragments in the spawner's ``rigid_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` for the ``physics:*`` fields and
         :class:`MujocoRigidBodyCfg` for the MuJoCo solver's ``mjc:*`` fields. This class will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -88,7 +88,7 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
 
     .. deprecated:: 3.0
         Use :class:`MujocoRigidBodyCfg` instead, passed in the spawner's ``rigid_props`` slot.
-        This class will be removed in 4.0.
+        This class will be removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
@@ -178,7 +178,7 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
         Use joint-drive fragments in the spawner's ``joint_drive_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` for the ``UsdPhysics.DriveAPI`` fields
         and :class:`MujocoJointCfg` for the MuJoCo solver's ``mjc:*`` fields. This class will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -201,7 +201,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
 
     .. deprecated:: 3.0
         Use :class:`MujocoJointCfg` instead, passed in the spawner's ``joint_drive_props`` slot.
-        This class will be removed in 4.0.
+        This class will be removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
@@ -337,7 +337,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     .. deprecated:: 3.0
         Use :class:`NewtonCollisionCfg` instead, passed in the spawner's ``collision_props`` slot
         alongside :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` for ``collision_enabled``.
-        This class will be removed in 4.0.
+        This class will be removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -376,7 +376,7 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
 
     .. deprecated:: 3.0
         Use :class:`NewtonMeshCollisionCfg` instead, passed in the spawner's
-        ``mesh_collision_props`` slot. This class will be removed in 4.0.
+        ``mesh_collision_props`` slot. This class will be removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -407,7 +407,7 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
 
     .. deprecated:: 3.0
         Use :class:`NewtonSDFCollisionCfg` instead, passed in the spawner's
-        ``mesh_collision_props`` slot. This class will be removed in 4.0.
+        ``mesh_collision_props`` slot. This class will be removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -689,7 +689,7 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
         ``articulation_props`` slot. The non-USD ``fix_root_link`` flag is now the
         ``fix_root_link`` argument of
         :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"

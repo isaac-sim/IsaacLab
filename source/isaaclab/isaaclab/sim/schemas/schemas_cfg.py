@@ -98,7 +98,7 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     if value is None:
         return
     warnings.warn(
-        f"'{alias}' is deprecated; use '{canonical}' instead. The alias is scheduled for removal in 4.0.",
+        f"'{alias}' is deprecated; use '{canonical}' instead. The alias is scheduled for removal in 5.0.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -145,7 +145,7 @@ def _deprecated_schema_cfg(replacement: str):
         @functools.wraps(original_init)
         def __init__(self, *args, **kwargs):
             warnings.warn(
-                f"{cls.__name__} is deprecated. Use {replacement} instead; {cls.__name__} will be removed in 4.0.",
+                f"{cls.__name__} is deprecated. Use {replacement} instead; {cls.__name__} will be removed in 5.0.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -374,7 +374,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
         Use :attr:`max_force` instead. The cfg field is renamed so its snake_case name maps
         identity-style to the USD camelCase attribute (``maxForce`` on ``UsdPhysics.DriveAPI``).
         The alias is forwarded to :attr:`max_force` in :meth:`__post_init__` and will be removed
-        in 4.0.
+        in 5.0.
     """
 
     stiffness: float | None = None
@@ -465,7 +465,7 @@ class ArticulationRootBaseCfg:
         :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`. The non-USD
         :attr:`fix_root_link` flag is now the ``fix_root_link`` argument of
         :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
     # -- Class metadata (not dataclass fields) --
@@ -534,7 +534,7 @@ class RigidBodyBaseCfg:
     .. deprecated:: 3.0
         Use :class:`UsdPhysicsRigidBodyCfg` for the ``physics:*`` fields and
         :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` for :attr:`disable_gravity`,
-        passing both in the spawner's ``rigid_props`` slot. This class will be removed in 4.0.
+        passing both in the spawner's ``rigid_props`` slot. This class will be removed in 5.0.
 
     .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
@@ -611,7 +611,7 @@ class CollisionBaseCfg:
         :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` for :attr:`contact_offset` /
         :attr:`rest_offset`, passing both in the spawner's ``collision_props`` slot. The nested
         :attr:`mesh_collision_property` is replaced by placing a mesh-collision fragment in the
-        ``mesh_collision_props`` slot. This class will be removed in 4.0.
+        ``mesh_collision_props`` slot. This class will be removed in 5.0.
 
     .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
     """
@@ -680,7 +680,7 @@ class MassPropertiesCfg:
 
     .. deprecated:: 3.0
         Use :class:`MassCfg` instead, passed in the spawner's ``mass_props`` slot. It carries the
-        same :attr:`mass` and :attr:`density` fields. This class will be removed in 4.0.
+        same :attr:`mass` and :attr:`density` fields. This class will be removed in 5.0.
     """
 
     # -- Class metadata (not dataclass fields) --
@@ -771,7 +771,7 @@ class JointDriveBaseCfg:
         passing both in the spawner's ``joint_drive_props`` slot. The non-USD
         :attr:`ensure_drives_exist` flag is now the ``ensure_drives_exist`` argument of
         :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. This class will be removed
-        in 4.0.
+        in 5.0.
 
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
     """
@@ -814,7 +814,7 @@ class JointDriveBaseCfg:
         Use :attr:`max_force` instead. The cfg field is renamed so its
         snake_case name maps identity-style to the USD camelCase attribute
         (``maxForce`` on ``UsdPhysics.DriveAPI``). The alias is forwarded to
-        :attr:`max_force` in :meth:`__post_init__` and will be removed in 4.0.
+        :attr:`max_force` in :meth:`__post_init__` and will be removed in 5.0.
     """
 
     stiffness: float | None = None
@@ -868,7 +868,7 @@ class JointDriveBaseCfg:
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its
         snake_case name maps identity-style to the USD camelCase attribute
         (``physxJoint:maxJointVelocity``). The alias is forwarded to
-        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 4.0.
+        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 5.0.
     """
 
 
@@ -893,7 +893,7 @@ class MeshCollisionBaseCfg:
         ``mesh_collision_props`` slot. For backend cooking tunables, add the matching cooking
         fragment (``Physx*Cfg`` in :mod:`isaaclab_physx.sim.schemas`, ``Newton*Cfg`` in
         :mod:`isaaclab_newton.sim.schemas`), whose default approximation token replaces the
-        :attr:`mesh_approximation_name` string. This class will be removed in 4.0.
+        :attr:`mesh_approximation_name` string. This class will be removed in 5.0.
     """
 
     # -- Class metadata (not dataclass fields) --
@@ -920,7 +920,7 @@ class MeshCollisionBaseCfg:
         """
         if name == "usd_api":
             warnings.warn(
-                "'usd_api' attribute is deprecated and will be removed in 4.0. Use class-level"
+                "'usd_api' attribute is deprecated and will be removed in 5.0. Use class-level"
                 " metadata via getattr(cfg, '_usd_applied_schema').",
                 DeprecationWarning,
                 stacklevel=2,
@@ -931,7 +931,7 @@ class MeshCollisionBaseCfg:
             return "MeshCollisionAPI" if schema is not None else None
         if name == "physx_api":
             warnings.warn(
-                "'physx_api' attribute is deprecated and will be removed in 4.0. Use class-level"
+                "'physx_api' attribute is deprecated and will be removed in 5.0. Use class-level"
                 " metadata via getattr(cfg, '_usd_applied_schema').",
                 DeprecationWarning,
                 stacklevel=2,
@@ -956,7 +956,7 @@ class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use ``UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")`` instead.
-        This class will be removed in 4.0.
+        This class will be removed in 5.0.
     """
 
     mesh_approximation_name: str = "boundingCube"
@@ -976,7 +976,7 @@ class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use ``UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")`` instead.
-        This class will be removed in 4.0.
+        This class will be removed in 5.0.
     """
 
     mesh_approximation_name: str = "boundingSphere"

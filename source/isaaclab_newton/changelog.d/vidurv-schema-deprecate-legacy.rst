@@ -3,7 +3,7 @@ Deprecated
 
 * Deprecated the Newton and MuJoCo schema cfg classes in favor of the single-namespace schema
   fragments. Each class now raises a ``DeprecationWarning`` on instantiation and will be removed in
-  4.0. Replace :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` with
+  5.0. Replace :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` with
   :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`;
   :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` with
   :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`;

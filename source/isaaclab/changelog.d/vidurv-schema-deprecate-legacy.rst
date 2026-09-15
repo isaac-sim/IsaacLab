@@ -3,7 +3,7 @@ Deprecated
 
 * Deprecated the inheritance-based schema cfg classes in favor of the single-namespace schema
   fragments. Each class now raises a ``DeprecationWarning`` on instantiation and will be removed in
-  4.0. Replace :class:`~isaaclab.sim.schemas.MassPropertiesCfg` with
+  5.0. Replace :class:`~isaaclab.sim.schemas.MassPropertiesCfg` with
   :class:`~isaaclab.sim.schemas.MassCfg`; :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` with
   ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``;
   :class:`~isaaclab.sim.schemas.CollisionBaseCfg` with
@@ -24,12 +24,13 @@ Deprecated
   :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. Deformable cfgs are unaffected.
 * Deprecated the ``define_*`` and ``modify_*`` schema writers in favor of the fragment-based
   ``apply_*`` writers, which take a prim-path expression and a list of fragments. Each writer now
-  raises a ``DeprecationWarning`` when called and will be removed in 4.0. Replace
+  raises a ``DeprecationWarning`` when called and will be removed in 5.0. Replace
   ``define_rigid_body_properties`` / ``modify_rigid_body_properties`` with
   :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`, and likewise for the collision, mass,
   articulation-root, joint-drive, mesh-collision and tendon families. The deformable writers are
   unaffected.
-* Changed the announced removal release of the previously deprecated ``*PropertiesCfg`` schema
-  aliases from 5.0 to 4.0, so the whole legacy schema cfg surface is now documented to be removed in
-  the same release as the classes it forwards to. The material and tendon aliases keep their 5.0
-  target.
+* Reworded the deprecation notices on the previously deprecated ``*PropertiesCfg`` schema aliases
+  to point at the new fragment replacements instead of the intermediate split classes, keeping
+  their existing 5.0 removal target so the whole legacy schema cfg surface is documented to be
+  removed in the same release as the classes it forwards to. The material and tendon aliases are
+  unaffected.

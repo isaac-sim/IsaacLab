@@ -68,7 +68,7 @@ def _deprecated_schema_writer(replacement: str):
             if _legacy_writer_depth == 0:
                 warnings.warn(
                     f"{func.__name__} is deprecated. Use {replacement} with schema fragments"
-                    f" instead; {func.__name__} will be removed in 4.0.",
+                    f" instead; {func.__name__} will be removed in 5.0.",
                     DeprecationWarning,
                     stacklevel=2,
                 )
@@ -451,7 +451,7 @@ def define_articulation_root_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_articulation_root_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -566,7 +566,7 @@ def modify_articulation_root_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_articulation_root_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -912,7 +912,7 @@ def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseC
 
     .. deprecated:: 3.0
         Use :func:`apply_rigid_body_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -968,7 +968,7 @@ def modify_rigid_body_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_rigid_body_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -1071,7 +1071,7 @@ def define_collision_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_collision_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -1121,7 +1121,7 @@ def modify_collision_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_collision_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -1228,7 +1228,7 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
 
     .. deprecated:: 3.0
         Use :func:`apply_mass_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -1281,7 +1281,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
 
     .. deprecated:: 3.0
         Use :func:`apply_mass_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -1645,7 +1645,7 @@ def modify_joint_drive_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_joint_drive_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # get stage handle
     if stage is None:
@@ -1839,7 +1839,7 @@ def modify_fixed_tendon_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_fixed_tendon_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # Retained for backward compatibility with callers passing PhysxFixedTendonPropertiesCfg
     # directly. Will be removed in a future release once callers adopt the fragment-based
@@ -1930,7 +1930,7 @@ def modify_spatial_tendon_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_spatial_tendon_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # Retained for backward compatibility with callers passing PhysxSpatialTendonPropertiesCfg
     # directly. Will be removed in a future release once callers adopt the fragment-based
@@ -1966,7 +1966,7 @@ def define_mesh_collision_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_mesh_collision_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # obtain stage
     if stage is None:
@@ -2020,7 +2020,7 @@ def modify_mesh_collision_properties(
 
     .. deprecated:: 3.0
         Use :func:`apply_mesh_collision_properties` with schema fragments instead. This function will be removed
-        in 4.0.
+        in 5.0.
     """
     # obtain stage
     if stage is None:

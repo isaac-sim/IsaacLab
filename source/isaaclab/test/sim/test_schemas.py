@@ -453,13 +453,13 @@ def test_physx_collision_cfg_writes_torsional_patch(setup_simulation):
 @pytest.mark.isaacsim_ci
 def test_collision_deprecation_alias(setup_simulation):
     """Instantiating the legacy ``CollisionPropertiesCfg`` name emits exactly one
-    ``DeprecationWarning`` whose message references the 4.0 removal target."""
+    ``DeprecationWarning`` whose message references the 5.0 removal target."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         PhysxCollisionPropertiesCfgAlias()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "4.0" in str(deprecations[0].message)
+    assert "5.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -551,13 +551,13 @@ def test_physx_articulation_root_self_collisions_follow_fixed_root(setup_simulat
 @pytest.mark.isaacsim_ci
 def test_articulation_root_deprecation_alias(setup_simulation):
     """Instantiating the legacy ``ArticulationRootPropertiesCfg`` name emits exactly one
-    ``DeprecationWarning`` whose message references the 4.0 removal target."""
+    ``DeprecationWarning`` whose message references the 5.0 removal target."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         ArticulationRootDeprecatedAliasCfg()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "4.0" in str(deprecations[0].message)
+    assert "5.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -657,7 +657,7 @@ def test_bounding_cube_default_token(setup_simulation):
 )
 def test_mesh_collision_deprecation_aliases(setup_simulation, name):
     """Each legacy mesh-collision class name emits exactly one DeprecationWarning on
-    instantiation and the warning message references the 4.0 removal target."""
+    instantiation and the warning message references the 5.0 removal target."""
     from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
 
     cls = getattr(physx_cfg, name)
@@ -666,7 +666,7 @@ def test_mesh_collision_deprecation_aliases(setup_simulation, name):
         cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
-    assert "4.0" in str(deprecations[0].message)
+    assert "5.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci

@@ -195,7 +195,7 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     .. deprecated:: 3.0
         Use :class:`PhysxRigidBodyCfg` instead, passed in the spawner's ``rigid_props`` slot
         alongside :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` for the ``physics:*``
-        fields. This class will be removed in 4.0.
+        fields. This class will be removed in 5.0.
     """
 
     # PhysX-specific fields below all live under the ``PhysxRigidBodyAPI`` schema's
@@ -309,7 +309,7 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
         ``rigid_props`` slot instead: :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`
         carries the ``physics:*`` fields and :class:`PhysxRigidBodyCfg` the
         ``physxRigidBody:*`` ones (including ``disable_gravity``). This class will be removed
-        in 4.0.
+        in 5.0.
     """
 
 
@@ -359,7 +359,7 @@ class PhysxJointCfg(JointDriveFragment):
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
         maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
         alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
 
@@ -384,7 +384,7 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     .. deprecated:: 3.0
         Use :class:`PhysxJointCfg` instead, passed in the spawner's ``joint_drive_props`` slot
         alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` for the
-        ``UsdPhysics.DriveAPI`` fields. This class will be removed in 4.0.
+        ``UsdPhysics.DriveAPI`` fields. This class will be removed in 5.0.
     """
 
     # ``max_joint_velocity`` on the base remains routed via ``_usd_field_exceptions``
@@ -405,7 +405,7 @@ class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
         carries the ``UsdPhysics.DriveAPI`` fields and :class:`PhysxJointCfg` carries
         ``max_joint_velocity``. ``ensure_drives_exist`` is now an argument of
         :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. This class will be removed
-        in 4.0.
+        in 5.0.
     """
 
 
@@ -482,7 +482,7 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     .. deprecated:: 3.0
         Use :class:`PhysxCollisionCfg` instead, passed in the spawner's ``collision_props`` slot
         alongside :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` for ``collision_enabled``.
-        This class will be removed in 4.0.
+        This class will be removed in 5.0.
     """
 
     # PhysX torsional-friction fields below live under the ``PhysxCollisionAPI`` schema's
@@ -527,7 +527,7 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
         Use :class:`PhysxArticulationCfg` instead, passed in the spawner's ``articulation_props``
         slot. The non-USD ``fix_root_link`` flag is now the ``fix_root_link`` argument of
         :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
     # PhysX articulation-root fields below live under the ``PhysxArticulationAPI`` schema's
@@ -624,7 +624,7 @@ class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
         :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. For Newton-native
         self-collision control use
         :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`. This class will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
 
@@ -638,7 +638,7 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
         ``collision_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` carries ``collision_enabled``
         and :class:`PhysxCollisionCfg` the ``physxCollision:*`` offsets and torsional-patch
-        fields. This class will be removed in 4.0.
+        fields. This class will be removed in 5.0.
     """
 
 
@@ -824,7 +824,7 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use :class:`PhysxConvexHullCfg` instead, passed in the spawner's ``mesh_collision_props``
-        slot. This class will be removed in 4.0.
+        slot. This class will be removed in 5.0.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
@@ -857,7 +857,7 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use :class:`PhysxConvexDecompositionCfg` instead, passed in the spawner's
-        ``mesh_collision_props`` slot. This class will be removed in 4.0.
+        ``mesh_collision_props`` slot. This class will be removed in 5.0.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
@@ -912,7 +912,7 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use :class:`PhysxTriangleMeshCfg` instead, passed in the spawner's
-        ``mesh_collision_props`` slot. This class will be removed in 4.0.
+        ``mesh_collision_props`` slot. This class will be removed in 5.0.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
@@ -941,7 +941,7 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use :class:`PhysxTriangleMeshSimplificationCfg` instead, passed in the spawner's
-        ``mesh_collision_props`` slot. This class will be removed in 4.0.
+        ``mesh_collision_props`` slot. This class will be removed in 5.0.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
@@ -980,7 +980,7 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
 
     .. deprecated:: 3.0
         Use :class:`PhysxSDFMeshCfg` instead, passed in the spawner's ``mesh_collision_props``
-        slot. This class will be removed in 4.0.
+        slot. This class will be removed in 5.0.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
@@ -1044,7 +1044,7 @@ class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
         Add a cooking fragment (:class:`PhysxConvexHullCfg`,
         :class:`PhysxConvexDecompositionCfg`, :class:`PhysxTriangleMeshCfg`,
         :class:`PhysxTriangleMeshSimplificationCfg` or :class:`PhysxSDFMeshCfg`) for the
-        matching PhysX cooking tunables. This class will be removed in 4.0.
+        matching PhysX cooking tunables. This class will be removed in 5.0.
     """
 
 
@@ -1056,7 +1056,7 @@ class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
     .. deprecated:: 3.0
         Pass :class:`PhysxConvexHullCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
         approximation token replaces the legacy ``mesh_approximation_name`` string. This class
-        will be removed in 4.0.
+        will be removed in 5.0.
     """
 
 
@@ -1068,7 +1068,7 @@ class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
     .. deprecated:: 3.0
         Pass :class:`PhysxConvexDecompositionCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
         approximation token replaces the legacy ``mesh_approximation_name`` string. This class
-        will be removed in 4.0.
+        will be removed in 5.0.
     """
 
 
@@ -1080,7 +1080,7 @@ class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
     .. deprecated:: 3.0
         Pass :class:`PhysxTriangleMeshCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
         approximation token replaces the legacy ``mesh_approximation_name`` string. This class
-        will be removed in 4.0.
+        will be removed in 5.0.
     """
 
 
@@ -1092,7 +1092,7 @@ class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPro
     .. deprecated:: 3.0
         Pass :class:`PhysxTriangleMeshSimplificationCfg` in the spawner's ``mesh_collision_props``
         slot instead; its default approximation token replaces the legacy
-        ``mesh_approximation_name`` string. This class will be removed in 4.0.
+        ``mesh_approximation_name`` string. This class will be removed in 5.0.
     """
 
 
@@ -1104,7 +1104,7 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
     .. deprecated:: 3.0
         Pass :class:`PhysxSDFMeshCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
         approximation token replaces the legacy ``mesh_approximation_name`` string. This class
-        will be removed in 4.0.
+        will be removed in 5.0.
     """
 
 
