@@ -14,6 +14,8 @@ simulation_app = AppLauncher(headless=True).app
 
 
 import pytest
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -49,7 +51,7 @@ def test_spawn_multiple_shapes_with_regex_prefix(sim):
                 radius=0.3,
                 height=0.6,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=sim_utils.MassPropertiesCfg(mass=100.0),  # this one should get overridden
+                mass_props=[sim_utils.MassCfg(mass=100.0)],  # this one should get overridden
             ),
             sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
@@ -60,11 +62,9 @@ def test_spawn_multiple_shapes_with_regex_prefix(sim):
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
+        mass_props=[sim_utils.MassCfg(mass=1.0)],
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
     )
 
     prim = cfg.func("/World/env_.*/Cone/asset_.*", cfg)
@@ -77,7 +77,7 @@ def test_spawn_multiple_shapes_with_regex_prefix(sim):
         for asset_idx in range(num_assets):
             path = f"/World/env_{env_idx}/Cone/asset_{asset_idx}"
             assert path in prim_paths
-            assert sim.stage.GetPrimAtPath(path).GetAttribute("physics:mass").Get() == cfg.mass_props.mass
+            assert sim.stage.GetPrimAtPath(path).GetAttribute("physics:mass").Get() == cfg.mass_props[0].mass
 
 
 def test_spawn_multiple_shapes_with_global_settings(sim):
@@ -90,7 +90,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
                 radius=0.3,
                 height=0.6,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=sim_utils.MassPropertiesCfg(mass=100.0),  # this one should get overridden
+                mass_props=[sim_utils.MassCfg(mass=100.0)],  # this one should get overridden
             ),
             sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
@@ -101,11 +101,9 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
+        mass_props=[sim_utils.MassCfg(mass=1.0)],
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
     )
     prim = cfg.func("/World/template/Cone/asset_.*", cfg)
 
@@ -116,7 +114,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
 
     for prim_path in prim_paths:
         prim = sim.stage.GetPrimAtPath(prim_path)
-        assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
+        assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props[0].mass
 
 
 def test_spawn_multiple_shapes_with_individual_settings(sim):
@@ -130,23 +128,23 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
                 radius=0.3,
                 height=0.6,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=mass_variations[0]),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                mass_props=[sim_utils.MassCfg(mass=mass_variations[0])],
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
             ),
             sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=mass_variations[1]),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                mass_props=[sim_utils.MassCfg(mass=mass_variations[1])],
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
             ),
             sim_utils.SphereCfg(
                 radius=0.3,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=mass_variations[2]),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                mass_props=[sim_utils.MassCfg(mass=mass_variations[2])],
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
             ),
         ],
     )
@@ -173,8 +171,8 @@ def test_spawn_multiple_shapes_with_explicit_spawn_paths(sim):
             sim_utils.SphereCfg(radius=0.3),
         ],
         spawn_paths=["/World/planned/apple", None, "/World/planned/banana"],
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=[sim_utils.MassCfg(mass=1.0)],
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
     )
 
     prim = cfg.func("/World/ignored_without_regex", cfg)
@@ -211,18 +209,25 @@ def test_spawn_multiple_files_with_global_settings(sim):
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            retain_accelerations=False,
-            linear_damping=0.0,
-            angular_damping=0.0,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=1.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                retain_accelerations=False,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1.0,
+            )
+        ],
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True,
+                solver_position_iteration_count=4,
+                solver_velocity_iteration_count=0,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         activate_contact_sensors=True,
     )
     prim = cfg.func("/World/template/Robot/asset_.*", cfg)

@@ -32,6 +32,8 @@ def create_contact_sensor_scene_cfg(
     Returns:
         Scene configuration with one contact-sensed cube per environment.
     """
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
@@ -48,8 +50,8 @@ def create_contact_sensor_scene_cfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.5),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                rigid_props=[PhysxRigidBodyCfg(disable_gravity=False)],
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),

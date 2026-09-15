@@ -57,9 +57,12 @@ class ArticulationRigidObjectSceneCfg(CartpoleTestSceneCfg):
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
+            # ``disable_gravity`` has no core fragment: its only USD home is
+            # ``physxRigidBody:disableGravity``, so it stays on the backend-neutral base cfg to
+            # keep this module importable without a physics backend extension.
             rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            mass_props=[sim_utils.MassCfg(mass=1.0)],
+            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
     )
