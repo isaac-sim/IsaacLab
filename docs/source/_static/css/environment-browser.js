@@ -358,6 +358,7 @@
         "Isaac-Velocity-Rough-G1": "velocity-rough-g1-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Lift-KukaAllegro": "lift-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
     };
+    const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
     const failedPreviewVideos = new Set();
 
     const updateTaskControls = () => {
@@ -464,7 +465,7 @@
         const videoUrl = videoName
             ? new URL(`../../_static/tasks/previews/${videoName}`, window.location.href).href
             : undefined;
-        previewImage.src = new URL(`../../_static/${previewImageFor(selectedTask())}`, window.location.href).href;
+        previewImage.src = new URL(previewImageFor(selectedTask()), previewImageBaseUrl).href;
         previewImage.alt = `${state.task} preview`;
         if (videoUrl && !failedPreviewVideos.has(videoUrl)) {
             previewVideo.onerror = () => {
