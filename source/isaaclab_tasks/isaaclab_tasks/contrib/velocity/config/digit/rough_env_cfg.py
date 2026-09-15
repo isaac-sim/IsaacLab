@@ -8,7 +8,6 @@ import math
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import (
     ObservationGroupCfg,
     ObservationTermCfg,
@@ -18,7 +17,6 @@ from isaaclab.managers import (
 )
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -27,23 +25,6 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoug
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
-
-# On MJWarp these ten joints diverge at the armature the USD authors. With the damping the asset
-# carries (c = 57.3) and this preset's substep (h = sim.dt / num_substeps = 0.0025 s), the observed
-# threshold is c*h/I > 2: wrist_yaw at I = 0.01822 [kg m^2] gives 7.86 and grew 6.9x per substep,
-# the other eight at 0.05228 give 2.74, and every joint at or above I = 0.0716 was stable. 0.10
-# leaves margin. Re-measure if sim.dt, num_substeps or the asset's damping change.
-# Together these cover exactly ``LEG_JOINT_NAMES + ARM_JOINT_NAMES``.
-_LOW_ARMATURE_JOINT_NAMES = [".*_arm_wrist_.*", ".*_toe_a", ".*_toe_b"]
-_STABLE_ARMATURE_JOINT_NAMES = [
-    ".*_hip_roll",
-    ".*_hip_yaw",
-    ".*_hip_pitch",
-    ".*_knee",
-    ".*_arm_shoulder_.*",
-    ".*_arm_elbow",
-]
-_MIN_STABLE_ARMATURE = 0.10
 
 _ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
 """Bound once so ``DigitPhysicsCfg`` does not construct ``RoughPhysicsCfg`` twice."""
@@ -275,35 +256,10 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # digit_v4.usd applies CollisionAPI to 32 prims, every one a decoration mesh on a RealSense
-        # camera mount -- glass, USB-C, case halves. They are 32 of the robot's 55 collision shapes
-        # while the arms, hips and rods carry none, and produced 3e7 N contact forces on bodies
-        # 1.4 m above the ground. Colliders on a camera's glass are an authoring error on either
-        # backend, so this is deliberately not gated on the physics preset.
-        self.scene.robot.spawn.collision_props = {
-            "/.*camera_mount/.*/Visual/.*": [UsdPhysicsCollisionCfg(collision_enabled=False)]
-        }
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-        # target only the actuated joints; the tarsus, toe_pitch, toe_roll and rod joints are passive
-        self.scene.robot.actuators = {
-            "legs_arms": ImplicitActuatorCfg(
-                joint_names_expr=_STABLE_ARMATURE_JOINT_NAMES,
-                stiffness=None,
-                damping=None,
-            ),
-            # Split out purely so the armature floor can be expressed as configuration; the
-            # actuator model is the same. Applied on both backends -- consistent with #7607/#7612's
-            # direction of not special-casing PhysX for a value that does not hurt it there.
-            "low_armature": ImplicitActuatorCfg(
-                joint_names_expr=_LOW_ARMATURE_JOINT_NAMES,
-                stiffness=None,
-                damping=None,
-                armature=_MIN_STABLE_ARMATURE,
-            ),
-        }
         # commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)

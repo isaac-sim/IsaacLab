@@ -30,10 +30,7 @@ class DigitRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        # MJWarp is less forgiving of the action tail than PhysX: at 0.01 the policy settles around
-        # std 0.59 on rough terrain against 0.40 here, and one seed in three hit a solver
-        # divergence past iteration 2000 while still tracking the command perfectly. Applied on
-        # both backends -- consistent with #7607/#7612's direction of not special-casing PhysX.
+        # MJWarp needs a lower entropy floor than PhysX here (0.005 vs the usual 0.01) -- see #7520.
         entropy_coef=0.005,
         num_learning_epochs=5,
         num_mini_batches=4,

@@ -126,15 +126,6 @@ Closed-loop articulations are not validated on Kamino (e.g. Agility Digit)
 Robots whose USD encodes a closed kinematic loop — such as the achilles rod and toe push-rods
 on the Agility Digit — are not validated on ``newton_kamino``.
 
-On ``newton_mjwarp`` the loops import and solve correctly, and the Digit velocity tasks run with
-``presets=newton_mjwarp``:
-
-* ``IsaacContrib-Velocity-Flat-Digit``
-* ``IsaacContrib-Velocity-Rough-Digit``
-
-``IsaacContrib-Tracking-LocoManip-Digit`` inherits the same preset but has not been validated on
-Newton; use the default PhysX configuration for it.
-
 
 Renderers
 ---------

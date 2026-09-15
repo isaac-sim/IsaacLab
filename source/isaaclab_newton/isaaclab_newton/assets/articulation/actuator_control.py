@@ -136,7 +136,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def submit_commands(self, collection: ActuatorCollection) -> None:
         """Publish the collection's targets to the backend arrays."""
         articulation = self._articulation
-        needs_reorder = articulation.data.has_joint_ordering
+        data = articulation.data
         if self._native_actuator_path_active:
             # Newton consumes raw explicit-actuator targets through joint_act.
             user_effort = collection._joint_effort_target
@@ -145,11 +145,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             write_pos_target = True
             write_vel_target = True
             write_joint_act = True
-            if not needs_reorder:
-                articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target)
-                articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target)
-                articulation.data._sim_bind_joint_act.assign(collection._joint_effort_target)
-                articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target)
         else:
             # Lab executors publish processed targets; only implicit joints use
             # the backend position and velocity drives.
@@ -159,13 +154,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             write_pos_target = collection.has_implicit_actuators
             write_vel_target = collection.has_implicit_actuators
             write_joint_act = False
-            if not needs_reorder:
-                articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target_sim)
-                if collection.has_implicit_actuators:
-                    articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target_sim)
-                    articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target_sim)
 
-        if needs_reorder:
+        if data.has_joint_ordering:
             ordering_kernels.launch_reorder_joint_targets_user_to_backend(
                 user_effort=user_effort,
                 user_pos_target=user_pos_target,
@@ -175,12 +165,20 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 write_pos_target=write_pos_target,
                 write_vel_target=write_vel_target,
                 write_joint_act=write_joint_act,
-                backend_effort=articulation.data._sim_bind_joint_effort,
-                backend_pos_target=articulation.data._sim_bind_joint_position_target,
-                backend_vel_target=articulation.data._sim_bind_joint_velocity_target,
-                backend_joint_act=articulation.data._sim_bind_joint_act,
+                backend_effort=data._sim_bind_joint_effort,
+                backend_pos_target=data._sim_bind_joint_position_target,
+                backend_vel_target=data._sim_bind_joint_velocity_target,
+                backend_joint_act=data._sim_bind_joint_act,
                 device=self.device,
             )
+        else:
+            data._sim_bind_joint_effort.assign(user_effort)
+            if write_pos_target:
+                data._sim_bind_joint_position_target.assign(user_pos_target)
+            if write_vel_target:
+                data._sim_bind_joint_velocity_target.assign(user_vel_target)
+            if write_joint_act:
+                data._sim_bind_joint_act.assign(user_effort)
 
         # Newton takes coordinate-layout position targets from 1.6 on; every branch above writes
         # DOF-indexed targets, so the staging buffer has to be scattered across unconditionally.

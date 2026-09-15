@@ -16,6 +16,7 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     gather_joint_coordinates,
     scatter_joint_coordinates,
 )
+from scipy.spatial.transform import Rotation
 
 # One revolute, one ball, one revolute -- the layout that hides an off-by-one when the tables are
 # built by walking the model instead of the view's own per-joint counts.
@@ -26,15 +27,6 @@ DOF_COUNTS = [1, 3, 1]
 # ball_dof[1] = 4) are not exercised by the single-ball layout above.
 TWO_BALL_COORD_COUNTS = [1, 4, 4, 1]
 TWO_BALL_DOF_COUNTS = [1, 3, 3, 1]
-
-
-def _rotvec_to_quat(rotvec: np.ndarray) -> np.ndarray:
-    """Reference exp map, independent of the kernel under test. Returns ``(x, y, z, w)``."""
-    angle = np.linalg.norm(rotvec)
-    if angle < 1e-12:
-        return np.array([0.0, 0.0, 0.0, 1.0])
-    axis = rotvec / angle
-    return np.concatenate([axis * np.sin(0.5 * angle), [np.cos(0.5 * angle)]])
 
 
 def _map() -> BallJointCoordinateMap:
@@ -179,7 +171,7 @@ def test_scatter_then_gather_round_trips(num_envs: int) -> None:
     ball_coord = int(m.ball_coord.numpy()[0])
     ball_dof = int(m.ball_dof.numpy()[0])
     for env in range(num_envs):
-        expected = _rotvec_to_quat(dofs_np[env, ball_dof : ball_dof + 3])
+        expected = Rotation.from_rotvec(dofs_np[env, ball_dof : ball_dof + 3]).as_quat()
         np.testing.assert_allclose(coords.numpy()[env, ball_coord : ball_coord + 4], expected, atol=1e-6)
 
     out = wp.zeros((num_envs, n_dofs), dtype=wp.float32, device="cpu")
@@ -193,7 +185,7 @@ def test_gather_is_invariant_to_quaternion_sign() -> None:
     n_dofs, n_coords = sum(DOF_COUNTS), sum(COORD_COUNTS)
     c = int(m.ball_coord.numpy()[0])
     base = np.zeros((1, n_coords), dtype=np.float32)
-    base[0, c : c + 4] = _rotvec_to_quat(np.array([0.2, -0.5, 0.1]))
+    base[0, c : c + 4] = Rotation.from_rotvec([0.2, -0.5, 0.1]).as_quat()
 
     decoded = []
     for sign in (1.0, -1.0):
