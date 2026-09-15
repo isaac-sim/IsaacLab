@@ -81,7 +81,7 @@ registry repository, distinguished by a ``-kitless`` tag suffix:
 
 .. code:: bash
 
-    docker pull nvcr.io/nvidia/isaac-lab:<version>-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
 Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
 NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
@@ -91,7 +91,7 @@ that several commands can share it:
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
-        nvcr.io/nvidia/isaac-lab:<version>-kitless
+        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
     docker exec isaac-lab-kitless \
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
@@ -134,7 +134,7 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
 For windowed use, follow the X11 setup in :ref:`deployment-docker`; the container needs
 access to the host display and matching authorization. Offscreen Newton rendering does
