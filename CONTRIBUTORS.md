@@ -84,6 +84,7 @@ Guidelines for modifications:
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Diego Ferigo
+* Donguk Kim
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
