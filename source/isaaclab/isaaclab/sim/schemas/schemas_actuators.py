@@ -419,10 +419,9 @@ def _resave_checkpoint_with_metadata(
     """Re-save a neural-network checkpoint with updated metadata.
 
     Resolves the configured path through the shared asset cache, loads the
-    original TorchScript or dict checkpoint, merges *metadata* into any
-    existing metadata (Lab config values take precedence), and writes the
-    result to a temporary ``.pt`` file that persists for the lifetime of the
-    process.
+    original TorchScript checkpoint, merges *metadata* into any existing
+    metadata (Lab config values take precedence), and writes the result to a
+    temporary ``.pt`` file that persists for the lifetime of the process.
 
     Returns:
         Path to the temporary checkpoint file.
@@ -437,29 +436,17 @@ def _resave_checkpoint_with_metadata(
     local_path = retrieve_file_path(original_path)
 
     extra_files: dict[str, str] = {"metadata.json": ""}
-    is_torchscript = True
     try:
         net = torch.jit.load(local_path, map_location="cpu", _extra_files=extra_files)
         existing_meta = json.loads(extra_files["metadata.json"]) if extra_files["metadata.json"] else {}
-    except Exception:
-        is_torchscript = False
-        checkpoint = torch.load(local_path, map_location="cpu", weights_only=False)
-        if not isinstance(checkpoint, dict) or "model" not in checkpoint:
-            raise ValueError(
-                f"Cannot load checkpoint at '{original_path}'; "
-                "expected a TorchScript archive or a dict with a 'model' key"
-            )
-        net = checkpoint["model"]
-        existing_meta = checkpoint.get("metadata", {})
+    except Exception as exc:
+        raise ValueError(f"Cannot load checkpoint at '{original_path}'; expected a TorchScript archive") from exc
 
     merged = {**existing_meta, **metadata}
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
         tmp_path = tmp.name
-    if is_torchscript:
-        extra_out = {"metadata.json": json.dumps(merged)}
-        torch.jit.save(net, tmp_path, _extra_files=extra_out)
-    else:
-        torch.save({"model": net, "metadata": merged}, tmp_path)
+    extra_out = {"metadata.json": json.dumps(merged)}
+    torch.jit.save(net, tmp_path, _extra_files=extra_out)
 
     return tmp_path
