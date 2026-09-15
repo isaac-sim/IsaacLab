@@ -208,11 +208,19 @@ different approaches combine the constraints directly into an
 optimization problem, thereby providing a holistic solution for motion
 generation and control.
 
-We currently support the following planners:
+Examples of reactive planners include:
 
 -  **RMPFlow (lula):** An acceleration-based policy that composes various Reimannian Motion Policies (RMPs) to
    solve a hierarchy of tasks :cite:p:`cheng2021rmpflow`. It is capable of performing dynamic collision
    avoidance while navigating the end-effector to a target.
+
+-  **MPC (OCS2):** A receding horizon control policy based on sequential linear-quadratic (SLQ) programming.
+   It formulates various constraints into a single optimization problem via soft-penalties and uses automatic
+   differentiation to compute derivatives of the system dynamics, constraints and costs. The MPC formulation
+   for end-effector trajectory tracking in fixed-arm and mobile manipulators described in
+   :cite:p:`mittal2021articulated` considers a kinematic system model with joint limits and self-collision avoidance.
+   See the `OCS2 documentation <https://leggedrobotics.github.io/ocs2/>`_ for the external toolbox and examples.
+
 
 .. warning::
 
