@@ -11,6 +11,7 @@ from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG
 def test_franka_menagerie_uses_safe_default_variants() -> None:
     """The generic asset configuration must load PhysX with complete primitive colliders."""
     assert FRANKA_PANDA_MENAGERIE_CFG.spawn.variants == {"Physics": "physx", "Colliders": "primitives"}
+    assert not FRANKA_PANDA_MENAGERIE_CFG.spawn.articulation_props.enabled_self_collisions
 
 
 def test_franka_menagerie_actuators_define_backend_invariant_properties() -> None:

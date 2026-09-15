@@ -79,6 +79,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
 FRANKA_PANDA_MENAGERIE_CFG = FRANKA_PANDA_CFG.copy()
 FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_PANDA_MENAGERIE_CFG.spawn.variants = {"Physics": "physx", "Colliders": "primitives"}
+FRANKA_PANDA_MENAGERIE_CFG.spawn.articulation_props.enabled_self_collisions = False
 FRANKA_PANDA_MENAGERIE_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
