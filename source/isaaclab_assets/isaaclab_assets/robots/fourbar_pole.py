@@ -5,6 +5,8 @@
 
 """Configuration for a parallel four-bar linkage with an inverted pendulum pole on the coupler."""
 
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -19,20 +21,24 @@ _FOURBAR_POLE_USD = retrieve_git_asset_path(NEWTON_ASSET_DIR, "fourbar_pole/usd/
 FOURBAR_POLE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=_FOURBAR_POLE_USD,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=100.0,
-            enable_gyroscopic_forces=True,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.001,
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=100.0,
+                enable_gyroscopic_forces=True,
+            ),
+        ],
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False,
+                solver_position_iteration_count=4,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.001,
+            )
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.5),

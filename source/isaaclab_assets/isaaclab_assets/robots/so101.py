@@ -22,6 +22,8 @@ physics variant for PhysX and the SysID ``physics`` variant for Newton MJWarp. T
 configuration retains the gains previously tuned for IK tracking.
 """
 
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -36,15 +38,12 @@ SO101_CFG = ArticulationCfg(
         usd_path=(f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/RobotStudio/so101_new_calib_SysID/so101_new_calib.usda"),
         variants={"Robot": "robot", "Sensor": "sensors", "Physics": "physics"},
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=1.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-        ),
+        rigid_props=[PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=1.0)],
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            )
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -73,7 +72,7 @@ Newton MJWarp backend. Preset-aware multi-backend tasks select ``physx`` when us
 
 
 SO101_HIGH_PD_CFG = SO101_CFG.copy()
-SO101_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+SO101_HIGH_PD_CFG.spawn.rigid_props[0].disable_gravity = True
 SO101_HIGH_PD_CFG.actuators = {
     "arm": ImplicitActuatorCfg(
         joint_names_expr=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
