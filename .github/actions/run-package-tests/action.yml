@@ -107,6 +107,19 @@ inputs:
       post-merge a cumulative writeback; only warm-warp-cache uses it.
     default: ''
     required: false
+  ovrtx-shader-cache:
+    description: >-
+      OVRTX shader cache mode. Empty disables the cache. 'restore' reads the
+      newest compatible snapshot and never writes. 'save' restores and writes
+      back a new snapshot; only warm-ovrtx-cache uses it.
+    default: ''
+    required: false
+  ovrtx-shader-cache-trees:
+    description: >-
+      Which OVRTX cache tree(s) this job needs: 'kit', 'kitless', or 'both'. A
+      job that only exercises one render path should request just that tree.
+    default: 'both'
+    required: false
   standalone-script-scope:
     description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
     default: ''
@@ -237,6 +250,18 @@ runs:
           echo "WARP_CACHE_FINGERPRINT_BEFORE=$fingerprint" >> "$GITHUB_ENV"
         fi
 
+    # The cache action owns keys, restore, reporting and writeback; this file
+    # only decides when each phase runs.
+    - name: Restore OVRTX shader cache
+      if: inputs.ovrtx-shader-cache != ''
+      id: ovrtx-cache
+      uses: ./.github/actions/ovrtx-shader-cache
+      with:
+        mode: restore
+        publishes: ${{ inputs.ovrtx-shader-cache == 'save' }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
+
     - name: Setup wheelhouse registry authentication
       if: inputs.wheelhouse-image != ''
       uses: ./.github/actions/_lib/setup-docker-config
@@ -318,6 +343,7 @@ runs:
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
         warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
+        ovrtx-shader-cache-host-dir: ${{ steps.ovrtx-cache.outputs.host-dir }}
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
         standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
@@ -406,6 +432,28 @@ runs:
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
         key: ${{ steps.warp-cache-key.outputs.key }}
+
+    # Consumers only report; the warmer reports and publishes. 'save' already
+    # reports before it writes back, so the two are mutually exclusive.
+    - name: Report OVRTX shader cache growth
+      if: always() && inputs.ovrtx-shader-cache != '' && inputs.ovrtx-shader-cache != 'save'
+      uses: ./.github/actions/ovrtx-shader-cache
+      with:
+        mode: report
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
+
+    # Not success(): compiled PSO blobs stay valid when a golden-image assertion
+    # fails, so one failing assertion should not discard a whole warm run.
+    # Cancellation still skips, so a tree the driver was mid-write on is never
+    # published.
+    - name: Publish OVRTX shader cache
+      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'''
+      uses: ./.github/actions/ovrtx-shader-cache
+      with:
+        mode: save
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
 
     - name: Cleanup wheelhouse artifacts
       if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''

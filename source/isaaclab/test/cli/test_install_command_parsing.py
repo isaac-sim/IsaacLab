@@ -185,7 +185,7 @@ _PATCHES = [
     f"{_INSTALL_MODULE}._maybe_uninstall_prebundled_torch",
     f"{_INSTALL_MODULE}._ensure_pink_ik_dependencies_installed",
     f"{_INSTALL_MODULE}._repoint_prebundle_packages",
-    f"{_INSTALL_MODULE}.command_vscode_settings",
+    f"{_INSTALL_MODULE}.command_editor",
     f"{_INSTALL_MODULE}.get_pip_command",
     f"{_INSTALL_MODULE}.extract_python_exe",
     # run_command is called directly inside command_install for pip/setuptools upgrades.

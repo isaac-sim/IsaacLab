@@ -34,7 +34,7 @@ def _format_presets(preset_map: dict | None) -> str:
 def main() -> None:
     """Print the generated project's registered environments."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--keyword", default="Template-", help="Substring used to filter task ids.")
+    parser.add_argument("--keyword", default="{{ task_id_prefix }}-", help="Substring used to filter task ids.")
     parser.add_argument("--show_presets", action="store_true", help="Show physics, renderer, and domain presets.")
     args = parser.parse_args()
 

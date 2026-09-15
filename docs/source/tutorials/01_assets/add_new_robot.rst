@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-add-new-robot:
 
 Adding a New Robot to Isaac Lab

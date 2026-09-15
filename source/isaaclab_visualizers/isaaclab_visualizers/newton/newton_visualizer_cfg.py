@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -32,7 +32,8 @@ class NewtonVisualizerCfg(VisualizerCfg):
     # Deprecated alias: "newton" routes to the GL backend via simulation_context._VISUALIZER_ALIASES.
     visualizer_type: str = "newton_gl"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        super().__post_init__()
         if type(self) is NewtonVisualizerCfg:
             warnings.warn(
                 "NewtonVisualizerCfg is deprecated and will be removed in a future release. "
@@ -95,7 +96,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     """Enable shadow rendering."""
 
     enable_sky: bool = True
-    """Enable sky rendering."""
+    """Enable procedural sky rendering when ``background_color`` is ``None``."""
 
     enable_wireframe: bool = False
     """Enable wireframe rendering."""
@@ -145,10 +146,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
     .. note::
-        RTX render quality settings (fps, lighting environment, denoiser, etc.)
-        are not yet exposed here; ``ViewerRTX`` defaults are used. These will be
-        surfaced in a future revision in a way that is consistent across all
-        RTX-capable renderers.
+        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
@@ -164,3 +162,11 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     rtx_environment: str = "default"
     """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+
+    render_settings: dict[str, Any] = dict()
+    """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
+
+    ``usd_type_name`` names an ``Sdf.ValueTypeNames`` member, as a string so the config stays
+    copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
+    quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
+    down."""

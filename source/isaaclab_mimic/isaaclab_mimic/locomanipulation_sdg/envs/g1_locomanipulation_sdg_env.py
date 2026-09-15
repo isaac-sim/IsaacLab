@@ -5,6 +5,7 @@
 
 import numpy as np
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -13,8 +14,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.datasets import EpisodeData
 from isaaclab.visualizers import VisualizerCfg
 
@@ -35,6 +36,11 @@ from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, Locomanipul
 
 NUM_FORKLIFTS = 0
 NUM_BOXES = 0
+ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
+    "/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled": True,
+    "/rtx/rtpt/gaussian/accumulatedAlbedo/enabled": True,
+    "/rtx/rtpt/gaussian/maxGaussiansToAccumulate": 360,
+}
 
 
 @configclass
@@ -52,7 +58,17 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         ),
     )
 
-    def add_robot_pov_cam(self, height, width):
+    def add_robot_pov_cam(self, height, width, use_nurec_renderer_settings: bool = False):
+        camera_kwargs = {}
+        if use_nurec_renderer_settings:
+            camera_kwargs["renderer_cfg"] = IsaacRtxRendererCfg(
+                global_settings=IsaacRtxRendererGlobalSettingsCfg(
+                    enable_dl_denoiser=True,
+                    antialiasing_mode="DLSS",
+                    carb_settings=ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS,
+                )
+            )
+
         robot_pov_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/torso_link/d435_link/camera",
             update_period=0.0,
@@ -61,6 +77,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
             offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, -0.1736482, 0.0, 0.9848078), convention="world"),
+            **camera_kwargs,
         )
         setattr(self, "robot_pov_cam", robot_pov_cam)
 
@@ -135,6 +152,10 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
     def __post_init__(self):
         """Post initialization."""
+        # This class overrides LocomanipulationG1EnvCfg.__post_init__, so preserve the
+        # contact reporting required by the inherited per-hand contact sensors.
+        self.scene.robot.spawn.activate_contact_sensors = True
+
         # general settings
         self.decimation = 4
         self.episode_length_s = 50.0
@@ -172,10 +193,10 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
             self._num_boxes = NUM_BOXES
             set_ground_invisible = False
 
-        if cfg.high_res_video:
-            cfg.scene.add_robot_pov_cam(540, 960)
-        else:
-            cfg.scene.add_robot_pov_cam(160, 256)
+        camera_height, camera_width = (320, 512) if cfg.high_res_video else (160, 256)
+        cfg.scene.add_robot_pov_cam(
+            camera_height, camera_width, use_nurec_renderer_settings=cfg.background_usd_path is not None
+        )
 
         cfg.scene.add_forklifts(self._num_forklifts)
         cfg.scene.add_boxes(self._num_boxes)

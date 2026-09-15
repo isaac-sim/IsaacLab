@@ -39,9 +39,11 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     torque_scale=1.0,
     input_order="pos_vel",
     input_idx=[0, 1, 2],
-    actuator_effort_limit=23.7,  # taken from spec sheet
-    actuator_velocity_limit=30.0,  # taken from spec sheet
-    saturation_effort=23.7,  # same as effort limit
+    # the calf sits behind an extra 1.5:1 knee reduction, so its joint-side torque is higher
+    # and its joint-side speed lower than the hip and thigh. Values match ``go1.usd``.
+    actuator_effort_limit={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 35.55},
+    actuator_velocity_limit={".*_hip_joint": 30.1, ".*_thigh_joint": 30.1, ".*_calf_joint": 20.06},
+    saturation_effort={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 35.55},
 )
 """Configuration of Go1 actuators using MLP model.
 
@@ -171,9 +173,11 @@ UNITREE_GO2_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
-            actuator_effort_limit=23.5,
-            saturation_effort=23.5,
-            actuator_velocity_limit=30.0,
+            # the calf sits behind an extra 1.92:1 knee reduction, so its joint-side torque is
+            # higher and its joint-side speed lower than the hip and thigh. Values match ``go2.usd``.
+            actuator_effort_limit={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 45.43},
+            saturation_effort={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 45.43},
+            actuator_velocity_limit={".*_hip_joint": 30.1, ".*_thigh_joint": 30.1, ".*_calf_joint": 15.70},
             stiffness=25.0,
             damping=0.5,
             friction=0.0,

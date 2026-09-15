@@ -817,6 +817,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     default_cfg = VisualizerCfg(
+        background_color=(0.1, 0.2, 0.3),
         streaming_cam_target_prim_path="/World/envs/*/Object",
         streaming_cam_eye=(1.0, -1.0, 0.5),
     )
@@ -826,6 +827,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
 
     assert len(cfgs) == 1
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
+    assert cfgs[0].background_color == (0.1, 0.2, 0.3)
     assert cfgs[0].streaming_cam_target_prim_path == "/World/envs/*/Object"
     assert cfgs[0].streaming_cam_eye == (1.0, -1.0, 0.5)
 

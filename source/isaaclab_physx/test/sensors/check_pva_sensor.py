@@ -38,6 +38,7 @@ simulation_app = SimulationApp(config)
 import logging
 import traceback
 
+import numpy as np
 import torch
 from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
 
@@ -73,8 +74,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     # create source prim
     stage.DefinePrim(envs_prim_paths[0], "Xform")

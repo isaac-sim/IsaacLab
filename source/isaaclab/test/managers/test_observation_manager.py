@@ -29,8 +29,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
     RewardTermCfg,
 )
-from isaaclab.utils import modifiers
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, modifiers
 
 pytestmark = pytest.mark.integration
 

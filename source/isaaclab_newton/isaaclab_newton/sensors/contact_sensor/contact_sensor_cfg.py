@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -46,13 +46,6 @@ class ContactSensorCfg(BaseContactSensorCfg):
                 stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
-
-        if self.track_friction_forces:
-            warnings.warn(
-                "ContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring.",
-                stacklevel=2,
-            )
-            self.track_friction_forces = False
 
     @classmethod
     def from_base_cfg(cls, base_cfg: BaseContactSensorCfg, **kwargs) -> "ContactSensorCfg":

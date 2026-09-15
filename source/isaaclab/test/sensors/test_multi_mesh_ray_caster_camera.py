@@ -461,18 +461,18 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
     """Create alternating Spot/ANYmal and cube/sphere cloned environments."""
     stage = sim_utils.get_current_stage()
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=4.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=4.0)
 
     sim_utils.create_prim("/World/envs", "Xform", stage=stage)
-    for env_id, origin in enumerate(env_origins.cpu().tolist()):
+    for env_id, origin in enumerate(env_origins):
         sim_utils.create_prim(env_fmt.format(env_id), "Xform", translation=tuple(origin), stage=stage)
         sim_utils.create_prim(env_fmt.format(env_id) + "/RayCasterCamera", "Xform", stage=stage)
 
-    robot_mask = torch.zeros((2, num_envs), dtype=torch.bool, device=sim.device)
+    robot_mask = np.zeros((2, num_envs), dtype=np.bool_)
     robot_mask[0, 0::2] = True
     robot_mask[1, 1::2] = True
-    object_mask = robot_mask.clone()
+    object_mask = robot_mask.copy()
 
     spot_spawn = copy.deepcopy(SPOT_CFG.spawn)
     anymal_spawn = copy.deepcopy(ANYMAL_C_CFG.spawn)
@@ -499,7 +499,7 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
         [env_fmt.format(i) + f"/{asset_name}" for asset_name in ("Robot", "Object") for i in range(2)],
         [env_fmt + "/Robot", env_fmt + "/Robot", env_fmt + "/Object", env_fmt + "/Object"],
         env_ids,
-        mask=torch.cat([robot_mask, object_mask], dim=0),
+        mask=np.concatenate((robot_mask, object_mask), axis=0),
     )
 
     sim.set_clone_plan(
@@ -516,14 +516,14 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
                 env_fmt + "/Object",
                 env_fmt + "/Object",
             ),
-            clone_mask=torch.cat([robot_mask, object_mask], dim=0),
+            clone_mask=np.concatenate((robot_mask, object_mask), axis=0),
             env_ids=env_ids,
             positions=None,
             cfg_rows={},
         )
     )
     sim_utils.update_stage()
-    return env_origins
+    return torch.as_tensor(env_origins, device=sim.device)
 
 
 @pytest.mark.isaacsim_ci

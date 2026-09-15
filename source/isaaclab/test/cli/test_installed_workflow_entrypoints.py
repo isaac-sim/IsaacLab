@@ -7,14 +7,66 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from unittest import mock
 
 import pytest
 
+import isaaclab
+import isaaclab.__main__ as package_main
 import isaaclab.cli as cli
+import isaaclab.paths as paths
 
 pytestmark = pytest.mark.unit
+
+
+def test_cli_import_does_not_require_runtime_dependencies():
+    """The installation CLI must load before core runtime dependencies are installed."""
+    result = subprocess.run(
+        [sys.executable, "-c", 'import sys; sys.modules["lazy_loader"] = None; import isaaclab.cli'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_resolves_partial_source_checkout_root(tmp_path):
+    """Source root resolution must not require resources copied by later Docker layers."""
+    package_root = tmp_path / "source" / "isaaclab" / "isaaclab"
+    package_root.mkdir(parents=True)
+
+    with mock.patch.object(paths, "__file__", str(package_root / "paths.py")):
+        assert paths._resolve_isaaclab_root() == tmp_path
+
+
+def test_top_level_compatibility_api_is_preserved():
+    """The flattened package must retain the aggregate wheel's public shims."""
+    assert callable(isaaclab.bootstrap_kernel)
+    with mock.patch.object(package_main, "main", return_value=0) as main, pytest.raises(SystemExit, match="0"):
+        isaaclab.main()
+
+    main.assert_called_once_with()
+
+
+def test_editor_option_uses_cli_dispatcher():
+    """The installed CLI must forward editor-specific arguments to the editor command."""
+    with (
+        mock.patch.object(sys, "argv", ["isaaclab", "--editor", "--isaac_path", "/sim", "--verbose"]),
+        mock.patch.object(cli, "command_editor") as editor,
+    ):
+        cli.cli()
+
+    editor.assert_called_once_with(["--isaac_path", "/sim", "--verbose"])
+
+
+@pytest.mark.parametrize("option", ["--vscode", "--generate-vscode-settings"])
+def test_removed_editor_options_are_rejected(option):
+    """Removed editor setup options must not remain as hidden compatibility paths."""
+    with mock.patch.object(sys, "argv", ["isaaclab", option]), pytest.raises(SystemExit, match="2"):
+        cli.cli()
 
 
 @pytest.mark.parametrize(

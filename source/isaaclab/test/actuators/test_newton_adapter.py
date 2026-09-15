@@ -7,14 +7,15 @@
 
 import numpy as np
 import pytest
-from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, ControllerPD
+from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
@@ -96,6 +97,12 @@ def _make_actuator_stage() -> Usd.Stage:
     return stage
 
 
+def test_newton_actuator_path_is_enabled_by_default():
+    """Use the Newton actuator path unless the legacy path is explicitly requested."""
+    assert SimulationCfg().use_newton_actuators
+    assert not SimulationCfg(use_newton_actuators=False).use_newton_actuators
+
+
 def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     """Aggregate scalar variants while keeping incompatible shared lookup tables separate."""
     actuators = NewtonActuatorAdapter.from_usd(
@@ -110,7 +117,7 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert len(actuators) == 4
 
     pd = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingMaxEffort])
-    assert type(pd.controller) is ControllerPD
+    assert type(pd.controller) is DrivePD
     np.testing.assert_array_equal(pd.indices.numpy(), [0, 1, 6, 7])
     np.testing.assert_allclose(pd.controller.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
     np.testing.assert_allclose(pd.controller.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
@@ -119,7 +126,7 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert pd.delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
-    assert type(dc.controller) is ControllerPD
+    assert type(dc.controller) is DrivePD
     assert dc.delay is None
     np.testing.assert_array_equal(dc.indices.numpy(), [2, 3, 8, 9])
     np.testing.assert_allclose(dc.controller.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
