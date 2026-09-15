@@ -60,8 +60,8 @@ def _make_manager(env) -> TerminationManager:
         "timeout": TerminationTermCfg(func=_timeout_flag, time_out=True),
     }
     tm = TerminationManager(cfg, env)
-    # one observed step: fills the last-episode dones from the stored causes,
-    # mirroring the step -> compute -> reset flow of the real env loop
+    # one observed step through the real compute()/reset() calls; the env loop
+    # wiring around them (ManagerBasedRLEnv._reset_idx) is out of scope here
     tm.compute()
     return tm
 
@@ -94,6 +94,15 @@ def test_reset_subset_reports_only_selected_rows(subset_env):
     stats = tm.reset([3])
     assert stats["Episode_Termination/success"] == pytest.approx(0.0)
     assert stats["Episode_Termination/timeout"] == pytest.approx(1.0)
+
+
+def test_reset_accepts_tensor_selector(subset_env):
+    """Integer-tensor selectors (as passed by the env loop) select the same rows."""
+    tm = _make_manager(subset_env)
+
+    stats = tm.reset(torch.tensor([0], dtype=torch.long))
+    assert stats["Episode_Termination/success"] == pytest.approx(1.0)
+    assert stats["Episode_Termination/timeout"] == pytest.approx(0.0)
 
 
 def test_reset_all_ids_matches_reset_none(subset_env):
