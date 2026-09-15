@@ -22,6 +22,9 @@ In this tutorial, we will learn how to use an OSC to control the robot.
 We will use the :class:`controllers.OperationalSpaceController` class to apply a constant force perpendicular to a
 tilted wall surface while tracking a desired end-effector pose in all the other directions.
 
+This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
+The target quaternions use ``(x, y, z, w)`` order and orient the end-effector toward the tilted wall.
+
 The Code
 ~~~~~~~~
 
@@ -56,16 +59,16 @@ in mind.
 For the motion control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
 ``target_types: "pose_abs"``) or relative to the end-effector's current pose (i.e., ``target_types: "pose_rel"``).
 For the force control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
-``target_types: "force_abs"``). If it is desired to apply pose and force control simultaneously, the ``target_types``
+``target_types: "wrench_abs"``). If it is desired to apply pose and force control simultaneously, the ``target_types``
 should be a list such as ``["pose_abs", "wrench_abs"]`` or ``["pose_rel", "wrench_abs"]``.
 
 The axes that the motion and force control will be applied can be specified using the ``motion_control_axes_task`` and
-``force_control_axes_task`` arguments, respectively. These lists should consist of 0/1 for all six axes (position and
+``contact_wrench_control_axes_task`` arguments, respectively. These lists should consist of 0/1 for all six axes (position and
 rotation) and be complementary to each other (e.g., for the x-axis, if the ``motion_control_axes_task`` is ``0``, the
-``force_control_axes_task`` should be ``1``).
+``contact_wrench_control_axes_task`` should be ``1``).
 
 For the motion control axes, desired stiffness, and damping ratio values can be specified using the
-``motion_control_stiffness`` and ``motion_damping_ratio_task`` arguments, which can be a scalar (same value for all
+``motion_stiffness_task`` and ``motion_damping_ratio_task`` arguments, which can be a scalar (same value for all
 axes) or a list of six scalars, one value corresponding to each axis. If desired, the stiffness and damping ratio
 values could be a command parameter (e.g., to learn the values using RL or change them on the go). For this,
 ``impedance_mode`` should be either ``"variable_kp"`` to include the stiffness values within the command or
@@ -178,17 +181,17 @@ You can now run the script and see the result:
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
+   .. tab-item:: Isaac Sim PhysX (uv)
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/05_controllers/run_osc.py --num_envs 128
+         uv run isaaclab -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128
+         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
 
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.
@@ -200,4 +203,4 @@ surface.
     :figwidth: 100%
     :alt: result of run_osc.py
 
-To stop the simulation, you can either close the window or press ``Ctrl+C`` in the terminal.
+Press ``Ctrl+C`` in the terminal to stop the simulation.

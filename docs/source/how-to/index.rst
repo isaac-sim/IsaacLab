@@ -59,19 +59,15 @@ How-to Guides
 
    .. container:: guide-group
 
+      .. _asset-authoring:
+
       .. rubric:: Assets
-
-      .. container:: guide-entry
-
-         :doc:`Adding a new robot to Isaac Lab </source/tutorials/01_assets/add_new_robot>`
-
-         Bring a robot asset into Isaac Lab and define its articulation configuration.
 
       .. container:: guide-entry
 
          :doc:`Interacting with a rigid object </source/tutorials/01_assets/run_rigid_object>`
 
-         Create, reset, and command a rigid object through the simulation API.
+         Create, reset, and command a cone; includes the runnable run_rigid_object.py example.
 
       .. container:: guide-entry
 
@@ -99,15 +95,9 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Writing an asset configuration </source/how-to/write_articulation_cfg>`
+         :doc:`Robot and articulation configuration </source/how-to/write_articulation_cfg>`
 
-         Turn an imported robot into a reusable articulation configuration.
-
-      .. container:: guide-entry
-
-         :doc:`Robot configurations </source/how-to/robots>`
-
-         Understand the structure and conventions of supported robot configurations.
+         Reuse or author a robot configuration, with a Jetbot/Dofbot worked example.
 
       .. container:: guide-entry
 

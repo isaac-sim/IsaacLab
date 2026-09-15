@@ -1,7 +1,7 @@
 .. _deployment-cluster:
 
-
-.. rubric:: Cluster Guide
+Running on HPC clusters
+=======================
 
 Clusters are a great way to speed up training and evaluation of learning algorithms.
 While the Isaac Lab Docker image can be used to run jobs on a cluster, many clusters only
@@ -10,8 +10,9 @@ ease-of-use on shared multi-user systems and high performance computing (HPC) en
 It does not require root privileges to run containers and can be used to run user-defined
 containers.
 
-Singularity is compatible with all Docker images. In this section, we describe how to
-convert the Isaac Lab Docker image into a singularity image and use it to submit jobs to a cluster.
+Singularity is compatible with all Docker images. This page describes how to convert the
+:ref:`Isaac Lab Docker image <deployment-docker>` into a singularity image and use it to submit jobs
+to a cluster.
 
 .. attention::
 
@@ -23,8 +24,8 @@ convert the Isaac Lab Docker image into a singularity image and use it to submit
     adapted the instructions for another cluster, please consider contributing to the
     documentation.
 
-
-.. rubric:: Setup Instructions
+Prerequisites
+-------------
 
 In order to export the Docker Image to a singularity image, `apptainer`_ is required.
 A detailed overview of the installation procedure for ``apptainer`` can be found in its
@@ -50,50 +51,30 @@ the user cluster password from being requested multiple times.
 
   In the case of issues, please try to switch to those versions.
 
+Cluster configuration
+---------------------
 
-.. rubric:: Configuring the cluster parameters
+Configure the cluster-specific parameters in ``docker/cluster/.env.cluster``. Each parameter is
+documented inline in the file:
 
-First, you need to configure the cluster-specific parameters in ``docker/cluster/.env.cluster`` file.
-The following describes the parameters that need to be configured:
+.. literalinclude:: ../../../../docker/cluster/.env.cluster
+   :language: bash
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
+A few constraints are worth calling out:
 
-   * - Parameter
-     - Description
-   * - CLUSTER_JOB_SCHEDULER
-     - The job scheduler/workload manager used by your cluster. Currently, we support 'SLURM' and
-       'PBS' workload managers.
-   * - CLUSTER_ISAAC_SIM_CACHE_DIR
-     - The directory on the cluster where the Isaac Sim cache is stored. This directory
-       has to end on ``docker-isaac-sim``. It will be copied to the compute node
-       and mounted into the singularity container. This should increase the speed of starting
-       the simulation.
-   * - CLUSTER_ISAACLAB_DIR
-     - The directory on the cluster where the Isaac Lab logs are stored. This directory has to
-       end on ``isaaclab``. It will be copied to the compute node and mounted into
-       the singularity container. When a job is submitted, the latest local changes will
-       be copied to the cluster to a new directory in the format ``${CLUSTER_ISAACLAB_DIR}_${datetime}``
-       with the date and time of the job submission. This allows to run multiple jobs with different code versions at
-       the same time.
-   * - CLUSTER_LOGIN
-     - The login to the cluster. Typically, this is the user and cluster names,
-       e.g., ``your_user@euler.ethz.ch``.
-   * - CLUSTER_SIF_PATH
-     - The path on the cluster where the singularity image will be stored. The image will be
-       copied to the compute node but not uploaded again to the cluster when a job is submitted.
-   * - REMOVE_CODE_COPY_AFTER_JOB
-     - Whether the copied code should be removed after the job is finished or not. The logs from the job will not be deleted
-       as these are saved under the permanent ``CLUSTER_ISAACLAB_DIR``. This feature is useful
-       to save disk space on the cluster. If set to ``true``, the code copy will be removed.
-   * - CLUSTER_PYTHON_EXECUTABLE
-     - The path within Isaac Lab to the Python executable that should be executed in the submitted job.
+* ``CLUSTER_ISAAC_SIM_CACHE_DIR`` must end in ``docker-isaac-sim``. It is copied to the compute node
+  and mounted into the singularity container, which speeds up simulation startup.
+* ``CLUSTER_ISAACLAB_DIR`` must end in ``isaaclab``. On submission, the latest local changes are
+  copied to ``${CLUSTER_ISAACLAB_DIR}_${datetime}``, so several jobs can run different code versions
+  at once. Logs are written back to the permanent ``CLUSTER_ISAACLAB_DIR``.
+* ``REMOVE_CODE_COPY_AFTER_JOB`` deletes only that code copy, never the logs. Enable it to save disk
+  space on the cluster.
 
 When a ``job`` is submitted, it will also use variables defined in ``docker/.env.base``, though these
 should be correct by default.
 
-.. rubric:: Exporting to singularity image
+Exporting the Apptainer image
+-----------------------------
 
 Next, we need to export the Docker image to a singularity image and upload
 it to the cluster. This step is only required once when the first job is submitted
@@ -118,16 +99,14 @@ specified, the default profile ``base`` will be used.
   the ``apptainer build`` command. In case the image creation fails, you can try to create it with root
   access by removing the flag in ``docker/cluster/cluster_interface.sh``.
 
-
-.. rubric:: Defining the job parameters
+Defining job parameters
+-----------------------
 
 The job parameters need to be defined based on the job scheduler used by your cluster.
 You only need to update the appropriate script for the scheduler available to you.
 
-- For SLURM, update the parameters in ``docker/cluster/submit_job_slurm.sh``.
-- For PBS, update the parameters in ``docker/cluster/submit_job_pbs.sh``.
-
-.. rubric:: For SLURM
+SLURM
+~~~~~
 
 The job parameters are defined inside the ``docker/cluster/submit_job_slurm.sh``.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
@@ -135,7 +114,7 @@ the time limit. For more information, please check the `SLURM documentation`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
+.. literalinclude:: ../../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 12-19
   :linenos:
@@ -148,13 +127,14 @@ must be loaded to allow internet access.
 For instance, on ETH Zurich Euler cluster, the ``eth_proxy`` module needs to be loaded. This can be done
 by adding the following line to the ``submit_job_slurm.sh`` script:
 
-.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
+.. literalinclude:: ../../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 3-5
   :linenos:
   :lineno-start: 3
 
-.. rubric:: For PBS
+PBS
+~~~
 
 The job parameters are defined inside the ``docker/cluster/submit_job_pbs.sh``.
 A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
@@ -162,14 +142,14 @@ information, please check the `PBS Official Site`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../docker/cluster/submit_job_pbs.sh
+.. literalinclude:: ../../../../docker/cluster/submit_job_pbs.sh
   :language: bash
   :lines: 11-17
   :linenos:
   :lineno-start: 11
 
-
-.. rubric:: Submitting a job
+Submitting a job
+----------------
 
 To submit a job on the cluster, the following command can be used:
 
@@ -195,8 +175,8 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 
-
-.. rubric:: For OSMO
+Submitting to OSMO
+------------------
 
 `NVIDIA OSMO`_ is a cloud-native orchestration platform for scheduling robotics workloads. Unlike the
 SLURM and PBS workflows above, it runs the Isaac Lab Docker image directly, so no singularity

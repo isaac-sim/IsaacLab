@@ -95,6 +95,7 @@ Table of Contents
    source/setup/tutorial
    source/setup/demos
    source/how-to/index
+   source/workflows/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -127,7 +128,6 @@ Table of Contents
 
    source/features/imitation-learning/index
    source/features/isaac_teleop
-   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training

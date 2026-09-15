@@ -8,6 +8,10 @@ Interacting with a rigid object
 
 .. currentmodule:: isaaclab
 
+This is the first runtime example in :ref:`asset-authoring`: spawn a rigid body, reset its
+state, step the simulation, and read the updated state. Use the authoring guides for
+configuration details and :ref:`tutorial-interact-articulation` for bodies connected by joints.
+
 In the previous tutorials, we learned the essential workings of the standalone script and how to
 spawn different objects (or *prims*) into the simulation. This tutorial shows how to create and interact
 with a rigid object. For this, we will use the :class:`assets.RigidObject` class provided in Isaac Lab.
@@ -133,7 +137,8 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-Now that we have gone through the code, let's run the script and see the result:
+This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
+the Isaac Sim viewport shown below:
 
 .. tab-set::
 
@@ -141,19 +146,18 @@ Now that we have gone through the code, let's run the script and see the result:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_rigid_object.py
+         uv run isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
 
 
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from
-a random height and settling on to the ground. To stop the simulation, you can either close the window, or press
-the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal
+a random height and settling on to the ground. Press ``Ctrl+C`` in the terminal to stop the simulation.
 
 .. figure:: ../../_static/tutorials/tutorial_run_rigid_object.jpg
     :align: center

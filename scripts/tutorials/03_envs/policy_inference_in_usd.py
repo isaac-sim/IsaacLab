@@ -16,27 +16,18 @@ using Isaac-Velocity-Rough-H1. The robot is commanded to move forward at a const
 
 """
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on inferencing a policy on an H1 robot in a warehouse.")
 parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint exported as jit.", required=True)
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 import os
 
 import torch
@@ -64,20 +55,23 @@ def main():
         terrain_type="usd",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/warehouse.usd",
     )
+    # The warehouse is enclosed: start the height-scan rays below its roof so they hit the floor.
+    env_cfg.scene.height_scanner.offset.pos = (0.0, 0.0, 2.0)
     if args_cli.device == "cpu":
         env_cfg.sim.use_fabric = False
 
-    # create environment
-    env = ManagerBasedRLEnv(cfg=env_cfg)
+    with launch_simulation(env_cfg, args_cli):
+        # create environment
+        env = ManagerBasedRLEnv(cfg=env_cfg)
 
-    # run inference with the policy
-    obs, _ = env.reset()
-    with torch.inference_mode():
-        while simulation_app.is_running():
-            action = policy(obs["policy"])
-            obs, _, _, _, _ = env.step(action)
+        # run inference with the policy
+        obs, _ = env.reset()
+        with torch.inference_mode():
+            while env.sim.is_headless_or_exist_active_visualizer():
+                action = policy(obs["policy"])
+                obs, _, _, _, _ = env.step(action)
+        env.close()
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()

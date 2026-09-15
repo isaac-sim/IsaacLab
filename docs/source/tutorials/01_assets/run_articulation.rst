@@ -7,6 +7,10 @@ Interacting with an articulation
 
 .. currentmodule:: isaaclab
 
+This runtime example complements :ref:`asset-authoring`. It uses an existing robot
+configuration; see :ref:`how-to-write-articulation-config` to create one and
+:ref:`asset-config-backends` to adapt its spawn properties to PhysX or Newton.
+
 
 This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
 :ref:`tutorial-interact-rigid-object` tutorial, where we learned how to interact with a rigid object.
@@ -118,7 +122,8 @@ The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
 
-To run the code and see the results, let's run the script from the terminal:
+This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
+the Isaac Sim viewport shown below:
 
 .. tab-set::
 
@@ -126,18 +131,18 @@ To run the code and see the results, let's run the script from the terminal:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_articulation.py
+         uv run isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py --viz kit
 
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
-To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
+Press ``Ctrl+C`` in the terminal to stop the simulation.
 
 .. figure:: ../../_static/tutorials/tutorial_run_articulation.jpg
     :align: center
@@ -158,16 +163,16 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         uv run --extra isaacsim python scripts/demos/arms.py
+         uv run isaaclab -p scripts/demos/arms.py --viz kit
 
          # Spawn many different quadrupeds
-         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         uv run isaaclab -p scripts/demos/quadrupeds.py --viz kit
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         ./isaaclab.sh -p scripts/demos/arms.py
+         ./isaaclab.sh -p scripts/demos/arms.py --viz kit
 
          # Spawn many different quadrupeds
-         ./isaaclab.sh -p scripts/demos/quadrupeds.py
+         ./isaaclab.sh -p scripts/demos/quadrupeds.py --viz kit

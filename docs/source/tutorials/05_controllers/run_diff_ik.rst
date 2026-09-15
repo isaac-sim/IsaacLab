@@ -14,6 +14,8 @@ In this tutorial, we will learn how to use a task-space controller to control th
 We will use the :class:`controllers.DifferentialIKController` class to track a desired
 end-effector pose command.
 
+This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
+
 
 The Code
 ~~~~~~~~
@@ -147,17 +149,17 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
+   .. tab-item:: Isaac Sim PhysX (uv)
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
+         uv run isaaclab -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
+         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz kit
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches
@@ -168,4 +170,4 @@ the desired pose, the command should cycle through to the next pose specified in
     :figwidth: 100%
     :alt: result of run_diff_ik.py
 
-To stop the simulation, you can either close the window,  or press ``Ctrl+C`` in the terminal.
+Press ``Ctrl+C`` in the terminal to stop the simulation.
