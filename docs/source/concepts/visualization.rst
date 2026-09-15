@@ -813,8 +813,8 @@ environment textures. Setting ``background_color=None`` remains a backwards-comp
 for ``background_mode="sky"``.
 
 Newton RTX uses the hosted ``blue_sky.hdr`` preset by default. The same versioned asset directory
-also contains ``epic_sky.hdr``, ``workshop.hdr``, and ``workshop_shifted_up.hdr``. Select another
-HDR for a concrete Newton RTX visualizer by changing one field:
+also contains ``epic_sky.hdr`` and ``workshop_shifted_up.hdr``. Select another HDR for a concrete
+Newton RTX visualizer by changing one field:
 
 .. code-block:: python
 
