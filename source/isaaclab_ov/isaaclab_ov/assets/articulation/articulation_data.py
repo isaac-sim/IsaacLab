@@ -314,6 +314,8 @@ class ArticulationData(BaseArticulationData):
                 self._body_state_w_buf,
                 self._body_link_state_w_buf,
                 self._body_com_state_w_buf,
+                self._body_inertia,
+                self._body_inertia_backend,
             ]
         )
         self._reset_dynamics(body_com_jacobian=True, mass_matrix=True, gravity_compensation=True)

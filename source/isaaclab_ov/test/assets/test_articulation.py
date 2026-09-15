@@ -3077,6 +3077,42 @@ def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
         assert buffer.timestamp < articulation.data._sim_timestamp, name
 
 
+@pytest.mark.parametrize("device", ["cpu"])
+def test_com_orientation_write_invalidates_static_inertia_cache_with_body_ordering(sim, device):
+    """A COM rotation refreshes the static inertia cache in non-identity body order."""
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = FRANKA_PANDA_CFG.replace(body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
+
+    sim.reset()
+    articulation.update(sim.cfg.dt)
+    assert articulation.body_ordering is not None
+
+    public_body_id = 1
+    backend_body_id = articulation.body_ordering.user_to_backend_indices[public_body_id]
+    assert backend_body_id != public_body_id
+
+    coms = articulation.data.body_com_pose_b.torch[:, public_body_id : public_body_id + 1].clone()
+    coms[..., 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf), body_ids=[public_body_id])
+
+    principal_inertia = torch.tensor([[[1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0]]], device=device)
+    articulation.set_inertias_index(inertias=principal_inertia, body_ids=[public_body_id])
+    torch.testing.assert_close(
+        articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1], principal_inertia
+    )
+
+    coms[..., 3:7] = torch.tensor([0.0, 0.0, 0.70710677, 0.70710677], device=device)
+    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf), body_ids=[public_body_id])
+    sim.step()
+    articulation.update(sim.cfg.dt)
+    expected_rotated_inertia = torch.tensor([[[2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 3.0]]], device=device)
+    torch.testing.assert_close(
+        articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1],
+        expected_rotated_inertia,
+    )
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(sim, device):
     """Reading ``root_link_vel_w`` must run FK before ``body_com_vel_w`` sees a "fresh" buffer.
