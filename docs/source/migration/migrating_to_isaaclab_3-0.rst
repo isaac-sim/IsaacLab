@@ -265,6 +265,14 @@ For the full design, see :ref:`schema-cfgs`.
 
 **Class moves and renames**
 
+.. important::
+
+   The ``*BaseCfg`` / ``*PropertiesCfg`` classes in this subsection are themselves
+   now deprecated in favor of schema fragments, and will be removed in 4.0. Read
+   this subsection to understand where a 2.x name went, then migrate to the
+   fragments as described in :ref:`schema-fragments-migration`. The code samples
+   below show the intermediate step, not the recommended end state.
+
 The following 2.x class names are kept as deprecated aliases. They forward to
 the new location and will be removed in 4.0.
 
@@ -397,6 +405,168 @@ available under :mod:`isaaclab_newton.sim.schemas`:
 
 The MuJoCo cfgs subclass their Newton parent because MuJoCo is one of Newton's
 solver options.
+
+.. _schema-fragments-migration:
+
+**Schema fragments supersede the whole** ``*PropertiesCfg`` / ``*BaseCfg`` **layer**
+
+The split above kept the inheritance-based shape of the 2.x cfgs: one class per
+backend, each carrying fields from several USD namespaces. Isaac Lab now
+replaces that layer with **schema fragments** — one ``@configclass`` per USD
+applied schema, each writing exactly one attribute namespace. A spawner slot
+takes a *list* of fragments, so you compose the namespaces you actually want
+instead of picking a class that bundles them.
+
+Every class in the table below is deprecated: instantiating one emits a
+``DeprecationWarning`` naming its replacement, and the class will be removed in
+4.0. Nothing is removed in 3.0 — both APIs work side by side.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Deprecated class
+     - Fragment replacement
+   * - ``MassPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.MassCfg`
+   * - ``RigidBodyBaseCfg``, ``PhysxRigidBodyPropertiesCfg``,
+       ``RigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`
+   * - ``CollisionBaseCfg``, ``PhysxCollisionPropertiesCfg``,
+       ``CollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
+   * - ``JointDriveBaseCfg``, ``PhysxJointDrivePropertiesCfg``,
+       ``JointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg`
+   * - ``ArticulationRootBaseCfg``, ``PhysxArticulationRootPropertiesCfg``,
+       ``ArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` (and
+       :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg` for
+       ``newton:selfCollisionEnabled``)
+   * - ``MeshCollisionBaseCfg``, ``MeshCollisionPropertiesCfg``,
+       ``BoundingCubePropertiesCfg``, ``BoundingSpherePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`
+   * - ``Physx*MeshPropertiesCfg`` cooking family (``PhysxConvexHullPropertiesCfg``,
+       ``PhysxConvexDecompositionPropertiesCfg``, ``PhysxTriangleMeshPropertiesCfg``,
+       ``PhysxTriangleMeshSimplificationPropertiesCfg``, ``PhysxSDFMeshPropertiesCfg``)
+     - ``Physx*Cfg`` cooking fragments (:class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`)
+   * - ``NewtonRigidBodyPropertiesCfg``, ``MujocoRigidBodyPropertiesCfg``
+     - :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`
+   * - ``NewtonJointDrivePropertiesCfg``, ``MujocoJointDrivePropertiesCfg``
+     - :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`
+   * - ``NewtonCollisionPropertiesCfg``
+     - :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+   * - ``NewtonMeshCollisionPropertiesCfg``, ``NewtonSDFCollisionPropertiesCfg``
+     - :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`,
+       :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+   * - ``NewtonArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
+
+.. note::
+
+   The deformable cfgs (``DeformableBodyPropertiesBaseCfg`` and its backend
+   subclasses) are **not** deprecated: their fragment families do not exist yet.
+
+**Code migration**
+
+.. code-block:: python
+
+   # Deprecated: one class bundling the physics:* and physxRigidBody:* namespaces
+   import isaaclab.sim as sim_utils
+   rigid_props = sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=False, linear_damping=0.1)
+
+.. code-block:: python
+
+   # Recommended: one fragment per USD namespace, composed in the spawner slot
+   from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+   from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
+   rigid_props = [
+       UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+       PhysxRigidBodyCfg(linear_damping=0.1),
+   ]
+
+A slot also accepts a mapping from a prim-path pattern to a fragment list, which
+lets one spawner cfg target different prims with different properties:
+
+.. code-block:: python
+
+   rigid_props = {"/.*": [UsdPhysicsRigidBodyCfg(kinematic_enabled=False)]}
+
+Two fields are not USD attributes and therefore have no fragment. They are now
+arguments of the family writer instead:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Deprecated cfg field
+     - Fragment-API replacement
+   * - ``ArticulationRootBaseCfg.fix_root_link``
+     - ``fix_root_link`` argument of
+       :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+   * - ``JointDriveBaseCfg.ensure_drives_exist``
+     - ``ensure_drives_exist`` argument of
+       :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+
+**Schema writers**
+
+The ``define_*`` and ``modify_*`` writers are deprecated alongside the cfgs and
+will be removed in 4.0. Each has an ``apply_*`` counterpart that takes a
+prim-path *expression* (a regular expression over whole prim paths) and a list
+of fragments, so one call can author a whole subtree:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 55 45
+
+   * - Deprecated writer
+     - Replacement
+   * - ``define_rigid_body_properties``, ``modify_rigid_body_properties``
+     - :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`
+   * - ``define_collision_properties``, ``modify_collision_properties``
+     - :func:`~isaaclab.sim.schemas.apply_collision_properties`
+   * - ``define_mass_properties``, ``modify_mass_properties``
+     - :func:`~isaaclab.sim.schemas.apply_mass_properties`
+   * - ``define_articulation_root_properties``, ``modify_articulation_root_properties``
+     - :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+   * - ``modify_joint_drive_properties``
+     - :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+   * - ``define_mesh_collision_properties``, ``modify_mesh_collision_properties``
+     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`
+   * - ``modify_fixed_tendon_properties``, ``modify_spatial_tendon_properties``
+     - :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`,
+       :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`
+
+.. code-block:: python
+
+   # Deprecated: authors one prim, takes a single bundled cfg
+   sim_utils.modify_rigid_body_properties("/World/Robot/base", RigidBodyPropertiesCfg(linear_damping=0.1))
+
+   # Recommended: authors every matching prim, takes a fragment list
+   sim_utils.apply_rigid_body_properties("/World/Robot/.*", [PhysxRigidBodyCfg(linear_damping=0.1)])
+
+The deformable writers (``define_deformable_body_properties``,
+``modify_deformable_body_properties``, ``define_deformable_curve_properties``)
+are not deprecated.
+
+**Silencing the warnings while you migrate**
+
+The warnings are standard ``DeprecationWarning``\ s and can be filtered per
+module while a migration is in progress:
+
+.. code-block:: python
+
+   import warnings
+
+   warnings.filterwarnings("ignore", category=DeprecationWarning, module="isaaclab.sim.schemas.*")
 
 .. note::
 
