@@ -8,6 +8,8 @@
 # Exit on error.
 set -e
 
+echo "[WARNING] isaaclab.sh is deprecated and will be removed in Isaac Lab 3.1. Use 'uv run isaaclab' instead." >&2
+
 # Get repo directory.
 export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
