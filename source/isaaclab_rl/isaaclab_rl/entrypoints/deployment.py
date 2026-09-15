@@ -121,7 +121,13 @@ def _worker(payload: Path, output: Path) -> None:
         output.with_suffix(".metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
     finally:
         if app is not None:
-            app.close()
+            error = sys.exception()
+            if error is not None:
+                import traceback
+
+                traceback.print_exception(error)
+            # Kit closes with os._exit; preserve failures and their diagnostics.
+            app.close(exit_code=int(error is not None))
 
 
 if __name__ == "__main__":

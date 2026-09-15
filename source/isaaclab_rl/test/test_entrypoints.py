@@ -871,3 +871,26 @@ def test_deployment_export_preserves_direct_task_cloning(tmp_path, monkeypatch):
     assert stage.GetPrimAtPath("/World/envs/env_0/Robot")
     assert not stage.GetPrimAtPath("/World/envs/env_1")
     assert sum(p.HasAPI(UsdPhysics.RigidBodyAPI) for p in stage.Traverse()) == 3
+
+
+def test_deployment_worker_preserves_kit_failure_status(tmp_path, monkeypatch, capsys):
+    """Kit shutdown must retain the exception and nonzero status from task construction."""
+    import json
+    import pickle
+
+    import isaaclab.app
+
+    from isaaclab_rl.entrypoints.deployment import _worker
+
+    codes = []
+    app = SimpleNamespace(close=lambda *, exit_code=0: codes.append(exit_code))
+    monkeypatch.setattr(isaaclab.app, "AppLauncher", lambda launch: SimpleNamespace(app=app))
+    (tmp_path / "launch.json").write_text(json.dumps({"needs_kit": True}))
+    payload = tmp_path / "scene.pickle"
+    # A constructor rejecting cfg deterministically exercises failure before a scene exists.
+    payload.write_bytes(pickle.dumps(("builtins:int", None)))
+    with pytest.raises(TypeError):
+        _worker(payload, tmp_path / "deployment.usda")
+    assert codes == [1]
+    assert "TypeError" in capsys.readouterr().err
+    assert not (tmp_path / "deployment.usda").exists()
