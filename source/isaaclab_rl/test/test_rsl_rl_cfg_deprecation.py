@@ -270,6 +270,11 @@ class TestV4:
         handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
         assert _is_missing(cfg.policy)
 
+    def test_policy_deprecation_warns_about_isaac_lab_3_1(self, capsys):
+        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
+        handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
+        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
+
     def test_skips_existing_actor(self):
         actor = _mlp_model()
         actor.hidden_dims = [999]
@@ -422,6 +427,11 @@ class TestV5:
         assert not hasattr(cfg.actor, "init_noise_std")
         assert not hasattr(cfg.actor, "noise_std_type")
         assert not hasattr(cfg.actor, "state_dependent_std")
+
+    def test_distribution_deprecation_warns_about_isaac_lab_3_1(self, capsys):
+        cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=_mlp_model())
+        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
+        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_migrates_rnn_models(self):
         a = _rnn_model()
