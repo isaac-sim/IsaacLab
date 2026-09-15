@@ -6,8 +6,9 @@
 import math
 
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
-import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -281,22 +282,29 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    disable_gravity=True,
-                    max_depenetration_velocity=5.0,
-                    linear_damping=0.0,
-                    angular_damping=0.0,
-                    max_linear_velocity=1000.0,
-                    max_angular_velocity=3666.0,
-                    enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=4,
-                    solver_velocity_iteration_count=1,
-                    max_contact_impulse=1e32,
-                ),
-                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
-                ),
-                collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+                rigid_props=[
+                    PhysxRigidBodyCfg(
+                        disable_gravity=True,
+                        max_depenetration_velocity=5.0,
+                        linear_damping=0.0,
+                        angular_damping=0.0,
+                        max_linear_velocity=1000.0,
+                        max_angular_velocity=3666.0,
+                        enable_gyroscopic_forces=True,
+                        solver_position_iteration_count=4,
+                        solver_velocity_iteration_count=1,
+                        max_contact_impulse=1e32,
+                    )
+                ],
+                articulation_props=[
+                    PhysxArticulationCfg(
+                        enabled_self_collisions=False,
+                        solver_position_iteration_count=4,
+                        solver_velocity_iteration_count=1,
+                    ),
+                    NewtonArticulationCfg(self_collision_enabled=False),
+                ],
+                collision_props=[PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0)],
             ),
             # Joint positions based on IK from center of distribution for randomized gear positions
             init_state=ArticulationCfg.InitialStateCfg(

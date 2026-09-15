@@ -50,7 +50,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/table.usd",
             scale=(1.0, 1.0, 1.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 
@@ -60,7 +60,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/blue_exhaust_pipe.usd",
             scale=(0.5, 0.5, 1.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 
@@ -70,7 +70,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/blue_sorting_bin.usd",
             scale=(1.0, 1.7, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 
@@ -80,7 +80,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/black_sorting_bin.usd",
             scale=(1.0, 1.7, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 

@@ -11,6 +11,7 @@ import math
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -85,9 +86,12 @@ class RenderBenchmarkEnv(DirectRLEnv):
             spawn=sim_utils.CuboidCfg(
                 size=(size_x, size_y, thickness),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=self.cfg.ground_color, metallic=0.0),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, kinematic_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=[
+                    sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                    PhysxRigidBodyCfg(disable_gravity=True),
+                ],
+                mass_props=[sim_utils.MassCfg(mass=1.0)],
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, self.cfg.ground_top_z - thickness / 2.0)),
         )

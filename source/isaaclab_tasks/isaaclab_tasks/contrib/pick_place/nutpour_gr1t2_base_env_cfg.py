@@ -12,6 +12,8 @@ from isaaclab_teleop import XrCfg
 # environments in the test suite.
 _TELEOP_AVAILABLE = True
 
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -50,7 +52,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/table.usd",
             scale=(1.0, 1.0, 1.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 
@@ -60,7 +62,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_scale.usd",
             scale=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 
@@ -70,8 +72,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bowl_yellow.usd",
             scale=(1.0, 1.0, 1.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+            collision_props=[PhysxCollisionCfg(contact_offset=0.005)],
         ),
     )
 
@@ -81,7 +83,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_beaker_red.usd",
             scale=(0.45, 0.45, 1.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 
@@ -91,8 +93,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/factory_m16_nut_green.usd",
             scale=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+            collision_props=[PhysxCollisionCfg(contact_offset=0.005)],
         ),
     )
 
@@ -102,7 +104,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
             scale=(0.75, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         ),
     )
 

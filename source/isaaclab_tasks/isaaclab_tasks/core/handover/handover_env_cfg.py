@@ -7,6 +7,7 @@ import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -106,18 +107,20 @@ BALL_CFG = RigidObjectCfg(
         radius=OBJECT_RADIUS,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
         physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            kinematic_enabled=False,
-            disable_gravity=False,
-            enable_gyroscopic_forces=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0025,
-            max_depenetration_velocity=1000.0,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(density=500.0),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_depenetration_velocity=1000.0,
+            ),
+        ],
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        mass_props=[sim_utils.MassCfg(density=500.0)],
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
 )

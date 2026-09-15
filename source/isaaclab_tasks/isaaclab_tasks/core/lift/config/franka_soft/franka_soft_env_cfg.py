@@ -75,7 +75,7 @@ POISSONS_RATIO = 0.3
 # visualizer draws it instead, tinted by whether the goal is reached.
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(1.3, 0.9, 1.05),
-    collision_props=sim_utils.CollisionPropertiesCfg(),
+    collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
     visible=False,
 )
 
