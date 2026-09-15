@@ -15,6 +15,7 @@ Reference: https://www.fftai.com/products-gr1
 """
 
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -47,7 +48,8 @@ GR1T2_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(

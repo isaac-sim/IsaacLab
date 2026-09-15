@@ -12,6 +12,7 @@ The following configuration parameters are available:
 Reference: https://github.com/RethinkRobotics/sawyer_robot
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -30,7 +31,8 @@ SAWYER_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
         ],
         activate_contact_sensors=False,
     ),

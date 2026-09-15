@@ -20,6 +20,7 @@ The following configurations are available:
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -78,7 +79,8 @@ UNITREE_A1_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -129,7 +131,8 @@ UNITREE_GO1_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -169,7 +172,8 @@ UNITREE_GO2_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -219,7 +223,8 @@ H1_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=4
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -311,7 +316,8 @@ G1_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -433,7 +439,8 @@ G1_29DOF_CFG = ArticulationCfg(
                 enabled_self_collisions=False,
                 solver_position_iteration_count=8,
                 solver_velocity_iteration_count=4,
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
         fix_root_link=False,  # Configurable - can be set to True for fixed base
     ),
@@ -663,7 +670,8 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     prim_path="{ENV_REGEX_NS}/Robot",

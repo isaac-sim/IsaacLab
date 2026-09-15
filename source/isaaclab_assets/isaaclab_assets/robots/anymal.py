@@ -19,6 +19,7 @@ Reference:
 
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -76,7 +77,8 @@ ANYMAL_B_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
         ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
     ),
@@ -115,7 +117,8 @@ ANYMAL_C_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
         ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
     ),
@@ -154,7 +157,8 @@ ANYMAL_D_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
         ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
     ),

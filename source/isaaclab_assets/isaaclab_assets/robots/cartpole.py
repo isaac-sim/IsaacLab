@@ -5,6 +5,7 @@
 
 """Configuration for a simple Cartpole robot."""
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -35,7 +36,8 @@ CARTPOLE_CFG = ArticulationCfg(
                 solver_velocity_iteration_count=0,
                 sleep_threshold=0.005,
                 stabilization_threshold=0.001,
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(

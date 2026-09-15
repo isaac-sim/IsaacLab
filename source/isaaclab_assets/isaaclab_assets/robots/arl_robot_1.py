@@ -10,6 +10,7 @@ The following configuration parameters are available:
 * :obj:`ARL_ROBOT_1_CFG`: The ARL_Robot_1
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -53,7 +54,8 @@ ARL_ROBOT_1_CFG = MultirotorCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
         ],
     ),
     init_state=MultirotorCfg.InitialStateCfg(

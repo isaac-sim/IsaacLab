@@ -15,6 +15,7 @@ The following configuration parameters are available:
 Reference: https://github.com/ros-industrial/universal_robot
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -59,7 +60,8 @@ UR10e_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=16, solver_velocity_iteration_count=1
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
         activate_contact_sensors=False,
     ),

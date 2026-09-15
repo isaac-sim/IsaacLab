@@ -12,6 +12,7 @@ The following configurations are available:
 
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -31,7 +32,8 @@ AGIBOT_A2D_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-            )
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
         ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
