@@ -756,6 +756,40 @@ def _warn_if_no_deformable_material(prim: Usd.Prim) -> None:
     )
 
 
+# Simulation-mesh API schemas that record whether an authored deformable body is a volume or a
+# surface deformable. The generic deformable-body anchor on the body prim does not carry that
+# split, so both backend spellings are matched here.
+_DEFORMABLE_SIM_API_TYPES = {
+    "OmniPhysicsVolumeDeformableSimAPI": "volume",
+    "PhysicsVolumeDeformableSimAPI": "volume",
+    "OmniPhysicsSurfaceDeformableSimAPI": "surface",
+    "PhysicsSurfaceDeformableSimAPI": "surface",
+}
+
+
+def _authored_deformable_type(prim: Usd.Prim) -> str | None:
+    """Report the deformable type an already-anchored body was authored with.
+
+    The volume/surface distinction lives on the simulation mesh (its sim API schema), not on the
+    deformable-body anchor, so the subtree is inspected for the first simulation-mesh API schema.
+
+    Args:
+        prim: The deformable-body prim to inspect.
+
+    Returns:
+        ``"volume"``, ``"surface"``, or None when the subtree carries no simulation-mesh API and
+        the type cannot be determined.
+    """
+    for descendant in Usd.PrimRange(prim):
+        for schema in descendant.GetPrimTypeInfo().GetAppliedAPISchemas():
+            # multi-apply schemas carry an instance suffix (``Api:instance``); the split is a no-op
+            # for the single-apply sim APIs matched here
+            authored_type = _DEFORMABLE_SIM_API_TYPES.get(schema.split(":", 1)[0])
+            if authored_type is not None:
+                return authored_type
+    return None
+
+
 def _apply_deformable_body_properties(
     prim_path_expr: str,
     fragments: Iterable[schemas_cfg.DeformableBodyFragment],
@@ -780,6 +814,27 @@ def _apply_deformable_body_properties(
                 deformable_type,
             )
     targets, creation_candidates, any_skipped = _match_fragment_targets(prim_path_expr, has_deformable_body_api, stage)
+    # the deformable-body anchor is type-agnostic, so a prim authored as the other deformable type
+    # also matches here. Authoring this family onto it would leave the body simulating as its
+    # authored type while carrying this family's attributes, so drop it instead.
+    matched_targets, targets = targets, []
+    mismatched = False
+    for prim in matched_targets:
+        authored_type = _authored_deformable_type(prim)
+        if authored_type is not None and authored_type != deformable_type:
+            mismatched = True
+            logger.warning(
+                "Prim '%s' is already authored as a %s deformable but was matched by '%s' as a %s"
+                " deformable; skipping it. Author it through the %s deformable family instead.",
+                prim.GetPath().pathString,
+                authored_type,
+                prim_path_expr,
+                deformable_type,
+                authored_type,
+            )
+        else:
+            targets.append(prim)
+    any_skipped = any_skipped or mismatched
     if create_if_missing and creation_candidates:
         # Keep this import local to avoid the SimulationContext -> schemas import cycle.
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
@@ -799,7 +854,8 @@ def _apply_deformable_body_properties(
                 _warn_if_no_deformable_material(prim)
             targets.append(prim)
     if not targets:
-        logger.warning("No deformable-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        if not mismatched:
+            logger.warning("No deformable-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
         return False
     dispatchers = [cfg.func if callable(cfg.func) else string_to_callable(cfg.func) for cfg in fragments]
     # aggregate per-target, per-fragment results so a reported failure is not masked
@@ -836,6 +892,8 @@ def apply_volume_deformable_properties(
     and the anchor schemas are applied through the active physics backend. Creation therefore
     requires an active simulation. Zero targets warn and return False; instanced matches are
     skipped with a warning; fragments not meaningful for volume deformables warn but author.
+    Matched prims already authored as surface deformables are skipped with a warning rather than
+    being given a volume family they do not simulate with.
 
     Args:
         prim_path_expr: The prim path expression matched against the stage.
@@ -854,7 +912,7 @@ def apply_volume_deformable_properties(
             tetrahedralization. Defaults to ``0.1``.
 
     Returns:
-        True if every target and fragment succeeded and no instanced prim was skipped.
+        True if every target and fragment succeeded and no matched prim was skipped.
 
     Raises:
         RuntimeError: If creation is requested without an active simulation.
@@ -883,7 +941,8 @@ def apply_surface_deformable_properties(
     """Apply deformable-body fragments to the surface deformables matched by an expression.
 
     Same contract as :func:`apply_volume_deformable_properties` with surface structural work:
-    the simulation mesh is a triangle-mesh copy of the visual mesh (no tetrahedralization).
+    the simulation mesh is a triangle-mesh copy of the visual mesh (no tetrahedralization), and
+    matched prims already authored as volume deformables are the ones skipped with a warning.
 
     Args:
         prim_path_expr: The prim path expression matched against the stage.
@@ -898,11 +957,12 @@ def apply_surface_deformable_properties(
             physics material bound anywhere in its subtree. Callers that bind a deformable
             material after creation (e.g. the spawners) pass False to silence the advisory.
             Defaults to True.
-        tetrahedralization_edge_length_fac: Relative target edge length for automatic
-            tetrahedralization. Defaults to ``0.1``.
+        tetrahedralization_edge_length_fac: Accepted for signature parity with
+            :func:`apply_volume_deformable_properties` and unused, since surface deformables are
+            not tetrahedralized. Defaults to ``0.1``.
 
     Returns:
-        True if every target and fragment succeeded and no instanced prim was skipped.
+        True if every target and fragment succeeded and no matched prim was skipped.
 
     Raises:
         RuntimeError: If creation is requested without an active simulation.

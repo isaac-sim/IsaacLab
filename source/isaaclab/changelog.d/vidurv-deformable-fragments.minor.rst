@@ -31,6 +31,11 @@ Changed
   fragments on one material prim; the ``UsdPhysics.MaterialAPI`` anchor is applied only when a
   rigid-body fragment is present. The writer is now named
   :func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments` accordingly.
+* Changed :func:`~isaaclab.sim.schemas.apply_volume_deformable_properties` and
+  :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties` to skip matched prims that are
+  already authored as the other deformable type. Such a prim is reported with a warning and drags
+  the return value to ``False`` instead of receiving a family it does not simulate with. Target the
+  prim through the writer matching its authored type.
 
 Deprecated
 ^^^^^^^^^^

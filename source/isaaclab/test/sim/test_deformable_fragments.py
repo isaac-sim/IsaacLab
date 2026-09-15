@@ -146,6 +146,36 @@ def test_apply_deformable_warns_on_type_mismatched_fragment(monkeypatch, caplog)
     assert prim.GetAttribute("omniphysics:mass").Get() is not None
 
 
+def test_apply_deformable_skips_targets_authored_as_the_other_type(monkeypatch, caplog):
+    """A prim authored as a surface deformable must not receive the volume family.
+
+    The deformable-body anchor is type-agnostic, so such a prim matches the volume writer as an
+    existing target and would silently keep its surface simulation mesh while gaining volume
+    attributes.
+    """
+    import logging
+
+    from pxr import UsdGeom
+
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg, apply_volume_deformable_properties
+
+    stage = _fresh_sim_with_stub(monkeypatch)
+    body = UsdGeom.Xform.Define(stage, "/World/Cloth").GetPrim()
+    body.AddAppliedSchema("PhysicsDeformableBodyAPI")
+    sim_mesh = UsdGeom.Mesh.Define(stage, "/World/Cloth/sim_mesh").GetPrim()
+    sim_mesh.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI")
+
+    with caplog.at_level(logging.WARNING):
+        result = apply_volume_deformable_properties(
+            "/World/Cloth", [OmniPhysicsDeformableBodyCfg(mass=1.0)], create_if_missing=True, stage=stage
+        )
+    assert result is False
+    assert _StubManager.calls == []  # never re-setup as the requested type
+    assert not body.GetAttribute("omniphysics:mass").IsValid()  # nothing authored on the mismatch
+    message = " ".join(rec.message for rec in caplog.records)
+    assert "/World/Cloth" in message and "surface" in message and "volume" in message
+
+
 # -------------------------------------------------------------------------------------
 # Spawner slots -- volume/surface_deformable_props on mesh and USD-file spawners
 # -------------------------------------------------------------------------------------
