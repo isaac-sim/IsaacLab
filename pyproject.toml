@@ -113,11 +113,6 @@ dependencies = [
     "typing-extensions>=4.15.0",
 ]
 
-# CUDA selection for uv source checkouts. Linux aarch64 always uses CUDA 13.0.
-[dependency-groups]
-cu128 = ["torch", "torchvision", "torchaudio"]
-cu130 = ["torch", "torchvision", "torchaudio"]
-
 [project.optional-dependencies]
 
 tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
@@ -401,8 +396,6 @@ explicit = true
 # unsafe-best-match resolves NVIDIA deps with versions mismatched across
 # pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
 [tool.uv]
-default-groups = ["cu128"]
-conflicts = [[{ group = "cu128" }, { group = "cu130" }]]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
@@ -452,19 +445,19 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
 torch = [
-    { index = "pytorch-cu128", group = "cu128", marker = "platform_machine != 'aarch64'" },
-    { index = "pytorch-cu130", group = "cu130", marker = "platform_machine != 'aarch64'" },
-    { index = "pytorch-cu130", marker = "platform_machine == 'aarch64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 torchaudio = [
-    { index = "pytorch-cu128", group = "cu128", marker = "platform_machine != 'aarch64'" },
-    { index = "pytorch-cu130", group = "cu130", marker = "platform_machine != 'aarch64'" },
-    { index = "pytorch-cu130", marker = "platform_machine == 'aarch64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 torchvision = [
-    { index = "pytorch-cu128", group = "cu128", marker = "platform_machine != 'aarch64'" },
-    { index = "pytorch-cu130", group = "cu130", marker = "platform_machine != 'aarch64'" },
-    { index = "pytorch-cu130", marker = "platform_machine == 'aarch64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 
 [tool.uv.pip]

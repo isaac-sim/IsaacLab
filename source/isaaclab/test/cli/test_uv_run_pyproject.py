@@ -8,13 +8,10 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
 import tomllib
-from packaging.markers import default_environment
-from packaging.requirements import Requirement
 
 pytestmark = pytest.mark.unit
 
@@ -119,32 +116,6 @@ def test_tetrahedralization_is_explicit_extra_only(source_checkout_root: Path):
         assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in deps)
 
 
-@pytest.mark.parametrize("groups", [[], ["--group", "cu128"], ["--no-group", "cu128", "--group", "cu130"]])
-def test_cuda_groups_resolve_matching_torch_builds(source_checkout_root: Path, groups: list[str]):
-    """Check the selected lockfile graph, including transitive CUDA runtime dependencies."""
-    result = subprocess.run(
-        ["uv", "export", "--frozen", "--no-hashes", "--no-annotate", "--no-emit-project", *groups],
-        cwd=source_checkout_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    requirements = [
-        Requirement(line) for line in result.stdout.splitlines() if line and not line.startswith(("#", "-"))
-    ]
-    for system, machine in (("linux", "x86_64"), ("win32", "AMD64"), ("linux", "aarch64")):
-        environment = default_environment() | {"sys_platform": system, "platform_machine": machine}
-        selected = [req for req in requirements if req.marker is None or req.marker.evaluate(environment)]
-        cuda = "cu130" if "cu130" in groups or machine == "aarch64" else "cu128"
-        for package in ("torch", "torchvision", "torchaudio"):
-            builds = [str(req.specifier) for req in selected if req.name == package]
-            assert len(builds) == 1, (system, machine, package, builds)
-            assert builds[0].endswith(f"+{cuda}"), builds
-        if system == "linux":
-            incompatible_suffix = "-cu13" if cuda == "cu128" else "-cu12"
-            assert not [req.name for req in selected if req.name.endswith(incompatible_suffix)]
-
-
 def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     """``[tool.isaaclab.versions]`` is the single source for externally-pinned versions.
 
@@ -227,7 +198,7 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
-    assert all("extra" not in item for conflict in tool_uv.get("conflicts", []) for item in conflict)
+    assert "conflicts" not in tool_uv
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
 
 
