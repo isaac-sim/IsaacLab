@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
+import warnings
 
 from pxr import Usd, UsdPhysics, UsdShade
 
@@ -96,6 +97,38 @@ def spawn_physics_material_from_fragments(
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
         func(cfg, prim_path, stage)
     return prim
+
+
+def spawn_rigid_body_material_from_fragments(
+    prim_path: str,
+    fragments: physics_materials_cfg.RigidBodyMaterialFragment
+    | physics_materials_cfg.DeformableMaterialFragment
+    | list[physics_materials_cfg.RigidBodyMaterialFragment | physics_materials_cfg.DeformableMaterialFragment]
+    | tuple[physics_materials_cfg.RigidBodyMaterialFragment | physics_materials_cfg.DeformableMaterialFragment, ...],
+    stage: Usd.Stage | None = None,
+) -> Usd.Prim:
+    """Deprecated: use :func:`spawn_physics_material_from_fragments`.
+
+    .. deprecated:: 4.6.x
+        ``spawn_rigid_body_material_from_fragments`` was renamed to
+        :func:`spawn_physics_material_from_fragments` now that the writer also accepts deformable
+        material fragments, and is scheduled for removal in 5.0.
+
+    Args:
+        prim_path: The prim path to spawn the material at.
+        fragments: A single physics-material fragment, or a list/tuple of them.
+        stage: The stage to spawn on. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The spawned physics material prim.
+    """
+    warnings.warn(
+        "'spawn_rigid_body_material_from_fragments' is deprecated and will be removed in 5.0. Use"
+        " 'isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments' instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return spawn_physics_material_from_fragments(prim_path, fragments, stage)
 
 
 def spawn_physics_material(

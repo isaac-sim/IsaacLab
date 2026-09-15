@@ -6,6 +6,7 @@
 __all__ = [
     "spawn_rigid_body_material",
     "spawn_physics_material_from_fragments",
+    "spawn_rigid_body_material_from_fragments",
     "spawn_physics_material",
     "spawn_deformable_body_material",
     "CableMaterialCfg",
@@ -34,6 +35,7 @@ from .physics_materials import (
     spawn_physics_material,
     spawn_physics_material_from_fragments,
     spawn_rigid_body_material,
+    spawn_rigid_body_material_from_fragments,
 )
 from .physics_materials_cfg import (
     CableMaterialCfg,

@@ -352,6 +352,8 @@ Physical Materials
 
 .. autofunction:: spawn_physics_material_from_fragments
 
+.. autofunction:: spawn_rigid_body_material_from_fragments
+
 .. autoclass:: RigidBodyMaterialFragment
     :members:
     :show-inheritance:

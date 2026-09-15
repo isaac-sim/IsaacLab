@@ -29,5 +29,13 @@ Changed
   ``deformable_props`` field.
 * Changed physics-material fragment lists to allow mixing rigid-body and deformable material
   fragments on one material prim; the ``UsdPhysics.MaterialAPI`` anchor is applied only when a
-  rigid-body fragment is present. Renamed ``spawn_rigid_body_material_from_fragments`` to
+  rigid-body fragment is present. The writer is now named
   :func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments` accordingly.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments` in
+  favor of :func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments`, which
+  also accepts deformable material fragments. The old name still forwards to the new writer and
+  emits a ``DeprecationWarning``; it is scheduled for removal in 5.0.

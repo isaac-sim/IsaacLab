@@ -101,6 +101,28 @@ def test_spawn_physics_material_from_fragments_accepts_single_fragment():
     assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.3)
 
 
+def test_spawn_rigid_body_material_from_fragments_alias_warns_and_forwards():
+    """The pre-rename public name stays importable, warns, and authors through the new writer."""
+    import warnings
+
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        prim = spawn_rigid_body_material_from_fragments(
+            "/World/MatAlias", UsdPhysicsRigidBodyMaterialCfg(static_friction=0.5), stage
+        )
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+    assert any("spawn_physics_material_from_fragments" in str(w.message) for w in caught)
+    assert prim.IsA(UsdShade.Material)
+    assert bool(UsdPhysics.MaterialAPI(prim))
+    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.5)
+
+
 def test_spawn_physics_material_dispatches_fragments_and_legacy():
     """The shared dispatcher handles both a rigid-body fragment collection and a legacy material
     cfg carrying its own ``func``."""
