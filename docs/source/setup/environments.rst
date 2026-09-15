@@ -80,7 +80,7 @@ Task Preview
      <section class="environment-preview-panel" aria-live="polite">
        <div class="environment-preview-stage">
          <video data-preview-video muted autoplay loop playsinline preload="metadata" hidden></video>
-         <img data-preview-image src="../../_images/cartpole.jpg" alt="Isaac-Cartpole preview">
+         <img data-preview-image src="../../_static/tasks/classic/cartpole.jpg" alt="Isaac-Cartpole preview">
          <div class="environment-preview-caption">
            <span class="environment-preview-label">Selected task</span>
            <strong data-preview-task>Isaac-Cartpole</strong>
