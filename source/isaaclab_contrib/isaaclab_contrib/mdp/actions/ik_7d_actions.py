@@ -186,7 +186,7 @@ class Ik7dAction(ActionTerm):
         articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
         base_pose_w = articulation_data.body_link_pose_w.torch[:, self._base_link_idx]
         base_pose = math_utils.make_pose(
-            base_pose_w[:, :3] - self._env.scene.env_origins,
+            base_pose_w[:, :3],
             math_utils.matrix_from_quat(base_pose_w[:, 3:7]),
         )
         # `pose_in_A_to_pose_in_B` broadcasts over the leading env dimension, so
@@ -218,7 +218,7 @@ class Ik7dAction(ActionTerm):
         Args:
             env_ids: Environment IDs to reset. If ``None``, all are reset.
         """
-        indices = range(self.num_envs) if env_ids is None else env_ids
+        indices = range(self.num_envs) if env_ids is None or isinstance(env_ids, slice) else env_ids
         joint_pos_lab = self._asset.data.joint_pos.torch.detach().cpu().numpy()
         for env_index in indices:
             self._raw_actions[env_index] = 0.0
