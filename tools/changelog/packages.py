@@ -7,8 +7,9 @@
 
 The bottom layer of the changelog tool. Everything here answers questions
 about what is on disk -- what version a package declares, which fragments
-are pending, what a compiled entry looks like -- and knows nothing about
-git, the nightly job, or the command line.
+are pending, what a compiled entry looks like -- and applies the PR fragment
+rules. Git supplies fragment timestamps and PR diffs; nightly orchestration
+and command-line handling live in separate modules.
 
 Which file holds a package's version is a property of the branch: this one
 keeps it in ``pyproject.toml`` under ``[project]``; release branches cut

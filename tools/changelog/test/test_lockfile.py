@@ -94,40 +94,6 @@ def _write_workspace(root, *, lock=LOCK, root_toml=ROOT_TOML, versions=None) -> 
 
 
 # ---------------------------------------------------------------------------
-# The rewrite: what moves, and what must not
-# ---------------------------------------------------------------------------
-
-
-def test_bumped_member_version_is_rewritten():
-    updated, drifts = LockFile._rewrite(LOCK, {"isaaclab": "13.1.0", "isaaclab-tasks": "9.1.0"})
-    assert [(d.package, d.old, d.new) for d in drifts] == [("isaaclab", "13.0.0", "13.1.0")]
-    assert 'name = "isaaclab"\nversion = "13.1.0"' in updated
-
-
-def test_third_party_package_is_never_rewritten():
-    """``warp-lang`` shares isaaclab's old version string. Only names present
-    in ``targets`` may move, so the registry package must survive verbatim."""
-    updated, _ = LockFile._rewrite(LOCK, {"isaaclab": "13.1.0"})
-    assert 'name = "warp-lang"\nversion = "13.0.0"' in updated
-
-
-def test_indented_dependency_rows_are_never_rewritten():
-    """``    { name = "warp-lang", specifier = "==13.0.0" }`` is a dependency
-    reference, not a package pin. The column-zero anchor keeps the rewriter
-    off it."""
-    updated, _ = LockFile._rewrite(LOCK, {"warp-lang": "99.0.0"})
-    assert 'specifier = "==13.0.0"' in updated
-
-
-def test_exactly_one_line_changes():
-    """Byte-for-byte: a rewrite touches the version line and nothing else."""
-    updated, _ = LockFile._rewrite(LOCK, {"isaaclab": "13.1.0"})
-    before, after = LOCK.splitlines(), updated.splitlines()
-    assert len(before) == len(after)
-    assert [i for i, (b, a) in enumerate(zip(before, after)) if b != a] == [before.index('version = "13.0.0"')]
-
-
-# ---------------------------------------------------------------------------
 # Block scoping: a package name is not a safe key
 # ---------------------------------------------------------------------------
 
@@ -166,7 +132,9 @@ def test_registry_block_sharing_a_member_name_is_not_rewritten(tmp_path):
         root_toml=DUPLICATE_NAME_ROOT_TOML,
         versions={"isaaclab": "13.1.0"},
     )
-    updated, drifts = lock._guarded_drift()
+    drifts = lock.check()
+    lock.sync()
+    updated = lock.path.read_text(encoding="utf-8")
     assert [(d.package, d.old, d.new) for d in drifts] == [("isaaclab", "13.0.0", "13.1.0")]
     assert 'version = "13.1.0"\nsource = { editable = "source/isaaclab" }' in updated
     assert 'version = "12.4.0"\nsource = { registry = "https://pypi.org/simple" }' in updated
@@ -177,18 +145,12 @@ def test_registry_block_sharing_a_member_name_is_not_rewritten(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_targets_come_from_member_manifests_and_skip_the_virtual_root(tmp_path):
-    """The virtual workspace root carries a ``version`` line but no editable
-    source, so it must never become a rewrite target."""
-    lock = _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
-    assert lock._target_versions() == {"isaaclab": "13.1.0", "isaaclab-tasks": "9.1.0"}
-
-
 def test_member_without_a_manifest_keeps_its_locked_version(tmp_path):
     """An unmanaged or half-checked-out member must not fail a workspace-wide
     operation — it simply keeps whatever the lock already records."""
     lock = _write_workspace(tmp_path, versions={"isaaclab": "13.1.0"})
-    assert lock._target_versions() == {"isaaclab": "13.1.0"}
+    assert lock.sync() == [lock.path]
+    assert lock.path.read_text(encoding="utf-8") == _applied(LOCK)
 
 
 # ---------------------------------------------------------------------------
@@ -241,21 +203,12 @@ def test_branch_without_a_lock_is_a_clean_noop(tmp_path, call):
 # ---------------------------------------------------------------------------
 
 
-def test_sync_writes_the_lock_and_reports_the_path(tmp_path):
+def test_sync_changes_only_the_member_pin_and_is_idempotent(tmp_path):
     lock = _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
     assert lock.sync() == [tmp_path / "uv.lock"]
-    assert 'name = "isaaclab"\nversion = "13.1.0"' in (tmp_path / "uv.lock").read_text(encoding="utf-8")
-
-
-def test_sync_is_idempotent(tmp_path):
-    """A second sync reports nothing to do.
-
-    This is what holds the cached read honest: the first call rewrites the
-    very file the cache was taken from, so a cache outliving that write
-    would replay stale drift and report a change that no longer exists.
-    """
-    lock = _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
-    lock.sync()
+    # Exact text also protects registry pins, dependency metadata, and the virtual root.
+    assert lock.path.read_text(encoding="utf-8") == _applied(LOCK)
+    assert lock.check() == []
     assert lock.sync() == []
 
 
@@ -351,10 +304,6 @@ def _applied(text: str) -> str:
     return text.replace('name = "isaaclab"\nversion = "13.0.0"', 'name = "isaaclab"\nversion = "13.1.0"', 1)
 
 
-def test_sound_rewrite_is_accepted():
-    LockFile._assert_rewrite_is_sound(LOCK, _applied(LOCK), _SOUND_DRIFT)
-
-
 def test_invalid_toml_is_refused():
     with pytest.raises(LockFile.Error, match="invalid TOML"):
         LockFile._assert_rewrite_is_sound(LOCK, LOCK + '\nname = "unclosed\n', _SOUND_DRIFT)
@@ -390,7 +339,6 @@ def test_rewrite_of_the_wrong_duplicate_block_is_refused():
 def test_sync_refuses_to_write_an_unsound_rewrite(tmp_path, monkeypatch):
     """End to end: a broken rewrite must leave the on-disk lock untouched."""
     lock = _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
-    monkeypatch.setattr(LockFile, "_rewrite", classmethod(lambda cls, t, tg, eb=None: (t + "\nbroken = [\n", [])))
     monkeypatch.setattr(LockFile, "_guarded_drift", lambda self: (LOCK + "\nbroken = [\n", _SOUND_DRIFT))
     with pytest.raises(LockFile.Error):
         lock.sync()

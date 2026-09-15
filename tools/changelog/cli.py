@@ -97,7 +97,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from autobump import AutoBumpRun, GitRepo
+from autobump import AutoBumpRun
+from gitrepo import GitRepo
 from lockfile import LockFile
 from packages import REPO_ROOT, FragmentFilename, Package, PRDiff, RootPackage, Version
 

@@ -318,7 +318,7 @@ class LockFile:
         cls,
         text: str,
         targets: dict[str, str],
-        editable_blocks: set[int] | None = None,
+        editable_blocks: set[int],
     ) -> tuple[str, list[Drift]]:
         """Return ``(new lock text, drifts)``.
 
@@ -330,9 +330,7 @@ class LockFile:
             targets: Versions to write, keyed by package name. Names absent
                 from this mapping are left alone.
             editable_blocks: Positions, in file order, of the ``[[package]]``
-                blocks that may be rewritten. ``None`` applies no positional
-                restriction and matches on name alone — for exercising the
-                line mechanics in isolation.
+                blocks that may be rewritten.
         """
         out: list[str] = []
         drifts: list[LockFile.Drift] = []
@@ -351,7 +349,7 @@ class LockFile:
             elif (match := cls._NAME_RE.match(line)) is not None:
                 current = match.group(1)
             elif current is not None and (match := cls._VERSION_RE.match(line)) is not None:
-                allowed = editable_blocks is None or block in editable_blocks
+                allowed = block in editable_blocks
                 old, new = match.group(1), targets.get(current)
                 if allowed and new is not None and new != old:
                     line = f'version = "{new}"\n'

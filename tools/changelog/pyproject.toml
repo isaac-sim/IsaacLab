@@ -3,7 +3,7 @@
 #
 #   1. ``pythonpath = ["."]`` adds ``tools/changelog/`` to ``sys.path``, so
 #      the test files import the modules under test (``cli``, ``packages``,
-#      ``autobump``, ``lockfile``) and their shared ``conftest`` directly,
+#      ``autobump``, ``gitrepo``, ``lockfile``) and their shared ``conftest`` directly,
 #      with no shim.
 #   2. ``tools/conftest.py`` (a session-takeover hook for the IsaacLab
 #      source/ test suite) sits *above* rootdir and is therefore not
