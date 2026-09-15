@@ -37,8 +37,11 @@ _UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
 _USD_EXTENSIONS = {".usd", ".usda", ".usdc", ".usdz"}
 _MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
 _MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
-_MDL_IMPORT_RE = re.compile(r"\bimport\s+([^;]+);")
-_MDL_USING_IMPORT_RE = re.compile(r"\busing\s+(.+?)\s+import\s+[^;]+;")
+_MDL_MODULE_PATTERN = r"(?:(?:\.\.::)++|\.::)[A-Za-z_]\w*+(?:::[A-Za-z_]\w*+)*+(?:::\*)?"
+_MDL_IMPORT_RE = re.compile(rf"\bimport\s++({_MDL_MODULE_PATTERN});")
+_MDL_USING_IMPORT_RE = re.compile(
+    rf"\busing\s++({_MDL_MODULE_PATTERN})\s++import\s++(?:\*|[A-Za-z_]\w*+(?:\s*+,\s*+[A-Za-z_]\w*+)*+);"
+)
 _MDL_RELATIVE_IMPORT_RE = re.compile(
     r"(?P<prefix>(?:\.\.::)+|\.::)(?P<module>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?P<wildcard>::\*)?"
 )

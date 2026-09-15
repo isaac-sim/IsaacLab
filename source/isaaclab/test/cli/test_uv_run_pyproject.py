@@ -44,6 +44,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "sb3",
         "skrl",
         "rl-games",
+        "wandb",
         "rsl-rl",
         "viser",
         "rerun",
@@ -95,6 +96,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "tetrahedralization",
         "video",
         "leapp",
+        "wandb",
         "test",
         "dev",
     }
