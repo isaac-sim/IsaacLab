@@ -5,6 +5,9 @@
 
 """H2 + Sharpa Wave env for the pick-and-place apple task (PhysX, rigid apple)."""
 
+import math
+import os
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -21,31 +24,130 @@ from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROO
 
 from .. import mdp
 from .camera_config import CameraPresets
-from .metadata import H2_ACTION_JOINT_ORDER, H2_PNP_APPLE_CUSTOM_JOINT_POS
+from .metadata import (
+    ACTION_DIM,
+    H2_ACTION_JOINT_ORDER,
+    POLICY_58_ORDER,
+)
 from .robot_config import H2RobotPresets, h2_body_joint_offsets
 
-# Compatibility alias; action order differs from Isaac articulation order.
-h2_joint_names = H2_ACTION_JOINT_ORDER
+# pnp_apple_sim_new_bg_v1 episode_000027 frame 0, replayed from
+# apple_pick_and_place_05142000_filtered episode_000043, in POLICY_58_ORDER
+# (left_arm, right_arm, left_hand, right_hand).
+_FRAME0_POLICY_58_POS: tuple[float, ...] = (
+    0.2754,
+    0.0215,
+    -0.0674,
+    -0.0774,
+    0.0518,
+    -0.1481,
+    -0.0260,
+    0.1734,
+    -0.0544,
+    0.0165,
+    -0.0457,
+    0.0006,
+    0.0136,
+    0.1644,
+    0.2834,
+    0.0498,
+    -0.4345,
+    0.2344,
+    0.7783,
+    -0.1513,
+    -0.0731,
+    0.0373,
+    0.1479,
+    -0.1540,
+    0.0019,
+    0.0358,
+    0.1647,
+    -0.1514,
+    0.1047,
+    0.0385,
+    0.1432,
+    0.1048,
+    -0.1552,
+    0.1278,
+    0.0348,
+    0.0924,
+    -0.0452,
+    0.0498,
+    0.3536,
+    0.0689,
+    0.0869,
+    -0.1104,
+    0.1215,
+    0.0687,
+    0.1541,
+    -0.1028,
+    0.1457,
+    0.0810,
+    0.0946,
+    -0.1501,
+    0.1255,
+    0.0361,
+    0.0890,
+    0.1171,
+    -0.1064,
+    0.0177,
+    0.0611,
+    0.0884,
+)
+assert len(_FRAME0_POLICY_58_POS) == ACTION_DIM
 
+# Arm + Sharpa-hand start pose for the pnp_apple task, keyed by joint name.
+CUSTOM_JOINT_POS: dict[str, float] = dict(zip(POLICY_58_ORDER, _FRAME0_POLICY_58_POS, strict=True))
+CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
+assert "head_pitch_joint" not in POLICY_58_ORDER, (
+    "head must stay outside POLICY_58_ORDER so policy cannot lift the head"
+)
+
+
+# Task-specific start pose.
+INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
+INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
 TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256_cloth.usd"
 APPLE_USD = f"{PROP_ASSET_ROOT}/Assets/Apple033/Apple033.usd"
 PLATE_USD = f"{PROP_ASSET_ROOT}/Assets/SimReady_Furniture/plate_large/plate_large_rigid.usd"
 BACKGROUND_USD = f"{NUREC_ASSET_ROOT}/IMG_6246_nurec_aligned_scaled.usdz"
 
-# Task-specific start pose.
-H2_PNP_APPLE_INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
-H2_PNP_APPLE_INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+
+# Reset-pose randomization half-ranges. PNP_APPLE_XY_RANGE (metres) drives the x
+# half-range and the y magnitude; PNP_APPLE_YAW_RANGE_DEG drives yaw. The defaults
+# reproduce the ranges the task's demonstrations were recorded with.
+XY_RANGE = float(os.environ.get("PNP_APPLE_XY_RANGE", "0.015"))
+YAW_RANGE = math.radians(float(os.environ.get("PNP_APPLE_YAW_RANGE_DEG", "0")))
+
+
+def _randomize_asset_pose(
+    asset_name: str,
+    y_range: tuple[float, float],
+) -> EventTermCfg:
+    return EventTermCfg(
+        func=base_mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {
+                "x": (-XY_RANGE, XY_RANGE),
+                "y": y_range,
+                "yaw": (-YAW_RANGE, YAW_RANGE),
+            },
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg(asset_name),
+        },
+    )
 
 
 @configclass
-class H2PnpAppleSceneCfg(InteractiveSceneCfg):
+class PnpAppleSceneCfg(InteractiveSceneCfg):
     """H2 scene with front, left-wrist, and right-wrist cameras."""
 
     robot = H2RobotPresets.h2_sharpa_base_fix(
-        init_pos=H2_PNP_APPLE_INIT_POS,
-        init_rot=H2_PNP_APPLE_INIT_ROT,
-        custom_joint_pos=H2_PNP_APPLE_CUSTOM_JOINT_POS,
+        init_pos=INIT_POS,
+        init_rot=INIT_ROT,
+        custom_joint_pos=CUSTOM_JOINT_POS,
     )
 
     background = AssetBaseCfg(
@@ -207,41 +309,28 @@ class H2PnpAppleSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class H2ActionsCfg:
-    """Direct joint angle control."""
-
-    joint_pos = mdp.JointPositionActionCfg(
-        asset_name="robot",
-        joint_names=h2_joint_names,
-        scale=1.0,
-        use_default_offset=False,
-        offset=h2_body_joint_offsets(H2_PNP_APPLE_CUSTOM_JOINT_POS),
-        preserve_order=True,
-    )
-
-
-@configclass
-class H2RLActionsCfg:
+class ActionsCfg:
     """RL/Eval joint control with PhysX gravity feed-forward on both arms."""
 
     joint_pos = mdp.JointPositionActionCfg(
         class_type=mdp.H2GravityCompensatedJointPositionAction,
         asset_name="robot",
-        joint_names=h2_joint_names,
+        joint_names=H2_ACTION_JOINT_ORDER,
         scale=1.0,
         use_default_offset=False,
-        offset=h2_body_joint_offsets(H2_PNP_APPLE_CUSTOM_JOINT_POS),
+        offset=h2_body_joint_offsets(CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
 
 @configclass
-class H2ObservationsCfg:
+class ObservationsCfg:
     """Joint state and three camera observations."""
 
     @configclass
     class PolicyCfg(ObsGroup):
         robot_joint_state = ObsTerm(func=mdp.get_robot_joint_states)
+        robot_policy_joint_pos = ObsTerm(func=mdp.get_robot_policy_joint_positions)
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -270,15 +359,7 @@ class H2ObservationsCfg:
 
 
 @configclass
-class H2TerminationsCfg:
-    """Time-out + success (apple placed on plate and right hand released)."""
-
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    success = DoneTerm(func=mdp.apple_on_plate_and_released, time_out=False)
-
-
-@configclass
-class H2EventCfg:
+class EventCfg:
     """Reset the scene, then randomize the apple in XY."""
 
     # Also latch PD targets (esp. head_pitch=0.6). Controllers that only
@@ -290,89 +371,21 @@ class H2EventCfg:
         params={"reset_joint_targets": True},
     )
 
-    # Must follow ``reset_scene`` so the default reset does not overwrite it.
-    randomize_apple_xy = EventTermCfg(
-        func=base_mdp.reset_root_state_uniform,
+    reset_task_stage = EventTermCfg(
+        func=mdp.reset_task_stage,
         mode="reset",
-        params={
-            "pose_range": {"x": (-0.015, 0.015), "y": (-0.015, 0.015)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("apple"),
-        },
+        params={"apple_cfg": SceneEntityCfg("apple"), "print_log": True},
+    )
+
+    # Must follow ``reset_scene`` so the default reset does not overwrite it.
+    randomize_apple_xy = _randomize_asset_pose(
+        "apple",
+        y_range=(-XY_RANGE, XY_RANGE),
     )
 
 
 @configclass
-class H2PnpAppleEnvCfg(ManagerBasedRLEnvCfg):
-    """Unitree H2 + Sharpa Wave pick-and-place apple env (PhysX)."""
-
-    scene: H2PnpAppleSceneCfg = H2PnpAppleSceneCfg(
-        num_envs=1,
-        # Prevent replicated background rooms from intersecting.
-        env_spacing=10.0,
-        # Envs carry per-env assets, so clone prims rather than replicate physics.
-        replicate_physics=False,
-    )
-
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(0.6, -0.2, 2.4),
-        lookat=(-0.45, 0.0, 1.22),
-        cam_prim_path="/OmniverseKit_Persp",
-    )
-
-    observations: H2ObservationsCfg = H2ObservationsCfg()
-    actions: H2ActionsCfg = H2ActionsCfg()
-    terminations: H2TerminationsCfg = H2TerminationsCfg()
-    events: H2EventCfg = H2EventCfg()
-    commands = None
-    rewards = None
-    curriculum = None
-
-    def __post_init__(self):
-        from isaaclab_physx.physics import PhysxCfg
-
-        self.decimation = 4
-        self.episode_length_s = 20.0
-        self.sim.dt = 1 / 120
-        if self.sim.physics is None:
-            self.sim.physics = PhysxCfg()
-        # self.sim.physics.enable_external_forces_every_iteration = True
-        # self.sim.physics.solve_articulation_contact_last = True
-        self.sim.physics.gpu_max_num_partitions = 32
-        self.sim.render_interval = 2
-        # SimulationCfg.render only exists on IsaacLab builds that ship RenderCfg;
-        # it is absent from the pinned checkout here, where the bare attribute
-        # access raised AttributeError before the environment was ever built.
-        if hasattr(self.sim, "render"):
-            self.sim.render.antialiasing_mode = "DLAA"
-
-
-# ---------------------------------------------------------------------------
-# RLinf variant: sparse stage rewards + stage-based success termination.
-#
-# The base ``H2PnpAppleEnvCfg`` above is shared by eval / replay / mimic (all
-# with ``rewards = None``); this subclass adds the reward + termination +
-# stage-tracking machinery for RL post-training / sim-real co-training, plus a
-# 58-D policy-ordered joint-state observation the RLinf YAML slices into GR00T
-# state keys. Registered as ``Isaac-PNP-Apple-H2-Sharpa-RLinf-v0``.
-# ---------------------------------------------------------------------------
-@configclass
-class H2RLObservationsCfg(H2ObservationsCfg):
-    """Policy observations for GR00T / RLinf (58-D positions in policy order)."""
-
-    @configclass
-    class PolicyCfg(H2ObservationsCfg.PolicyCfg):
-        robot_policy_joint_pos = ObsTerm(func=mdp.get_robot_policy_joint_positions)
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
-    policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
-class H2RLTerminationsCfg:
+class TerminationsCfg:
     """Timeout, stage success, and apple-drop failure."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -384,7 +397,7 @@ class H2RLTerminationsCfg:
 
 
 @configclass
-class H2RLRewardsCfg:
+class RewardsCfg:
     """Sparse stage rewards: left lift, right catch, place, then release."""
 
     left_grasp_lift = RewTerm(
@@ -425,26 +438,45 @@ class H2RLRewardsCfg:
 
 
 @configclass
-class H2RLEventCfg(H2EventCfg):
-    """Scene reset, apple randomization, and stage tracker reset."""
+class PnpAppleEnvCfg(ManagerBasedRLEnvCfg):
+    """Unitree H2 + Sharpa Wave pick-and-place apple env (PhysX)."""
 
-    reset_task_stage = EventTermCfg(
-        func=mdp.reset_task_stage,
-        mode="reset",
-        params={"apple_cfg": SceneEntityCfg("apple"), "print_log": True},
+    scene: PnpAppleSceneCfg = PnpAppleSceneCfg(
+        num_envs=1,
+        # Prevent replicated background rooms from intersecting.
+        env_spacing=10.0,
+        # Envs carry per-env assets, so clone prims rather than replicate physics.
+        replicate_physics=False,
     )
 
+    viewer: ViewerCfg = ViewerCfg(
+        eye=(0.6, -0.2, 2.4),
+        lookat=(-0.45, 0.0, 1.22),
+        cam_prim_path="/OmniverseKit_Persp",
+    )
 
-@configclass
-class H2PnpAppleRLEnvCfg(H2PnpAppleEnvCfg):
-    """Unitree H2 + Sharpa pick-and-place apple RL / co-train environment."""
-
-    actions: H2RLActionsCfg = H2RLActionsCfg()
-    observations: H2RLObservationsCfg = H2RLObservationsCfg()
-    terminations: H2RLTerminationsCfg = H2RLTerminationsCfg()
-    events: H2RLEventCfg = H2RLEventCfg()
-    rewards: H2RLRewardsCfg = H2RLRewardsCfg()
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
+    rewards: RewardsCfg = RewardsCfg()
+    commands = None
+    curriculum = None
 
     def __post_init__(self):
-        super().__post_init__()
+        from isaaclab_physx.physics import PhysxCfg
+
+        self.decimation = 4
         self.episode_length_s = 20.0
+        self.sim.dt = 1 / 120
+        if self.sim.physics is None:
+            self.sim.physics = PhysxCfg()
+        # self.sim.physics.enable_external_forces_every_iteration = True
+        # self.sim.physics.solve_articulation_contact_last = True
+        self.sim.physics.gpu_max_num_partitions = 32
+        self.sim.render_interval = 2
+        # SimulationCfg.render only exists on IsaacLab builds that ship RenderCfg;
+        # it is absent from the pinned checkout here, where the bare attribute
+        # access raised AttributeError before the environment was ever built.
+        if hasattr(self.sim, "render"):
+            self.sim.render.antialiasing_mode = "DLAA"

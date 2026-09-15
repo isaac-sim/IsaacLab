@@ -24,47 +24,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PackAgxState:
-    """Per-environment progress through lift, alignment, seating, and release."""
-
-    task_stage: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_lift: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_align: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    prev_stage_seat: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    initial_agx_z: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    stage_hold_counter: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-
-
-def get_pack_agx_state(env: ManagerBasedRLEnv) -> PackAgxState:
-    """Return the lazily-created task state stored on ``env``."""
-    if not hasattr(env, "pack_agx_state"):
-        num_envs = env.num_envs
-        device = env.device
-        env.pack_agx_state = PackAgxState(
-            task_stage=torch.zeros(num_envs, dtype=torch.long, device=device),
-            prev_stage_lift=torch.zeros(num_envs, dtype=torch.long, device=device),
-            prev_stage_align=torch.zeros(num_envs, dtype=torch.long, device=device),
-            prev_stage_seat=torch.zeros(num_envs, dtype=torch.long, device=device),
-            initial_agx_z=torch.zeros(num_envs, device=device),
-            stage_hold_counter=torch.zeros(num_envs, dtype=torch.long, device=device),
-        )
-    return env.pack_agx_state
-
-
 def get_task_stage(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return the current per-environment Pack-AGX stage."""
     return get_pack_agx_state(env).task_stage
-
-
-def _position_distance(
-    agx_pos: torch.Tensor,
-    box_pos: torch.Tensor,
-    z_offset: float,
-) -> torch.Tensor:
-    displacement = agx_pos - box_pos
-    displacement[:, 2] -= z_offset
-    return torch.linalg.vector_norm(displacement, dim=-1)
 
 
 def _advance_with_hold(
@@ -213,6 +175,44 @@ def _sparse_stage_reward(
     )
     setattr(state, previous_attr, stage.clone())
     return reward
+
+
+@dataclass
+class PackAgxState:
+    """Per-environment progress through lift, alignment, seating, and release."""
+
+    task_stage: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_lift: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_align: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    prev_stage_seat: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    initial_agx_z: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+    stage_hold_counter: torch.Tensor = field(default_factory=lambda: torch.empty(0))
+
+
+def get_pack_agx_state(env: ManagerBasedRLEnv) -> PackAgxState:
+    """Return the lazily-created task state stored on ``env``."""
+    if not hasattr(env, "pack_agx_state"):
+        num_envs = env.num_envs
+        device = env.device
+        env.pack_agx_state = PackAgxState(
+            task_stage=torch.zeros(num_envs, dtype=torch.long, device=device),
+            prev_stage_lift=torch.zeros(num_envs, dtype=torch.long, device=device),
+            prev_stage_align=torch.zeros(num_envs, dtype=torch.long, device=device),
+            prev_stage_seat=torch.zeros(num_envs, dtype=torch.long, device=device),
+            initial_agx_z=torch.zeros(num_envs, device=device),
+            stage_hold_counter=torch.zeros(num_envs, dtype=torch.long, device=device),
+        )
+    return env.pack_agx_state
+
+
+def _position_distance(
+    agx_pos: torch.Tensor,
+    box_pos: torch.Tensor,
+    z_offset: float,
+) -> torch.Tensor:
+    displacement = agx_pos - box_pos
+    displacement[:, 2] -= z_offset
+    return torch.linalg.vector_norm(displacement, dim=-1)
 
 
 def lift_agx_reward(

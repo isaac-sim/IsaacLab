@@ -13,7 +13,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.contrib.pack_agx.config.env_config:H2PackAgxOrinRLEnvCfg",
+        "env_cfg_entry_point": "isaaclab_tasks.contrib.pack_agx.config.env_config:PackAgxOrinEnvCfg",
     },
 )
 
@@ -22,6 +22,6 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.contrib.pack_agx.config.env_config:H2PackAgxOrinRLEnvCfg",
+        "env_cfg_entry_point": "isaaclab_tasks.contrib.pack_agx.config.env_config:PackAgxOrinEnvCfg",
     },
 )

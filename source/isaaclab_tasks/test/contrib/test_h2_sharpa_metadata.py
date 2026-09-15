@@ -9,6 +9,7 @@ import pytest
 
 from isaaclab_tasks.contrib.pack_agx.config import metadata as pack_agx_metadata
 from isaaclab_tasks.contrib.pack_agx.config.robot_config import h2_body_joint_offsets as pack_agx_offsets
+from isaaclab_tasks.contrib.pick_and_place_apple.config import env_config as apple_env_config
 from isaaclab_tasks.contrib.pick_and_place_apple.config import metadata as apple_metadata
 from isaaclab_tasks.contrib.pick_and_place_apple.config.robot_config import h2_body_joint_offsets as apple_offsets
 
@@ -44,11 +45,11 @@ def test_body_joint_offsets_cover_every_unpredicted_joint() -> None:
     The GR00T converter zero-fills those entries, so a joint missing from the offset is commanded
     0 rad: the head would tilt up from its 0.6 rad task pose and the front camera would miss the table.
     """
-    offsets = apple_offsets(apple_metadata.H2_PNP_APPLE_CUSTOM_JOINT_POS)
+    offsets = apple_offsets(apple_env_config.CUSTOM_JOINT_POS)
     unpredicted = {name for name in apple_metadata.H2_ACTION_JOINT_ORDER if name not in apple_metadata.POLICY_58_ORDER}
 
     assert set(offsets) == unpredicted
-    assert offsets["head_pitch_joint"] == apple_metadata.H2_PNP_APPLE_CUSTOM_JOINT_POS["head_pitch_joint"]
+    assert offsets["head_pitch_joint"] == apple_env_config.CUSTOM_JOINT_POS["head_pitch_joint"]
     assert offsets["left_knee_joint"] == apple_metadata.H2_DEFAULT_JOINT_POS["left_knee_joint"]
 
 

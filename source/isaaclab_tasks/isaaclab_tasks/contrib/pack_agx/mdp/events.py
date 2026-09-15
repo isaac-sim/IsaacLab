@@ -22,6 +22,38 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def reset_task_stage(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor,
+    agx_orin_cfg: SceneEntityCfg = SceneEntityCfg("agx_orin"),
+    print_log: bool = False,
+) -> None:
+    """Reset Pack-AGX stage trackers and capture the randomized start height."""
+    if len(env_ids) == 0:
+        return
+
+    from .rewards import get_pack_agx_state
+
+    state = get_pack_agx_state(env)
+    previous_stage = state.task_stage[env_ids].clone()
+    if print_log:
+        reached = [int((previous_stage >= stage_id).sum().item()) for stage_id in (1, 2, 3)]
+        logger.info(
+            "[PACK_AGX_STAGE_SUMMARY] total=%d reached_stage_1/2/3=%s",
+            len(env_ids),
+            reached,
+        )
+
+    state.task_stage[env_ids] = 0
+    state.prev_stage_lift[env_ids] = 0
+    state.prev_stage_align[env_ids] = 0
+    state.prev_stage_seat[env_ids] = 0
+    state.stage_hold_counter[env_ids] = 0
+
+    agx_orin = env.scene[agx_orin_cfg.name]
+    state.initial_agx_z[env_ids] = agx_orin.data.root_pos_w.torch[env_ids, 2]
+
+
 def _preview_material(
     stage,
     path: str,
@@ -97,35 +129,3 @@ def align_prop_material(
             # be created before they can be driven.
             for name, (value_type, value) in inputs.items():
                 shader.CreateInput(name, value_type).Set(value)
-
-
-def reset_task_stage(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
-    agx_orin_cfg: SceneEntityCfg = SceneEntityCfg("agx_orin"),
-    print_log: bool = False,
-) -> None:
-    """Reset Pack-AGX stage trackers and capture the randomized start height."""
-    if len(env_ids) == 0:
-        return
-
-    from .rewards import get_pack_agx_state
-
-    state = get_pack_agx_state(env)
-    previous_stage = state.task_stage[env_ids].clone()
-    if print_log:
-        reached = [int((previous_stage >= stage_id).sum().item()) for stage_id in (1, 2, 3)]
-        logger.info(
-            "[PACK_AGX_STAGE_SUMMARY] total=%d reached_stage_1/2/3=%s",
-            len(env_ids),
-            reached,
-        )
-
-    state.task_stage[env_ids] = 0
-    state.prev_stage_lift[env_ids] = 0
-    state.prev_stage_align[env_ids] = 0
-    state.prev_stage_seat[env_ids] = 0
-    state.stage_hold_counter[env_ids] = 0
-
-    agx_orin = env.scene[agx_orin_cfg.name]
-    state.initial_agx_z[env_ids] = agx_orin.data.root_pos_w.torch[env_ids, 2]

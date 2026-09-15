@@ -17,32 +17,7 @@ from isaaclab.managers import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-__all__ = ["reset_robot_to_default_joint_positions", "reset_task_stage"]
-
 logger = logging.getLogger(__name__)
-
-
-def reset_robot_to_default_joint_positions(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    """Reset joints/root directly to defaults (bypasses PD to avoid arm swing)."""
-    if len(env_ids) == 0:
-        return
-
-    robot = env.scene[robot_cfg.name]
-
-    default_joint_pos = robot.data.default_joint_pos.torch[env_ids].clone()
-    default_joint_vel = robot.data.default_joint_vel.torch[env_ids].clone()
-
-    robot.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
-    robot.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
-
-    default_root_pose = robot.data.default_root_pose.torch[env_ids].clone()
-    default_root_velocity = robot.data.default_root_vel.torch[env_ids].clone()
-    robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
-    robot.write_root_velocity_to_sim_index(root_velocity=default_root_velocity, env_ids=env_ids)
 
 
 def reset_task_stage(
