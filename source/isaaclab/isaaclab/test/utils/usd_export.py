@@ -49,7 +49,10 @@ def capture_physics_structure(stage: Usd.Stage) -> dict:
                     # attribute. Read the USD value explicitly, including its false default.
                     value = bool(UsdPhysics.CollisionGroup(prim).GetInvertFilteredGroupsAttr().Get())
                 if not callable(value):
-                    result[str(path), field] = _value(value)
+                    converted = _value(value)
+                    if field in {"collisions", "filteredCollisions", "filteredGroups", "mergedGroups"}:
+                        converted = tuple(sorted(converted))
+                    result[str(path), field] = converted
             if prim.HasAPI(UsdPhysics.CollisionAPI):
                 material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
                 if material:

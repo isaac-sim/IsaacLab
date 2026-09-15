@@ -205,6 +205,10 @@ until its tensor API exposes stable piece-to-USD identity and cooked geometry. B
 alone is insufficient. Its first GPU tensor access may perform a minimal warmup step;
 fresh-load state agreement must be validated per task rather than hidden with wider tolerances.
 
+Native Newton colliders without an authored USD collision identity, including generated
+heightfields, are rejected. Their source meshes can remain in USD, but that alone does not
+preserve the native collision representation.
+
 The exporter does not reconstruct arbitrary edits to private solver topology or geometry
 buffers, Kamino-only body/material buffer mutations, solver warm-start caches, active contacts,
 or transient applied forces. Use supported object-data setters for physical randomization.

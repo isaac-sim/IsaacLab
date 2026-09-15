@@ -602,6 +602,23 @@ class NewtonManager(PhysicsManager):
                 supported.append(force_both)
         if not supported:
             raise NotImplementedError("Newton's USD importer cannot represent mixed per-joint actuator modes.")
+        from pxr import UsdPhysics
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        target_modes = model.joint_target_mode.numpy()
+        for index, world in enumerate(model.joint_world.numpy()):
+            joint_modes = target_modes[starts[index] : starts[index + 1]]
+            if world not in (-1, writer.env_id) or not len(joint_modes) or np.any(joint_modes):
+                continue
+            path = writer.resolve_paths(AssetPaths([], [(model.joint_label[index], 0)])).joints[0][0]
+            prim = stage.GetPrimAtPath(path)
+            if not prim:
+                continue
+            # A zero-gain DriveAPI still means an active effort drive to Newton's importer.
+            for schema in prim.GetAppliedSchemas():
+                if schema.startswith("PhysicsDriveAPI:"):
+                    prim.RemoveAPI(UsdPhysics.DriveAPI, schema.split(":", 1)[1])
         stage.GetRootLayer().customLayerData = {
             **stage.GetRootLayer().customLayerData,
             "isaaclab:newtonImportOptions": {"force_position_velocity_actuation": supported[0]},
@@ -650,6 +667,13 @@ class NewtonManager(PhysicsManager):
             path = writer.resolve_paths(AssetPaths([(path, 0)], [])).bodies[0][0]
             prim = writer.stage.GetPrimAtPath(path)
             if not prim or not prim.HasAPI(UsdPhysics.CollisionAPI):
+                if hasattr(model, "shape_flags") and int(model.shape_flags.numpy()[index]) & int(
+                    ShapeFlags.COLLIDE_SHAPES
+                ):
+                    raise NotImplementedError(
+                        f"Native collider {path!r} has no authored USD collision identity; "
+                        "its backend geometry needs an export representation."
+                    )
                 continue
             collision = NewtonCollisionCfg(
                 **{field: float(values[source][index]) for source, field in declarations[NewtonCollisionCfg]}

@@ -120,7 +120,10 @@ class NewtonMJWarpManager(NewtonManager):
             previous = shared_joint_values.setdefault(key, data.copy())
             if not np.array_equal(previous, data):
                 raise NotImplementedError(f"MuJoCo USD cannot represent distinct per-axis {name} at {path}.")
-            writer.write_attribute(path, UsdAttribute(name, type_name="float[]" if data.ndim else "float"), data)
+            attribute = writer.stage.GetPrimAtPath(path).GetAttribute(name)
+            # Existing MJC assets may use double precision for these numeric properties.
+            type_name = str(attribute.GetTypeName()) if attribute else ("float[]" if data.ndim else "float")
+            writer.write_attribute(path, UsdAttribute(name, type_name=type_name), data)
 
         dof_values = {
             name: value(native, "dof_" + name) for name in ("armature", "damping", "frictionloss", "solref", "solimp")

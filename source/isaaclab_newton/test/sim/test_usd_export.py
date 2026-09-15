@@ -345,7 +345,22 @@ def _assert_physical_value_equal(key, actual, expected):
     """Compare discrete identities exactly and physical tensors at their meaningful scale."""
     if isinstance(expected, (np.ndarray, np.generic)):
         if expected.dtype.kind == "f":
-            if key[-1] in {"body_inertia", "i_I_i"}:
+            if key[-1] in {"geom_quat", "shape_transform", "joint_X_p", "joint_X_c", "offset"}:
+                from scipy.spatial.transform import Rotation
+
+                a, b = np.asarray(actual), np.asarray(expected)
+                if a.shape == (4,):
+                    a, b = np.roll(a, -1), np.roll(b, -1)
+                elif a.shape == (7,):
+                    np.testing.assert_allclose(a[:3], b[:3], rtol=3e-5, atol=1e-6, err_msg=str(key))
+                    a, b = a[3:], b[3:]
+                else:
+                    np.testing.assert_allclose(a, b, rtol=3e-5, atol=1e-6, err_msg=str(key))
+                    return
+                np.testing.assert_allclose(
+                    Rotation.from_quat(a).as_matrix(), Rotation.from_quat(b).as_matrix(), atol=3e-5, err_msg=str(key)
+                )
+            elif key[-1] in {"body_inertia", "i_I_i"}:
                 # Principal-frame float roundoff scales with the full tensor, including zero entries.
                 error = np.linalg.norm(np.asarray(actual) - expected)
                 assert error <= 1e-6 + 3e-5 * np.linalg.norm(expected), (key, error)
@@ -357,8 +372,11 @@ def _assert_physical_value_equal(key, actual, expected):
         assert actual == expected, (key, actual, expected)
 
 
-@pytest.mark.parametrize("env_id,num_envs", [(0, 1), (1, 2)])
-@pytest.mark.parametrize("solver_name", ["xpbd", "mujoco", "kamino"])
+@pytest.mark.parametrize(
+    "env_id,num_envs,solver_name",
+    [(env_id, num_envs, solver) for solver in ("xpbd", "mujoco", "kamino") for env_id, num_envs in ((0, 1), (1, 2))]
+    + [(0, 1, "xpbd_passive")],
+)
 def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs, solver_name):
     """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
     import warp as wp
@@ -369,6 +387,17 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
     from isaaclab.test.utils.usd_export import make_fixed_scene_cfg
 
     cfg = make_fixed_scene_cfg(tmp_path)
+    passive = solver_name == "xpbd_passive"
+    if passive or solver_name == "mujoco":
+        source = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+        joint = source.GetPrimAtPath("/Robot/Hinge")
+        if passive:
+            cfg.robot.actuators = {}
+            joint.RemoveAPI(UsdPhysics.DriveAPI, "angular")
+            solver_name = "xpbd"
+        else:
+            joint.CreateAttribute("mjc:armature", Sdf.ValueTypeNames.Double).Set(0.023)
+        source.GetRootLayer().Save()
     cfg.num_envs = num_envs
     device = "cpu" if solver_name == "xpbd" else "cuda:0"
     if device != "cpu" and not wp.is_cuda_available():
@@ -447,7 +476,10 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         f"/World/envs/env_{env_id}/CollectedSecond",
     }
     joint = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/Hinge")
-    assert UsdPhysics.DriveAPI(joint, "angular").GetStiffnessAttr().Get() == pytest.approx(83 * np.pi / 180)
+    if passive:
+        assert not joint.HasAPI(UsdPhysics.DriveAPI, "angular")
+    else:
+        assert UsdPhysics.DriveAPI(joint, "angular").GetStiffnessAttr().Get() == pytest.approx(83 * np.pi / 180)
     assert joint.GetAttribute("state:angular:physics:position").Get() == pytest.approx(np.degrees(0.21))
     for name, mass in (("Box", 2.5), ("CollectedFirst", 1.5), ("CollectedSecond", 3.5)):
         prim = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/{name}")
@@ -489,7 +521,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         np.testing.assert_allclose(state.body_qd.numpy()[index], velocity, rtol=3e-5, atol=1e-6, err_msg=path)
 
 
-@pytest.mark.parametrize("bound", [True, False, "complete"])
+@pytest.mark.parametrize("bound", [True, False, "complete", "unmapped"])
 def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkeypatch):
     from types import SimpleNamespace
 
@@ -545,6 +577,9 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkey
             shared.GetPrim().CreateAttribute("newton:" + name, Sdf.ValueTypeNames.Float).Set(value)
     model = SimpleNamespace(**{name: wp.array(value, dtype=wp.float32, device="cpu") for name, value in values.items()})
     model.shape_label = [str(prim.GetPath()) for prim in shapes]
+    model.shape_flags = wp.array([int(newton.ShapeFlags.COLLIDE_SHAPES)] * 2, dtype=wp.int32, device="cpu")
+    if bound == "unmapped":
+        model.shape_label[0] = "/NativeOnlyCollider"
     model.joint_qd_start = wp.array([0], dtype=wp.int32, device="cpu")
     model.joint_world = wp.array([], dtype=wp.int32, device="cpu")
     for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"):
@@ -557,6 +592,10 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkey
             get_physics_dt=lambda: 1 / 60, cfg=SimpleNamespace(physics=NewtonCfg(solver_cfg=XPBDSolverCfg()))
         ),
     )
+    if bound == "unmapped":
+        with pytest.raises(NotImplementedError, match="no authored USD collision identity"):
+            NewtonManager.author_fixed_configuration(UsdWriter(stage), scene)
+        return
     NewtonManager.author_fixed_configuration(UsdWriter(stage), scene)
     for i, prim in enumerate(shapes):
         material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
