@@ -138,7 +138,25 @@ def test_reach_diffik_physx_configures_teleop_physics():
     assert physx_props.max_depenetration_velocity == pytest.approx(5.0)
     assert not cfg.scene.robot.spawn.make_uninstanceable
     assert cfg.scene.robot.spawn.collision_props is None
-    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/Legacy/panda_instanceable.usd")
+    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "gripper_only"}
+
+
+@pytest.mark.parametrize("physics_preset", ["isaacsim_physx", "newton_mjwarp", "ovphysx"])
+def test_reach_diffik_abs_normalizes_position_actions_to_command_workspace(physics_preset):
+    cfg = _load_env_cfg("diffik_abs", physics_preset)
+    action = cfg.actions.arm_action
+    ranges = cfg.commands.ee_pose.ranges
+
+    position_scale = torch.tensor(action.scale[:3])
+    position_offset = torch.tensor(action.offset[:3])
+    expected_lower = torch.tensor([ranges.pos_x[0], ranges.pos_y[0], ranges.pos_z[0]])
+    expected_upper = torch.tensor([ranges.pos_x[1], ranges.pos_y[1], ranges.pos_z[1]])
+
+    torch.testing.assert_close(position_offset - position_scale, expected_lower)
+    torch.testing.assert_close(position_offset + position_scale, expected_upper)
+    assert action.scale[3:] == (1.0, 1.0, 1.0, 1.0)
+    assert action.offset[3:] == (0.0, 0.0, 0.0, 0.0)
 
 
 def test_reach_newton_ik_configures_gravity_compensation():
@@ -148,6 +166,7 @@ def test_reach_newton_ik_configures_gravity_compensation():
     mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "gripper_only"}
 
 
 def test_reach_newton_ik_uses_native_se3_command_convention():
@@ -220,14 +239,20 @@ def test_reach_success_requires_position_and_orientation():
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
 
-def test_reach_osc_effort_actuator_keeps_menagerie_velocity_limit():
-    """The zero-gain effort actuator must keep the asset's solver velocity limit; the USD authors none."""
+def test_reach_osc_effort_actuator_keeps_menagerie_solver_properties():
+    """Replacing the arm actuator with a zero-gain effort model must preserve its solver properties."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
     arm_actuator = cfg.scene.robot.actuators["panda_arm"]
+    source_actuator = FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"]
 
     assert isinstance(arm_actuator, IdealPDActuatorCfg)
     assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0
-    assert arm_actuator.joint_velocity_limit == FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"].joint_velocity_limit
+    assert arm_actuator.joint_effort_limit == source_actuator.joint_effort_limit
+    assert arm_actuator.joint_velocity_limit == source_actuator.joint_velocity_limit
+    assert arm_actuator.armature == source_actuator.armature
+    assert arm_actuator.friction == source_actuator.friction
+    assert arm_actuator.dynamic_friction == source_actuator.dynamic_friction
+    assert arm_actuator.viscous_friction == source_actuator.viscous_friction
 
 
 def test_reach_osc_resolves_controller_preset_values_to_defaults():

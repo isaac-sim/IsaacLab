@@ -29,7 +29,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
+from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
 
 
 ##
@@ -63,7 +63,9 @@ class FrankaArmActionCfg(PresetCfg):
             ik_params={"lambda_val": 0.45},
         ),
         body_offset=None,
-        scale=1.0,
+        # Normalize position actions around the center and half-spans of the commanded workspace.
+        scale=(0.15, 0.2, 0.175, 1.0, 1.0, 1.0, 1.0),
+        offset=(0.5, 0.0, 0.325, 0.0, 0.0, 0.0, 0.0),
     )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
@@ -100,13 +102,13 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Use the collision-complete legacy asset in PhysX until the Menagerie asset is corrected.
+        # Reach has no robot-scene contact objective, so use the fast gripper collider preset.
         self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.usd_path = preset(
-            default=self.scene.robot.spawn.usd_path,
-            isaacsim_physx=FRANKA_PANDA_CFG.spawn.usd_path,
-            physx=FRANKA_PANDA_CFG.spawn.usd_path,
-            ovphysx=FRANKA_PANDA_CFG.spawn.usd_path,
+        self.scene.robot.spawn.variants = preset(
+            default={"Physics": "mujoco", "Colliders": "gripper_only"},
+            isaacsim_physx={"Physics": "physx", "Colliders": "gripper_only"},
+            physx={"Physics": "physx", "Colliders": "gripper_only"},
+            ovphysx={"Physics": "physx", "Colliders": "gripper_only"},
         )
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [

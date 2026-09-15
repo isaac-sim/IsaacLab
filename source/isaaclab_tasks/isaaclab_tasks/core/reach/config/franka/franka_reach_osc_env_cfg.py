@@ -46,9 +46,14 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         arm_actuator = self.scene.robot.actuators["panda_arm"]
         self.scene.robot.actuators["panda_arm"] = IdealPDActuatorCfg(
             joint_names_expr=arm_actuator.joint_names_expr,
+            joint_effort_limit=arm_actuator.joint_effort_limit,
             joint_velocity_limit=arm_actuator.joint_velocity_limit,
             stiffness=0.0,
             damping=0.0,
+            armature=arm_actuator.armature,
+            friction=arm_actuator.friction,
+            dynamic_friction=arm_actuator.dynamic_friction,
+            viscous_friction=arm_actuator.viscous_friction,
         )
         for rigid_props in self.scene.robot.spawn.rigid_props:
             if isinstance(rigid_props, PhysxRigidBodyCfg):

@@ -115,7 +115,7 @@ class CurriculumCfg:
         params={
             "address": "observations.perception.object_point_cloud.noise.n_max",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"initial_value": 0.0, "final_value": -0.01, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": 0.01, "difficulty_term_str": "adr"},
         },
     )
 
