@@ -157,7 +157,7 @@ sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 
 rl-games = [
-    "aiohttp>=3.14.3",
+    "aiohttp==3.14.1",  # match isaacsim-kernel 6.1
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@5cf4f9ff07e9a01bbefd167cf19b6804b294b51c",
     "gym",
     "standard-distutils",
@@ -412,8 +412,6 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
-    # isaacsim-kernel 6.1 pins 3.14.1; override it so CI validates the patched release.
-    "aiohttp>=3.14.3",
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",
