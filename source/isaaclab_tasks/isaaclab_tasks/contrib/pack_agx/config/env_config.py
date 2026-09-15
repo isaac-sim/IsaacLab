@@ -20,8 +20,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
-from . import mdp
-from .config import (
+from .. import mdp
+from . import (
     AGX_ORIN_USD,
     BACKGROUND_USD,
     PROTECTIVE_BOX_USD,

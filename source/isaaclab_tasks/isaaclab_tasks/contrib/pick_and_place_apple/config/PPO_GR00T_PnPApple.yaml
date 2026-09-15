@@ -167,7 +167,7 @@ env:
 
       obs_converter_type: "h2_sharpa"
       # N1.7 takes no data_config_class; this module registers the H2 modalities instead.
-      modality_config_module: "isaaclab_tasks.contrib.pick_and_place_apple.gr00t_config"
+      modality_config_module: "isaaclab_tasks.contrib.pick_and_place_apple.config.gr00t_config"
       embodiment_tag: "new_embodiment"
       embodiment_tag_id: 31
       # NB: data_config_class intentionally NOT set for N1.7 (see header).
