@@ -110,13 +110,26 @@ def base_height_l2(
     Note:
         For flat terrain, target height is in the world frame. For rough terrain,
         sensor readings can adjust the target height to account for the terrain.
+
+    Note:
+        A ray that does not hit anything within its ``max_distance`` reports ``inf`` in
+        ``ray_hits_w`` (see :class:`~isaaclab.sensors.ray_caster.RayCaster`), rather than being
+        clamped. Averaging that in directly turns a single missed ray -- e.g. the height-scan
+        grid extending past a terrain patch's edge, or over a hole -- into an infinite reward for
+        every environment in the batch. Only finite hits are averaged; an environment with no
+        finite hits at all falls back to the unadjusted ``target_height``.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
-        # Adjust the target height using the sensor data
-        adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w.torch[..., 2], dim=1)
+        # Adjust the target height using the sensor data, ignoring rays that missed the terrain
+        ray_hits_z = sensor.data.ray_hits_w.torch[..., 2]
+        finite_hits = torch.isfinite(ray_hits_z)
+        safe_hits = torch.where(finite_hits, ray_hits_z, torch.zeros_like(ray_hits_z))
+        hit_count = finite_hits.sum(dim=1).clamp(min=1)
+        terrain_height = safe_hits.sum(dim=1) / hit_count
+        adjusted_target_height = target_height + terrain_height
     else:
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
