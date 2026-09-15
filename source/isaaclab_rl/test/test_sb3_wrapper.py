@@ -124,6 +124,78 @@ def test_unbounded_action_space_uses_configured_bounds():
         env.close()
 
 
+def test_unbounded_action_space_warns_on_default_bounds():
+    """Check that the default fallback bounds emit a warning."""
+    sim_utils.create_new_stage()
+
+    env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=4)
+    env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+
+    try:
+        with pytest.warns(UserWarning, match="\\[-100, 100\\]"):
+            env = Sb3VecEnvWrapper(env)
+
+        np.testing.assert_allclose(env.action_space.low, -100.0)
+        np.testing.assert_allclose(env.action_space.high, 100.0)
+
+    finally:
+        env.close()
+
+
+def test_action_bounds_must_be_provided_together():
+    """Check that action bounds must be supplied together."""
+    sim_utils.create_new_stage()
+
+    env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=4)
+    env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+
+    try:
+        with pytest.raises(ValueError, match="provided together"):
+            Sb3VecEnvWrapper(env, action_low=-1.0)
+
+        with pytest.raises(ValueError, match="provided together"):
+            Sb3VecEnvWrapper(env, action_high=1.0)
+
+    finally:
+        env.close()
+
+
+def test_action_bounds_must_be_finite():
+    """Check that configured action bounds must be finite."""
+    sim_utils.create_new_stage()
+
+    env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=4)
+    env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+
+    try:
+        with pytest.raises(ValueError, match="must be finite"):
+            Sb3VecEnvWrapper(env, action_low=-np.inf, action_high=1.0)
+
+        with pytest.raises(ValueError, match="must be finite"):
+            Sb3VecEnvWrapper(env, action_low=-1.0, action_high=np.inf)
+
+    finally:
+        env.close()
+
+
+def test_action_low_must_be_less_than_action_high():
+    """Check that the lower action bound is below the upper bound."""
+    sim_utils.create_new_stage()
+
+    env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=4)
+    env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+
+    try:
+        with pytest.raises(ValueError, match="must be less than"):
+            Sb3VecEnvWrapper(env, action_low=1.0, action_high=1.0)
+
+        with pytest.raises(ValueError, match="must be less than"):
+            Sb3VecEnvWrapper(env, action_low=2.0, action_high=1.0)
+
+    finally:
+        env.close()
+
+
 """
 Helper functions.
 """

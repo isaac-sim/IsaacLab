@@ -153,10 +153,16 @@ class Sb3VecEnvWrapper(VecEnv):
             env: The environment to wrap around.
             fast_variant: Use fast variant for processing info
                 (Only episodic reward, lengths and truncation info are included)
-            action_low: Lower bound used when clamping an unbounded action space. Defaults to -100.
-            action_high: Upper bound used when clamping an unbounded action space. Defaults to 100.
+            action_low: Lower bound to use for an unbounded action space. Must be
+                provided together with ``action_high`` and must be finite.
+            action_high: Upper bound to use for an unbounded action space. Must be
+                provided together with ``action_low``, must be finite, and must be
+                greater than ``action_low``.
+
         Raises:
-            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: If the environment is not an instance of :class:`ManagerBasedRLEnv`
+                or :class:`DirectRLEnv`, if only one action bound is provided, if either
+                bound is non-finite, or if ``action_low >= action_high``.
         """
         # check that input is valid
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
@@ -183,8 +189,20 @@ class Sb3VecEnvWrapper(VecEnv):
         # initialize the wrapper
         self.env = env
         self.fast_variant = fast_variant
-        self._action_low = action_low if action_low is not None else -100.0
-        self._action_high = action_high if action_high is not None else 100.0
+        if (action_low is None) != (action_high is None):
+            raise ValueError("Both 'action_low' and 'action_high' must be provided together.")
+
+        if action_low is not None:
+            if not np.isfinite(action_low) or not np.isfinite(action_high):
+                raise ValueError("'action_low' and 'action_high' must be finite.")
+
+            if action_low >= action_high:
+                raise ValueError(
+                    f"'action_low' must be less than 'action_high', but got {action_low} >= {action_high}."
+                )
+
+        self._action_low = action_low
+        self._action_high = action_high
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -374,8 +392,34 @@ class Sb3VecEnvWrapper(VecEnv):
         # note: stable-baselines3 does not support unbounded action spaces, so
         #   use configurable finite bounds as a fallback.
         action_space = self.unwrapped.single_action_space
+
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            action_space = gym.spaces.Box(low=self._action_low, high=self._action_high, shape=action_space.shape)
+            if self._action_low is None:
+                warnings.warn(
+                    "The environment has an unbounded action space. "
+                    "Stable-Baselines3 requires finite action bounds, so "
+                    "[-100, 100] is being used as a fallback. "
+                    "Explicit normalized action bounds (for example, [-1, 1]) are "
+                    "recommended, especially for continuous-control algorithms such "
+                    "as SAC and TD3. "
+                    "A future release may require explicit bounds for unbounded "
+                    "action spaces.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+                action_low = -100.0
+                action_high = 100.0
+            else:
+                action_low = self._action_low
+                action_high = self._action_high
+
+            action_space = gym.spaces.Box(
+                low=action_low,
+                high=action_high,
+                shape=action_space.shape,
+                dtype=action_space.dtype,
+            )
 
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)

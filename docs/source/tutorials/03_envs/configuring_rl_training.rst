@@ -102,6 +102,26 @@ The argument ``--rl_library`` selects the reinforcement learning library. The ``
 argument selects the library-specific configuration entry point from the ``kwargs``
 dictionary, so you can manually specify alternate configuration instances.
 
+.. note::
+
+   Stable-Baselines3 requires finite action-space bounds. For environments
+   with unbounded actions, set ``action_low`` and ``action_high`` explicitly
+   in the SB3 agent configuration.
+
+   For continuous-control algorithms such as SAC and TD3, explicitly normalized action
+   bounds such as ``[-1, 1]`` are recommended.
+
+   If explicit bounds are not provided, Isaac Lab currently falls back to
+   ``[-100, 100]`` for compatibility. This fallback may become an error in a
+   future release.
+
+   For example:
+
+   .. code-block:: yaml
+
+      action_low: -1.0
+      action_high: 1.0
+
 The Code Execution
 ------------------
 
