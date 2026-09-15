@@ -402,10 +402,10 @@ def read(contract_hash: str, limit: int, now: datetime | None = None) -> list[Ba
     for name in names[-limit:]:
         if time.monotonic() > deadline:
             raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
+        text = container.read_text(name)
+        if text is None:
+            continue
         try:
-            text = container.read_text(name)
-            if text is None:
-                continue
             rows.append(parse_row(json.loads(text), name))
         except (PerfSmokeError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             _warn(f"skipping unreadable baseline row {name}: {exc}")

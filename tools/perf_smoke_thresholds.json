@@ -12,7 +12,8 @@
       "_comment": "Commit-to-commit CV 2.3% across six develop commits (1194-1277 fps), against 1.18% pure run-to-run CV. Real drift is small and the default 5%/10% is defensible here. This is the sensitive probe: use it, not Cartpole, to detect small regressions."
     },
     "Isaac-Cartpole-Direct": {
-      "_todo": "Keep Cartpole advisory-only while spread is confirmed on runners"
+      "advisory_only": true,
+      "_comment": "Keep Cartpole advisory-only while spread is confirmed on runners."
     }
   },
   "hard_floor_fps": {

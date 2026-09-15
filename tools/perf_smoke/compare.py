@@ -50,6 +50,7 @@ class Thresholds:
     warn_pct: float
     fail_pct: float
     hard_floor: float | None = None
+    gating: bool = True
 
 
 @dataclass(frozen=True)
@@ -129,6 +130,7 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
         fail = number(override["fail_regression_pct"], f"per_task_regression_pct.{task}.fail_regression_pct")
     if fail < warn:
         raise PerfSmokeError(f"fail_regression_pct must be >= warn_regression_pct for {task}")
+    advisory_only = bool(override.get("advisory_only", False))
 
     floors = _clean(root.get("hard_floor_fps", {}), "hard_floor_fps")
     by_task = _clean(floors.get(gpu_model, {}), f"hard_floor_fps.{gpu_model}")
@@ -149,7 +151,12 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
 
     resolved: dict[str, Thresholds] = {}
     for metric in METRICS:
-        resolved[metric.name] = Thresholds(warn, fail, floor if metric.name == "total_fps" else None)
+        resolved[metric.name] = Thresholds(
+            warn,
+            fail,
+            floor if metric.name == "total_fps" else None,
+            gating=metric.gating and not advisory_only,
+        )
     return resolved
 
 
@@ -180,6 +187,8 @@ def _evaluate(
     than a verdict, except where the measurement breaches its hard floor.
     """
     note = _floor_note(measured, thresholds.hard_floor)
+    # A hard-floor breach still gates even for an advisory-only task
+    floor_breach = note is not None
 
     if len(history) < min_samples:
         return MetricResult(
@@ -189,7 +198,7 @@ def _evaluate(
             hard_floor=thresholds.hard_floor,
             sample_count=len(history),
             verdict=FAIL if note else SKIP,
-            gating=metric.gating,
+            gating=thresholds.gating or floor_breach,
             note=note or "insufficient history for this metric",
         )
 
@@ -205,7 +214,7 @@ def _evaluate(
             hard_floor=thresholds.hard_floor,
             sample_count=len(history),
             verdict=FAIL if note else SKIP,
-            gating=metric.gating,
+            gating=thresholds.gating or floor_breach,
             note=note or "baseline median is zero",
         )
 
@@ -245,7 +254,7 @@ def _evaluate(
         significance_sigma=sigma_count,
         significant=significant,
         verdict=verdict,
-        gating=metric.gating,
+        gating=thresholds.gating or floor_breach,
         note=note,
     )
 

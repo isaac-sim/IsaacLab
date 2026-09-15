@@ -933,7 +933,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     # Budget for two attempts plus image pull and cache restore.
     # Each attempt is bounded individually by `timeout` to prevent starving retry.
-    timeout-minutes: ${{ matrix.timeout_minutes * 2 + 10 }}
+    timeout-minutes: ${{ matrix.job_timeout_minutes }}
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
     # where it also records a baseline; pushes to main and release/** skip this job.
@@ -947,47 +947,56 @@ jobs:
         - name: cartpole-physx
           task: Isaac-Cartpole-Direct
           num_envs: 4096
-          timeout_minutes: 10
+          job_timeout_minutes: 30
+          bench_timeout_s: 600
           args: ""
         - name: cartpole-newton
           task: Isaac-Cartpole-Direct
           num_envs: 4096
-          timeout_minutes: 10
+          job_timeout_minutes: 30
+          bench_timeout_s: 600
           args: physics=newton_mjwarp
         - name: gear-mesh-physx
           task: IsaacContrib-Factory-GearMesh-Direct
           num_envs: 512
-          timeout_minutes: 15
+          job_timeout_minutes: 40
+          bench_timeout_s: 900
           args: ""
         - name: shadow-camera-physx-rtx
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          timeout_minutes: 20
+          job_timeout_minutes: 50
+          bench_timeout_s: 1200
           args: renderer=isaacsim_rtx
         - name: shadow-camera-physx-newton-renderer
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          timeout_minutes: 20
+          job_timeout_minutes: 50
+          bench_timeout_s: 1200
           args: renderer=newton_renderer
         - name: shadow-camera-newton-rtx
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          timeout_minutes: 20
+          job_timeout_minutes: 50
+          bench_timeout_s: 1200
           args: physics=newton_mjwarp renderer=isaacsim_rtx
         - name: shadow-camera-newton-renderer
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          timeout_minutes: 20
+          job_timeout_minutes: 50
+          bench_timeout_s: 1200
           args: physics=newton_mjwarp renderer=newton_renderer
         - name: g1-physx
           task: Isaac-Velocity-Flat-G1
           num_envs: 512
-          timeout_minutes: 12
+          job_timeout_minutes: 34
+          bench_timeout_s: 720
           args: ""
         - name: g1-newton
           task: Isaac-Velocity-Flat-G1
           num_envs: 512
-          timeout_minutes: 12
+          job_timeout_minutes: 34
+          bench_timeout_s: 720
           args: physics=newton_mjwarp
     steps:
     - uses: actions/checkout@v6
@@ -1013,7 +1022,7 @@ jobs:
         echo "value=$version" >> "$GITHUB_OUTPUT"
 
     - name: Restore warm JIT cache
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/jit-cache
         key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
@@ -1027,7 +1036,7 @@ jobs:
         BENCHMARK_TASK: ${{ matrix.task }}
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
         NUM_ENVS: ${{ matrix.num_envs }}
-        BENCH_TIMEOUT_S: ${{ matrix.timeout_minutes * 60 }}
+        BENCH_TIMEOUT_S: ${{ matrix.bench_timeout_s }}
       run: |
         set -uo pipefail
         install -d -m 0777 benchmark-output
@@ -1071,8 +1080,20 @@ jobs:
         if ! run_attempt 1; then
           echo "::warning::${{ matrix.name }} failed on the first attempt; retrying once"
           rm -f benchmark-output/benchmark_runtime_*.json
-          run_attempt 2
+          if ! run_attempt 2; then
+            echo "::error::${{ matrix.name }} failed on both attempts"
+            exit 1
+          fi
         fi
+
+    # Only develop pushes publish, so this key is only written at push cadence
+    - name: Save warm JIT cache
+      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/jit-cache
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
+
     # The gate runs on the runner host, not inside the Isaac Sim container, so the
     # baseline store's SDK goes in a throwaway venv. Everything else in tools/perf_smoke
     # is standard library.
@@ -1090,7 +1111,8 @@ jobs:
           -r tools/perf_smoke/requirements.txt
         echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
 
-    # Read-only
+    # Read-only. Runs PR-checkout code (tools.perf_smoke), so it must use a separate
+    # list/read-only SAS, never the write-capable credential below
     - name: Compare against baseline history
       # The exit code carries the verdict to the summary job through the uploaded
       # artifact, so it must not also redden this job: job status answers "did the
@@ -1100,7 +1122,7 @@ jobs:
       timeout-minutes: 5
       env:
         # The SAS URL is strictly only read from the environment for security.
-        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
         PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -euo pipefail
