@@ -11,9 +11,9 @@ The following configurations are available:
 * :obj:`ONEROBOTICS_A1_BIMANUAL_CFG`: fixed-base 14-DoF bimanual robot and stand.
 * :obj:`ONEROBOTICS_A1_CFG`: compatibility alias for the unimanual configuration.
 
-The review-stage configurations retrieve the source URDF and meshes from the
-public OneRobotics A1 source repository. Set ``ONEROBOTICS_A1_ASSET_DIR`` to
-use a local checkout.
+The review-stage configurations retrieve the source URDF and meshes from an
+immutable revision of the public OneRobotics A1 source repository when the
+robot is spawned. Set ``ONEROBOTICS_A1_ASSET_DIR`` to use a local checkout.
 
 The robot model assets are copyright 2026 OneRobotics and licensed under
 CC BY 4.0. The unimanual source URDF currently identifies the Link7 mass and
@@ -23,10 +23,10 @@ the confirmed hardware limits below supersede those source placeholders.
 The actuator configuration keeps rated torque as model-facing metadata and
 uses the confirmed peak torque as the static solver limit. Peak duration and
 thermal derating are intentionally outside this simple saturation model.
-The review-stage source content was audited at commit
-``004905e528bdbf26d00b9826c64741c2a48a1089`` and is protected by focused asset
-hashes. The loader follows the public repository's default branch until
-maintainers approve a final hosted asset URI.
+The source assets were audited at commit
+``004905e528bdbf26d00b9826c64741c2a48a1089`` and published in the immutable
+review bundle at commit ``3db6f614c8443bd9396fcd9304cf64a519f98f2a``. The
+loader pins that bundle revision, whose focused hashes cover the source assets.
 
 References:
 
@@ -36,8 +36,11 @@ References:
 * Asset license: https://github.com/katazen/onerobot_h1/blob/main/ASSET_LICENSE_STATUS.md
 """
 
+from __future__ import annotations
+
 import math
 import os
+from typing import TYPE_CHECKING
 
 from isaaclab_physx.sim.schemas import PhysxArticulationRootPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
@@ -46,22 +49,38 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import retrieve_git_asset_path
 
+if TYPE_CHECKING:
+    from pxr import Usd
+
 _ONEROBOTICS_A1_ASSET_REPO_URL = "https://github.com/katazen/onerobot_h1.git"
-_ONEROBOTICS_A1_ASSET_SOURCE = os.environ.get("ONEROBOTICS_A1_ASSET_DIR", _ONEROBOTICS_A1_ASSET_REPO_URL)
+_ONEROBOTICS_A1_ASSET_REVISION = "3db6f614c8443bd9396fcd9304cf64a519f98f2a"
+_ONEROBOTICS_A1_RIGHT_URDF_PATH = "source/h1_reach/h1_reach/assets/urdf/A1_2026/a1_r.urdf"
+_ONEROBOTICS_A1_BIMANUAL_URDF_PATH = (
+    "source/h1_reach/h1_reach/assets/urdf/A1_2026/bimanual_stand/a1_bimanual_stand.urdf"
+)
 
 
 def _retrieve_a1_asset(relative_path: str) -> str:
-    """Retrieve an A1 asset, refreshing an older cache only when needed."""
-    try:
-        return retrieve_git_asset_path(_ONEROBOTICS_A1_ASSET_SOURCE, relative_path)
-    except FileNotFoundError:
-        return retrieve_git_asset_path(_ONEROBOTICS_A1_ASSET_SOURCE, relative_path, force_update=True)
+    """Retrieve an A1 asset from a local override or the immutable review bundle."""
+    local_source = os.environ.get("ONEROBOTICS_A1_ASSET_DIR")
+    if local_source is not None:
+        return retrieve_git_asset_path(local_source, relative_path)
+    return retrieve_git_asset_path(
+        _ONEROBOTICS_A1_ASSET_REPO_URL, relative_path, revision=_ONEROBOTICS_A1_ASSET_REVISION
+    )
 
 
-_ONEROBOTICS_A1_RIGHT_URDF_PATH = _retrieve_a1_asset("source/h1_reach/h1_reach/assets/urdf/A1_2026/a1_r.urdf")
-_ONEROBOTICS_A1_BIMANUAL_URDF_PATH = _retrieve_a1_asset(
-    "source/h1_reach/h1_reach/assets/urdf/A1_2026/bimanual_stand/a1_bimanual_stand.urdf"
-)
+def _spawn_a1_from_urdf(
+    prim_path: str,
+    cfg: sim_utils.UrdfFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Resolve the pinned A1 asset on first use, then delegate to the URDF spawner."""
+    resolved_cfg = cfg.replace(asset_path=_retrieve_a1_asset(cfg.asset_path), func=sim_utils.spawn_from_urdf)
+    return sim_utils.spawn_from_urdf(prim_path, resolved_cfg, translation, orientation, **kwargs)
+
 
 # OneRobotics hardware values reflected at the arm joints.
 _A1_MOTOR_ROTOR_INERTIA = 2.193e-5
@@ -109,6 +128,7 @@ def _a1_actuators() -> dict[str, ImplicitActuatorCfg]:
 def _a1_urdf_spawn(asset_path: str) -> sim_utils.UrdfFileCfg:
     """Create the common A1 URDF spawn configuration."""
     return sim_utils.UrdfFileCfg(
+        func=_spawn_a1_from_urdf,
         asset_path=asset_path,
         fix_base=True,
         self_collision=True,
@@ -165,6 +185,7 @@ def _a1_bimanual_urdf_spawn(asset_path: str) -> sim_utils.UrdfFileCfg:
     through a lossy RPY round trip while preserving the source articulation.
     """
     return sim_utils.UrdfFileCfg(
+        func=_spawn_a1_from_urdf,
         asset_path=asset_path,
         fix_base=True,
         merge_fixed_joints=False,

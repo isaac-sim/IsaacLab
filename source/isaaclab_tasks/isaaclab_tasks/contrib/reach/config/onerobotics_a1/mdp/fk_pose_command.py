@@ -70,7 +70,11 @@ class FkReachablePoseCommand(UniformPoseCommand):
         self._use_legacy_z_axis_fk = cfg.fixed_transform is None and all(len(entry) == 3 for entry in cfg.chain)
 
     def _forward_kinematics(self, joint_pos: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return the Link7 pose in the A1 base frame using XYZW quaternions."""
+        """Return the configured end-effector pose in the robot base frame.
+
+        The position is expressed in the robot base frame [m] and the quaternion
+        uses Isaac Lab's ``(w, x, y, z)`` component ordering.
+        """
         # Unified training enables TF32, whose precision is insufficient to keep seven
         # accumulated rotation matrices inside quat_from_matrix's validity tolerance.
         # This command is resampled only every four seconds, so float64 keeps the

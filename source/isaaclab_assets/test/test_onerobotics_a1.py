@@ -117,14 +117,14 @@ _BIMANUAL_ASSET_SHA256 = {
 @pytest.fixture(scope="module")
 def unimanual_urdf() -> tuple[Path, ET.Element]:
     """Return the resolved review-stage right-arm URDF and parsed root."""
-    urdf_path = Path(ONEROBOTICS_A1_UNIMANUAL_CFG.spawn.asset_path)
+    urdf_path = Path(onerobotics._retrieve_a1_asset(ONEROBOTICS_A1_UNIMANUAL_CFG.spawn.asset_path))
     return urdf_path, ET.parse(urdf_path).getroot()
 
 
 @pytest.fixture(scope="module")
 def bimanual_urdf() -> tuple[Path, ET.Element]:
     """Return the resolved review-stage bimanual URDF and parsed root."""
-    urdf_path = Path(ONEROBOTICS_A1_BIMANUAL_CFG.spawn.asset_path)
+    urdf_path = Path(onerobotics._retrieve_a1_asset(ONEROBOTICS_A1_BIMANUAL_CFG.spawn.asset_path))
     return urdf_path, ET.parse(urdf_path).getroot()
 
 
@@ -145,6 +145,42 @@ def test_asset_source_is_portable_attributed_and_aliased(unimanual_urdf: tuple[P
     assert "CC BY 4.0" in source
     assert "OneRobotics" in source
     assert "/home/" not in source
+
+
+def test_asset_retrieval_is_pinned_and_deferred_until_spawn():
+    """The public configs resolve the immutable review bundle only when spawned."""
+    assert onerobotics._ONEROBOTICS_A1_ASSET_REVISION == "3db6f614c8443bd9396fcd9304cf64a519f98f2a"
+    assert ONEROBOTICS_A1_UNIMANUAL_CFG.spawn.asset_path == onerobotics._ONEROBOTICS_A1_RIGHT_URDF_PATH
+    assert ONEROBOTICS_A1_BIMANUAL_CFG.spawn.asset_path == onerobotics._ONEROBOTICS_A1_BIMANUAL_URDF_PATH
+    assert ONEROBOTICS_A1_UNIMANUAL_CFG.spawn.func is onerobotics._spawn_a1_from_urdf
+    assert ONEROBOTICS_A1_BIMANUAL_CFG.spawn.func is onerobotics._spawn_a1_from_urdf
+
+
+def test_a1_spawner_resolves_a_copy_without_mutating_public_config(monkeypatch):
+    """The deferred spawner resolves its copy and leaves the exported config portable."""
+    original_cfg = ONEROBOTICS_A1_UNIMANUAL_CFG.spawn
+    resolved_path = "/tmp/immutable-a1/a1_r.urdf"
+    spawned = object()
+
+    monkeypatch.setattr(onerobotics, "_retrieve_a1_asset", lambda relative_path: resolved_path)
+
+    def fake_spawn(prim_path, cfg, translation, orientation, **kwargs):
+        assert prim_path == "/World/Robot"
+        assert cfg is not original_cfg
+        assert cfg.asset_path == resolved_path
+        assert cfg.func is fake_spawn
+        assert translation == (1.0, 2.0, 3.0)
+        assert orientation is None
+        assert kwargs == {"clone_in_fabric": True}
+        return spawned
+
+    monkeypatch.setitem(onerobotics.sim_utils.__dict__, "spawn_from_urdf", fake_spawn)
+
+    result = original_cfg.func("/World/Robot", original_cfg, translation=(1.0, 2.0, 3.0), clone_in_fabric=True)
+
+    assert result is spawned
+    assert original_cfg.asset_path == onerobotics._ONEROBOTICS_A1_RIGHT_URDF_PATH
+    assert original_cfg.func is onerobotics._spawn_a1_from_urdf
 
 
 def test_unimanual_topology_and_limits(unimanual_urdf: tuple[Path, ET.Element]):

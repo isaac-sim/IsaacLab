@@ -18,12 +18,25 @@ if TYPE_CHECKING:
 
 Vector3 = tuple[float, float, float]
 FixedTransform = tuple[Vector3, Vector3]
+"""Fixed transform as ``(translation_xyz, fixed_axis_rpy)``.
+
+The transform maps the robot base frame to the first chain link at zero joint
+position. Translation is ``xyz`` [m] and fixed-axis roll-pitch-yaw is ``rpy`` [rad].
+"""
+
 LegacyKinematicChainEntry = tuple[
     str,
     Vector3,
     Vector3,
 ]
 KinematicChainEntry = LegacyKinematicChainEntry | tuple[str, Vector3, Vector3, Vector3]
+"""Kinematic entry as ``(joint_pattern, origin_xyz, origin_rpy[, axis_xyz])``.
+
+The origin maps the parent-link frame to the joint frame at zero joint position;
+translation is ``xyz`` [m] and fixed-axis roll-pitch-yaw is ``rpy`` [rad]. The
+optional joint axis is a unitless vector expressed in the joint frame. When
+omitted, the axis defaults to ``(0, 0, 1)`` for legacy single-arm entries.
+"""
 
 A1_RIGHT_CHAIN: list[KinematicChainEntry] = [
     (".*joint1.*", (0.0, 0.0, 0.0125), (0.0, 0.0, 0.0)),
@@ -127,10 +140,21 @@ class FkReachablePoseCommandCfg(UniformPoseCommandCfg):
     class_type: type[FkReachablePoseCommand] | str = "{DIR}.fk_pose_command:FkReachablePoseCommand"
 
     chain: list[KinematicChainEntry] = MISSING
-    """Kinematic chain entries ordered from the robot base to the end effector."""
+    """Kinematic chain entries ordered from the robot base to the end effector.
+
+    Each entry is ``(joint_pattern, origin_xyz, origin_rpy[, axis_xyz])``. The
+    origin maps the parent-link frame to the joint frame at zero joint position;
+    ``origin_xyz`` is [m], ``origin_rpy`` is fixed-axis roll-pitch-yaw [rad],
+    and the optional ``axis_xyz`` is unitless and expressed in the joint frame.
+    An omitted axis defaults to ``(0, 0, 1)``.
+    """
 
     fixed_transform: FixedTransform | None = None
     """Optional fixed transform applied before the first actuated joint.
+
+    The tuple is ``(translation_xyz, fixed_axis_rpy)`` from the robot base frame
+    to the first chain link at zero joint position. ``translation_xyz`` is [m]
+    and fixed-axis ``fixed_axis_rpy`` is [rad].
 
     The legacy three-field chain with no fixed transform retains its original
     z-axis-only forward-kinematics path exactly.
