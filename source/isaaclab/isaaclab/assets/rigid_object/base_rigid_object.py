@@ -127,7 +127,7 @@ class BaseRigidObject(AssetBase):
     """
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
-        """Supplement this rigid object's initial body state in the export stage."""
+        """Supplement this rigid object's placement and mass properties in the export stage."""
 
         writer.write_bodies(self.data, writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies)
 

@@ -432,3 +432,78 @@ def test_multi_axis_joint_values_do_not_overwrite_other_axes():
             stiffness * np.pi / 180
         )
     assert not joint.GetPrim().HasAttribute("physics:lowerLimit")
+
+
+def test_fixed_properties_write_placement_and_zero_initial_velocities(scene):
+    import torch
+
+    from pxr import Gf
+
+    from isaaclab.assets import BaseArticulationData
+
+    path = "/World/envs/env_0/Body"
+    prim = scene.sim.stage.GetPrimAtPath(path)
+    UsdGeom.XformCommonAPI(prim).SetTranslate((1, 2, 3))
+    body = UsdPhysics.RigidBodyAPI(prim)
+    body.CreateVelocityAttr().Set((4, 5, 6))
+    body.CreateAngularVelocityAttr().Set((7, 8, 9))
+    body.GetVelocityAttr().Set((10, 11, 12), 1)
+    joint = UsdPhysics.RevoluteJoint.Define(scene.sim.stage, "/Joint").GetPrim()
+    joint.CreateAttribute("state:angular:physics:position", Sdf.ValueTypeNames.Float).Set(12)
+    joint.CreateAttribute("state:angular:physics:velocity", Sdf.ValueTypeNames.Float).Set(34)
+    joint.CreateAttribute("newton:angular:velocity", Sdf.ValueTypeNames.Float).Set(56)
+    before = scene.sim.stage.GetRootLayer().ExportToString()
+    data = SimpleNamespace(
+        body_link_pose_w=SimpleNamespace(torch=torch.tensor([[[3.0, 2, 1, 0, 0, 0, 1]]])),
+        body_mass=SimpleNamespace(torch=torch.tensor([[2.0]])),
+        body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
+        body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.0, 0, 0, 0, 0, 0, 1]]])),
+    )
+    writer = UsdWriter.from_stage(scene.sim.stage)
+    writer.write_bodies(data, [(path, 0)])
+    writer.clear_initial_velocities()
+    actual = writer.stage.GetPrimAtPath(path)
+    assert UsdGeom.XformCache().GetLocalToWorldTransform(actual).ExtractTranslation() == Gf.Vec3d(3, 2, 1)
+    for name in ("physics:velocity", "physics:angularVelocity"):
+        assert actual.GetAttribute(name).Get() == Gf.Vec3f(0)
+        assert actual.GetAttribute(name).GetTimeSamples() == []
+    assert writer.stage.GetPrimAtPath("/Joint").GetAttribute("state:angular:physics:position").Get() == 12
+    for name in ("state:angular:physics:velocity", "newton:angular:velocity"):
+        assert writer.stage.GetPrimAtPath("/Joint").GetAttribute(name).Get() == 0
+
+    class StateOnly:
+        joint_pos = BaseArticulationData.joint_pos
+        joint_vel = BaseArticulationData.joint_vel
+
+    assert usd_fields(StateOnly) == {}
+    assert scene.sim.stage.GetRootLayer().ExportToString() == before
+
+
+@pytest.mark.parametrize("preserve", [False, True])
+def test_source_contacts_preserve_distinct_materials_and_automatic_offsets(scene, preserve):
+    stage = scene.sim.stage
+    body = "/World/envs/env_0/Body"
+    for index, friction in enumerate((0.5, 1.0)):
+        collider = UsdGeom.Sphere.Define(stage, f"{body}/Shape{index}")
+        collider.CreateRadiusAttr().Set(0.1 * (index + 1))
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+        material = UsdShade.Material.Define(stage, f"/Material{index}")
+        physics = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+        physics.CreateStaticFrictionAttr().Set(friction)
+        physics.CreateDynamicFrictionAttr().Set(friction)
+        UsdShade.MaterialBindingAPI.Apply(collider.GetPrim()).Bind(material, materialPurpose="physics")
+    writer = UsdWriter.from_stage(stage)
+    writer.preserve_source_contacts = preserve
+    args = (body, True, [[0.5, 0.5, 0], [1, 1, 0]], [0.004, 0.008], [0, 0])
+    if not preserve:
+        with pytest.raises(NotImplementedError, match="Distinct per-shape"):
+            writer.write_body_contacts(*args)
+        return
+    writer.write_body_contacts(*args)
+    assert writer.stage.GetPrimAtPath(body).GetAttribute("physxRigidBody:disableGravity").Get()
+    for index, friction in enumerate((0.5, 1.0)):
+        collider = writer.stage.GetPrimAtPath(f"{body}/Shape{index}")
+        assert not collider.GetAttribute("physxCollision:contactOffset").HasAuthoredValueOpinion()
+        material, _ = UsdShade.MaterialBindingAPI(collider).ComputeBoundMaterial("physics")
+        assert material.GetPath() == Sdf.Path(f"/Material{index}")
+        assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == friction

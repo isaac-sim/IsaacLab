@@ -13,9 +13,9 @@ from pxr import Gf, Sdf, Usd, UsdPhysics, UsdShade
 def capture_physics_structure(stage: Usd.Stage) -> dict:
     """Capture parsed entity coverage, topology, collision geometry and filtering by prim identity.
 
-    Runtime body poses, drives, limits and material coefficients are compared through backend
-    views by the caller. Everything else exposed by the USD physics descriptors is retained here,
-    including geometry dimensions, shape-to-body associations and joint attachment frames.
+    Drives, limits and material coefficients are compared through backend views by the caller.
+    Transient body state is outside the deployment contract. Other USD physics descriptors
+    retain geometry dimensions, shape-to-body associations and joint attachment frames.
     """
     result = {}
     buffered = {
@@ -141,6 +141,13 @@ def make_fixed_scene_cfg(directory):
             0.02 + 0.01 * index
         )
         shape.GetPrim().CreateAttribute("physxCollision:restOffset", Sdf.ValueTypeNames.Float).Set(0.001 * index)
+    # One body mixes authored and automatic offsets and two source materials.
+    sphere = UsdGeom.Sphere.Define(stage, "/Robot/Link/ExtraCollision")
+    sphere.CreateRadiusAttr().Set(0.08)
+    UsdPhysics.CollisionAPI.Apply(sphere.GetPrim())
+    UsdShade.MaterialBindingAPI.Apply(sphere.GetPrim()).Bind(
+        UsdShade.Material(stage.GetPrimAtPath("/Robot/Materials/Base")), materialPurpose="physics"
+    )
     fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/FixedRoot")
     fixed.CreateBody1Rel().SetTargets(["/Robot/Base"])
     fixed.CreateLocalPos0Attr().Set(Gf.Vec3f(0, 0, 0.5))

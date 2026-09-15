@@ -27,7 +27,9 @@ static-friction range. Referenced instance colliders must also be reachable by m
 Removing fixed randomizers changes random-number consumption, so the same training seed may
 produce different samples than before the configuration migration.
 
-The exporter reads initialized physical values; it does not reset the scene or apply
+The exporter reads initialized physical properties, retains body placement and authored joint
+defaults, and writes zero initial body/joint velocities. Backend warmup velocities are not
+deployment initial conditions. It does not reset the scene or apply
 ``default_*`` buffers. Newton delivers queued property-change notifications to its native solver
 without advancing physics. Tasks must finish and register their physical scene before this
 boundary; unregistered enabled bodies fail completeness checks. Physics added or changed later
@@ -35,7 +37,8 @@ in a task constructor is not part of the automatic artifact and must move into s
 A task that steps before this boundary cannot use initialization-only export.
 
 Direct calls to ``InteractiveScene.export_to_usd`` still export the current scene at the time of
-the call. To export nominal properties, call before randomization; a manual call after startup
+the call, with the same body-placement/zero-velocity policy. To export nominal properties,
+call before randomization; a manual call after startup
 retains its effective changes. Neither mode serializes controllers, observation processing or
 sensor execution for policy deployment.
 
@@ -65,22 +68,20 @@ Here ``sim_cfg`` is the resolved simulation configuration for that backend::
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(DeploymentSceneCfg(num_envs=1, env_spacing=2.0))
         sim.reset()
-        scene.reset_to_default()
-        sim.forward()
-        scene.update(0.0)
-        scene.export_to_usd("environment.usda")
+        scene.export_to_usd("environment.usda", preserve_source_contacts=True)
 
-In this standalone example, default state is applied explicitly before the snapshot because
-there is no task event lifecycle. For task environments, set ``scene.export_usd_path`` before
-construction to export before startup, or call the scene method afterward to retain runtime
-changes. Do not reapply defaults while exporting. The exporter never executes event functions.
+In this standalone example, no backend-buffer contact overrides have run, so
+``preserve_source_contacts=True`` retains authored PhysX materials and automatic offsets.
+Automatic pre-startup export uses the same setting. Leave it false when exporting actual
+buffer contact overrides; ambiguous per-shape overrides fail explicitly. Newton uses its
+native shape identities in either case. The exporter never executes event functions.
 
 Preservation and authoring
 --------------------------
 
 ``InteractiveScene.export_to_usd`` copies the stage and calls each registered asset's
 ``author_fixed_configuration(writer)``. In this example the robot supplies its
-link state and joint properties; the box supplies its body state. Both write into the
+mass and joint properties; the box supplies its mass properties. Both write into the
 same copy through a shared ``UsdWriter``. Articulation resolves and traverses its own joints;
 the writer discovers data declarations and performs the common attribute writes. Collections use that same body writer for
 all members. Scene-wide settings, dependencies and completeness are checked before saving.
@@ -123,7 +124,7 @@ effort units. Abstract-property and existing observation metadata are preserved.
 Registered schemas supply exact attribute names and types through ``GetSchemaAttributeNames``
 and ``Prim.GetAttribute``. Single/multi-apply and typed schemas are distinguished. Generic writing
 supports scalar, vector and scalar-array attributes, and declared components such as lower/upper limits.
-Matrices, transforms and relationship semantics need dedicated operations; body transforms,
+Matrices and relationship semantics need dedicated operations; body placement,
 fixed-root frames and Newton material bindings remain explicit. Unregistered extensions require
 an explicit target type. Schema discovery cannot infer source fields, units or backend semantics.
 
@@ -152,21 +153,13 @@ configuration. Unrepresentable per-joint actuation modes fail explicitly. The
 loader must consume the exported import options and driver metadata, rather than silently using
 its own defaults::
 
-    import numpy as np
-    import warp as wp
-    from pxr import Usd, UsdPhysics
+    from pxr import Usd
     from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
     stage = Usd.Stage.Open("deployment.usda")
     metadata = stage.GetRootLayer().customLayerData
     builder.add_usd(stage, schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()],
                     **metadata["isaaclab:newtonImportOptions"])
-    # Pinned Newton rotates these USD world-frame velocities during import.
-    for index, label in enumerate(builder.body_label):
-        body = UsdPhysics.RigidBodyAPI(stage.GetPrimAtPath(label))
-        linear = body.GetVelocityAttr().Get()
-        angular = np.deg2rad(body.GetAngularVelocityAttr().Get())
-        builder.body_qd[index] = wp.spatial_vector(*linear, *angular)
     model = builder.finalize()
     driver = dict(metadata["isaaclab:newtonDriver"])
     assert driver.pop("solver") == "xpbd"
@@ -187,17 +180,10 @@ The metadata consumers are the deployment loader (illustrated above) and the ind
 fresh-load tests. Isaac Sim/OVPhysX do not consume these Newton driver options. The descriptive
 ``isaaclab:configuration`` marker does not execute task code.
 
-The loader above corrects a pinned Newton importer frame conversion: standard USD body
-velocities are already in the world frame. This correction reads only the exported USD;
-it does not replay task overrides. It is especially necessary for Kamino's body-state
-initialization and must be revalidated when upgrading Newton.
-
 The fresh-load tests compare complete fixture entity coverage, topology, geometry,
-materials, collision relationships, body/joint properties, gravity and state. MJWarp and
-Kamino also compare native solver configuration after loading without task overrides. The pinned
-Newton importer uses radians/second for native initial angular velocity; its compatibility
-attributes are emitted alongside standard USD degree-based state and currently produce warnings.
-That behavior requires revalidation on Newton upgrades.
+materials, collision relationships, body/joint properties and gravity. MJWarp and
+Kamino also compare native solver configuration after loading without task overrides.
+Initial velocities are checked as zero; post-warmup poses and velocities are not compared.
 
 Runtime integration and cost
 ----------------------------
@@ -218,9 +204,11 @@ validation and saving durations, total export wall time, source environment coun
 id and output size. It measures incremental export in the already initialized process.
 Same-seed integration tests compare event results and subsequent training with the flag off/on.
 
-PhysX tensor interfaces expose body identities but not per-collider identities. Single
-colliders and equal per-body contact values can be authored unambiguously; distinct per-shape
-values are rejected. Uniform values also cover cooked meshes with multiple convex pieces. Newton retains explicit shape labels,
+PhysX tensor interfaces expose body identities but not per-collider identities. Before
+buffer overrides, source bindings, geometry and automatic offset semantics are preserved,
+including distinct source materials. Manual buffer-override export supports single colliders
+and uniform per-body values; distinct per-shape overrides are rejected. Uniform values also
+cover cooked meshes with multiple convex pieces. Newton retains explicit shape labels,
 including static colliders. These support boundaries are separate from task/preset availability.
 
 Additional support boundaries
@@ -233,8 +221,9 @@ value, and OVPhysX spherical-joint drive reconstruction are rejected.
 
 OVPhysX cannot export different contact/material values for individual cooked convex pieces
 until its tensor API exposes stable piece-to-USD identity and cooked geometry. Body identity
-alone is insufficient. Its first GPU tensor access may perform a minimal warmup step;
-fresh-load state agreement must be validated per task rather than hidden with wider tolerances.
+alone is insufficient. Native warmup can generate motion even before a task takes its first
+step; this transient state is excluded from deployment export. OVPhysX scene frequency is
+authored from the simulation timestep so native contact-default calculation uses the configured rate.
 
 Native Newton colliders without an authored USD collision identity, including generated
 heightfields, are rejected. Their source meshes can remain in USD, but that alone does not

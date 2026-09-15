@@ -56,6 +56,7 @@ class UsdWriter:
     def __init__(self, stage: Usd.Stage):
         self.stage = stage
         self.env_index = 0
+        self.preserve_source_contacts = False
         self.env_id = 0
         self.clone_plan: ClonePlan | None = None
         self.body_paths: set[str] = set()
@@ -339,20 +340,19 @@ class UsdWriter:
         data: BaseArticulationData | BaseRigidObjectData | BaseRigidObjectCollectionData,
         paths: list[tuple[str, int]],
     ) -> None:
-        """Write initialized public body state into its existing prims and track their identities."""
+        """Write body placement and mass properties without copying transient velocities."""
         poses = data.body_link_pose_w.torch[self.env_index].detach().cpu().numpy().reshape(-1, 7).copy()
-        velocities = data.body_com_vel_w.torch[self.env_index].detach().cpu().numpy().reshape(-1, 6).copy()
         masses = data.body_mass.torch[self.env_index].detach().cpu().numpy().reshape(-1)
         inertias = data.body_inertia.torch[self.env_index].detach().cpu().numpy().reshape(-1, 3, 3)
         coms = data.body_com_pose_b.torch[self.env_index].detach().cpu().numpy().reshape(-1, 7)
         if sorted(row for _, row in paths) != list(range(len(poses))):
             raise RuntimeError("Incomplete body identities for fixed configuration.")
-        # Child local transforms must use the already updated parent world pose.
+        # Update parents first so child transforms retain their world placement.
         for path, row in sorted(paths, key=lambda item: Sdf.Path(item[0]).pathElementCount):
             prim = self.stage.GetPrimAtPath(path)
             if path in self.body_paths or not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 raise RuntimeError(f"Missing or multiply owned body {path}.")
-            self._write_body_state(prim, poses[row], velocities[row])
+            self._write_body_pose(prim, poses[row])
             self.write_mass_properties(prim, masses[row], inertias[row], coms[row])
             self.body_paths.add(path)
 
@@ -407,7 +407,8 @@ class UsdWriter:
     def write_body_contacts(self, path: str, disabled: bool, materials, offsets, rest_offsets) -> None:
         """Author body gravity and PhysX contact buffers without guessing shape ordering.
 
-        Native tensor views expose body identities but not collider paths. A single
+        Pre-startup export preserves source contacts. Otherwise, native tensor views
+        expose body identities but not collider paths. A single
         collider or equal per-body values are unambiguous; distinct per-shape values
         require a backend identity API and are rejected.
         """
@@ -415,6 +416,9 @@ class UsdWriter:
         self.write_attribute(
             path, UsdAttribute("physxRigidBody:disableGravity", "PhysxRigidBodyAPI", type_name="bool"), disabled
         )
+        if self.preserve_source_contacts:
+            # Before buffer randomization, authored bindings and native defaults remain authoritative.
+            return
         colliders = []
         descendants = iter(Usd.PrimRange(body))
         for prim in descendants:
@@ -556,8 +560,29 @@ class UsdWriter:
             prim.GetAttribute(f"physics:localPos{world}").Set(Gf.Vec3f(anchor.ExtractTranslation()))
             prim.GetAttribute(f"physics:localRot{world}").Set(Gf.Quatf(anchor.ExtractRotationQuat()))
 
-    def _write_body_state(self, prim: Usd.Prim, pose: np.ndarray, velocity: np.ndarray) -> None:
-        """Write body-link world pose [m, xyzw] and COM world velocity [m/s, rad/s]."""
+    def clear_initial_velocities(self) -> None:
+        """Start deployment at rest, including velocities inherited from source layers."""
+        axes = {"angular", "linear", "rotX", "rotY", "rotZ", "transX", "transY", "transZ"}
+        for prim in self.stage.Traverse():
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                body = UsdPhysics.RigidBodyAPI(prim)
+                for attr in (body.CreateVelocityAttr(), body.CreateAngularVelocityAttr()):
+                    attr.Clear()
+                    attr.Set(Gf.Vec3f(0))
+            if prim.IsA(UsdPhysics.Joint):
+                for attr in prim.GetAttributes():
+                    tokens = attr.GetName().split(":")
+                    if (
+                        len(tokens) == 4
+                        and tokens[0] == "state"
+                        and tokens[1] in axes
+                        and tokens[2:] == ["physics", "velocity"]
+                    ) or (len(tokens) == 3 and tokens[0] == "newton" and tokens[1] in axes and tokens[2] == "velocity"):
+                        attr.Clear()
+                        attr.Set(0.0)
+
+    def _write_body_pose(self, prim: Usd.Prim, pose: np.ndarray) -> None:
+        """Write body-link world placement [m, xyzw], retaining geometry scale."""
         length = UsdGeom.GetStageMetersPerUnit(prim.GetStage())
         previous = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
         scale = Gf.Transform(previous).GetScale()
@@ -569,6 +594,3 @@ class UsdWriter:
         xform = UsdGeom.Xformable(prim)
         xform.ClearXformOpOrder()
         xform.AddTransformOp(opSuffix="export").Set(local)
-        body = UsdPhysics.RigidBodyAPI(prim)
-        body.CreateVelocityAttr().Set(Gf.Vec3f(*map(float, velocity[:3] / length)))
-        body.CreateAngularVelocityAttr().Set(Gf.Vec3f(*map(float, np.rad2deg(velocity[3:]))))

@@ -127,7 +127,7 @@ class BaseRigidObjectCollection(AssetBase):
     """
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
-        """Supplement all collection members' initial body states in the export stage."""
+        """Supplement all collection members' placements and mass properties in the export stage."""
 
         writer.write_bodies(self.data, writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies)
 

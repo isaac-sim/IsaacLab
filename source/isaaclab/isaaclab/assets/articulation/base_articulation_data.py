@@ -982,9 +982,6 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
-    @usd_field(
-        UsdAttribute("state:{axis}:physics:position", "PhysicsJointStateAPI:{axis}", angular_power=1, type_name="float")
-    )
     def joint_pos(self) -> ProxyArray:
         """Joint positions of all joints.
 
@@ -996,9 +993,6 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
-    @usd_field(
-        UsdAttribute("state:{axis}:physics:velocity", "PhysicsJointStateAPI:{axis}", angular_power=1, type_name="float")
-    )
     def joint_vel(self) -> ProxyArray:
         """Joint velocities of all joints.
 

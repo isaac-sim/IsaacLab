@@ -36,15 +36,6 @@ def _load(path: str, device="cpu") -> tuple[newton.Model, dict]:
     if driver == "mujoco":
         resolvers.insert(0, SchemaResolverMjc())
     stage_info = builder.add_usd(str(path), schema_resolvers=resolvers, **options)
-    # The pinned importer rotates USD world-frame velocities by each body's pose.
-    # Restore the USD values before finalization; no source task state is available here.
-    import warp as wp
-
-    for body, label in enumerate(builder.body_label):
-        api = UsdPhysics.RigidBodyAPI(stage.GetPrimAtPath(label))
-        linear = api.GetVelocityAttr().Get()
-        angular = np.deg2rad(api.GetAngularVelocityAttr().Get())
-        builder.body_qd[body] = wp.spatial_vector(*linear, *angular)
     replace_newton_builder_shape_colors(builder, stage)
     return builder.finalize(device=device), stage_info
 
@@ -421,7 +412,6 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
     )
     output = tmp_path / "fixed_scene.usda"
     expected = {}
-    expected_state = {}
     expected_native = {}
 
     with build_simulation_context(sim_cfg=simulation_cfg) as sim:
@@ -469,11 +459,6 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
 
         elif solver_name == "kamino":
             expected_native = _capture_kamino_physics(manager._solver, env_id)
-        state = manager.get_state_0()
-        for index, path in enumerate(manager.get_model().body_label):
-            if manager.get_model().body_world.numpy()[index] not in (-1, env_id):
-                continue
-            expected_state[path] = (state.body_q.numpy()[index].copy(), state.body_qd.numpy()[index].copy())
         scene.export_to_usd(str(output), env_id=env_id)
     stage = Usd.Stage.Open(str(output))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
@@ -489,7 +474,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         assert not joint.HasAPI(UsdPhysics.DriveAPI, "angular")
     else:
         assert UsdPhysics.DriveAPI(joint, "angular").GetStiffnessAttr().Get() == pytest.approx(83 * np.pi / 180)
-    assert joint.GetAttribute("state:angular:physics:position").Get() == pytest.approx(np.degrees(0.21))
+    assert not joint.GetAttribute("state:angular:physics:position").HasAuthoredValueOpinion()
     for name, mass in (("Box", 2.5), ("CollectedFirst", 1.5), ("CollectedSecond", 3.5)):
         prim = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/{name}")
         assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == pytest.approx(
@@ -523,11 +508,9 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
     state = fresh.state()
     if solver_name != "kamino":
         newton.eval_fk(fresh, fresh.joint_q, fresh.joint_qd, state)
-    assert set(fresh.body_label) == set(expected_state)
-    for index, path in enumerate(fresh.body_label):
-        pose, velocity = expected_state[path]
-        np.testing.assert_allclose(state.body_q.numpy()[index], pose, rtol=3e-5, atol=1e-6, err_msg=path)
-        np.testing.assert_allclose(state.body_qd.numpy()[index], velocity, rtol=3e-5, atol=1e-6, err_msg=path)
+    assert set(fresh.body_label) == bodies
+    np.testing.assert_array_equal(state.body_qd.numpy(), 0)
+    np.testing.assert_array_equal(fresh.joint_qd.numpy(), 0)
 
 
 @pytest.mark.parametrize("bound", [True, False, "complete", "unmapped"])

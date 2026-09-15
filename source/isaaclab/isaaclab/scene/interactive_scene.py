@@ -482,18 +482,30 @@ class InteractiveScene:
     Operations.
     """
 
-    def export_to_usd(self, path: str, *, env_id: int = 0, timings: dict[str, float] | None = None) -> str:
+    def export_to_usd(
+        self,
+        path: str,
+        *,
+        env_id: int = 0,
+        timings: dict[str, float] | None = None,
+        preserve_source_contacts: bool = False,
+    ) -> str:
         """Export one deployment environment after one-time initialization.
 
         Call after the task constructor returns and before the first training reset or
         step. Prestartup/startup results, including random samples, are retained. Current
-        state is exported without applying defaults or mutating the live simulation.
+        physical properties are exported without mutating the live simulation. Body
+        placement is retained; explicit joint-state samples are omitted and initial
+        body/joint velocities are zeroed.
         Controllers, observations and sensor execution require deployment integration.
 
         Args:
             path: Destination USD file. External dependencies must remain accessible.
             env_id: Environment to export, retaining its world frame and shared resources.
             timings: Optional output of selection/configuration/validate/save durations [s].
+            preserve_source_contacts: Preserve authored PhysX collider materials and offset defaults.
+                Use only before backend-buffer contact overrides. Automatic pre-startup export
+                enables this; Newton retains its explicit native shape mapping.
         """
         from itertools import chain
 
@@ -510,6 +522,7 @@ class InteractiveScene:
         phases = {name: Timer() for name in ("selection", "configuration", "validate", "save")}
         with phases["selection"]:
             writer = UsdWriter.from_stage(self.sim.stage)
+            writer.preserve_source_contacts = preserve_source_contacts
             writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
         with phases["configuration"]:
             # Layout queries select the public instance row; effective values come from objects.
@@ -534,6 +547,7 @@ class InteractiveScene:
                 asset.author_fixed_configuration(writer)
             writer.write_fixed_root_frames()
             self.sim.physics_manager.author_fixed_configuration(writer, self)
+            writer.clear_initial_velocities()
         with phases["validate"]:
             writer.validate()
         with phases["save"]:

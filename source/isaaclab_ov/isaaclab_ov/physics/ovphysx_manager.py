@@ -1208,6 +1208,11 @@ class OvPhysxManager(PhysicsManager):
         # Propagate scene query support from SimulationCfg so omni.physx creates
         # the scene with the correct query mode.  OvPhysxCfg does not carry this field.
         sim_cfg = PhysicsManager._sim.cfg if PhysicsManager._sim is not None else None
+        if sim_cfg is not None:
+            # Native automatic contact offsets depend on this frequency, not simulate()'s dt.
+            scene_prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(
+                int(1 / sim_cfg.dt)
+            )
         enable_sq = getattr(sim_cfg, "enable_scene_query_support", False)
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
 

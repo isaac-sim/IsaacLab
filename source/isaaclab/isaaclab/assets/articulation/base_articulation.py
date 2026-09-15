@@ -487,7 +487,7 @@ class BaseArticulation(AssetBase):
     """
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
-        """Supplement link initial state and fixed joint parameters in the export stage."""
+        """Supplement link mass properties and fixed joint parameters in the export stage."""
         from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 
         for name, cfg in self.cfg.actuators.items():

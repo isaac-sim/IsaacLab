@@ -30,7 +30,7 @@ def _export_deployment_scene(scene: InteractiveScene, path: str | None) -> Path 
     output = Path(path).resolve()
     timings = {}
     with Timer() as timer:
-        scene.export_to_usd(str(output), env_id=0, timings=timings)
+        scene.export_to_usd(str(output), env_id=0, timings=timings, preserve_source_contacts=True)
     output.with_suffix(".metrics.json").write_text(
         json.dumps(
             {

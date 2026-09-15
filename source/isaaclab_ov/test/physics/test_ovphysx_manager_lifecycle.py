@@ -526,3 +526,16 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
 
     with pytest.raises(RuntimeError, match="owned"):
         manager_module._prepare_default_cache_dir(str(target))
+
+
+@pytest.mark.parametrize("device", ["cpu", "gpu"])
+def test_scene_frequency_matches_simulation_dt(monkeypatch, manager_module, device):
+    from pxr import Usd, UsdPhysics
+
+    from isaaclab.physics import PhysicsManager
+
+    stage = Usd.Stage.CreateInMemory()
+    prim = UsdPhysics.Scene.Define(stage, "/physicsScene").GetPrim()
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1 / 120)))
+    manager_module.OvPhysxManager._configure_physx_scene_prim(prim, None, device)
+    assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == 120

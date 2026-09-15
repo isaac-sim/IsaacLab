@@ -46,10 +46,6 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
         TT.SHAPE_FRICTION_AND_RESTITUTION,
         TT.CONTACT_OFFSET,
         TT.REST_OFFSET,
-        TT.DOF_POSITION,
-        TT.DOF_VELOCITY,
-        TT.LINK_POSE,
-        TT.LINK_VELOCITY,
     )
     rigid_props = (
         TT.RIGID_BODY_MASS,
@@ -59,8 +55,6 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
         TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
         TT.RIGID_BODY_CONTACT_OFFSET,
         TT.RIGID_BODY_REST_OFFSET,
-        TT.RIGID_BODY_POSE,
-        TT.RIGID_BODY_VELOCITY,
     )
 
     output = tmp_path / "fixed.usda"
@@ -95,7 +89,7 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
                         list(view.dof_names) if articulation else [],
                     )
         before = scene.sim.stage.GetRootLayer().ExportToString()
-        scene.export_to_usd(str(output), env_id=env_id)
+        scene.export_to_usd(str(output), env_id=env_id, preserve_source_contacts=True)
         assert scene.sim.stage.GetRootLayer().ExportToString() == before
     stage = Usd.Stage.Open(str(output))
     if num_envs == 1:
@@ -103,6 +97,11 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
     assert all(not stage.GetPrimAtPath(f"/World/envs/env_{i}") for i in range(num_envs) if i != env_id)
     assert len([p for p in stage.Traverse() if p.HasAPI(UsdPhysics.RigidBodyAPI)]) == 5
     assert stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Table") and stage.GetPrimAtPath("/World/Ground")
+    for prim in stage.Traverse():
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            np.testing.assert_array_equal(UsdPhysics.RigidBodyAPI(prim).GetVelocityAttr().Get(), [0, 0, 0])
+            np.testing.assert_array_equal(UsdPhysics.RigidBodyAPI(prim).GetAngularVelocityAttr().Get(), [0, 0, 0])
+    assert stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get() == 120
     physics_scene = UsdPhysics.Scene(stage.GetPrimAtPath("/physicsScene"))
     np.testing.assert_allclose(
         np.array(physics_scene.GetGravityDirectionAttr().Get()) * physics_scene.GetGravityMagnitudeAttr().Get(),

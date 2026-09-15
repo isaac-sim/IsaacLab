@@ -81,8 +81,6 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         "get_dof_max_velocities",
         "get_dof_armatures",
         "get_dof_friction_properties",
-        "get_dof_positions",
-        "get_dof_velocities",
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -93,7 +91,6 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         scene.update(0.0)
         # Independent reference: the live backend and complete original USD, not exporter selection.
         expected_structure.update(capture_physics_structure(scene.sim.stage))
-        # The configured fixed-base root pose moves its world anchor in the backend.
         expected_structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.asarray(
             cfg.robot.init_state.pos
         )
@@ -104,11 +101,7 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         for name, asset in assets.items():
             view = asset.root_view
             articulation = name in scene.articulations
-            getters = (
-                (getter_names + joint_getters + ("get_link_transforms", "get_link_velocities"))
-                if articulation
-                else getter_names + ("get_transforms", "get_velocities")
-            )
+            getters = getter_names + joint_getters if articulation else getter_names
             for row, root in enumerate(view.prim_paths):
                 expected[root] = (
                     articulation,
@@ -117,26 +110,8 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
                     {getter: getattr(view, getter)().numpy()[row].copy() for getter in getters},
                 )
         before = scene.sim.stage.GetRootLayer().ExportToString()
-        scene.export_to_usd(str(output))
+        scene.export_to_usd(str(output), preserve_source_contacts=True)
         assert scene.sim.stage.GetRootLayer().ExportToString() == before
-        # The fresh backend performs two integration warmup steps. Advance this
-        # independent reference by the same amount only after the snapshot is saved.
-        import omni.physx
-
-        physics = omni.physx.get_physx_interface()
-        physics.update_simulation(scene.sim.get_physics_dt(), 0.0)
-        omni.physx.get_physx_simulation_interface().fetch_results()
-        physics.update_simulation(scene.sim.get_physics_dt(), 0.0)
-        for name, asset in assets.items():
-            view = asset.root_view
-            states = (
-                ("get_dof_positions", "get_dof_velocities", "get_link_transforms", "get_link_velocities")
-                if name in scene.articulations
-                else ("get_transforms", "get_velocities")
-            )
-            for row, root in enumerate(view.prim_paths):
-                for getter in states:
-                    expected[root][3][getter] = getattr(view, getter)().numpy()[row].copy()
     stage = Usd.Stage.Open(str(output))
     assert_physics_structure_equal(expected_structure, capture_physics_structure(stage))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
@@ -162,14 +137,13 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         assert native_prim.GetAttribute("newton:kp").Get() == pytest.approx(83)
         assert native_prim.GetAttribute("newton:kd").Get() == pytest.approx(4.5)
         assert native_prim.GetRelationship("newton:targets").GetTargets() == [hinge.GetPath()]
-    assert hinge.GetAttribute("state:angular:physics:position").Get() == pytest.approx(math.degrees(0.21))
-    assert hinge.GetAttribute("state:angular:physics:velocity").Get() == pytest.approx(math.degrees(0.17))
+    assert not hinge.GetAttribute("state:angular:physics:position").HasAuthoredValueOpinion()
     for name, mass, x in (("Box", 2.5, 1), ("CollectedFirst", 1.5, 2), ("CollectedSecond", 3.5, 3)):
         prim = stage.GetPrimAtPath(f"/World/envs/env_0/{name}")
         assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == pytest.approx(mass, rel=1e-6, abs=1e-7)
         pose = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
         np.testing.assert_allclose(pose.ExtractTranslation(), (x, 0, 1), atol=1e-6)
-        np.testing.assert_allclose(UsdPhysics.RigidBodyAPI(prim).GetVelocityAttr().Get(), (0.12, -0.03, 0.02))
+        np.testing.assert_allclose(UsdPhysics.RigidBodyAPI(prim).GetVelocityAttr().Get(), (0, 0, 0))
     physics = stage.GetPrimAtPath("/physicsScene")
     assert physics.GetAttribute("physxScene:bounceThreshold").Get() == pytest.approx(0.31)
     assert physics.GetAttribute("physxScene:frictionOffsetThreshold").Get() == pytest.approx(0.025)
