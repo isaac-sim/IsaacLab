@@ -81,6 +81,7 @@ from isaaclab_ov.assets import Articulation  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -343,7 +344,10 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=[
+                    sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                    PhysxJointCfg(max_joint_velocity=5.0),
+                ],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -366,7 +370,10 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=[
+                    sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                    PhysxJointCfg(max_joint_velocity=5.0),
+                ],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(

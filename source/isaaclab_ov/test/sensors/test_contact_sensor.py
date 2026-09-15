@@ -53,6 +53,7 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
@@ -186,10 +187,10 @@ CUBE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -205,10 +206,10 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -226,10 +227,10 @@ CYLINDER_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.01,
         axis="Y",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -247,10 +248,10 @@ CAPSULE_CFG = ContactSensorRigidObjectCfg(
         radius=0.25,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -268,10 +269,10 @@ CONE_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
