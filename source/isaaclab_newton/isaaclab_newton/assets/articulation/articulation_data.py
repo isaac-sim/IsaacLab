@@ -23,7 +23,7 @@ from isaaclab.utils.warp.utils import capture_unsafe
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import (
-    build_joint_coordinate_tables,
+    build_ball_joint_coordinate_map,
     gather_joint_coordinates,
 )
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -1602,7 +1602,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
             # The view's per-joint counts are already in the column order of the array above and
             # already exclude the free root, fixed joints and loop-closing joints.
-            self._joint_coord_map = build_joint_coordinate_tables(
+            self._joint_coord_map = build_ball_joint_coordinate_map(
                 self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
             )
             if self._joint_coord_map.required:
@@ -1666,7 +1666,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_coords = self._sim_bind_joint_pos = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
-            self._joint_coord_map = build_joint_coordinate_tables(
+            self._joint_coord_map = build_ball_joint_coordinate_map(
                 self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
             )
             self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)

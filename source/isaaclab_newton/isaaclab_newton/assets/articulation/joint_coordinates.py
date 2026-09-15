@@ -9,7 +9,7 @@ Newton stores a ball joint as a 4-component unit quaternion against 3 DOFs, so a
 containing one has more joint coordinates than DOFs. Free and distance joints have the same kind
 of mismatch, but Isaac Lab's view excludes free joints and this module rejects distance joints, so
 ball is the only mismatched layout this map converts. Every other joint type has one coordinate
-per DOF, so the two spaces coincide for most assets and :func:`build_joint_coordinate_tables`
+per DOF, so the two spaces coincide for most assets and :func:`build_ball_joint_coordinate_map`
 reports ``required = False`` for them.
 
 Isaac Lab addresses joints by DOF index throughout -- ``joint_names``, ``find_joints``,
@@ -107,13 +107,13 @@ def scatter_ball_dofs(
     coords[env, c + 3] = q[3]
 
 
-class JointCoordinateTables(NamedTuple):
-    """Index tables mapping an articulation view's joint coordinates to its DOFs and back.
+class BallJointCoordinateMap(NamedTuple):
+    """Index tables mapping an articulation view's ball-joint coordinates to their DOFs and back.
 
-    A plain data record, not an object with behavior -- :func:`build_joint_coordinate_tables`
+    A plain data record, not an object with behavior -- :func:`build_ball_joint_coordinate_map`
     produces one, and :func:`gather_joint_coordinates` / :func:`scatter_joint_coordinates` consume
     one. Fields are only meaningful when ``required`` is True; the ``as_wp`` conversion in
-    :func:`build_joint_coordinate_tables` is skipped otherwise, so on a required=False table the
+    :func:`build_ball_joint_coordinate_map` is skipped otherwise, so on a required=False table the
     remaining fields are placeholder empty arrays.
     """
 
@@ -124,7 +124,7 @@ class JointCoordinateTables(NamedTuple):
     ball_coord: wp.array
 
 
-def build_joint_coordinate_tables(coord_counts: list[int], dof_counts: list[int], device) -> JointCoordinateTables:
+def build_ball_joint_coordinate_map(coord_counts: list[int], dof_counts: list[int], device) -> BallJointCoordinateMap:
     """Build the index tables mapping an articulation view's joint coordinates to its DOFs and back.
 
     Built from the view's own per-joint counts, which are in the column order of
@@ -167,23 +167,23 @@ def build_joint_coordinate_tables(coord_counts: list[int], dof_counts: list[int]
     required = bool(ball_dof)
     if not required:
         empty = wp.array([], dtype=wp.int32, device=device)
-        return JointCoordinateTables(False, empty, empty, empty, empty)
+        return BallJointCoordinateMap(False, empty, empty, empty, empty)
     as_wp = lambda values: wp.array(values, dtype=wp.int32, device=device)  # noqa: E731
-    return JointCoordinateTables(True, as_wp(single_dof), as_wp(single_coord), as_wp(ball_dof), as_wp(ball_coord))
+    return BallJointCoordinateMap(True, as_wp(single_dof), as_wp(single_coord), as_wp(ball_dof), as_wp(ball_coord))
 
 
-def gather_joint_coordinates(tables: JointCoordinateTables, coords: wp.array, dofs: wp.array) -> None:
+def gather_joint_coordinates(coord_map: BallJointCoordinateMap, coords: wp.array, dofs: wp.array) -> None:
     """Write the DOF-space view of ``coords`` into ``dofs``.
 
     Args:
-        tables: Index tables from :func:`build_joint_coordinate_tables`.
+        coord_map: Index tables from :func:`build_ball_joint_coordinate_map`.
         coords: Newton's joint coordinate array for this view.
         dofs: DOF-space destination [rad or m, depending on joint type].
     """
     num_envs = coords.shape[0]
     for kernel, dof_index, coord_index in (
-        (gather_single_coord_dofs, tables.single_dof, tables.single_coord),
-        (gather_ball_dofs, tables.ball_dof, tables.ball_coord),
+        (gather_single_coord_dofs, coord_map.single_dof, coord_map.single_coord),
+        (gather_ball_dofs, coord_map.ball_dof, coord_map.ball_coord),
     ):
         wp.launch(
             kernel,
@@ -194,7 +194,7 @@ def gather_joint_coordinates(tables: JointCoordinateTables, coords: wp.array, do
 
 
 def scatter_joint_coordinates(
-    tables: JointCoordinateTables, dofs: wp.array, coords: wp.array, env_mask: wp.array
+    coord_map: BallJointCoordinateMap, dofs: wp.array, coords: wp.array, env_mask: wp.array
 ) -> None:
     """Write ``dofs`` back into ``coords`` for the selected environments.
 
@@ -204,14 +204,14 @@ def scatter_joint_coordinates(
     state that was never written.
 
     Args:
-        tables: Index tables from :func:`build_joint_coordinate_tables`.
+        coord_map: Index tables from :func:`build_ball_joint_coordinate_map`.
         dofs: DOF-space joint positions [rad or m, depending on joint type].
         coords: Newton's joint coordinate array to write into.
         env_mask: Per-environment boolean selection of the environments that were written.
     """
     for kernel, dof_index, coord_index in (
-        (scatter_single_coord_dofs, tables.single_dof, tables.single_coord),
-        (scatter_ball_dofs, tables.ball_dof, tables.ball_coord),
+        (scatter_single_coord_dofs, coord_map.single_dof, coord_map.single_coord),
+        (scatter_ball_dofs, coord_map.ball_dof, coord_map.ball_coord),
     ):
         wp.launch(
             kernel,

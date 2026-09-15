@@ -11,8 +11,8 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation.joint_coordinates import (
-    JointCoordinateTables,
-    build_joint_coordinate_tables,
+    BallJointCoordinateMap,
+    build_ball_joint_coordinate_map,
     gather_joint_coordinates,
     scatter_joint_coordinates,
 )
@@ -37,8 +37,8 @@ def _rotvec_to_quat(rotvec: np.ndarray) -> np.ndarray:
     return np.concatenate([axis * np.sin(0.5 * angle), [np.cos(0.5 * angle)]])
 
 
-def _map() -> JointCoordinateTables:
-    return build_joint_coordinate_tables(COORD_COUNTS, DOF_COUNTS, "cpu")
+def _map() -> BallJointCoordinateMap:
+    return build_ball_joint_coordinate_map(COORD_COUNTS, DOF_COUNTS, "cpu")
 
 
 def test_tables_cover_every_dof() -> None:
@@ -53,7 +53,7 @@ def test_tables_cover_every_dof() -> None:
 
 def test_two_ball_tables_cover_every_dof() -> None:
     """A second ball joint's offsets are not a simple repeat of the first's."""
-    m = build_joint_coordinate_tables(TWO_BALL_COORD_COUNTS, TWO_BALL_DOF_COUNTS, "cpu")
+    m = build_ball_joint_coordinate_map(TWO_BALL_COORD_COUNTS, TWO_BALL_DOF_COUNTS, "cpu")
     assert list(m.ball_dof.numpy()) == [1, 4]
     assert list(m.ball_coord.numpy()) == [1, 5]
     covered = list(m.single_dof.numpy()) + [b + k for b in m.ball_dof.numpy() for k in range(3)]
@@ -153,14 +153,14 @@ def test_joint_pos_is_dof_shaped_on_a_ball_jointed_mock() -> None:
 
 def test_map_is_inert_without_ball_joints() -> None:
     """An articulation whose joints all have one coordinate per DOF needs no conversion."""
-    assert not build_joint_coordinate_tables([1, 1, 1], [1, 1, 1], "cpu").required
-    assert not build_joint_coordinate_tables([], [], "cpu").required
+    assert not build_ball_joint_coordinate_map([1, 1, 1], [1, 1, 1], "cpu").required
+    assert not build_ball_joint_coordinate_map([], [], "cpu").required
 
 
 def test_unsupported_layout_is_rejected() -> None:
     """A distance joint (7 coordinates, 6 DOFs) must not be decoded as a quaternion."""
     with pytest.raises(NotImplementedError, match="7 coordinates against 6 DOFs"):
-        build_joint_coordinate_tables([7], [6], "cpu")
+        build_ball_joint_coordinate_map([7], [6], "cpu")
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
