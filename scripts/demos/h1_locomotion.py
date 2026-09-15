@@ -16,7 +16,6 @@ This script demonstrates an interactive demo with the H1 rough terrain environme
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-from importlib import metadata
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args  # isort: skip
 
@@ -59,7 +58,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
@@ -90,7 +89,6 @@ class H1RoughDemo:
         """Initializes environment config designed for the interactive model and sets up the environment,
         loads pre-trained checkpoints, and registers keyboard events."""
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         # create envionrment
         env_cfg, _ = resolve_task_config(TASK, "", play_mode=True, overrides=(f"physics={args_cli.physics}",))
         env_cfg.scene.num_envs = 25

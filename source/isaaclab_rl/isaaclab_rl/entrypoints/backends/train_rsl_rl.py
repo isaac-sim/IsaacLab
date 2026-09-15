@@ -9,14 +9,10 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import importlib.metadata as metadata
 import logging
 import os
-import platform
 import time
 from datetime import datetime
-
-from packaging import version
 
 from isaaclab.app import add_launcher_args, report_activity
 
@@ -45,28 +41,9 @@ import isaaclab_tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-RSL_RL_VERSION = "5.0.1"
-
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
-
-
-def _check_rsl_rl_version() -> str:
-    """Check that the installed RSL-RL version is supported."""
-    installed_version = metadata.version("rsl-rl-lib")
-    if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
-        if platform.system() == "Windows":
-            cmd = [r".\isaaclab.bat", "-p", "-m", "pip", "install", f"rsl-rl-lib=={RSL_RL_VERSION}"]
-        else:
-            cmd = ["./isaaclab.sh", "-p", "-m", "pip", "install", f"rsl-rl-lib=={RSL_RL_VERSION}"]
-        print(
-            f"Please install the correct version of RSL-RL.\nExisting version is: '{installed_version}'"
-            f" and required version is: '{RSL_RL_VERSION}'.\nTo install the correct version, run:"
-            f"\n\n\t{' '.join(cmd)}\n"
-        )
-        raise SystemExit(1)
-    return installed_version
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -126,11 +103,9 @@ def _run(args_cli: argparse.Namespace) -> None:
     from isaaclab.utils.assets import retrieve_file_path
     from isaaclab.utils.seed import configure_seed
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
-
-    installed_version = _check_rsl_rl_version()
 
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
@@ -143,8 +118,6 @@ def _run(args_cli: argparse.Namespace) -> None:
             agent_cfg.max_iterations = (
                 args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
             )
-
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
             env_cfg.seed = agent_cfg.seed
             validate_distributed_device(args_cli)

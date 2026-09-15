@@ -571,26 +571,6 @@ def test_scoped_backend_state_restores_values_after_exception() -> None:
     assert holder.value == "original"
 
 
-def test_rejected_rsl_training_preserves_torch_backend_state(monkeypatch) -> None:
-    """A rejected in-process RSL-RL request does not mutate its caller."""
-    import torch
-
-    caller_state = (False, False, True, True)
-    settings = (
-        (torch.backends.cuda.matmul, "allow_tf32"),
-        (torch.backends.cudnn, "allow_tf32"),
-        (torch.backends.cudnn, "deterministic"),
-        (torch.backends.cudnn, "benchmark"),
-    )
-    for (target, name), value in zip(settings, caller_state):
-        monkeypatch.setattr(target, name, value)
-
-    with pytest.raises(SystemExit):
-        dispatch._run_backend("isaaclab_rl.entrypoints.backends.train_rsl_rl", ["--help"], run_as_script=False)
-
-    assert _torch_backend_state() == caller_state
-
-
 def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     """RSL-RL training restores its caller's Torch settings after a failure."""
     import torch
