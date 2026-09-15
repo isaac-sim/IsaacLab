@@ -1985,6 +1985,9 @@ video = [
 viser = [
     { name = "viser" },
 ]
+wandb = [
+    { name = "wandb" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2082,7 +2085,7 @@ requires-dist = [
     { name = "resolve-robotics-uri-py", specifier = ">=0.4.0" },
     { name = "rich" },
     { name = "rich", marker = "extra == 'sb3'" },
-    { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=python3.11" },
+    { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
     { name = "rsl-rl-lib", specifier = "==5.4.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.4.1" },
@@ -2123,9 +2126,10 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "usd-exchange", specifier = "==2.3.0" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
+    { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "rl-games", "wandb", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -4940,16 +4944,14 @@ wheels = [
 [[package]]
 name = "rl-games"
 version = "1.6.1"
-source = { git = "https://github.com/isaac-sim/rl_games.git?rev=python3.11#6b3534f29568158e9e29ec8bf83cc88fce5f0cae" }
+source = { git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c#5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" }
 dependencies = [
     { name = "gym" },
     { name = "psutil" },
     { name = "pyyaml" },
-    { name = "ray" },
     { name = "setproctitle" },
     { name = "tensorboard" },
     { name = "tensorboardx" },
-    { name = "wandb" },
 ]
 
 [[package]]
