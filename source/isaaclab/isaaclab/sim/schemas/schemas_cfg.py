@@ -70,7 +70,7 @@ def __getattr__(name):
                 f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
                 " 'isaaclab_physx.sim.schemas.schemas_cfg'. Install the isaaclab_physx"
                 " extension or update your import. This forwarding shim is scheduled for"
-                " removal in 4.0."
+                " removal in 5.0."
             ) from e
         return getattr(_physx_cfg, name)
     if name in _NEWTON_FORWARDS:
@@ -81,7 +81,7 @@ def __getattr__(name):
                 f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
                 " 'isaaclab_newton.sim.schemas.schemas_cfg'. Install the isaaclab_newton"
                 " extension or update your import. This forwarding shim is scheduled for"
-                " removal in 4.0."
+                " removal in 5.0."
             ) from e
         return getattr(_newton_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
