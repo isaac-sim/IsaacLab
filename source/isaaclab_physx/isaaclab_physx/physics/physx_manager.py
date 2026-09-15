@@ -617,12 +617,13 @@ class PhysxManager(PhysicsManager):
         writer.write_gravity(scene.physics_scene_path, native.get_gravity())
         for path in sorted(writer.body_paths):
             view = native.create_rigid_body_view(path)
+            # Links without colliders still need gravity, but have no native contact buffers.
             writer.write_body_contacts(
                 path,
                 bool(view.get_disable_gravities().numpy()[0]),
-                view.get_material_properties().numpy()[0],
-                view.get_contact_offsets().numpy()[0],
-                view.get_rest_offsets().numpy()[0],
+                view.get_material_properties().numpy()[0] if view.max_shapes else [],
+                view.get_contact_offsets().numpy()[0] if view.max_shapes else [],
+                view.get_rest_offsets().numpy()[0] if view.max_shapes else [],
             )
 
     @classmethod

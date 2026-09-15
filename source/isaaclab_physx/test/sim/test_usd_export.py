@@ -37,6 +37,10 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
     )
 
     cfg = make_fixed_scene_cfg(tmp_path)
+    # A physical link can carry mass and state without owning collision geometry.
+    source = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+    source.RemovePrim("/Robot/Base/Collision")
+    source.GetRootLayer().Save()
     if native_actuator:
         from isaaclab.actuators import IdealPDActuatorCfg
 
@@ -162,7 +166,7 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
     assert hinge.GetAttribute("state:angular:physics:velocity").Get() == pytest.approx(math.degrees(0.17))
     for name, mass, x in (("Box", 2.5, 1), ("CollectedFirst", 1.5, 2), ("CollectedSecond", 3.5, 3)):
         prim = stage.GetPrimAtPath(f"/World/envs/env_0/{name}")
-        assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == mass
+        assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == pytest.approx(mass, rel=1e-6, abs=1e-7)
         pose = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
         np.testing.assert_allclose(pose.ExtractTranslation(), (x, 0, 1), atol=1e-6)
         np.testing.assert_allclose(UsdPhysics.RigidBodyAPI(prim).GetVelocityAttr().Get(), (0.12, -0.03, 0.02))

@@ -210,7 +210,8 @@ including static colliders. These support boundaries are separate from task/pres
 Additional support boundaries
 -----------------------------
 
-Cartesian multi-axis joints retain axis-specific limits and drives. Non-Cartesian Newton
+Newton and OVPhysX Cartesian multi-axis joints retain axis-specific limits and drives.
+Isaac Sim PhysX currently exports scalar driven joints only. Non-Cartesian Newton
 axes, distinct per-axis values where the native USD importer accepts only one joint-wide
 value, and OVPhysX spherical-joint drive reconstruction are rejected.
 
