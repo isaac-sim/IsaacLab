@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+import gymnasium as gym
+
 from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
-from ..camera_config import CameraBaseCfg, CameraPresets
-from ..metadata import H2_DEFAULT_JOINT_POS, H2_PNP_APPLE_CUSTOM_JOINT_POS
-from ..robot_config import H2RobotPresets, make_h2_sharpa_cfg
+from .camera_config import CameraBaseCfg, CameraPresets
+from .metadata import H2_DEFAULT_JOINT_POS, H2_PNP_APPLE_CUSTOM_JOINT_POS
+from .robot_config import H2RobotPresets, make_h2_sharpa_cfg
 
 TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256_cloth.usd"
 APPLE_USD = f"{PROP_ASSET_ROOT}/Assets/Apple033/Apple033.usd"
@@ -35,3 +37,27 @@ __all__ = [
     "TABLE_USD",
     "make_h2_sharpa_cfg",
 ]
+
+
+# Gymnasium registrations.
+gym.register(
+    id="IsaacContrib-Pick-And-Place-Apple-H2-Sharpa",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            "isaaclab_tasks.contrib.pick_and_place_apple.config.env_config:H2PnpAppleRLEnvCfg"
+        ),
+    },
+)
+
+gym.register(
+    id="IsaacContrib-Pick-And-Place-Apple-H2-Sharpa-Eval",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            "isaaclab_tasks.contrib.pick_and_place_apple.config.env_config:H2PnpAppleRLEnvCfg"
+        ),
+    },
+)

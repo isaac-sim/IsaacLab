@@ -9,8 +9,8 @@ Added
 * Added the ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa`` and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa-Eval``
   environments, an RLinf GR00T N1.7 task packing an AGX Orin into its protective box with the
   Unitree H2 + Sharpa Wave embodiment.
-* Added GR00T N1.7 configurations ``isaaclab_ppo_gr00t_pick_and_place_apple_n17`` and
-  ``isaaclab_ppo_gr00t_pack_agx_orin_n17``, each task's ``gr00t_config`` module registering the
+* Added GR00T N1.7 configurations ``PPO_GR00T_PnPApple`` and
+  ``PPO_GR00T_PackAGX``, each task's ``gr00t_config`` module registering the
   H2 + Sharpa modality layout for N1.7 checkpoints.
 * Changed the N1.7 configurations to plain PPO (``enable_sft_co_train: False``): RLinf has no SFT
   dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
@@ -25,7 +25,7 @@ Changed
 * Changed ``assemble_trocar`` to draw its scene from the same asset bundle as the H2 + Sharpa tasks
   instead of its own pinned Isaac Healthcare release, so props the tasks have in common are fetched
   and cached once. The files are byte-identical to the ones it used before.
-* Changed ``isaaclab_ppo_gr00t_pack_agx_orin_n17`` to evaluate over 448-step episodes, matching the evaluation the task's reference checkpoints were scored with. ``env.train`` keeps its 416-step rollout, which ``global_batch_size`` is sized for.
+* Changed ``PPO_GR00T_PackAGX`` to evaluate over 448-step episodes, matching the evaluation the task's reference checkpoints were scored with. ``env.train`` keeps its 416-step rollout, which ``global_batch_size`` is sized for.
 * Changed the default ``model_path`` in ``isaaclab_ppo_gr00t_assemble_trocar.yaml`` from an absolute
   container-specific path to ``.pretrained_checkpoints/rlinf/Assemble_Trocar``, the location that
   ``scripts/reinforcement_learning/rlinf/setup_rlinf.py`` downloads the checkpoint to. Pass
