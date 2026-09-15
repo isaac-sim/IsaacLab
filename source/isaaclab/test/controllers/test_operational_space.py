@@ -100,7 +100,7 @@ def sim():
     robot_cfg.actuators["panda_shoulder"].damping = 0.0
     robot_cfg.actuators["panda_forearm"].stiffness = 0.0
     robot_cfg.actuators["panda_forearm"].damping = 0.0
-    robot_cfg.spawn.rigid_props.disable_gravity = True
+    robot_cfg.spawn.rigid_props[0].disable_gravity = True
 
     # Define the ContactSensor
     contact_forces = None
@@ -361,7 +361,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
         frame,
     ) = sim
 
-    robot_cfg.spawn.rigid_props.disable_gravity = False
+    robot_cfg.spawn.rigid_props[0].disable_gravity = False
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -1294,8 +1294,8 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.robot.spawn.articulation_props.fix_root_link = False
-        self.robot.spawn.rigid_props.disable_gravity = True
+        self.robot.spawn.fix_root_link = False
+        self.robot.spawn.rigid_props[0].disable_gravity = True
 
 
 @lab_configclass

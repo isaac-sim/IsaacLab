@@ -50,6 +50,7 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg  # noqa: E402
 
 # Preload Omni Client while Kit's native libraries are still in a clean loader
 # state. Importing it for the first time after an OVPhysX reset can fail with an
@@ -149,9 +150,11 @@ def _spawn_anymal(num_envs: int) -> Articulation:
     """
     cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_[^/]+/robot")
     cfg.init_state.pos = (0.0, 2.0, 1.0)
-    # bump solver iteration counts to match the PhysX test's scene cfg
-    cfg.spawn.articulation_props.solver_position_iteration_count = 32
-    cfg.spawn.articulation_props.solver_velocity_iteration_count = 32
+    # bump solver iteration counts to match the PhysX test's scene cfg -- the counts live on the
+    # PhysX articulation fragment
+    physx_articulation = next(frag for frag in cfg.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg))
+    physx_articulation.solver_position_iteration_count = 32
+    physx_articulation.solver_velocity_iteration_count = 32
     return Articulation(cfg)
 
 

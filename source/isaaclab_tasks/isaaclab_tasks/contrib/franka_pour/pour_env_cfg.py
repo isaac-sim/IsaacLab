@@ -17,8 +17,9 @@ from typing import Any, Literal
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.sim.schemas import MujocoJointCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -340,7 +341,14 @@ class PourSceneCfg(InteractiveSceneCfg):
     robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
     robot.spawn.func = spawn_franka_with_arm_collisions
-    robot.spawn.articulation_props.enabled_self_collisions = True
+    # The pouring asset relies on arm self-collision; author it in both namespaces so whichever
+    # backend resolves the articulation sees the flag.
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+    ).enabled_self_collisions = True
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, NewtonArticulationCfg)
+    ).self_collision_enabled = True
     robot.actuators = {
         name: actuator_cfg.replace(
             effort_limit_sim=None,

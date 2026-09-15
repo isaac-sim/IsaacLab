@@ -292,7 +292,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
         # disable gravity on the arm so the low-PD actuators do not need to fight gravity sag,
         # which is the dominant source of steady-state IK tracking error.
-        self.robot.spawn.rigid_props.disable_gravity = True
+        self.robot.spawn.rigid_props[0].disable_gravity = True
 
         # increase franka gripper stiffness
         self.robot.actuators["panda_hand"].joint_effort_limit = 500.0

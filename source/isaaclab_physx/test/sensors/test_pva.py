@@ -198,9 +198,12 @@ class MySceneCfg(InteractiveSceneCfg):
 
         # change asset
         self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
-        # change iterations
-        self.robot.spawn.articulation_props.solver_position_iteration_count = 32
-        self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
+        # change iterations -- the solver counts live on the PhysX articulation fragment
+        physx_articulation = next(
+            frag for frag in self.robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+        )
+        physx_articulation.solver_position_iteration_count = 32
+        physx_articulation.solver_velocity_iteration_count = 32
 
 
 @pytest.fixture

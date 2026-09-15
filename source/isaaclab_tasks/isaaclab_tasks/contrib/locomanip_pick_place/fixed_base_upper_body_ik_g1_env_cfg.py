@@ -290,7 +290,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     def __post_init__(self):
         """Post initialization."""
         # Set the robot to fixed base
-        self.robot.spawn.articulation_props.fix_root_link = True
+        self.robot.spawn.fix_root_link = True
 
 
 @configclass

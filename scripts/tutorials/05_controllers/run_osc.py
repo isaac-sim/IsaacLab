@@ -102,7 +102,7 @@ class SceneCfg(InteractiveSceneCfg):
     robot.actuators["panda_shoulder"].damping = 0.0
     robot.actuators["panda_forearm"].stiffness = 0.0
     robot.actuators["panda_forearm"].damping = 0.0
-    robot.spawn.rigid_props.disable_gravity = True
+    robot.spawn.rigid_props[0].disable_gravity = True
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
