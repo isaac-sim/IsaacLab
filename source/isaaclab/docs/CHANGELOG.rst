@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+24.2.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Transformers to 5.10.4 and preserved Theia feature-model loading under Transformers 5.
+* Removed the RL-Games extra and the Robomimic dependency from the published Isaac Lab wheel
+  metadata because their pinned versions do not provide package-index wheels. Install Isaac Lab
+  from a source checkout to use the ``rl-games`` or ``mimic`` source extras for these integrations.
+* Restricted Newton actuator metadata authoring to TorchScript network archives. Convert legacy pickled actuator
+  checkpoints to TorchScript before using them with ``ActuatorNetMLPCfg`` or ``ActuatorNetLSTMCfg``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``isaaclab.sh``. It will be removed in Isaac Lab 3.1; use ``uv run isaaclab`` instead.
+
+Fixed
+^^^^^
+
+* Updated the GitPython, Pillow and PyArrow dependency selections and the
+  container Git LFS executable to address security findings.
+* Fixed ``--video`` training continuously updating PhysX Fabric and the capture-only Kit visualizer
+  between recording windows. Physics transforms are now synchronized on demand before each captured frame.
+
+
 24.2.1 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~~
 
