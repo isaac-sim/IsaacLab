@@ -42,11 +42,7 @@ class CassieRewardsCfg(RewardsCfg):
         weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["toe_joint_.*"])},
     )
-    # ``feet_air_time_positive_biped`` cannot see which foot is swinging, so a gait that keeps one
-    # foot planted and the other airborne scores at its clamp. Without this counterweight Cassie
-    # converges on exactly that: measured over three seeds, the swing of one foot came out 2.6x
-    # the other on rough and 4.5x on flat. The weight tracks the air-time weight it balances
-    # (2.5 here, 5.0 on flat), so flat doubles it in ``CassieFlatEnvCfg``.
+    # fixes the tilted gait
     air_time_variance = RewTerm(
         func=mdp.feet_air_time_variance,
         weight=-5.0,
