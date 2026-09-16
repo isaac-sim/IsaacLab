@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+24.2.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Transformers to 5.10.4 and preserved Theia feature-model loading under Transformers 5.
+* Removed the RL-Games extra and the Robomimic dependency from the published Isaac Lab wheel
+  metadata because their pinned versions do not provide package-index wheels. Install Isaac Lab
+  from a source checkout to use the ``rl-games`` or ``mimic`` source extras for these integrations.
+* Restricted Newton actuator metadata authoring to TorchScript network archives. Convert legacy pickled actuator
+  checkpoints to TorchScript before using them with ``ActuatorNetMLPCfg`` or ``ActuatorNetLSTMCfg``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``isaaclab.sh``. It will be removed in Isaac Lab 3.1; use ``uv run isaaclab`` instead.
+
+Fixed
+^^^^^
+
+* Updated the GitPython, Pillow and PyArrow dependency selections and the
+  container Git LFS executable to address security findings.
+* Fixed ``--video`` training continuously updating PhysX Fabric and the capture-only Kit visualizer
+  between recording windows. Physics transforms are now synchronized on demand before each captured frame.
+
+
+24.2.1 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a synchronized timer around the renderer call inside
+  :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera`, gated by the ``ISAACLAB_RENDER_PROFILE``
+  environment variable, so any rendering backend can be profiled through the same scope name
+  (:data:`~isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`). When enabled, each render prints its elapsed
+  time to the log.
+
+Changed
+^^^^^^^
+
+* Allowed the shared generalized-force ordering kernel to omit direction signs for backends that already returned
+  forces in the public joint basis. Callers supplying direction signs retained their existing behavior.
+
+
 24.2.0 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~~
 
