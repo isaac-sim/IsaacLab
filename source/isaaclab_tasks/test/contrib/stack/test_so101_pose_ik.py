@@ -71,7 +71,7 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     c = _make_controller(orientation_weight=1.0)
     c.set_orientation_joint_mask(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0]))  # wrist joints only
     c.set_command(cmd)
-    task_jac, err = c._compute_pose_task(ee_pos, ee_quat, jac)
+    task_jac = c._compute_task_jacobian(jac)
 
     # position rows keep every joint (unchanged from the raw Jacobian linear block)
     torch.testing.assert_close(task_jac[:, :3, :], jac[:, 0:3, :])
@@ -82,18 +82,19 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     # the mask limits which joints reduce the orientation error; it does not alter the error
     base = _make_controller(orientation_weight=1.0)
     base.set_command(cmd)
-    _, eb = base._compute_pose_task(ee_pos, ee_quat, jac)
-    torch.testing.assert_close(err, eb)
+    joint_pos = torch.zeros(1, _NUM_JOINTS)
+    torch.testing.assert_close(
+        c.compute(ee_pos, ee_quat, jac, joint_pos),
+        base.compute(ee_pos, ee_quat, task_jac, joint_pos),
+    )
 
 
 def test_mask_none_leaves_orientation_unmasked():
     """Without a mask, the SO-101 pose task matches the (orientation-weighted) core task."""
-    ee_pos = torch.tensor([[0.3, 0.0, 0.2]])
-    ee_quat = torch.tensor([_ID_QUAT])
     jac = torch.arange(6 * _NUM_JOINTS, dtype=torch.float32).reshape(1, 6, _NUM_JOINTS)
     c = _make_controller(orientation_weight=1.0)
     c.set_command(torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([1.0, 0.0, 0.0], 0.5)]))
-    task_jac, _ = c._compute_pose_task(ee_pos, ee_quat, jac)
+    task_jac = c._compute_task_jacobian(jac)
     torch.testing.assert_close(task_jac, jac)
 
 
@@ -131,6 +132,7 @@ def test_action_cfg_points_at_custom_action_and_controller():
     # stays importable without Kit); resolve it to confirm it points at the custom term.
     assert string_to_callable(str(cfg.class_type)) is SO101PoseIKAction
     assert isinstance(cfg.controller, SO101PoseIKControllerCfg)
+    assert string_to_callable(str(cfg.controller.class_type)) is SO101PoseIKController
 
 
 def test_env_cfg_arm_action_is_pose_and_ordering_matches_pipeline():

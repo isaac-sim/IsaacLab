@@ -41,6 +41,9 @@ class SO101PoseIKControllerCfg(DifferentialIKControllerCfg):
     :attr:`~DifferentialIKControllerCfg.joint_limit_avoidance_margin`) are inherited from the core config.
     """
 
+    class_type: type[SO101PoseIKController] | str = "{DIR}.pose_ik_controller:SO101PoseIKController"
+    """The associated SO-101 controller class."""
+
     orientation_joint_names: tuple[str, ...] | None = None
     """Names of the joints permitted to serve the orientation task rows. When set, every other
     joint's orientation-Jacobian columns are zeroed, so those joints serve **position only** while
@@ -86,17 +89,10 @@ class SO101PoseIKController(DifferentialIKController):
         """
         self._ori_joint_mask = mask.to(self._device)
 
-    def _compute_pose_task(
-        self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Build the core (orientation-weighted) pose task, then mask the orientation columns.
-
-        Zeroing the orientation rows of the masked-out joints means only the allowed joints can
-        reduce the orientation error, so the base (``shoulder_pan``) serves position only and the
-        redundant spin-about-vertical DOF is routed to ``wrist_roll``. Position rows are untouched.
-        """
-        task_jacobian, task_error = super()._compute_pose_task(ee_pos, ee_quat, jacobian)
-        if self._ori_joint_mask is not None:
-            task_jacobian = task_jacobian.clone()
-            task_jacobian[:, 3:6, :] = task_jacobian[:, 3:6, :] * self._ori_joint_mask.view(1, 1, -1)
-        return task_jacobian, task_error
+    def _compute_task_jacobian(self, jacobian: torch.Tensor) -> torch.Tensor:
+        """Restrict orientation control to the configured wrist joints."""
+        if self._ori_joint_mask is None:
+            return jacobian
+        task_jacobian = jacobian.clone()
+        task_jacobian[:, 3:6, :] *= self._ori_joint_mask.view(1, 1, -1)
+        return task_jacobian
