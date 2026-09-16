@@ -133,27 +133,53 @@ runs:
     - name: Run Tests in Docker Container
       shell: bash
       env:
-        # Passed via env instead of inline ${{ }} interpolation: pytest options may
-        # contain spaces and quotes (e.g. -k "not ovphysx"), which would word-split
-        # the run_tests positional arguments if substituted textually.
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        CUROBO_ONLY: ${{ inputs.curobo-only }}
+        EXCLUDE_PATTERN: ${{ inputs.exclude-pattern }}
+        EXTRA_PIP_PACKAGES: ${{ inputs.extra-pip-packages }}
+        EXTRA_UV_PACKAGES: ${{ inputs.extra-uv-packages }}
+        FILTER_PATTERN: ${{ inputs.filter-pattern }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        INCLUDE_FILES: ${{ inputs.include-files }}
+        OVRTX_SHADER_CACHE_HOST_DIR: ${{ inputs.ovrtx-shader-cache-host-dir }}
         PYTEST_OPTIONS: ${{ inputs.pytest-options }}
+        QUARANTINED_ONLY: ${{ inputs.quarantined-only }}
+        REPORTS_DIR: ${{ inputs.reports-dir }}
+        RESULT_FILE: ${{ inputs.result-file }}
+        SHARD_COUNT: ${{ inputs.shard-count }}
+        SHARD_INDEX: ${{ inputs.shard-index }}
+        STANDALONE_SCRIPT_RUNTIME_GROUP: ${{ inputs.standalone-script-runtime-group }}
+        STANDALONE_SCRIPT_SCOPE: ${{ inputs.standalone-script-scope }}
+        STANDALONE_SCRIPT_VISUALIZER: ${{ inputs.standalone-script-visualizer }}
+        TEST_NODE_IDS_FILE: ${{ inputs.test-node-ids-file }}
+        TEST_NODE_IDS_KEY: ${{ inputs.test-node-ids-key }}
+        TEST_PATH: ${{ inputs.test-path }}
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
         CI_MARKER_INPUT: ${{ inputs.ci-marker }}
+        VOLUME_MOUNT_SOURCE: ${{ inputs.volume-mount-source }}
+        WARP_CACHE_HOST_DIR: ${{ inputs.warp-cache-host-dir }}
+        WHEELHOUSE_HOST_DIR: ${{ inputs.wheelhouse-host-dir }}
+        WHEELHOUSE_PACKAGES: ${{ inputs.wheelhouse-packages }}
       run: |
-        bash .github/actions/run-tests/run_tests.sh "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.warp-cache-host-dir }}" "${{ inputs.extra-uv-packages }}" "${{ inputs.ovrtx-shader-cache-host-dir }}"
+        bash .github/actions/run-tests/run_tests.sh "$TEST_PATH" "$RESULT_FILE" "$CONTAINER_NAME" "$IMAGE_TAG" "$REPORTS_DIR" "$PYTEST_OPTIONS" "$FILTER_PATTERN" "$EXCLUDE_PATTERN" "$CUROBO_ONLY" "$INCLUDE_FILES" "$QUARANTINED_ONLY" "$SHARD_INDEX" "$SHARD_COUNT" "$VOLUME_MOUNT_SOURCE" "$EXTRA_PIP_PACKAGES" "$TEST_NODE_IDS_FILE" "$TEST_NODE_IDS_KEY" "$WHEELHOUSE_HOST_DIR" "$WHEELHOUSE_PACKAGES" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "$STANDALONE_SCRIPT_SCOPE" "$STANDALONE_SCRIPT_VISUALIZER" "$STANDALONE_SCRIPT_RUNTIME_GROUP" "$WARP_CACHE_HOST_DIR" "$EXTRA_UV_PACKAGES" "$OVRTX_SHADER_CACHE_HOST_DIR"
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
       run: |
         echo "::warning::Job cancelled - force-killing container"
-        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
-        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
+        docker kill "$CONTAINER_NAME" 2>/dev/null || true
+        docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
     - name: Write job summary
       if: always()
       shell: bash
+      env:
+        REPORTS_DIR: ${{ inputs.reports-dir }}
+        RESULT_FILE: ${{ inputs.result-file }}
       run: |
-        report="${{ inputs.reports-dir }}/${{ inputs.result-file }}"
+        report="${REPORTS_DIR}/${RESULT_FILE}"
         if [ ! -f "$report" ]; then
           echo "🟠 No test report found" >> "$GITHUB_STEP_SUMMARY"
           exit 0
@@ -222,7 +248,9 @@ runs:
     - name: Clean up Docker container
       if: always() && !cancelled()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
       run: |
         echo "🔵 Cleaning up Docker container..."
-        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
-        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
+        docker kill "$CONTAINER_NAME" 2>/dev/null || true
+        docker rm -f "$CONTAINER_NAME" 2>/dev/null || true

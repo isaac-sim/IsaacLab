@@ -92,7 +92,7 @@ cuRobo provides the motion planning capabilities for SkillGen. It is compiled fr
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
 
-   * In the uv flow, cuRobo is not part of the project's lockfile, so running ``uv sync`` after installing cuRobo removes it from the environment again. If that happens, re-run the ``uv pip install -e ./src/nvidia-curobo --no-build-isolation`` command to reinstall it. ``uv run`` does not remove cuRobo and can be used normally.
+   * In the uv flow, cuRobo and Rerun (Step 3) are not part of the project's lockfile, so running ``uv sync`` after installing them removes them from the environment again. If that happens, re-run the ``uv pip install`` commands from Step 2 and Step 3 to reinstall them. ``uv run`` does not remove these packages and can be used normally.
 
    * ``TORCH_CUDA_ARCH_LIST`` in the above command should match your GPU's CUDA compute capability (e.g., ``8.0`` for A100, ``8.6`` for many RTX 30‑series, ``8.9`` for RTX 4090); the ``+PTX`` suffix embeds PTX for forward compatibility so newer GPUs can JIT‑compile when native SASS isn’t included.
 
@@ -117,9 +117,19 @@ Step 3: Install Rerun
 
 For trajectory visualization during development:
 
-.. code:: bash
+.. tab-set::
 
-   pip install rerun-sdk==0.23
+   .. tab-item:: uv
+
+      .. code:: bash
+
+         uv pip install rerun-sdk==0.23
+
+   .. tab-item:: conda
+
+      .. code:: bash
+
+         pip install rerun-sdk==0.23
 
 .. note::
 
@@ -136,14 +146,25 @@ Step 4: Verify Installation
 
 Test that cuRobo works with Isaac Lab:
 
-.. code:: bash
+.. tab-set::
 
-   # This should run without import errors
-   python -c "import curobo; print('cuRobo installed successfully')"
+   .. tab-item:: uv
+
+      .. code:: bash
+
+         # This should run without import errors
+         uv run python -c "import curobo; print('cuRobo installed successfully')"
+
+   .. tab-item:: conda
+
+      .. code:: bash
+
+         # This should run without import errors
+         python -c "import curobo; print('cuRobo installed successfully')"
 
 .. tip::
 
-   If you run into ``libstdc++.so.6: version 'GLIBCXX_3.4.30' not found`` error, you can try these commands to fix it:
+   In the conda flow, if you run into ``libstdc++.so.6: version 'GLIBCXX_3.4.30' not found`` error, you can try these commands to fix it:
 
    .. code:: bash
 

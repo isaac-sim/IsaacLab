@@ -99,6 +99,11 @@ _HEADLESS_FALLBACK_ARGS = [
 _CROPDETECT_RE = re.compile(r"crop=(\d+):(\d+):(\d+):(\d+)")
 
 
+def _private_work_dir(prefix: str) -> Path:
+    """Create a caller-private temporary work directory."""
+    return Path(tempfile.mkdtemp(prefix=f"{prefix}-"))
+
+
 def headless(windowed_env_var: str) -> bool:
     """Whether to run offscreen (default) or in a real window for HUD window-capture.
 
@@ -297,8 +302,7 @@ def record_windowed(
 
     out_mp4_path = Path(out_mp4)
     out_mp4_path.parent.mkdir(parents=True, exist_ok=True)
-    work_dir = Path("/tmp/capture_window") / viz
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_window")
     log_path = work_dir / "play.log"
 
     cmd = [
@@ -844,8 +848,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
     if "DISPLAY" not in os.environ and not args.force_headless:
         os.environ["DISPLAY"] = ":0"
 
-    work_dir = Path("/tmp/capture_tile_combined")
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_tile_combined")
     log_path = work_dir / "play.log"
     video_dir = work_dir / "video"
     video_dir.mkdir(exist_ok=True)
@@ -1199,7 +1202,7 @@ def _hero_calibrate_combined(script_dir: Path, repo_root: Path, work_dir: Path, 
     window close to the real production duration (settle + record) captures the same
     sustained-load behavior.
     """
-    log = Path("/tmp/capture_tile_combined/play.log")
+    log = work_dir / "play.log"
     log.unlink(missing_ok=True)
     combined_cli_args = [
         str(repo_root),
@@ -1909,8 +1912,7 @@ def record_showcase_browser(
         os.environ["DISPLAY"] = ":0"
 
     out_mp4 = output_dir / filename
-    work_dir = Path("/tmp/capture_browser") / visualizer
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_browser")
     log_path = work_dir / "play.log"
     video_dir = work_dir / "video"
     video_dir.mkdir(exist_ok=True)
@@ -2037,8 +2039,7 @@ def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
     script_dir = str(Path(__file__).resolve().parent)
     repo_root = str(Path(script_dir).parents[3])
     output_dir = Path(repo_root) / "docs/source/_static/visualizers"
-    work_dir = Path("/tmp/capture_visualizer_showcase_work")
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_visualizer_showcase_work")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2475,8 +2476,7 @@ def _streaming_newton_gl_worker_main(argv: list[str]) -> None:
         print("settle complete", flush=True)
         window_id = find_window(disp, args_cli.window_title, args_cli.find_timeout_s)
 
-        work_dir = Path("/tmp/capture_visualizer_streaming_newton_gl")
-        work_dir.mkdir(parents=True, exist_ok=True)
+        work_dir = _private_work_dir("capture_visualizer_streaming_newton_gl")
 
         # Streaming panel left hidden for the interactive segment.
         interactive_webm = work_dir / "interactive.webm"
