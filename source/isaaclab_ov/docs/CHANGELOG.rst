@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+3.1.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed implicit actuator PD estimates being submitted as additional joint forces
+  alongside the native ovphysx joint drives. Implicit actuators now submit only
+  their feedforward effort commands while retaining PD estimates as telemetry.
+
+
 3.1.1 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~
 
