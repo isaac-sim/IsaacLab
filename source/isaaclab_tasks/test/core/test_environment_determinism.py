@@ -36,16 +36,20 @@ def setup_environment():
 
 
 @pytest.mark.parametrize(
-    "task_name",
+    ("task_name", "deterministic_mode"),
     [
-        "Isaac-Open-Drawer-Franka",
-        "IsaacContrib-Lift-Cube-Franka",
+        # Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which Warp's atomics may
+        # accumulate in any order, so two runs are not bit-reproducible. ``run_to_run`` is exactly
+        # the guarantee this test asserts: one device, one process, run twice. ``deterministic_mode``
+        # is a Newton setting, so the PhysX-backed task leaves it unset.
+        ("Isaac-Open-Drawer-Franka", "run_to_run"),
+        ("IsaacContrib-Lift-Cube-Franka", None),
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
-def test_manipulation_env_determinism(task_name, device):
+def test_manipulation_env_determinism(task_name, deterministic_mode, device):
     """Check deterministic environment creation for manipulation."""
-    _test_environment_determinism(task_name, device)
+    _test_environment_determinism(task_name, device, deterministic_mode=deterministic_mode)
 
 
 @pytest.mark.parametrize(
