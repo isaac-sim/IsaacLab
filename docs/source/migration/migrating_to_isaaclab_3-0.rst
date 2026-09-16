@@ -270,7 +270,7 @@ For the full design, see :ref:`schema-cfgs`.
    The ``*BaseCfg`` / ``*PropertiesCfg`` classes in this subsection are themselves
    now deprecated in favor of schema fragments, and will be removed in 5.0. Read
    this subsection to understand where a 2.x name went, then migrate to the
-   fragments as described in :ref:`schema-fragments-migration`. The code samples
+   fragments as described in :ref:`schema fragments <schema-fragments-migration>`. The code samples
    below show the intermediate step, not the recommended end state.
 
 The following 2.x class names are kept as deprecated aliases. They forward to
