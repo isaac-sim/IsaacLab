@@ -495,18 +495,17 @@ class InteractiveScene:
         Call after asset initialization and before startup events, reset or stepping.
         Prestartup USD edits are retained; startup results are outside this boundary.
         Current
-        physical properties are exported without mutating the live simulation. Body
-        placement is retained; explicit joint-state samples are omitted and initial
-        body/joint velocities are zeroed.
+        fixed configuration overrides are exported without mutating the live simulation.
+        Authored placement and defaults are retained; joint-state and velocity samples
+        are neither written nor cleared.
         Controllers, observations and sensor execution require deployment integration.
 
         Args:
             path: Destination USD file. External dependencies must remain accessible.
             env_id: Environment to export, retaining its world frame and shared resources.
             include_solver_settings: Include optional settings from the selected Newton solver manager.
-            preserve_source_contacts: Preserve authored PhysX collider materials and offset defaults.
-                Use only before backend-buffer contact overrides. Automatic pre-startup export
-                enables this; Newton retains its explicit native shape mapping.
+            preserve_source_contacts: Compatibility option. Source contact settings are always retained;
+                only fixed backend configuration missing from USD is supplemented.
         """
         from itertools import chain
 
@@ -520,7 +519,6 @@ class InteractiveScene:
         if self.surface_grippers:
             raise NotImplementedError("Deployment export does not support surface grippers.")
         writer = UsdWriter.from_stage(self.sim.stage)
-        writer.remove_ineffective_material_bindings()
         writer.include_solver_settings = include_solver_settings
         writer.preserve_source_contacts = preserve_source_contacts
         writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
@@ -550,7 +548,6 @@ class InteractiveScene:
             asset.author_fixed_configuration(writer)
         writer.write_fixed_root_frames()
         self.sim.physics_manager.author_fixed_configuration(writer, self)
-        writer.clear_initial_velocities()
         from isaaclab.sim.utils.queries import has_deformable_body_api
 
         for prim in writer.stage.Traverse():

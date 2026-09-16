@@ -27,7 +27,6 @@ import warp as wp
 from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.physics.physx_contact_data import PhysxContactData
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
@@ -752,10 +751,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def author_fixed_configuration(cls, writer, scene) -> None:
-        """Supplement effective gravity and contacts from concrete body bindings."""
-        from isaaclab_ov import tensor_types as TT
-        from isaaclab_ov.sim.views import OvPhysxView
-
+        """Retain imported contacts and supplement gravity and the cooking frequency."""
         super().author_fixed_configuration(writer, scene)
         # Preserve the frequency used to cook automatic contacts; it can differ from integration dt.
         frequency = (
@@ -764,21 +760,6 @@ class OvPhysxManager(PhysicsManager):
         if frequency is not None:
             writer.write_physx_timestep(scene.physics_scene_path, 1.0 / frequency)
         writer.write_gravity(scene.physics_scene_path, cls.get_gravity())
-        tokens = (
-            TT.RIGID_BODY_DISABLE_GRAVITY,
-            TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
-            TT.RIGID_BODY_CONTACT_OFFSET,
-            TT.RIGID_BODY_REST_OFFSET,
-        )
-        if writer.preserve_source_contacts:
-            tokens = tokens[:1]
-        for path in sorted(writer.body_paths):
-            view = OvPhysxView(cls._physx, prim_paths=[path], device="cpu", tensor_types=list(tokens), eager=True)
-            try:
-                values = [view.get_attribute(token).numpy()[0] for token in tokens]
-                writer.write_body_contacts(PhysxContactData(bool(values[0]), *values[1:]), path)
-            finally:
-                view.close()
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:

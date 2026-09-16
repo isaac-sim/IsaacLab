@@ -38,6 +38,19 @@ def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
     return ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0, **kwargs)
 
 
+@pytest.mark.parametrize("stiffness", [None, 7.0, {"joint_0": 7.0}])
+def test_fixed_export_selection_preserves_parameter_resolution(stiffness):
+    control = FakeActuatorControl()
+    control._joint_stiffness.torch.fill_(3)
+    collection = ActuatorCollection(
+        {"drive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=None)}, control
+    )
+    expected = [3, 3, 3] if stiffness is None else ([7, 0, 0] if isinstance(stiffness, dict) else [7, 7, 7])
+    torch.testing.assert_close(control._joint_stiffness.torch, torch.tensor([expected, expected], dtype=torch.float32))
+    for row in range(3):
+        assert collection.usd_override_fields(row) == (frozenset() if stiffness is None else {"joint_stiffness"})
+
+
 class SelectorRecordingActuator(ImplicitActuator):
     """Custom actuator that records the selector supplied to :meth:`compute`."""
 

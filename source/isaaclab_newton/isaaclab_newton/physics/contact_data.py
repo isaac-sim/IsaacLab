@@ -22,6 +22,36 @@ class NewtonContactData:
         """Read native collider values with one leading world row."""
         return getattr(self.model, name).numpy()[None, :]
 
+    @staticmethod
+    def fixed_override_fields(prim, configured, resolvers) -> tuple[frozenset[str], frozenset[str]]:
+        """Select builder defaults not superseded by source shape or material opinions."""
+        from newton import ModelBuilder
+        from newton._src.usd.schema_resolver import SchemaResolverManager
+
+        from pxr import UsdPhysics, UsdShade
+
+        defaults = ModelBuilder.ShapeConfig()
+        resolver = SchemaResolverManager(resolvers)
+        material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
+        material_prim = material.GetPrim() if material and material.GetPrim().HasAPI(UsdPhysics.MaterialAPI) else None
+        collision, contact = set(), set()
+        for name in ("margin", "gap", "ke", "kd", "mu"):
+            if getattr(configured, name) == getattr(defaults, name):
+                continue
+            shape_value, source = resolver.get_value_with_resolver(prim, PrimType.SHAPE, name)
+            if source is not None:
+                continue
+            if name in {"margin", "gap"}:
+                # Gap mapping defaults can take precedence over the builder default.
+                if name != "gap" or shape_value in (None, float("-inf")):
+                    collision.add("shape_" + name)
+            elif name == "mu":
+                if material_prim is None:
+                    contact.add("shape_material_mu")
+            elif material_prim is None or resolver.get_value(material_prim, PrimType.MATERIAL, name) is None:
+                contact.add("shape_material_" + name)
+        return frozenset(collision), frozenset(contact)
+
     @classmethod
     def restore_fixed_configuration(cls, prim, builder, row: int) -> None:
         """Restore declared contacts on geometry constructed outside native USD import."""

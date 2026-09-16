@@ -625,17 +625,19 @@ class NewtonManager(PhysicsManager):
             **stage.GetRootLayer().customLayerData,
             "isaaclab:newtonImportOptions": {"force_position_velocity_actuation": supported[0]},
         }
-        cls._author_collision_configuration(writer)
+        cls._author_collision_configuration(writer, scene.sim.cfg.physics.default_shape_cfg)
 
     @classmethod
-    def _author_collision_configuration(cls, writer: UsdWriter) -> None:
-        """Write effective selected-world contacts, including unregistered static geometry."""
+    def _author_collision_configuration(cls, writer: UsdWriter, shape_cfg: NewtonShapeCfg) -> None:
+        """Preserve imported contacts and author only configured builder-default overrides."""
         from pxr import UsdPhysics
 
         from isaaclab_newton.physics.contact_data import NewtonContactData
 
         model = cls.get_model()
         data = NewtonContactData(model)
+        resolvers = cls._get_usd_import_schema_resolvers()
+        materials = {}
         worlds = model.shape_world.numpy() if hasattr(model, "shape_world") else None
         for index, path in enumerate(model.shape_label):
             if worlds is not None and worlds[index] not in (-1, writer.env_id):
@@ -655,8 +657,13 @@ class NewtonManager(PhysicsManager):
                         "its backend geometry needs an export representation."
                     )
                 continue
-            writer.write_properties(path, None, data, row=index, scope="collision", env_index=0)
-            writer.write_material_override(path, data, index, env_index=0)
+            collision_fields, material_fields = data.fixed_override_fields(prim, shape_cfg, resolvers)
+            writer.write_properties(
+                path, None, data, row=index, scope="collision", env_index=0, fields=collision_fields
+            )
+            if material_fields:
+                materials[path] = (index, material_fields)
+        writer.write_material_overrides(data, materials)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:

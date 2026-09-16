@@ -64,7 +64,12 @@ class CableObject(BaseCableObject):
         prim = writer.stage.GetPrimAtPath(path)
         if not prim or not prim.IsA(UsdGeom.BasisCurves):
             raise RuntimeError(f"Missing cable curve {path}.")
-        writer.write_array_properties(path, self.data, env_index=writer.env_index)
+        fields = self.data.fixed_override_fields(
+            prim,
+            SimulationManager._cfg.default_shape_cfg,
+            SimulationManager._get_usd_import_schema_resolvers(),
+        )
+        writer.write_array_properties(path, self.data, env_index=writer.env_index, fields=fields[0] | fields[1])
         rows = self.data.shape_indices[writer.env_index]
         writer.represented_collider_paths.update(model.shape_label[i] for i in rows)
 

@@ -34,7 +34,6 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.physics.physx_contact_data import PhysxContactData
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
@@ -612,22 +611,11 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def author_fixed_configuration(cls, writer, scene) -> None:
-        """Supplement effective gravity and contacts from concrete body views."""
+        """Retain imported contacts and supplement effective gravity and timestep."""
         super().author_fixed_configuration(writer, scene)
         writer.write_physx_timestep(scene.physics_scene_path, scene.sim.get_physics_dt())
         native = cls.get_physics_sim_view()
         writer.write_gravity(scene.physics_scene_path, native.get_gravity())
-        for path in sorted(writer.body_paths):
-            view = native.create_rigid_body_view(path)
-            # Links without colliders still need gravity, but have no native contact buffers.
-            contacts = not writer.preserve_source_contacts and view.max_shapes
-            data = PhysxContactData(
-                bool(view.get_disable_gravities().numpy()[0]),
-                view.get_material_properties().numpy()[0] if contacts else [],
-                view.get_contact_offsets().numpy()[0] if contacts else [],
-                view.get_rest_offsets().numpy()[0] if contacts else [],
-            )
-            writer.write_body_contacts(data, path)
 
     @classmethod
     def get_physics_sim_view(cls) -> omni.physics.tensors.SimulationView | None:
