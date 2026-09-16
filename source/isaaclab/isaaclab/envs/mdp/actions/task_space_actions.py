@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -16,7 +17,6 @@ from pxr import UsdPhysics
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
-from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
@@ -87,9 +87,13 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._joint_ids = slice(None)
 
         # create the differential IK controller
-        self._ik_controller = DifferentialIKController(
+        self._ik_controller = self.cfg.controller.class_type(
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
+        # ``out`` is additive to the public controller API. Keep action terms compatible with custom controllers
+        # that override the historical four-argument ``compute`` method, while selecting the allocation-free path
+        # once at construction for controllers that accept it.
+        self._ik_compute_accepts_out = self._compute_accepts_out(self._ik_controller)
         # joint limits are injected lazily on the first apply (asset data is populated by then) so
         # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
         self._limits_injected = False
@@ -100,6 +104,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # owned buffer; _compute_frame_jacobian mutates this, not the data-layer view.
         self._jacobian_b = torch.zeros(self.num_envs, 6, len(self._jacobi_joint_ids), device=self.device)
+        # owned controller output buffer; passing it to compute avoids a per-step result allocation.
+        self._joint_pos_des = torch.zeros(self.num_envs, self._num_joints, device=self.device)
 
         # save the scale as tensors
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
@@ -148,9 +154,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         jacobian = self.jacobian_w
         base_rot = self._asset.data.root_quat_w.torch
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
-        jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
-        jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
-        return jacobian
+        self._jacobian_b[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+        self._jacobian_b[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+        return self._jacobian_b
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
@@ -213,11 +219,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
-            joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+            if self._ik_compute_accepts_out:
+                self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos, out=self._joint_pos_des)
+            else:
+                self._joint_pos_des.copy_(self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos))
         else:
-            joint_pos_des = joint_pos.clone()
+            self._joint_pos_des.copy_(joint_pos)
         # set the joint position command
-        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
@@ -225,6 +234,25 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     """
     Helper functions.
     """
+
+    @staticmethod
+    def _compute_accepts_out(controller: object) -> bool:
+        """Return whether a controller's bound ``compute`` method accepts ``out``.
+
+        Args:
+            controller: Controller instance to inspect.
+
+        Returns:
+            Whether ``compute`` declares ``out`` or accepts arbitrary keyword arguments. Returns ``False`` when
+            the callable does not expose a Python signature.
+        """
+        try:
+            parameters = inspect.signature(controller.compute).parameters
+        except (TypeError, ValueError):
+            return False
+        return "out" in parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()
+        )
 
     def _compute_frame_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the target frame in the root frame.
@@ -253,7 +281,10 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         This function accounts for the target frame offset and applies the necessary transformations to obtain
         the right Jacobian from the parent body Jacobian.
         """
+        # Retain an explicit copy even though the base property currently fills the owned buffer itself. Custom
+        # action terms may override ``jacobian_b`` with a view into engine data, which must never be mutated below.
         self._jacobian_b[:] = self.jacobian_b
+        jacobian_b = self._jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
             # Modify the jacobian to account for the offset
@@ -261,16 +292,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
             #        = (v_J_ee + w_J_ee x r_link_ee ) * q
             #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(self._offset_pos), jacobian_b[:, 3:, :]
             )
             # -- rotational part
             # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
-            )
+            jacobian_b[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), jacobian_b[:, 3:, :])
 
-        return self._jacobian_b
+        return jacobian_b
 
 
 class OperationalSpaceControllerAction(ActionTerm):

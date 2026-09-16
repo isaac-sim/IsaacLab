@@ -31,13 +31,19 @@ class OperationalSpaceControllerCfg:
     """
 
     motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
-    """Motion direction to control in task reference frame. Mark as ``0/1`` for each axis."""
+    """Motion direction to control in task reference frame. Mark as ``0/1`` for each axis.
+
+    Selection is applied to the commanded task acceleration before inertia decoupling.
+    """
 
     contact_wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
     """Contact wrench direction to control in task reference frame. Mark as 0/1 for each axis."""
 
     inertial_dynamics_decoupling: bool = False
-    """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics)."""
+    """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics).
+
+    Requires at least six controlled joints. Disable for under-actuated arms.
+    """
 
     partial_inertial_dynamics_decoupling: bool = False
     """Whether to ignore the inertial coupling between the translational & rotational motions."""

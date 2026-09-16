@@ -1282,6 +1282,9 @@ _G1_ARM_JOINT_NAMES = [
     "left_shoulder_roll_joint",
     "left_shoulder_yaw_joint",
     "left_elbow_joint",
+    "left_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
 ]
 
 

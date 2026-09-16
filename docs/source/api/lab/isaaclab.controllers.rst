@@ -1,6 +1,32 @@
 ﻿isaaclab.controllers
 ====================
 
+Newton controller integration
+-----------------------------
+
+``DifferentialIKController``, ``JointImpedanceController``, and ``OperationalSpaceController``
+use Newton's model-free controller APIs. They accept Torch tensors independently of the simulation
+backend. Isaac Lab resolves commands and gain schedules, copies inputs into persistent float32
+buffers, and invokes Newton's ``step()`` method. Returned tensors are independent snapshots;
+``DifferentialIKController.compute(out=...)`` can instead fill a caller-owned buffer.
+
+Newton 1.6.0 is required. Float64 inputs do not provide float64 solver precision. Applications that
+require double-precision control laws must retain the previous implementation.
+
+Operational-space migration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Motion-axis selection now precedes inertia decoupling. Hybrid force/motion tasks that select only
+some axes must revalidate tracking and contact-force gains; the former post-inertia masking is not
+available. Inertia decoupling requires at least six controlled joints. Set
+``inertial_dynamics_decoupling=False`` for under-actuated arms. Null-space posture efforts are
+mass-weighted only when inertia decoupling is enabled; retune posture gains if a task previously
+passed a mass matrix while leaving decoupling disabled.
+
+Differential-IK subclasses can restrict geometric Jacobian columns by overriding
+``_compute_task_jacobian``. Newton applies orientation weights and computes pose errors and solver
+updates; the SO-101 controller uses this hook for its wrist-only orientation mask.
+
 .. automodule:: isaaclab.controllers
 
   .. rubric:: Classes

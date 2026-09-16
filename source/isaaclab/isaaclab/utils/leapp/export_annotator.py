@@ -626,7 +626,7 @@ class ExportPatcher:
                 tensors.append(
                     TensorSemantics(
                         name=f"{term_name}_kp_gains",
-                        ref=torch.diagonal(osc._motion_p_gains_task, dim1=-2, dim2=-1),
+                        ref=osc._motion_p_gains_task,
                         kind="kp",
                         element_names=select_element_names(joint_names, joint_ids),
                         extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
@@ -635,7 +635,7 @@ class ExportPatcher:
                 tensors.append(
                     TensorSemantics(
                         name=f"{term_name}_kd_gains",
-                        ref=torch.diagonal(osc._motion_d_gains_task, dim1=-2, dim2=-1),
+                        ref=osc._motion_d_gains_task,
                         kind="kd",
                         element_names=select_element_names(joint_names, joint_ids),
                         extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
