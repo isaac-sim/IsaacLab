@@ -99,7 +99,7 @@ class NewtonCouplerManager(NewtonVBDManager):
                 NewtonMJWarpManager.author_solver_configuration(writer, scene, native, configs[name])
                 driver = dict(writer.stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"])
             elif isinstance(native, SolverVBD):
-                driver = {"solver": "vbd", "options": json.dumps(cls.export_solver_options(native))}
+                driver = {"solver": "vbd", "options": json.dumps(cls.export_solver_options(native, configs[name]))}
             else:
                 raise NotImplementedError(f"No deployment adapter for {type(native).__name__}.")
             entries.append(

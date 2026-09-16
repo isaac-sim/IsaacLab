@@ -30,22 +30,53 @@ class NewtonVBDManager(NewtonManager):
         import json
 
         super().author_fixed_configuration(writer, scene)
-        options = cls.export_solver_options(cls._solver)
+        options = cls.export_solver_options(cls._solver, scene.sim.cfg.physics.solver_cfg)
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:newtonDriver": {"solver": "vbd", "options": json.dumps(options)},
         }
 
     @staticmethod
-    def export_solver_options(solver: SolverVBD) -> dict:
-        """Read VBD settings from the initialized solver, including effective defaults."""
+    def export_solver_options(solver: SolverVBD, cfg: VBDSolverCfg | None = None) -> dict:
+        """Read effective VBD settings from the initialized solver.
+
+        Args:
+            solver: The initialized native solver.
+            cfg: Constructor provenance for settings without native getters.
+
+        Returns:
+            Serializable constructor options using resolved native settings.
+        """
         import inspect
 
+        aliases = {
+            "particle_enable_tile_solve": "use_particle_tile_solve",
+            "particle_edge_parallel_epsilon": "_self_contact_edge_edge_parallel_epsilon",
+            "rigid_avbd_joint_alpha": "rigid_joint_alpha",
+            "rigid_avbd_contact_alpha": "rigid_contact_alpha",
+            "rigid_avbd_linear_beta": "rigid_linear_beta",
+            "rigid_avbd_angular_beta": "rigid_angular_beta",
+            "rigid_contact_k_start": "rigid_contact_k_start_value",
+            "rigid_body_contact_buffer_size": "body_body_contact_buffer_pre_alloc",
+            "rigid_body_particle_contact_buffer_size": "body_particle_contact_buffer_pre_alloc",
+        }
+        superseded = {
+            "particle_self_contact_radius",
+            "particle_collision_detection_interval",
+            "rigid_avbd_alpha",
+            "rigid_avbd_beta",
+            "rigid_contact_stick_motion_eps",
+            "rigid_contact_stick_freeze_translation_eps",
+            "rigid_contact_stick_freeze_angular_eps",
+        }
         options = {}
         for name, parameter in inspect.signature(SolverVBD).parameters.items():
-            if name == "model":
+            if name == "model" or name in superseded:
                 continue
-            value = getattr(solver, name, parameter.default)
+            # Native aliases hold resolved settings; initialization-only capacities use cfg provenance.
+            value = getattr(solver, aliases.get(name, name), getattr(cfg, name, parameter.default))
+            if name == "rigid_contact_k_start" and value < 0:
+                continue  # Negative native sentinel disables a seed when the ramp is inactive.
             if value is None:
                 continue
             if name in {"collision_frequency", "collision_frequency_type"}:
@@ -54,16 +85,23 @@ class NewtonVBDManager(NewtonManager):
             if not isinstance(value, (bool, int, float, str)):
                 raise NotImplementedError(f"No VBD export representation for {name}: {value!r}.")
             options[name] = value
-        # The canonical slot schedules supersede the deprecated self-contact interval.
-        options.pop("particle_collision_detection_interval", None)
+        modes = {
+            int(values["deterministic"]) for values in solver._module_options.values() if "deterministic" in values
+        }
+        if len(modes) != 1:
+            raise NotImplementedError("VBD export requires one determinism mode across its kernel modules.")
+        options["deterministic"] = modes.pop()
         return options
 
     @staticmethod
     def load_exported_solver(model: Model, options: dict) -> SolverVBD:
         """Restore typed collision scheduling before constructing VBD."""
+        import warp as wp
         from newton.solvers import SolverBase
 
         options = dict(options)
+        if "deterministic" in options:
+            options["deterministic"] = wp.DeterministicMode(options["deterministic"])
         for name in ("collision_frequency", "collision_frequency_type"):
             if name in options:
                 options[name] = {SolverBase.CollisionSlot(int(slot)): value for slot, value in options[name].items()}

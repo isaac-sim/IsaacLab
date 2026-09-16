@@ -417,6 +417,7 @@ class UsdWriter:
         positions = np.asarray(positions)[:count]
         if positions.shape != (count, 3):
             raise ValueError(f"Incomplete simulation nodes for {path}: {positions.shape}.")
+        # USD mesh points are local, whereas backend simulation nodes are world-space.
         transform = np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(mesh).GetInverse())
         points = positions @ transform[:3, :3] + transform[3, :3]
         UsdGeom.PointBased(mesh).GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points.astype(np.float32)))

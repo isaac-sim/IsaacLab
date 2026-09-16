@@ -342,6 +342,27 @@ def _capture_coupled_physics(solver, world, particle_paths):
         if isinstance(child, SolverMuJoCo):
             result.update({(name, *key): value for key, value in _capture_mujoco_physics(child, world).items()})
         elif isinstance(child, SolverVBD):
+            result[name, "effective_settings", "deterministic"] = tuple(
+                sorted(
+                    {
+                        int(options["deterministic"])
+                        for options in child._module_options.values()
+                        if "deterministic" in options
+                    }
+                )
+            )
+            for field in (
+                "use_particle_tile_solve",
+                "rigid_joint_alpha",
+                "rigid_contact_alpha",
+                "rigid_linear_beta",
+                "rigid_angular_beta",
+                "rigid_contact_k_start_value",
+                "body_body_contact_buffer_pre_alloc",
+                "body_particle_contact_buffer_pre_alloc",
+            ):
+                if hasattr(child, field):
+                    result[name, "effective_settings", field] = getattr(child, field)
             for field in inspect.signature(SolverVBD).parameters:
                 if field in {"model", "particle_collision_detection_interval"} or not hasattr(child, field):
                     continue
@@ -486,7 +507,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         "xpbd": XPBDSolverCfg(iterations=13),
         "mujoco": MJWarpSolverCfg(iterations=13, ls_iterations=7),
         "kamino": KaminoPADMMSolverCfg(),
-        "vbd": VBDSolverCfg(iterations=13),
+        "vbd": VBDSolverCfg(iterations=13, rigid_body_particle_contact_buffer_size=513),
     }[solver_name]
     simulation_cfg = SimulationCfg(
         device=device, dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=solver_cfg)
@@ -597,6 +618,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         assert solver.iterations == 13
     elif solver_name == "vbd":
         assert solver.iterations == 13
+        assert solver.body_particle_contact_buffer_pre_alloc == 513
         actual_deformable = _capture_deformable_physics(fresh, info["particle_paths"])
         assert actual_deformable.keys() == expected_deformable.keys()
         for key, value in expected_deformable.items():
