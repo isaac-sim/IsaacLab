@@ -362,6 +362,13 @@
     const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
     const failedPreviewVideos = new Set();
 
+    const previewImageUrl = (task) => {
+        const imagePath = previewImageFor(task);
+        return imagePath.startsWith("tasks/")
+            ? new URL(imagePath, previewImageBaseUrl).href
+            : new URL(`../../_static/${imagePath}`, window.location.href).href;
+    };
+
     const updateTaskControls = () => {
         const task = selectedTask();
         populateSelect(fields.rl, task.rl, [fields.rl.value, "rsl_rl", "rl_games", "skrl", "sb3"]);
@@ -466,7 +473,7 @@
         const videoUrl = videoName
             ? new URL(`../../_static/tasks/previews/${videoName}`, window.location.href).href
             : undefined;
-        previewImage.src = new URL(previewImageFor(selectedTask()), previewImageBaseUrl).href;
+        previewImage.src = previewImageUrl(selectedTask());
         previewImage.alt = `${state.task} preview`;
         if (videoUrl && !failedPreviewVideos.has(videoUrl)) {
             previewVideo.onerror = () => {
@@ -573,7 +580,7 @@
         const refreshCard = () => {
             const activeTask = variants.find((task) => task.task === state.task) || variants[0];
             const isSelected = variants.includes(activeTask) && activeTask.task === state.task;
-            image.src = new URL(`../../_static/${previewImageFor(activeTask)}`, window.location.href).href;
+            image.src = previewImageUrl(activeTask);
             image.alt = "";
             selectButton.dataset.taskName = activeTask.task;
             selectButton.setAttribute("aria-pressed", String(isSelected));
