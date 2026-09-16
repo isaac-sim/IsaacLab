@@ -119,8 +119,8 @@ BALL_CFG = RigidObjectCfg(
                 max_depenetration_velocity=1000.0,
             ),
         ],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
-        mass_props=[sim_utils.MassCfg(density=500.0)],
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(density=500.0),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
 )

@@ -34,17 +34,15 @@ GR1T2_CFG = ArticulationCfg(
             f"{ISAAC_NUCLEUS_DIR}/Robots/FourierIntelligence/GR-1/GR1T2_fourier_hand_6dof/GR1T2_fourier_hand_6dof.usd"
         ),
         activate_contact_sensors=True,
-        rigid_props=[
-            PhysxRigidBodyCfg(
-                disable_gravity=True,
-                retain_accelerations=False,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=1.0,
-            )
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=True,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4

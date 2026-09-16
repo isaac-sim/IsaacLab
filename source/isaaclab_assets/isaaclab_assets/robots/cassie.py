@@ -28,24 +28,22 @@ CASSIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
         activate_contact_sensors=True,
-        rigid_props=[
-            PhysxRigidBodyCfg(
-                disable_gravity=False,
-                retain_accelerations=False,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=1.0,
-            )
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
             ),
             NewtonArticulationCfg(self_collision_enabled=True),
         ],
-        joint_drive_props=[sim_utils.UsdPhysicsDriveCfg()],
+        joint_drive_props=sim_utils.UsdPhysicsDriveCfg(),
         ensure_drives_exist=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(

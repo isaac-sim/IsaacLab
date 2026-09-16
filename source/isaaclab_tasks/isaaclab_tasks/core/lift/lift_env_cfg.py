@@ -35,8 +35,8 @@ from .adr_curriculum import CurriculumCfg
 
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.8, 1.5, 0.04),
-    rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
-    collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     # trick: we let visualizer's color to show the table with success coloring
     visible=False,
 )
@@ -69,27 +69,23 @@ class ObjectCfg(PresetCfg):
             MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
             MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
         ],
-        rigid_props=[
-            PhysxRigidBodyCfg(
-                solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
-            )
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
+        ),
         collision_props=[
             sim_utils.UsdPhysicsCollisionCfg(),
             sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
         ],
-        mass_props=[sim_utils.MassCfg(mass=0.2)],
+        mass_props=sim_utils.MassCfg(mass=0.2),
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
         physics_material=RigidBodyMaterialCfg(static_friction=0.5),
-        rigid_props=[
-            PhysxRigidBodyCfg(
-                solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
-            )
-        ],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
-        mass_props=[sim_utils.MassCfg(mass=0.2)],
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
+        ),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
     ovphysx = cube

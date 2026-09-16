@@ -369,7 +369,7 @@ class PourSceneCfg(InteractiveSceneCfg):
         "panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_STIFFNESS["panda_joint[5-7]"]
     }
     robot.actuators["panda_forearm"].damping = {"panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_DAMPING["panda_joint[5-7]"]}
-    robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
+    robot.spawn.joint_drive_props = MujocoJointCfg(actuatorgravcomp=True)
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 

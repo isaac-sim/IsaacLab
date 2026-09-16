@@ -51,9 +51,9 @@ class ImuPvaBenchmarkSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Body",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
-            mass_props=[sim_utils.MassCfg(mass=1.0)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
     )

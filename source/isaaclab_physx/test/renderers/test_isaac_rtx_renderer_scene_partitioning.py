@@ -119,9 +119,9 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             spawn=sim_utils.CuboidCfg(
                 size=(0.25, 0.25, 0.25),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.2)),
-                rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
-                collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
-                mass_props=[sim_utils.MassCfg(mass=0.2)],
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                mass_props=sim_utils.MassCfg(mass=0.2),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
         )

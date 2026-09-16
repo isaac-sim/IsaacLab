@@ -69,8 +69,8 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
-            mass_props=[sim_utils.MassCfg(mass=1.0)],
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),

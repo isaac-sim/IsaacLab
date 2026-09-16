@@ -50,8 +50,8 @@ def create_contact_sensor_scene_cfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.5),
-                rigid_props=[PhysxRigidBodyCfg(disable_gravity=False)],
-                collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),

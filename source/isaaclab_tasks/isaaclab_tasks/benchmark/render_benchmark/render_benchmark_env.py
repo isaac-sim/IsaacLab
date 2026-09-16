@@ -90,8 +90,8 @@ class RenderBenchmarkEnv(DirectRLEnv):
                     sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
                     PhysxRigidBodyCfg(disable_gravity=True),
                 ],
-                mass_props=[sim_utils.MassCfg(mass=1.0)],
-                collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, self.cfg.ground_top_z - thickness / 2.0)),
         )

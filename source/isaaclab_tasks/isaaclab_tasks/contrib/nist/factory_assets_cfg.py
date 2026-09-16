@@ -150,18 +150,16 @@ FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
-        rigid_props=[
-            PhysxRigidBodyCfg(
-                disable_gravity=True, solver_position_iteration_count=192, solver_velocity_iteration_count=1
-            )
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=True, solver_position_iteration_count=192, solver_velocity_iteration_count=1
+        ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=192, solver_velocity_iteration_count=1
             ),
             NewtonArticulationCfg(self_collision_enabled=False),
         ],
-        collision_props=[PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0)],
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
     ),
     init_state=FRANKA_DEFAULT_STATE_CFG,
     actuators=FRANKA_ACTUATORS_CFG,
@@ -184,7 +182,7 @@ FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
             mesh_collision_property=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
         ),
         physics_material=ROBOT_CONTACT_MATERIAL_CFG,
-        joint_drive_props=[sim_utils.UsdPhysicsDriveCfg()],
+        joint_drive_props=sim_utils.UsdPhysicsDriveCfg(),
         ensure_drives_exist=True,
     ),
     init_state=FRANKA_DEFAULT_STATE_CFG,
@@ -196,7 +194,7 @@ TABLE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/Table",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/Mounts/UWPatVention/pat_vention.usd",
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, -0.868), rot=(0.0, 0.0, -0.70711, 0.70711)),
 )
@@ -207,7 +205,7 @@ NISTBOARD_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/NistBoard",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/NIST/Taskboard/nistboard.usd",
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         scale=(1.0, 1.0, 0.5),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65 - x, 0.0 - y, 0.0206 - z), rot=(0.0, 1.0, 0.0, 0.0)),
@@ -221,7 +219,7 @@ def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: boo
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/NIST/{usd_file}",
             rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG if is_socket else ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-            mass_props=[sim_utils.MassCfg(mass=mass)],
+            mass_props=sim_utils.MassCfg(mass=mass),
             collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG if is_socket else ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
             physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
         ),

@@ -469,7 +469,7 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_g
         cfg.actuators["panda_shoulder"].damping = 0.0
         cfg.actuators["panda_forearm"].stiffness = 0.0
         cfg.actuators["panda_forearm"].damping = 0.0
-    cfg.spawn.rigid_props[0].disable_gravity = disable_gravity
+    cfg.spawn.rigid_props.disable_gravity = disable_gravity
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     robot = Articulation(cfg)
     sim.reset()
@@ -2827,7 +2827,9 @@ def test_setting_velocity_limit_implicit(
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        sim_limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         sim_limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(newton_vel_limit, sim_limit)
@@ -2890,7 +2892,9 @@ def test_setting_velocity_limit_explicit(
     if joint_velocity_limit is not None:
         limit = joint_velocity_limit
     else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     # check physx is set to expected value
     expected_vel_limit = torch.full_like(newton_vel_limit, limit)
     torch.testing.assert_close(newton_vel_limit, expected_vel_limit)
@@ -2932,7 +2936,9 @@ def test_setting_effort_limit_implicit(sim, articulation_type, num_articulations
 
     # decide the limit based on what is set
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
 

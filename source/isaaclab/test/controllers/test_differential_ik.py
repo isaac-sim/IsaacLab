@@ -103,7 +103,7 @@ def test_ur10_ik_pose_abs(sim):
 
     # Create robot instance
     robot_cfg = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot_cfg.spawn.rigid_props[0].disable_gravity = True
+    robot_cfg.spawn.rigid_props.disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller

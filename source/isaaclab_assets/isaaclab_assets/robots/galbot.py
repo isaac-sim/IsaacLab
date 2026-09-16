@@ -28,8 +28,8 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Galbot/galbot_one_charlie/galbot_one_charlie.usd",
         variants={"Physics": "PhysX"},
-        rigid_props=[PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0)],
-        collision_props=[PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0)],
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
         activate_contact_sensors=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(

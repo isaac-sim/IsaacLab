@@ -226,9 +226,9 @@ def test_spawn_cone_with_all_rigid_props(sim):
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        mass_props=[sim_utils.MassCfg(mass=5.0)],
+        mass_props=sim_utils.MassCfg(mass=5.0),
         rigid_props=[usd_rigid_props, physx_rigid_props],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialCfg(),
     )
@@ -248,7 +248,7 @@ def test_spawn_cone_with_all_rigid_props(sim):
     )
     assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(physx_rigid_props.sleep_threshold)
     # -- mass
-    assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props[0].mass
+    assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
     # -- collision shape
     prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True

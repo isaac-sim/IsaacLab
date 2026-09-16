@@ -162,7 +162,7 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
             sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
             PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1),
         ],
-        mass_props=[sim_utils.MassCfg(mass=1.0)],
+        mass_props=sim_utils.MassCfg(mass=1.0),
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -171,7 +171,7 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
     assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Cone")
-    assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props[0].mass
+    assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
 
     # check sim playing
     sim.play()
@@ -194,8 +194,8 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
             sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
             PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1),
         ],
-        mass_props=[sim_utils.MassCfg(density=10.0)],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
+        mass_props=sim_utils.MassCfg(density=10.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -204,7 +204,7 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
     assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Cone")
-    assert prim.GetAttribute("physics:density").Get() == cfg.mass_props[0].density
+    assert prim.GetAttribute("physics:density").Get() == cfg.mass_props.density
 
     # check sim playing
     sim.play()
@@ -217,9 +217,9 @@ def test_spawn_cone_with_all_props(sim):
     cfg = sim_utils.ConeCfg(
         radius=1.0,
         height=2.0,
-        mass_props=[sim_utils.MassCfg(mass=5.0)],
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        mass_props=sim_utils.MassCfg(mass=5.0),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialCfg(),
     )
@@ -277,9 +277,9 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
     cfg = sim_utils.ConeCfg(
         radius=1.0,
         height=2.0,
-        mass_props=[sim_utils.MassCfg(mass=5.0)],
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        mass_props=sim_utils.MassCfg(mass=5.0),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialCfg(),
         visual_material_path="/Looks/visualMaterial",

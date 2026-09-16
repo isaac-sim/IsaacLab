@@ -219,9 +219,9 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim):
     sim_utils.create_prim("/World/template", "Xform")
     sphere_cfg = sim_utils.SphereCfg(
         radius=0.1,
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        mass_props=[sim_utils.MassCfg(mass=1.0)],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     sphere_cfg.func("/World/envs/env_0/Sphere", sphere_cfg)
 
@@ -306,7 +306,7 @@ def test_direct_clone_plan_multi_asset(sim):
                 radius=0.3,
                 height=0.6,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=[sim_utils.MassCfg(mass=100.0)],
+                mass_props=sim_utils.MassCfg(mass=100.0),
             ),
             sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
@@ -317,9 +317,9 @@ def test_direct_clone_plan_multi_asset(sim):
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
         ],
-        rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
-        mass_props=[sim_utils.MassCfg(mass=1.0)],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     sources, destinations, clone_mask = _make_flat_clone_plan(
         num_variants=len(cfg.assets_cfg),
@@ -412,9 +412,9 @@ def test_colocation_collision_filter_homogeneous(sim):
             radius=0.3,
             height=0.6,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-            mass_props=[sim_utils.MassCfg(mass=100.0)],
-            rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            mass_props=sim_utils.MassCfg(mass=100.0),
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         expected_types=["Cone"],
         assert_count=True,
@@ -437,7 +437,7 @@ def test_colocation_collision_filter_heterogeneous(sim):
                     radius=0.3,
                     height=0.6,
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                    mass_props=[sim_utils.MassCfg(mass=100.0)],
+                    mass_props=sim_utils.MassCfg(mass=100.0),
                 ),
                 sim_utils.CuboidCfg(
                     size=(0.3, 0.3, 0.3),
@@ -448,9 +448,9 @@ def test_colocation_collision_filter_heterogeneous(sim):
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
                 ),
             ],
-            rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
-            mass_props=[sim_utils.MassCfg(mass=1.0)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         expected_types=["Cone", "Cube", "Sphere"],
     )
@@ -470,9 +470,9 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
 
     sphere_cfg = sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        mass_props=[sim_utils.MassCfg(mass=0.5)],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.5),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     sphere_cfg.func("/World/envs/env_0/ball", sphere_cfg, translation=(0.0, 0.0, 0.5))
 
@@ -634,7 +634,7 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     def _body(i: int) -> RigidObjectCfg:
         return RigidObjectCfg(
             prim_path=f"/World/envs/env_[^/]+/Body_{i}",
-            spawn=sim_utils.SphereCfg(radius=0.1, rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()]),
+            spawn=sim_utils.SphereCfg(radius=0.1, rigid_props=sim_utils.UsdPhysicsRigidBodyCfg()),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3 * (i % 4), 0.3 * (i // 4), 0.5)),
         )
 

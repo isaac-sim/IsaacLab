@@ -61,8 +61,8 @@ class ArticulationRigidObjectSceneCfg(CartpoleTestSceneCfg):
             # ``physxRigidBody:disableGravity``, so it stays on the backend-neutral base cfg to
             # keep this module importable without a physics backend extension.
             rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
-            mass_props=[sim_utils.MassCfg(mass=1.0)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
     )

@@ -265,9 +265,9 @@ def test_spawn_mesh_with_rigid_props_accepts_fragment_list_physics_material():
     stage = sim_utils.get_current_stage()
     cfg = MeshCuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
-        physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55)],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        physics_material=UsdPhysicsRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55),
     )
     prim = cfg.func("/World/MeshCubeFrag", cfg, stage=stage)
     assert prim.IsValid()
@@ -293,7 +293,7 @@ def test_spawn_ground_plane_accepts_fragment_list_physics_material():
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    cfg = GroundPlaneCfg(physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.42)])
+    cfg = GroundPlaneCfg(physics_material=UsdPhysicsRigidBodyMaterialCfg(static_friction=0.42))
     prim = cfg.func("/World/groundPlane", cfg)
     assert prim.IsValid()
     material_prim = stage.GetPrimAtPath("/World/groundPlane/physicsMaterial")
@@ -332,8 +332,8 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_physx_rigid_body_material():
     stage = sim_utils.get_current_stage()
     cfg = MeshCuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         physics_material=PhysxRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55),
     )
     prim = cfg.func("/World/MeshCubeLegacyPhysx", cfg, stage=stage)
@@ -360,8 +360,8 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_newton_material():
     stage = sim_utils.get_current_stage()
     cfg = MeshCuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         physics_material=NewtonMaterialPropertiesCfg(torsional_friction=0.3, rolling_friction=0.001),
     )
     prim = cfg.func("/World/MeshCubeLegacyNewton", cfg, stage=stage)

@@ -75,9 +75,9 @@ SHADOW_HAND_CFG = ArticulationCfg(
         usd_path=(
             f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/ShadowRobot/ShadowHandMultiPhysics_v0/right_hand/right_hand.usda"
         ),
-        rigid_props=[
-            PhysxRigidBodyCfg(disable_gravity=True, retain_accelerations=True, max_depenetration_velocity=1000.0)
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=True, retain_accelerations=True, max_depenetration_velocity=1000.0
+        ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True,

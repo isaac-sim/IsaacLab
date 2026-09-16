@@ -84,7 +84,7 @@ def _sensor_body_cfg(prim_path: str, position: tuple[float, float, float] = (0.0
                 sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
                 PhysxRigidBodyCfg(disable_gravity=True),
             ],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=position),
     )

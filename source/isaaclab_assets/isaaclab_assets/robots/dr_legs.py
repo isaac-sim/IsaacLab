@@ -84,10 +84,10 @@ DR_LEGS_IMPLICIT_PD_CFG = ArticulationCfg(
         usd_path=_DR_LEGS_USD_PATH,
         activate_contact_sensors=True,
         collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
-        rigid_props=[
-            PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=10.0, enable_gyroscopic_forces=True)
-        ],
-        articulation_props=[NewtonArticulationCfg(self_collision_enabled=True)],
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=False, max_depenetration_velocity=10.0, enable_gyroscopic_forces=True
+        ),
+        articulation_props=NewtonArticulationCfg(self_collision_enabled=True),
         copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(

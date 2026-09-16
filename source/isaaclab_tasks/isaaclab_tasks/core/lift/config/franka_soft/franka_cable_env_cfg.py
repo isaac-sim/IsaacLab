@@ -126,7 +126,7 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
                 stretch_stiffness=1.0e6,
                 bend_stiffness=1.0e5,
             ),
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
     )

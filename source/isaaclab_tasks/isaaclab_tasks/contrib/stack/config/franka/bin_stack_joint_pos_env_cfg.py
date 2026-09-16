@@ -139,7 +139,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
                 scale=(1.1, 1.6, 3.3),
-                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             ),
         )
 

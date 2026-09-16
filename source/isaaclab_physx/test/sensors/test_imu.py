@@ -63,9 +63,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-            mass_props=[sim_utils.MassCfg(mass=0.5)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -75,9 +75,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-            mass_props=[sim_utils.MassCfg(mass=0.5)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -513,9 +513,9 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
-            mass_props=[sim_utils.MassCfg(mass=0.5)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
     )
     imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")

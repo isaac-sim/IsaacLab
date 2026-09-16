@@ -101,9 +101,9 @@ def test_stage_in_memory_with_shapes(sim):
                 ),
             ],
             random_choice=True,
-            rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
-            mass_props=[sim_utils.MassCfg(mass=1.0)],
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
         prim_path_regex = "/World/Cone/asset_[^/]*"
         cfg.func(prim_path_regex, cfg)
@@ -146,17 +146,15 @@ def test_stage_in_memory_with_usds(sim):
         cfg = sim_utils.MultiUsdFileCfg(
             usd_path=usd_paths,
             random_choice=True,
-            rigid_props=[
-                PhysxRigidBodyCfg(
-                    disable_gravity=False,
-                    retain_accelerations=False,
-                    linear_damping=0.0,
-                    angular_damping=0.0,
-                    max_linear_velocity=1000.0,
-                    max_angular_velocity=1000.0,
-                    max_depenetration_velocity=1.0,
-                )
-            ],
+            rigid_props=PhysxRigidBodyCfg(
+                disable_gravity=False,
+                retain_accelerations=False,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1.0,
+            ),
             articulation_props=[
                 PhysxArticulationCfg(
                     enabled_self_collisions=True,

@@ -32,16 +32,14 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/KukaAllegro/kuka.usd",
         activate_contact_sensors=True,
-        rigid_props=[
-            PhysxRigidBodyCfg(
-                retain_accelerations=True,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=1000.0,
-            )
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            retain_accelerations=True,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1000.0,
+        ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True,
@@ -52,7 +50,7 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
             ),
             NewtonArticulationCfg(self_collision_enabled=True),
         ],
-        joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(drive_type="force")],
+        joint_drive_props=sim_utils.UsdPhysicsDriveCfg(drive_type="force"),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.0),

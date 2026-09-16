@@ -109,8 +109,8 @@ class PhysicsCfg(PresetCfg):
 SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.1, 0.02, 0.15),
     rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True), PhysxRigidBodyCfg(disable_gravity=True)],
-    mass_props=[sim_utils.MassCfg(mass=1.0)],
-    collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+    mass_props=sim_utils.MassCfg(mass=1.0),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
 )
@@ -147,7 +147,7 @@ class DeformableCfg(PresetCfg):
             size=(0.2, 0.2),
             edge_refinement=8,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
+            collision_props=PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
                 density=1000.0,

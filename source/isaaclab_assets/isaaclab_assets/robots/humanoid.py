@@ -23,9 +23,9 @@ HUMANOID_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Humanoid/humanoid_instanceable.usd",
-        rigid_props=[
-            PhysxRigidBodyCfg(disable_gravity=None, max_depenetration_velocity=10.0, enable_gyroscopic_forces=True)
-        ],
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=None, max_depenetration_velocity=10.0, enable_gyroscopic_forces=True
+        ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True,
