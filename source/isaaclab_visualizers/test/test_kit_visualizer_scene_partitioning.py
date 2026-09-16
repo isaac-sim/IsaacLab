@@ -19,22 +19,29 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
-@pytest.mark.parametrize(("mode", "source_type"), [("solid", "color"), ("sky", "domeLight")])
+@pytest.mark.parametrize(
+    ("mode", "clear_color", "source_type"),
+    [("solid", False, "color"), ("sky", False, "domeLight"), ("solid", True, "domeLight")],
+)
 def test_background_mode_applies_to_render_product_session_layer(
     mode: str,
+    clear_color: bool,
     source_type: str,
 ) -> None:
     stage = Usd.Stage.CreateInMemory()
     render_product = stage.DefinePrim("/Render/Viewport", "RenderProduct")
     color = (0.1, 0.2, 0.3)
-    visualizer = KitVisualizer(KitVisualizerCfg(background_mode=mode, background_color=color))
+    cfg = KitVisualizerCfg(background_mode=mode, background_color=color)
+    if clear_color:
+        cfg.background_color = None
+    visualizer = KitVisualizer(cfg)
 
     visualizer._apply_render_product_background(stage, render_product.GetPath())
 
     source_type_attr = render_product.GetAttribute("omni:rtx:background:source:type")
     source_color = render_product.GetAttribute("omni:rtx:background:source:color")
     assert source_type_attr.Get() == source_type
-    if mode == "sky":
+    if source_type == "domeLight":
         assert not source_color.IsValid()
     else:
         assert tuple(source_color.Get()) == pytest.approx(color)

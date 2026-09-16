@@ -590,11 +590,13 @@ class KitVisualizer(BaseVisualizer):
             return
 
         with Usd.EditContext(stage, stage.GetSessionLayer()), Sdf.ChangeBlock():
-            source_type = "color" if self.cfg.background_mode == "solid" else "domeLight"
+            background_color = self.cfg.background_color
+            use_sky_background = self.cfg.background_mode == "sky" or background_color is None
+            source_type = "domeLight" if use_sky_background else "color"
             render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set(source_type)
-            if self.cfg.background_mode == "solid":
+            if not use_sky_background:
                 render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
-                    Gf.Vec3f(*self.cfg.background_color)
+                    Gf.Vec3f(*background_color)
                 )
 
     def _setup_viewport(self) -> None:

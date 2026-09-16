@@ -1003,9 +1003,14 @@ def test_newton_rtx_default_environment_uses_only_dome_light(
     assert not viewer.stage.GetPrimAtPath("/root/_RTXDistantLight").IsValid()
 
 
-@pytest.mark.parametrize(("mode", "draw_sky"), [("solid", False), ("sky", True)])
-def test_newton_gl_background_mode_selects_native_sky(mode: str, draw_sky: bool) -> None:
+@pytest.mark.parametrize(
+    ("mode", "clear_color", "draw_sky"),
+    [("solid", False, False), ("sky", False, True), ("solid", True, True)],
+)
+def test_newton_gl_background_mode_selects_native_sky(mode: str, clear_color: bool, draw_sky: bool) -> None:
     cfg = NewtonGLVisualizerCfg(background_mode=mode)
+    if clear_color:
+        cfg.background_color = None
     visualizer = NewtonGLVisualizer(cfg)
     visualizer._viewer = SimpleNamespace(
         renderer=SimpleNamespace(),
@@ -1021,10 +1026,14 @@ def test_newton_gl_background_mode_selects_native_sky(mode: str, draw_sky: bool)
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize(("mode", "expected_color"), [("solid", (0.3, 0.55, 0.82)), ("sky", None)])
+@pytest.mark.parametrize(
+    ("mode", "clear_color", "expected_color"),
+    [("solid", False, (0.3, 0.55, 0.82)), ("sky", False, None), ("solid", True, None)],
+)
 def test_newton_rtx_background_mode_selects_solid_override(
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
+    clear_color: bool,
     expected_color: tuple[float, float, float] | None,
 ) -> None:
     kwargs = {}
@@ -1035,6 +1044,8 @@ def test_newton_rtx_background_mode_selects_solid_override(
     )
 
     cfg = NewtonRTXVisualizerCfg(background_mode=mode)
+    if clear_color:
+        cfg.background_color = None
     NewtonRTXVisualizer(cfg)._create_viewer(False, {})
 
     assert kwargs["background_color"] == expected_color

@@ -2188,14 +2188,15 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
         self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
         # Accept list/tuple/array-like config colors; provide a stable tuple for nanobind conversion.
-        if self.cfg.background_mode == "sky":
+        background_color = self.cfg.background_color
+        use_sky_background = self.cfg.background_mode == "sky" or background_color is None
+        if use_sky_background:
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
             upper_color = self.cfg.sky_upper_color
             lower_color = self.cfg.sky_lower_color
         else:
             self._viewer.renderer.draw_sky = False
-            assert self.cfg.background_color is not None
-            upper_color = lower_color = self.cfg.background_color
+            upper_color = lower_color = background_color
         self._viewer.renderer.sky_upper = self._viewer._coerce_color3(upper_color)
         self._viewer.renderer.sky_lower = self._viewer._coerce_color3(lower_color)
         self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
@@ -2349,7 +2350,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
-        background_color = self.cfg.background_color if self.cfg.background_mode == "solid" else None
+        background_color = self.cfg.background_color
+        use_sky_background = self.cfg.background_mode == "sky" or background_color is None
         return NewtonViewerRTX(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
@@ -2361,7 +2363,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             dome_texture_file=self.cfg.dome_texture_file,
             dome_intensity=self.cfg.dome_intensity,
             dome_rotation=self.cfg.dome_rotation,
-            background_color=background_color,
+            background_color=None if use_sky_background else background_color,
             render_settings=self.cfg.render_settings,
         )
 
