@@ -16,11 +16,10 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.assets.physics_properties import (
     UsdAttribute,
-    source_units,
     usd_field,
     usd_fields,
 )
-from isaaclab.assets.physx_contact_data import PhysxContactData
+from isaaclab.physics.physx_contact_data import PhysxContactData
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim.usd_export import UsdWriter
 
@@ -111,7 +110,7 @@ def test_body_contacts_respect_nested_body_ownership(scene):
         UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(path))
     writer = UsdWriter.from_stage(stage)
     for path, friction in ((parent, 0.25), (child, 0.75)):
-        PhysxContactData(False, [[friction, friction, 0]], [0.02], [0]).author_configuration(writer, path)
+        writer.write_body_contacts(PhysxContactData(False, [[friction, friction, 0]], [0.02], [0]), path)
     for path, friction in ((parent, 0.25), (child, 0.75)):
         material, _ = UsdShade.MaterialBindingAPI(writer.stage.GetPrimAtPath(path)).ComputeBoundMaterial("physics")
         assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == friction
@@ -144,7 +143,7 @@ def test_copy_removes_only_ineffective_dangling_material_bindings(purpose, inher
     }
 
     writer = UsdWriter.from_stage(stage)
-    writer.remove_unused_bindings()
+    writer.remove_ineffective_material_bindings()
     output = str(tmp_path / "scene.usda")
     if inherited_purpose is None:
         writer.save(output)
@@ -237,14 +236,13 @@ def test_declared_joint_mapping_authors_effective_values(angular):
 def test_binding_override_extension_and_scalar_vector_schema_types():
     class Base:
         @property
-        @source_units("kg")
         @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"))
         def value(self):
             return np.array([[2.5]])
 
     class Derived(Base):
         @property
-        @usd_field(UsdAttribute("physics:density", "PhysicsMassAPI"), extend=True)
+        @usd_field(UsdAttribute("custom:mass", type_name="float"), extend=True)
         def value(self):
             return super().value
 
@@ -255,9 +253,8 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
     writer = UsdWriter(stage)
     writer.write_properties("/Body", None, Base(), row=0)
     assert body.GetAttribute("physics:mass").Get() == 2.5
-    # A mass value cannot be reused as a density merely because both are scalar floats.
-    with pytest.raises(ValueError, match="Incompatible physical units"):
-        writer.write_properties("/Body", None, Derived(), row=0)
+    writer.write_properties("/Body", None, Derived(), row=0)
+    assert body.GetAttribute("custom:mass").Get() == 2.5
     writer.write_attribute("/Body", UsdAttribute("visibility", "Imageable"), "invisible")
     assert body.GetAttribute("visibility").Get() == "invisible"
 
@@ -440,7 +437,7 @@ def test_dependency_validation_uses_authored_uri(available, monkeypatch):
 
 @pytest.mark.parametrize("length", [1.0, 0.01])
 def test_multi_axis_joint_values_do_not_overwrite_other_axes(length):
-    """Independent Cartesian DOFs convert compound units and retain axis identity."""
+    """Independent Cartesian DOFs retain axis identity; deployment requires an SI stage."""
     from isaaclab.assets import BaseArticulationData
 
     class Declarations:
@@ -459,6 +456,10 @@ def test_multi_axis_joint_values_do_not_overwrite_other_axes(length):
     stage = _stage()
     UsdGeom.SetStageMetersPerUnit(stage, length)
     joint = UsdPhysics.Joint.Define(stage, "/Joint")
+    if length != 1.0:
+        with pytest.raises(ValueError, match="metersPerUnit=1"):
+            UsdWriter(stage)
+        return
     writer = UsdWriter(stage)
     for row, axis in enumerate(("rotX", "rotZ", "transY")):
         writer.write_properties("/Joint", axis, Data(), row=row)
@@ -506,6 +507,11 @@ def test_fixed_properties_write_placement_and_zero_initial_velocities(scene, len
         body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
         body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.0, 0, 0, 0, 0, 0, 1]]])),
     )
+    if (length, mass_unit) != (1.0, 1.0):
+        with pytest.raises(ValueError, match="metersPerUnit=1"):
+            UsdWriter.from_stage(scene.sim.stage)
+        assert scene.sim.stage.GetRootLayer().ExportToString() == before
+        return
     writer = UsdWriter.from_stage(scene.sim.stage)
     writer.write_bodies(data, [(path, 0)])
     writer.clear_initial_velocities()
@@ -552,9 +558,9 @@ def test_source_contacts_preserve_distinct_materials_and_automatic_offsets(scene
     args = (body, True, [[0.5, 0.5, 0], [1, 1, 0]], [0.004, 0.008], [0, 0])
     if not preserve:
         with pytest.raises(NotImplementedError, match="Distinct per-shape"):
-            PhysxContactData(*args[1:]).author_configuration(writer, args[0])
+            writer.write_body_contacts(PhysxContactData(*args[1:]), args[0])
         return
-    PhysxContactData(*args[1:]).author_configuration(writer, args[0])
+    writer.write_body_contacts(PhysxContactData(*args[1:]), args[0])
     assert writer.stage.GetPrimAtPath(body).GetAttribute("physxRigidBody:disableGravity").Get()
     for index, friction in enumerate((0.5, 1.0)):
         collider = writer.stage.GetPrimAtPath(f"{body}/Shape{index}")

@@ -31,7 +31,6 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -76,29 +75,13 @@ class RoughPhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
-class RobotMaterialCfg(PresetCfg):
-    """Fixed robot friction, authored before the backend cooks collision shapes."""
-
-    physx = RigidBodyMaterialBaseCfg(static_friction=0.8, dynamic_friction=0.6)
-    # Isaac Sim's previous unbound robot shapes inherited the terrain's scene-default combine modes.
-    isaacsim_physx = PhysxRigidBodyMaterialCfg(
-        static_friction=0.8,
-        dynamic_friction=0.6,
-        friction_combine_mode="multiply",
-        restitution_combine_mode="multiply",
-    )
-    ovphysx = physx
-    # Newton imports dynamic friction as its single coefficient; the old event used static friction.
-    newton_mjwarp = RigidBodyMaterialBaseCfg(static_friction=0.8, dynamic_friction=0.8)
-    newton_kamino = newton_mjwarp
-    default = newton_mjwarp
-
-    def __post_init__(self):
-        from isaaclab.utils.version import has_kit
-
-        # Match PhysxAutoCfg's backend selection in the normal post-AppLauncher config flow.
-        self.physx = self.isaacsim_physx if has_kit() else self.ovphysx
+# One standard USD material for every backend; extension fields stay in the PhysX schema.
+ROBOT_MATERIAL_CFG = PhysxRigidBodyMaterialCfg(
+    static_friction=0.8,
+    dynamic_friction=0.6,
+    friction_combine_mode="multiply",
+    restitution_combine_mode="multiply",
+)
 
 
 ##

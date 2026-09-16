@@ -41,7 +41,6 @@ class UsdAttribute:
     axes: tuple[str, ...] | None = None
     require_uniform: bool = False
     replaces: tuple[str, ...] = ()
-    omit_if_default: float | None = None
     condition: str | None = None
 
 
@@ -51,6 +50,7 @@ def usd_field(
     scope: str = "joint",
     transform: Callable | None = None,
     inputs: tuple[str, ...] = (),
+    angular_conversion: Callable | None = None,
 ) -> Callable:
     """Bind USD targets to the decorated property's getter without wrapping it.
 
@@ -60,7 +60,7 @@ def usd_field(
     """
 
     def bind(getter: Callable) -> Callable:
-        getter._usd_field = (targets, extend, scope, transform, inputs)
+        getter._usd_field = (targets, extend, scope, transform, inputs, angular_conversion)
         return getter
 
     return bind
@@ -78,7 +78,7 @@ def usd_fields(data_type: type, scope: str | None = None) -> dict[str, tuple[Usd
                 continue
             declaration = getattr(prop.fget, "_usd_field", None)
             if declaration is not None:
-                targets, extend, group, _, _ = declaration
+                targets, extend, group, _, _, _ = declaration
                 if scope is not None and scope != group:
                     continue
                 result[name] = result.get(name, ()) + targets if extend else targets
@@ -108,16 +108,14 @@ class LimitComponent(IntEnum):
     UPPER = 1
 
 
-def source_units(unit: str | None = None, **variants: str) -> Callable:
-    """Declare physical source units, optionally by joint axis kind or transform output."""
-    if (unit is None) == (not variants):
-        raise ValueError("Declare either one unit or named variants.")
+def radians_to_degrees(value: np.ndarray) -> np.ndarray:
+    """Convert angular coordinates or rates from radians to USD degrees."""
+    return np.rad2deg(value)
 
-    def bind(getter: Callable) -> Callable:
-        getter._source_units = unit if unit is not None else variants
-        return getter
 
-    return bind
+def per_radian_to_per_degree(value: np.ndarray) -> np.ndarray:
+    """Convert angular gains from effort per radian to effort per USD degree."""
+    return value * (np.pi / 180.0)
 
 
 def property_metadata(data_type: type, name: str, key: str):
@@ -146,11 +144,14 @@ def principal_inertia(value: np.ndarray, frame: np.ndarray) -> dict[str, np.ndar
     if np.allclose(principal, np.diag(np.diag(principal)), atol=1e-7):
         if np.any(np.diag(principal) < -1e-7):
             raise ValueError("Negative inertia.")
-        return {"moments": np.diag(principal), "axes": np.asarray(frame)}
+        return {"moments": np.diag(principal), "principal_axes": np.asarray(frame)}
     moments, axes = np.linalg.eigh(tensor)
     if np.any(moments < -1e-7):
         raise ValueError("Negative inertia.")
     if np.linalg.det(axes) < 0:
         axes[:, 0] *= -1
     rotation = Gf.Matrix3d(*map(float, axes.T.flatten())).ExtractRotation().GetQuat()
-    return {"moments": np.maximum(moments, 0), "axes": np.array([*rotation.GetImaginary(), rotation.GetReal()])}
+    return {
+        "moments": np.maximum(moments, 0),
+        "principal_axes": np.array([*rotation.GetImaginary(), rotation.GetReal()]),
+    }

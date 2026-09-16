@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
-from isaaclab.assets.physics_properties import UsdAttribute, principal_inertia, source_units, usd_field
+from isaaclab.assets.physics_properties import UsdAttribute, principal_inertia, usd_field
 from isaaclab.utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
@@ -321,7 +321,6 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
-    @source_units("kg")
     @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"), scope="body")
     def body_mass(self) -> ProxyArray:
         """Mass of all bodies in the simulation world frame.
@@ -334,10 +333,9 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
-    @source_units(moments="kg*m^2", axes="1")
     @usd_field(
         UsdAttribute("physics:diagonalInertia", "PhysicsMassAPI", output="moments"),
-        UsdAttribute("physics:principalAxes", "PhysicsMassAPI", output="axes"),
+        UsdAttribute("physics:principalAxes", "PhysicsMassAPI", output="principal_axes"),
         scope="body",
         transform=principal_inertia,
         inputs=("body_com_quat_b",),
@@ -653,7 +651,6 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
-    @source_units("m")
     @usd_field(UsdAttribute("physics:centerOfMass", "PhysicsMassAPI"), scope="body")
     def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.

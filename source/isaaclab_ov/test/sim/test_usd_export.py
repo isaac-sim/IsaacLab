@@ -88,6 +88,9 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
                         list(view.body_names) if articulation else [],
                         list(view.dof_names) if articulation else [],
                     )
+        cooking_frequency = (
+            scene.sim.stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get()
+        )
         before = scene.sim.stage.GetRootLayer().ExportToString()
         scene.export_to_usd(str(output), env_id=env_id, preserve_source_contacts=True)
         assert scene.sim.stage.GetRootLayer().ExportToString() == before
@@ -101,7 +104,8 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
         if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             np.testing.assert_array_equal(UsdPhysics.RigidBodyAPI(prim).GetVelocityAttr().Get(), [0, 0, 0])
             np.testing.assert_array_equal(UsdPhysics.RigidBodyAPI(prim).GetAngularVelocityAttr().Get(), [0, 0, 0])
-    assert stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get() == 120
+    assert stage.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:timeStepsPerSecond").Get() == cooking_frequency
+    assert stage.GetRootLayer().customLayerData["isaaclab:physicsDt"] == simulation_cfg.dt
     physics_scene = UsdPhysics.Scene(stage.GetPrimAtPath("/physicsScene"))
     np.testing.assert_allclose(
         np.array(physics_scene.GetGravityDirectionAttr().Get()) * physics_scene.GetGravityMagnitudeAttr().Get(),

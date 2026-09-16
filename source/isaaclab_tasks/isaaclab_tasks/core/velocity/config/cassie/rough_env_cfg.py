@@ -10,9 +10,9 @@ from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    ROBOT_MATERIAL_CFG,
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
-    RobotMaterialCfg,
 )
 
 ##
@@ -60,7 +60,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.physics_material = RobotMaterialCfg()
+        self.scene.robot.spawn.physics_material = ROBOT_MATERIAL_CFG.copy()
         # Material binding must reach colliders inside referenced instances.
         self.scene.robot.spawn.make_uninstanceable = True
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"

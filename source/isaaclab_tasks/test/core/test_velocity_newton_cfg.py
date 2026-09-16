@@ -21,7 +21,7 @@ def test_g1_rough_newton_has_sufficient_constraint_capacity():
 @pytest.mark.parametrize("robot", ["anymal_d", "cassie", "g1", "go2", "h1"])
 @pytest.mark.parametrize("backend", ["newton_mjwarp", "newton_kamino", "ovphysx", "isaacsim_physx"])
 def test_velocity_fixed_material_is_authored_before_initialization(robot, backend, tmp_path):
-    """Resolved presets bind the former fixed startup material even on referenced instances."""
+    """All presets bind the same standard USD friction values even on referenced instances."""
     import importlib
 
     from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
@@ -65,10 +65,9 @@ def test_velocity_fixed_material_is_authored_before_initialization(robot, backen
     assert material
     physics = UsdPhysics.MaterialAPI(material.GetPrim())
     assert physics.GetStaticFrictionAttr().Get() == pytest.approx(0.8)
-    expected_dynamic = 0.8 if backend.startswith("newton") else 0.6
-    assert physics.GetDynamicFrictionAttr().Get() == pytest.approx(expected_dynamic)
+    assert physics.GetDynamicFrictionAttr().Get() == pytest.approx(0.6)
     assert physics.GetRestitutionAttr().Get() == 0
-    if backend == "isaacsim_physx":
+    if backend in {"isaacsim_physx", "ovphysx"}:
         assert material.GetPrim().GetAttribute("physxMaterial:frictionCombineMode").Get() == "multiply"
         assert material.GetPrim().GetAttribute("physxMaterial:restitutionCombineMode").Get() == "multiply"
     if backend.startswith("newton"):
@@ -76,4 +75,4 @@ def test_velocity_fixed_material_is_authored_before_initialization(robot, backen
 
         builder = newton.ModelBuilder()
         builder.add_usd(stage)
-        assert builder.shape_material_mu == pytest.approx([0.8])
+        assert builder.shape_material_mu == pytest.approx([0.6])

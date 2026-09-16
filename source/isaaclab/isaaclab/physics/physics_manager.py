@@ -101,6 +101,7 @@ class PhysicsManager(ABC):
         """Record the common initialization boundary; backend owners supply scene settings."""
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:physicsDt": float(scene.sim.get_physics_dt()),
             "isaaclab:configuration": (
                 "deployment after fixed initialization, before startup randomization; "
                 "reset/interval and controller/sensor runtime excluded"

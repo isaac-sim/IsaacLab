@@ -14,7 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-from isaaclab.assets.physics_properties import UsdAttribute, source_units, usd_field
+from isaaclab.assets.physics_properties import UsdAttribute, per_radian_to_per_degree, radians_to_degrees, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
@@ -423,8 +423,8 @@ class ArticulationData(BaseArticulationData):
             axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
             replaces=("newton:limitStiffness",),
         ),
+        angular_conversion=per_radian_to_per_degree,
     )
-    @source_units(angular="N*m/rad", linear="N/m")
     def joint_limit_stiffness(self) -> np.ndarray:
         """Effective limit stiffness [N/m or N*m/rad], shape [num_instances, num_joints]."""
         values = self._root_view.get_attribute("joint_limit_ke", SimulationManager.get_model()).numpy()[:, 0]
@@ -445,8 +445,8 @@ class ArticulationData(BaseArticulationData):
             axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
             replaces=("newton:limitDamping",),
         ),
+        angular_conversion=per_radian_to_per_degree,
     )
-    @source_units(angular="N*m*s/rad", linear="N*s/m")
     def joint_limit_damping(self) -> np.ndarray:
         """Effective limit damping [N*s/m or N*m*s/rad], shape [num_instances, num_joints]."""
         values = self._root_view.get_attribute("joint_limit_kd", SimulationManager.get_model()).numpy()[:, 0]
@@ -454,7 +454,6 @@ class ArticulationData(BaseArticulationData):
 
     @property
     @usd_field(UsdAttribute("newton:armature", type_name="float", require_uniform=True), extend=True)
-    @source_units(angular="kg*m^2", linear="kg")
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -467,7 +466,6 @@ class ArticulationData(BaseArticulationData):
         UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float"),
         UsdAttribute("newton:friction", type_name="float", require_uniform=True),
     )
-    @source_units(angular="N*m", linear="N")
     def joint_friction_coeff(self) -> ProxyArray:
         """Newton joint friction force/torque provided to the simulation.
 
@@ -488,9 +486,9 @@ class ArticulationData(BaseArticulationData):
             "physxJointAxis:{axis}:viscousFrictionCoefficient",
             "PhysxJointAxisAPI:{axis}",
             type_name="float",
-        )
+        ),
+        angular_conversion=per_radian_to_per_degree,
     )
-    @source_units(angular="N*m*s/rad", linear="N*s/m")
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Newton passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
 
@@ -546,8 +544,9 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos_limits_ta
 
     @property
-    @usd_field(UsdAttribute("newton:velocityLimit", type_name="float"), extend=True)
-    @source_units(angular="rad/s", linear="m/s")
+    @usd_field(
+        UsdAttribute("newton:velocityLimit", type_name="float"), extend=True, angular_conversion=radians_to_degrees
+    )
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 

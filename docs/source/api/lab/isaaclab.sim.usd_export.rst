@@ -63,26 +63,24 @@ values even when no startup event has run.
 Property declarations and units
 -------------------------------
 
-Data getters declare physical source units and USD targets in the same place::
+Data getters declare USD targets and any angular conversion in the same place::
 
     @property
-    @source_units(angular="rad", linear="m")
     @usd_field(
         UsdAttribute("physics:lowerLimit", component=LimitComponent.LOWER,
                      axes=("angular", "linear")),
         UsdAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}",
                      component=LimitComponent.LOWER,
                      axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ")),
+        angular_conversion=radians_to_degrees,
     )
     def joint_pos_limits(self):
         ...
 
-``UsdPhysicsUnits`` maintains target units from the schema semantics; it does not infer
-units from names alone or claim that USD supplies complete unit metadata. The generic
-converter checks length, mass, time and angle dimensions, supports compound units, and
-uses the stage's length/mass scales. Thus angular stiffness declares ``N*m/rad`` and
-converts to the USD angular-drive unit, independently of joint-limit conversion.
-Unknown unit rules fail explicitly.
+Deployment requires the meter/kilogram stage convention set by ``SimulationContext``.
+Angular limits and rates use ``radians_to_degrees``; angular gains use
+``per_radian_to_per_degree``. Linear properties and other SI values pass through.
+These two conversions apply only to angular axes. Non-SI stages fail explicitly.
 
 ``usd_fields`` discovers inherited getter declarations without invoking the getters.
 The declaration scope distinguishes body, joint, collider, material and array properties
@@ -91,12 +89,12 @@ Newton uses this to retain native MuJoCo limits instead of authoring fallback fo
 Inertia uses an explicit multi-output representation transform:
 ``principal_inertia`` reads the tensor and declared COM quaternion input, preserves an
 existing principal frame where possible, and returns principal moments and axes. Each
-output has its own source unit and follows the same generic USD write path. This
+output follows the same generic USD write path. This
 representation change is separate from unit conversion.
 
 Cable properties use the same declarations on ``CableObjectData``. The owner resolves
-per-environment shape indices; the writer receives complete array rows. Declared native
-defaults may be omitted. The cable reader discovers those declarations at class level,
+per-environment shape indices; the writer receives complete effective array rows, including
+default-valued entries so reconstruction does not depend on builder defaults. The cable reader discovers those declarations at class level,
 without constructing live backend data. There is no separate export field table.
 
 Native loading and optional solver settings
@@ -129,9 +127,9 @@ interpret the terrain heightfield marker. A consumer matching Isaac Lab's terrai
 representation can reuse its existing geometry adapter before ``add_usd``::
 
     from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.assets.physics_properties import NewtonContactData
+    from isaaclab_newton.physics.contact_data import NewtonContactData
 
-    terrain_paths = NewtonManager._inject_terrain_heightfields(stage, builder, root_paths=("/",))
+    terrain_paths = NewtonManager._inject_terrain_heightfields(stage, builder, root_paths=("/",), device="cuda:0")
     for row, shape_path in enumerate(builder.shape_label):
         NewtonContactData.restore_fixed_configuration(stage.GetPrimAtPath(shape_path), builder, row)
     # Pass ignore_paths=terrain_paths to add_usd to avoid importing the terrain twice.
@@ -144,8 +142,10 @@ is a different geometry representation and needs its own physical-semantics vali
 Set ``include_solver_settings=True`` on ``scene.export_to_usd`` to request available
 Newton MJWarp settings. Other Newton solvers still export scene/assets; VBD, XPBD,
 Kamino and coupled solver settings are not serialized or reconstructed. Determinism is
-excluded. PhysX and OVPhysX keep their supported scene settings and integer timestep
-frequency; Newton asset export does not require that PhysX representation. Missing optional
+excluded. PhysX and OVPhysX keep their supported scene settings, including the frequency
+used to cook automatic contacts. The integration timestep [s] is recorded separately in
+``stage.GetRootLayer().customLayerData["isaaclab:physicsDt"]``; use it when stepping the
+fresh backend rather than inferring it from the cooking frequency. Missing optional
 settings never prevent scene/asset export or loading.
 
 MJWarp iterations use the native ``mjc:option:iterations`` attribute. Remaining supported

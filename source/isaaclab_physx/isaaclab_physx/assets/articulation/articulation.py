@@ -192,10 +192,9 @@ class Articulation(BaseArticulation):
         for path, name in zip(view.dof_paths[env_index], self.backend_joint_names):
             prim = self.stage.GetPrimAtPath(str(path))
             row = self.joint_names.index(name)
-            if prim.IsA(UsdPhysics.RevoluteJoint):
-                axes[row] = "angular"
-            elif prim.IsA(UsdPhysics.PrismaticJoint):
-                axes[row] = "linear"
+            axis = AssetPaths.scalar_joint_axis(prim)
+            if axis is not None:
+                axes[row] = axis
             elif prim.GetPrimTypeInfo().GetSchemaType() == UsdPhysics.Joint._GetStaticTfType():
                 _, _, suffix = name.rpartition(":")
                 if suffix not in {"0", "1", "2"}:
@@ -203,14 +202,8 @@ class Articulation(BaseArticulation):
                 # PhysX exposes spherical DOFs in twist, swing1, swing2 order.
                 axes[self.joint_names.index(name)] = ("rotX", "rotY", "rotZ")[int(suffix)]
         return AssetPaths(
-            [
-                (str(path), self.body_names.index(name))
-                for path, name in zip(view.link_paths[env_index], self.backend_body_names)
-            ],
-            [
-                (str(path), self.joint_names.index(name))
-                for path, name in zip(view.dof_paths[env_index], self.backend_joint_names)
-            ],
+            AssetPaths.rows(view.link_paths[env_index], self.backend_body_names, self.body_names),
+            AssetPaths.rows(view.dof_paths[env_index], self.backend_joint_names, self.joint_names),
             axes,
         )
 

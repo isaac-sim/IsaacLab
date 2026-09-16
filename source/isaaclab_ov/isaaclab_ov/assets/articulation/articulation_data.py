@@ -14,7 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-from isaaclab.assets.physics_properties import UsdAttribute, source_units, usd_field
+from isaaclab.assets.physics_properties import UsdAttribute, per_radian_to_per_degree, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
@@ -492,7 +492,6 @@ class ArticulationData(BaseArticulationData):
     @usd_field(
         UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
     )
-    @source_units(angular="N*m", linear="N")
     def joint_friction_coeff(self) -> ProxyArray:
         """Joint static friction effort [N*m or N, depending on joint type].
 
@@ -511,7 +510,6 @@ class ArticulationData(BaseArticulationData):
     @usd_field(
         UsdAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
     )
-    @source_units(angular="N*m", linear="N")
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
         """Joint dynamic friction effort [N*m or N, depending on joint type].
 
@@ -532,9 +530,9 @@ class ArticulationData(BaseArticulationData):
             "physxJointAxis:{axis}:viscousFrictionCoefficient",
             "PhysxJointAxisAPI:{axis}",
             type_name="float",
-        )
+        ),
+        angular_conversion=per_radian_to_per_degree,
     )
-    @source_units(angular="N*m*s/rad", linear="N*s/m")
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient [N*m*s/rad or N*s/m, depending on joint type].
 

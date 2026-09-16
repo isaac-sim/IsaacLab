@@ -26,8 +26,8 @@ import warp as wp
 
 from pxr import Sdf, UsdPhysics
 
-from isaaclab.assets.physx_contact_data import PhysxContactData
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics.physx_contact_data import PhysxContactData
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
@@ -757,7 +757,12 @@ class OvPhysxManager(PhysicsManager):
         from isaaclab_ov.sim.views import OvPhysxView
 
         super().author_fixed_configuration(writer, scene)
-        writer.write_physx_timestep(scene.physics_scene_path, scene.sim.get_physics_dt())
+        # Preserve the frequency used to cook automatic contacts; it can differ from integration dt.
+        frequency = (
+            scene.sim.stage.GetPrimAtPath(scene.physics_scene_path).GetAttribute("physxScene:timeStepsPerSecond").Get()
+        )
+        if frequency is not None:
+            writer.write_physx_timestep(scene.physics_scene_path, 1.0 / frequency)
         writer.write_gravity(scene.physics_scene_path, cls.get_gravity())
         tokens = (
             TT.RIGID_BODY_DISABLE_GRAVITY,
@@ -765,11 +770,13 @@ class OvPhysxManager(PhysicsManager):
             TT.RIGID_BODY_CONTACT_OFFSET,
             TT.RIGID_BODY_REST_OFFSET,
         )
+        if writer.preserve_source_contacts:
+            tokens = tokens[:1]
         for path in sorted(writer.body_paths):
             view = OvPhysxView(cls._physx, prim_paths=[path], device="cpu", tensor_types=list(tokens), eager=True)
             try:
                 values = [view.get_attribute(token).numpy()[0] for token in tokens]
-                PhysxContactData(bool(values[0]), *values[1:]).author_configuration(writer, path)
+                writer.write_body_contacts(PhysxContactData(bool(values[0]), *values[1:]), path)
             finally:
                 view.close()
 
@@ -1210,11 +1217,6 @@ class OvPhysxManager(PhysicsManager):
         # Propagate scene query support from SimulationCfg so omni.physx creates
         # the scene with the correct query mode.  OvPhysxCfg does not carry this field.
         sim_cfg = PhysicsManager._sim.cfg if PhysicsManager._sim is not None else None
-        if sim_cfg is not None:
-            # Native automatic contact offsets depend on this frequency, not simulate()'s dt.
-            scene_prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.UInt).Set(
-                int(1 / sim_cfg.dt)
-            )
         enable_sq = getattr(sim_cfg, "enable_scene_query_support", False)
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
 

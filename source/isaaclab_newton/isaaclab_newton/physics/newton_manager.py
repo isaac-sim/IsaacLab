@@ -623,7 +623,7 @@ class NewtonManager(PhysicsManager):
         """Write effective selected-world contacts, including unregistered static geometry."""
         from pxr import UsdPhysics
 
-        from isaaclab_newton.assets.physics_properties import NewtonContactData
+        from isaaclab_newton.physics.contact_data import NewtonContactData
 
         model = cls.get_model()
         data = NewtonContactData(model)
@@ -1951,7 +1951,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _inject_terrain_heightfields(
-        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str]
+        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str], device: str
     ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
@@ -1971,6 +1971,7 @@ class NewtonManager(PhysicsManager):
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
             root_paths: Concrete subtree roots to scan.
+            device: Device used to rasterize the source mesh.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
@@ -1997,7 +1998,6 @@ class NewtonManager(PhysicsManager):
             # Transform vertices into world frame (USD uses row-vector convention).
             mat = np.array(xform_cache.GetLocalToWorldTransform(mesh_prim), dtype=np.float64).reshape(4, 4)
             world = (points @ mat[:3, :3] + mat[3, :3]).astype(np.float32)
-            device = str(PhysicsManager._device or "cpu")
             wp_mesh = wp.Mesh(
                 points=wp.array(world, dtype=wp.vec3, device=device),
                 indices=wp.array(faces, dtype=wp.int32, device=device),
@@ -2077,7 +2077,9 @@ class NewtonManager(PhysicsManager):
         # ordering arguments are ever passed here, update the resolver
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder, root_paths=("/",))
+        hf_ignore_paths = cls._inject_terrain_heightfields(
+            stage, builder, root_paths=("/",), device=PhysicsManager.get_device()
+        )
         solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:

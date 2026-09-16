@@ -127,13 +127,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Pair concrete view identities with public data rows in a fixed single environment."""
         from isaaclab.sim.usd_export import AssetPaths
 
-        view = self.root_view
-        model = SimulationManager.get_model()
-        layout = view.frequency_layouts[model.get_attribute_frequency("body_mass")]
-        paths = [
-            model.body_label[layout.offset + env_index * layout.stride_between_worlds + i * layout.stride_within_worlds]
-            for i in range(view.count_per_world)
-        ]
+        from isaaclab_newton.sim.views.identity import body_paths
+
+        paths = body_paths(self.root_view, SimulationManager.get_model(), env_index)
         return AssetPaths(list(zip(paths, range(len(paths)))), [])
 
     @property

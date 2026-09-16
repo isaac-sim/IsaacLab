@@ -364,7 +364,7 @@ class Articulation(BaseArticulation):
                 if count != 1:
                     raise RuntimeError(f"Unexpected DOF count for {path}: {count}.")
                 row = self.joint_names.index(self.backend_joint_names[offset])
-                axes[row] = "angular" if prim.IsA(UsdPhysics.RevoluteJoint) else "linear"
+                axes[row] = AssetPaths.scalar_joint_axis(prim)
             elif prim.GetPrimTypeInfo().GetSchemaType() == UsdPhysics.Joint._GetStaticTfType():
                 for local in range(count):
                     vector = native_axes[offset + local]
@@ -377,8 +377,8 @@ class Articulation(BaseArticulation):
                 raise NotImplementedError(f"No independent per-axis representation for {path} ({prim.GetTypeName()}).")
             offset += count
         return AssetPaths(
-            [(path, self.body_names.index(name)) for path, name in zip(view.body_labels, self.backend_body_names)],
-            [(path, self.joint_names.index(name)) for path, name in zip(dofs, self.backend_joint_names)],
+            AssetPaths.rows(view.body_labels, self.backend_body_names, self.body_names),
+            AssetPaths.rows(dofs, self.backend_joint_names, self.joint_names),
             axes,
         )
 

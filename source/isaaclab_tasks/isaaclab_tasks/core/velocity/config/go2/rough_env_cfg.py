@@ -6,7 +6,7 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RobotMaterialCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import ROBOT_MATERIAL_CFG, LocomotionVelocityRoughEnvCfg
 
 ##
 # Pre-defined configs
@@ -24,7 +24,7 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.sim.use_newton_actuators = True
         # scene
         self.scene.robot = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.physics_material = RobotMaterialCfg()
+        self.scene.robot.spawn.physics_material = ROBOT_MATERIAL_CFG.copy()
         # Material binding must reach colliders inside referenced instances.
         self.scene.robot.spawn.make_uninstanceable = True
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"

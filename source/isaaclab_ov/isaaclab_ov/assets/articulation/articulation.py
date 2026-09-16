@@ -221,10 +221,9 @@ class Articulation(BaseArticulation):
                         raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
                 if paths is joints and row not in axes:
                     prim = self.stage.GetPrimAtPath(matches[0])
-                    if prim.IsA(UsdPhysics.RevoluteJoint):
-                        axes[row] = "angular"
-                    elif prim.IsA(UsdPhysics.PrismaticJoint):
-                        axes[row] = "linear"
+                    axis = AssetPaths.scalar_joint_axis(prim)
+                    if axis is not None:
+                        axes[row] = axis
                     else:
                         raise NotImplementedError(f"No scalar joint axis for {matches[0]}.")
                 result.append((matches[0], row))

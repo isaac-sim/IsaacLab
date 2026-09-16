@@ -17,7 +17,7 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.assets.physics_properties import property_metadata, read_usd_array, usd_fields
+from isaaclab.assets.physics_properties import read_usd_array, usd_fields
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
@@ -71,10 +71,9 @@ class CableObject(BaseCableObject):
     @classmethod
     def restore_fixed_configuration(cls, stage, builder, cable_map) -> None:
         """Read the same data declarations after native curve import, without live data instances."""
-        from pxr import UsdPhysics
+        from isaaclab.sim.usd_export import validate_stage_units
 
-        from isaaclab.sim.usd_units import UnitConverter, UsdPhysicsUnits
-
+        validate_stage_units(stage)
         for path, (bodies, _) in cable_map.items():
             prim = stage.GetPrimAtPath(path)
             rows = np.flatnonzero(np.isin(builder.shape_body, bodies))
@@ -83,13 +82,6 @@ class CableObject(BaseCableObject):
                     value = read_usd_array(prim, declaration)
                     if value is None:
                         continue
-                    value = UnitConverter.convert(
-                        value,
-                        UsdPhysicsUnits.for_attribute(prim, declaration, None),
-                        property_metadata(CableObjectData, name, "_source_units"),
-                        length=UsdGeom.GetStageMetersPerUnit(stage),
-                        mass=UsdPhysics.GetStageKilogramsPerUnit(stage),
-                    )
                     if value.shape != rows.shape:
                         raise ValueError(f"Cable collider count mismatch for {path}.{declaration.attribute}.")
                     target = getattr(builder, name)

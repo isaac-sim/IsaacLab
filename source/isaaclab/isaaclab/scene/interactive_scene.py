@@ -521,7 +521,7 @@ class InteractiveScene:
         if self.surface_grippers:
             raise NotImplementedError("Deployment export does not support surface grippers.")
         writer = UsdWriter.from_stage(self.sim.stage)
-        writer.remove_unused_bindings()
+        writer.remove_ineffective_material_bindings()
         writer.include_solver_settings = include_solver_settings
         writer.preserve_source_contacts = preserve_source_contacts
         writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
@@ -552,11 +552,11 @@ class InteractiveScene:
         writer.write_fixed_root_frames()
         self.sim.physics_manager.author_fixed_configuration(writer, self)
         writer.clear_initial_velocities()
-        from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+        from isaaclab.sim.utils.queries import has_deformable_body_api
 
-        expected = {entry.root_path for entry in discover_deformables_on_stage(writer.stage)}
-        if expected != writer.deformable_paths:
-            raise RuntimeError(f"Incomplete deformable export: {expected ^ writer.deformable_paths}.")
+        for prim in writer.stage.Traverse():
+            if has_deformable_body_api(prim):
+                raise NotImplementedError(f"Deployment export does not support deformable body {prim.GetPath()}.")
         writer.validate()
         result = writer.save(path, validate=False)
         return result

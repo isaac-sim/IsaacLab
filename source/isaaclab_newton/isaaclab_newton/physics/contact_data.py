@@ -9,7 +9,7 @@
 import numpy as np
 from newton.usd import PrimType, SchemaResolverNewton
 
-from isaaclab.assets.physics_properties import UsdAttribute, property_metadata, source_units, usd_field, usd_fields
+from isaaclab.assets.physics_properties import UsdAttribute, property_metadata, usd_field, usd_fields
 
 
 class NewtonContactData:
@@ -18,13 +18,18 @@ class NewtonContactData:
     def __init__(self, model):
         self.model = model
 
+    def _shape_values(self, name: str) -> np.ndarray:
+        """Read native collider values with one leading world row."""
+        return getattr(self.model, name).numpy()[None, :]
+
     @classmethod
     def restore_fixed_configuration(cls, prim, builder, row: int) -> None:
         """Restore declared contacts on geometry constructed outside native USD import."""
-        from pxr import UsdGeom, UsdPhysics, UsdShade
+        from pxr import UsdShade
 
-        from isaaclab.sim.usd_units import UnitConverter, UsdPhysicsUnits
+        from isaaclab.sim.usd_export import validate_stage_units
 
+        validate_stage_units(prim.GetStage())
         material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
         for name, declarations in usd_fields(cls).items():
             scope = property_metadata(cls, name, "_usd_field")[2]
@@ -35,17 +40,9 @@ class NewtonContactData:
                 value = owner.GetAttribute(declaration.attribute).Get()
                 if value is None:
                     continue
-                value = UnitConverter.convert(
-                    value,
-                    UsdPhysicsUnits.for_attribute(owner, declaration, None),
-                    property_metadata(cls, name, "_source_units"),
-                    length=UsdGeom.GetStageMetersPerUnit(prim.GetStage()),
-                    mass=UsdPhysics.GetStageKilogramsPerUnit(prim.GetStage()),
-                )
                 getattr(builder, name)[row] = float(value)
 
     @property
-    @source_units("m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.SHAPE]["margin"].name, "NewtonCollisionAPI", type_name="float"
@@ -54,34 +51,30 @@ class NewtonContactData:
     )
     def shape_margin(self) -> np.ndarray:
         """Native margin [m], shape [1, shape_count]."""
-        return self.model.shape_margin.numpy()[None, :]
+        return self._shape_values("shape_margin")
 
     @property
-    @source_units("m")
     @usd_field(
         UsdAttribute(SchemaResolverNewton.mapping[PrimType.SHAPE]["gap"].name, "NewtonCollisionAPI", type_name="float"),
         scope="collision",
     )
     def shape_gap(self) -> np.ndarray:
         """Native gap [m], shape [1, shape_count]."""
-        return self.model.shape_gap.numpy()[None, :]
+        return self._shape_values("shape_gap")
 
     @property
-    @source_units("1")
     @usd_field(UsdAttribute("physics:dynamicFriction", "PhysicsMaterialAPI"), scope="material")
     def shape_material_mu(self) -> np.ndarray:
         """Native mu [1], shape [1, shape_count]."""
-        return self.model.shape_material_mu.numpy()[None, :]
+        return self._shape_values("shape_material_mu")
 
     @property
-    @source_units("1")
     @usd_field(UsdAttribute("physics:restitution", "PhysicsMaterialAPI"), scope="material")
     def shape_material_restitution(self) -> np.ndarray:
         """Native restitution [1], shape [1, shape_count]."""
-        return self.model.shape_material_restitution.numpy()[None, :]
+        return self._shape_values("shape_material_restitution")
 
     @property
-    @source_units("N/m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.MATERIAL]["ke"].name, "NewtonMaterialAPI", type_name="float"
@@ -90,10 +83,9 @@ class NewtonContactData:
     )
     def shape_material_ke(self) -> np.ndarray:
         """Native ke [N/m], shape [1, shape_count]."""
-        return self.model.shape_material_ke.numpy()[None, :]
+        return self._shape_values("shape_material_ke")
 
     @property
-    @source_units("N*s/m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.MATERIAL]["kd"].name, "NewtonMaterialAPI", type_name="float"
@@ -102,10 +94,9 @@ class NewtonContactData:
     )
     def shape_material_kd(self) -> np.ndarray:
         """Native kd [N*s/m], shape [1, shape_count]."""
-        return self.model.shape_material_kd.numpy()[None, :]
+        return self._shape_values("shape_material_kd")
 
     @property
-    @source_units("N*s/m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.MATERIAL]["kf"].name, "NewtonMaterialAPI", type_name="float"
@@ -114,10 +105,9 @@ class NewtonContactData:
     )
     def shape_material_kf(self) -> np.ndarray:
         """Native kf [N*s/m], shape [1, shape_count]."""
-        return self.model.shape_material_kf.numpy()[None, :]
+        return self._shape_values("shape_material_kf")
 
     @property
-    @source_units("m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.MATERIAL]["ka"].name, "NewtonMaterialAPI", type_name="float"
@@ -126,10 +116,9 @@ class NewtonContactData:
     )
     def shape_material_ka(self) -> np.ndarray:
         """Native ka [m], shape [1, shape_count]."""
-        return self.model.shape_material_ka.numpy()[None, :]
+        return self._shape_values("shape_material_ka")
 
     @property
-    @source_units("m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.MATERIAL]["mu_torsional"].name, "NewtonMaterialAPI", type_name="float"
@@ -138,10 +127,9 @@ class NewtonContactData:
     )
     def shape_material_mu_torsional(self) -> np.ndarray:
         """Native mu_torsional [m], shape [1, shape_count]."""
-        return self.model.shape_material_mu_torsional.numpy()[None, :]
+        return self._shape_values("shape_material_mu_torsional")
 
     @property
-    @source_units("m")
     @usd_field(
         UsdAttribute(
             SchemaResolverNewton.mapping[PrimType.MATERIAL]["mu_rolling"].name, "NewtonMaterialAPI", type_name="float"
@@ -150,4 +138,4 @@ class NewtonContactData:
     )
     def shape_material_mu_rolling(self) -> np.ndarray:
         """Native mu_rolling [m], shape [1, shape_count]."""
-        return self.model.shape_material_mu_rolling.numpy()[None, :]
+        return self._shape_values("shape_material_mu_rolling")
