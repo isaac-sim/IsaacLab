@@ -291,10 +291,14 @@ class OVRTXBackend:
 
 
 class OVRTXRenderData:
-    """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
+    """Owns one camera sensor's native resources and Warp output buffers."""
 
     def __init__(self, spec: CameraRenderSpec, device):
         """Create render data from a camera render specification."""
+        self.render_product_path: str | None = None
+        self.camera_xform_binding = None
+        self.camera_xform_query = None
+        self.resources = contextlib.ExitStack()
         self.width = spec.cfg.width
         self.height = spec.cfg.height
         self.num_envs = spec.num_instances
@@ -316,6 +320,21 @@ class OVRTXRenderData:
                 _raise_missing_ppisp_error(exc)
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
+
+    def cleanup(self) -> None:
+        """Release this camera's native resources and buffers. Safe to call repeatedly.
+
+        Resources are released in reverse acquisition order, before the shared renderer or stage
+        is closed. The product path remains as an identifier for renderer bookkeeping.
+        """
+        try:
+            self.resources.close()
+        finally:
+            self.camera_xform_binding = None
+            self.camera_xform_query = None
+            self.warp_buffers.clear()
+            self.renderer_info.clear()
+            self.ppisp_pipeline = None
 
 
 class OVRTXRenderer(BaseRenderer):
@@ -339,6 +358,8 @@ class OVRTXRenderer(BaseRenderer):
         # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
         self._warp_device: wp.Device | None = None
         self._render_product_paths = []
+        self._camera_render_data: list[OVRTXRenderData] = []
+        self._next_camera_id = 0
         # Shared by both paths. The legacy-only binding handles that pair with these live in
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
         # through its stage queries.
@@ -911,14 +932,125 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
-        # Resolve the device once through Warp: a bare "cuda" pins to Warp's current CUDA device
-        # here, and the normalized string keeps every downstream consumer (kernel launches,
-        # allocations) on that same device.
-        self._warp_device = wp.get_device(spec.device)
-        self._device = str(self._warp_device)
+        # Normalize aliases such as "cuda" before comparing cameras sharing this renderer.
+        warp_device = wp.get_device(spec.device)
+        if self._initialized_scene and str(warp_device) != self._device:
+            raise ValueError("Cameras sharing an OVRTX renderer must use the same device.")
+        self._warp_device = warp_device
+        self._device = str(warp_device)
+        render_data = OVRTXRenderData(spec, self._device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
-        return OVRTXRenderData(spec, self._device)
+            render_data.render_product_path = self._render_product_paths[0]
+            # Move the initial camera's handles into its render data, just like subsequent cameras.
+            if self._use_ovstage:
+                render_data.resources.callback(self.backend.paths.destroy_path_list, self._camera_paths_list)
+                render_data.camera_xform_query = render_data.resources.enter_context(self._camera_xform_query)
+                self._camera_xform_query = None
+                self._camera_paths_list = None
+            else:
+                render_data.camera_xform_binding, self._camera_xform_binding = self._camera_xform_binding, None
+                render_data.resources.callback(render_data.camera_xform_binding.unbind)
+        else:
+            try:
+                self._register_camera(spec, render_data)
+            except Exception:
+                render_data.cleanup()
+                raise
+        self._next_camera_id += 1
+        self._camera_render_data.append(render_data)
+        return render_data
+
+    def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
+        """Add another tiled product and camera binding without reloading the shared scene."""
+        camera_paths = list(spec.camera_prim_paths)
+        if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
+            raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+        scope = f"RenderCamera_{self._next_camera_id}"
+        data_types = list(spec.cfg.data_types or ["rgb"])
+        if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
+            data_types.append("rgb_hdr")
+        usd, product_path = build_render_product_as_string(
+            width=spec.cfg.width,
+            height=spec.cfg.height,
+            num_envs=spec.num_instances,
+            data_types=data_types,
+            minimal_mode=_resolve_rtx_minimal_mode(data_types),
+            camera_rel_path=spec.camera_path_relative_to_env_0,
+            background_color=getattr(spec.cfg, "background_color", None),
+            device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
+            render_scope_name=scope,
+        )
+        usd = f'#usda 1.0\n(defaultPrim = "{scope}")\n' + usd
+        render_data.render_product_path = product_path
+        if self._use_ovstage:
+            reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
+            render_data.resources.callback(self._remove_camera_reference, reference)
+            ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
+            product_paths = self.backend.paths.create_path_list_from_strings([product_path])
+            try:
+                with self.backend.stage.query_from_path_list(product_paths) as query:
+                    # USD references drop external camera targets; author the relationship in Fabric.
+                    self.backend.stage.write_attribute(
+                        query,
+                        "camera",
+                        ordinal=self._current_ordinal,
+                        tensors=np.array([self.backend.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
+                        is_array=True,
+                        semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
+                    ).wait()
+            finally:
+                self.backend.paths.destroy_path_list(product_paths)
+            camera_paths_list = self.backend.paths.create_path_list_from_strings(camera_paths)
+            render_data.resources.callback(self.backend.paths.destroy_path_list, camera_paths_list)
+            render_data.camera_xform_query = render_data.resources.enter_context(
+                self.backend.stage.query_from_path_list(camera_paths_list)
+            )
+            self.backend.stage.write_attribute(
+                render_data.camera_xform_query,
+                "omni:resetXformStack",
+                ordinal=self._current_ordinal,
+                tensors=np.full(spec.num_instances, True, dtype=np.bool_),
+                is_array=False,
+            ).wait()
+            self.backend.stage.write_attribute(
+                render_data.camera_xform_query,
+                "omni:scenePartition",
+                ordinal=self._current_ordinal,
+                tensors=np.array(
+                    [self.backend.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)], dtype=np.uint64
+                ),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.TOKEN_ID,
+            ).wait()
+        else:
+            reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
+            render_data.resources.callback(self.backend.renderer.remove_usd, reference)
+            self.backend.renderer.write_array_attribute(
+                prim_paths=[product_path],
+                attribute_name="camera",
+                tensors=[camera_paths],
+            )
+            render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
+                prim_paths=camera_paths,
+                attribute_name="omni:xform",
+                semantic=Semantic.XFORM_MAT4x4,
+                prim_mode=PrimMode.EXISTING_ONLY,
+            )
+            render_data.resources.callback(render_data.camera_xform_binding.unbind)
+            self.backend.renderer.write_attribute(
+                prim_paths=camera_paths,
+                attribute_name="omni:resetXformStack",
+                tensor=np.full(spec.num_instances, True, dtype=np.bool_),
+            )
+            self.backend.renderer.write_attribute(
+                camera_paths,
+                "omni:scenePartition",
+                [f"env_{i}" for i in range(spec.num_instances)],
+                semantic=Semantic.TOKEN_STRING,
+            )
+        self._render_product_paths.append(product_path)
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -1086,8 +1218,8 @@ class OVRTXRenderer(BaseRenderer):
             inputs=[positions, converted_wp, camera_transforms],
             device=self._device,
         )
-        if self._camera_xform_binding is not None:
-            self._camera_xform_binding.write(
+        if render_data.camera_xform_binding is not None:
+            render_data.camera_xform_binding.write(
                 camera_transforms,
                 data_access=DataAccess.ASYNC,
                 cuda_stream=self._warp_device.stream.cuda_stream,
@@ -1509,7 +1641,7 @@ class OVRTXRenderer(BaseRenderer):
             if material_writer is not None:
                 material_writer.publish()
             products = self.backend.renderer.step(
-                render_products=set(self._render_product_paths),
+                render_products={render_data.render_product_path},
                 delta_time=1.0 / 60.0,
             )
         finally:
@@ -1517,7 +1649,7 @@ class OVRTXRenderer(BaseRenderer):
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
-        product_path = self._render_product_paths[0]
+        product_path = render_data.render_product_path
         if product_path in products and len(products[product_path].frames) > 0:
             self._process_render_frame(
                 render_data,
@@ -1678,18 +1810,26 @@ class OVRTXRenderer(BaseRenderer):
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
-        The stage queries, tensor bindings and render products this renderer holds are shared by
-        every camera that resolves to it, so releasing them here would tear the scene down while
-        the other cameras are still rendering. :meth:`close` releases them instead.
+        Each camera owns its product and pose binding. Scene and physics bindings remain alive
+        until :meth:`close`, so other cameras can continue rendering.
         """
         if render_data is None:
             return
-        render_data.warp_buffers.clear()
-        render_data.renderer_info.clear()
-        render_data.ppisp_pipeline = None
+        render_data.cleanup()
+        if render_data in self._camera_render_data:
+            self._camera_render_data.remove(render_data)
+        if render_data.render_product_path in self._render_product_paths:
+            self._render_product_paths.remove(render_data.render_product_path)
+
+    def _remove_camera_reference(self, reference: int) -> None:
+        """Publish removal of a camera's USD reference at the shared stage's current ordinal."""
+        ovstage.population.remove_usd(self.backend.stage, reference)
+        ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
     def close(self) -> None:
         """Release this renderer's bindings; the registry closes shared native resources at simulation shutdown."""
+        for render_data in tuple(self._camera_render_data):
+            self.cleanup(render_data)
         if self._use_ovstage:
             self._close_ovstage()
         else:
@@ -2321,10 +2461,10 @@ class OVRTXRenderer(BaseRenderer):
             inputs=[positions, converted_wp, camera_transforms],
             device=self._device,
         )
-        if self._camera_xform_query is not None:
+        if render_data.camera_xform_query is not None:
             # Stream-ordered zero-copy handoff, as for the object transforms above.
             self.backend.stage.write_attribute(
-                self._camera_xform_query,
+                render_data.camera_xform_query,
                 "omni:xform",
                 ordinal=self._current_ordinal,
                 tensors=xform_tensor_from_warp(camera_transforms),
@@ -2351,12 +2491,12 @@ class OVRTXRenderer(BaseRenderer):
                 with drain_errors:
                     material_writer.drain()
         products = self.backend.renderer.step(
-            render_products=set(self._render_product_paths),
+            render_products={render_data.render_product_path},
             delta_time=1.0 / 60.0,
             ordinal=self._current_ordinal,
         )
         self._current_ordinal += 1
-        product_path = self._render_product_paths[0]
+        product_path = render_data.render_product_path
         if product_path in products and len(products[product_path].frames) > 0:
             self._process_render_frame(
                 render_data,

@@ -176,6 +176,7 @@ def build_render_scope_usd(
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
     enable_shadows: bool = False,
+    render_scope_name: str = "Render",
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -196,6 +197,7 @@ def build_render_scope_usd(
             OVRTX assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored in RTX Minimal
             mode, that is when ``minimal_mode`` is set; the path-traced modes always cast shadows.
+        render_scope_name: Root scope containing the product and its render variables.
 
     Returns:
         The USD string for the render scope.
@@ -240,7 +242,7 @@ def build_render_scope_usd(
     )
 
     return f'''
-def Scope "Render"
+def Scope "{render_scope_name}"
 {{
     def RenderProduct "{render_product_name}" (
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
@@ -279,6 +281,7 @@ def build_render_product_as_string(
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
     enable_shadows: bool = False,
+    render_scope_name: str = "Render",
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
@@ -302,6 +305,7 @@ def build_render_product_as_string(
             assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
+        render_scope_name: Unique root scope for this camera sensor.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -311,9 +315,12 @@ def build_render_product_as_string(
 
     camera_paths = [f"/World/envs/env_0/{camera_rel_path}"]
     render_product_name = "RenderProduct"
-    render_product_path = f"/Render/{render_product_name}"
+    render_product_path = f"/{render_scope_name}/{render_product_name}"
 
-    render_var_configs = get_render_var_configs(data_types)
+    render_var_configs = [
+        (path.replace("/Render/", f"/{render_scope_name}/", 1), name, source)
+        for path, name, source in get_render_var_configs(data_types)
+    ]
     render_var_path, render_var_name, source_name = render_var_configs[0]
 
     camera_content = build_render_scope_usd(
@@ -329,6 +336,7 @@ def build_render_product_as_string(
         background_color,
         device_id,
         enable_shadows,
+        render_scope_name,
     )
     return camera_content, render_product_path
 

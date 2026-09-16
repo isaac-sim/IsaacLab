@@ -108,6 +108,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._warp_device = SimpleNamespace(ordinal=0)
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
+    renderer._camera_render_data = []
+    renderer._next_camera_id = 0
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
@@ -470,7 +472,7 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
 
     open_calls: list[str] = []
     renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
-    renderer.backend.renderer.bind_attribute = lambda **kwargs: object()
+    renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
     renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
     renderer._initialize_from_spec(_make_camera_render_spec(num_envs=1))
@@ -494,7 +496,7 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     renderer._exported_usd_string = "#usda 1.0\n"
 
     renderer.backend.renderer.open_usd_from_string = lambda _usd_string: None
-    renderer.backend.renderer.bind_attribute = lambda **kwargs: object()
+    renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
     renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
     class _FakeWarpDevice:
