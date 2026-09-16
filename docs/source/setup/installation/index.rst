@@ -239,6 +239,11 @@ See :ref:`installation-optional-extras` for the available extras.
 ``uv run --extra <name> <command>`` syncs the selected extra into the project environment
 and then runs the command.
 
+The source checkout selects PyTorch's CUDA build through platform-specific indexes: CUDA 12.8 on
+Linux x86_64 and Windows, and CUDA 13.0 on Linux aarch64. No additional command flags are needed.
+The published wheel pins the PyTorch versions, but downstream uv projects must configure their own
+PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
+
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
 
@@ -566,6 +571,24 @@ To create a project built on Isaac Lab, see :ref:`template-generator`.
 .. note::
 
    Isaac Lab wheels are published for major releases, not every patch release.
+
+Installing an unreleased Git revision
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The aggregate package can also be built directly from an Isaac Lab Git revision. Point uv at the
+``tools/wheel_builder`` subdirectory so it uses the same dependency metadata and packaged runtime
+resources as a released wheel:
+
+.. code-block:: toml
+
+   [project]
+   dependencies = ["isaaclab"]
+
+   [tool.uv.sources]
+   isaaclab = { git = "https://github.com/isaac-sim/IsaacLab.git", rev = "<git-revision>", subdirectory = "tools/wheel_builder" }
+
+Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
+updating the lockfile can then select a newer Isaac Lab revision and dependency set.
 
 Choose how you want uv to manage the dependency. Both workflows start with the base
 ``isaaclab`` package; add optional capabilities only when your project needs them.
