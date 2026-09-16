@@ -11,16 +11,17 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 
-@configclass
-class SimulationCfg:
+@dataclass
+class SimulationCfg(ConfigMixin):
     """Configuration for simulation physics.
 
     This class contains the main simulation parameters including physics time-step, gravity,
@@ -46,7 +47,7 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
-    physics_material: RigidBodyMaterialBaseCfg = RigidBodyMaterialBaseCfg()
+    physics_material: RigidBodyMaterialBaseCfg = field(default_factory=RigidBodyMaterialBaseCfg)
     """Default physics material settings for rigid bodies. Default is RigidBodyMaterialBaseCfg.
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
@@ -124,7 +125,7 @@ class SimulationCfg:
     If None, the logs will be saved to the temp directory.
     """
 
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = field(default_factory=list)
     """The visualizer configuration(s). Default is an empty list."""
 
     default_visualizer_cfg: VisualizerCfg | None = None

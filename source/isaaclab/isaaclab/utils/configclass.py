@@ -13,7 +13,7 @@ import types
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Self
 
 from .dict import class_to_dict, update_class_from_dict
 from .string import ResolvableString
@@ -116,6 +116,47 @@ def configclass(cls, **kwargs):
     cls = dataclass(cls, **kwargs)
     # return wrapped class
     return cls
+
+
+class ConfigMixin:
+    """Provide Isaac Lab configuration helpers to standard dataclasses.
+
+    Classes using this mixin must also be decorated with :func:`dataclasses.dataclass`. Mutable defaults must use
+    :func:`dataclasses.field` factories, as required by standard dataclasses. Subclasses that define
+    ``__post_init__`` must call ``super().__post_init__()`` to retain independent mutable values and resolvable-string
+    handling.
+    """
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        """Record fields declared by each subclass for relative string resolution."""
+        super().__init_subclass__(**kwargs)
+        own_annotations = set(cls.__dict__.get("__annotations__", {}))
+        own_attributes = {key for key in cls.__dict__ if not key.startswith("__")}
+        cls.__configclass_own_fields__ = frozenset(own_annotations | own_attributes)
+
+    def __post_init__(self) -> None:
+        """Copy field values and resolve callable strings after dataclass initialization."""
+        _custom_post_init(self)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert this configuration into a dictionary recursively."""
+        return _class_to_dict(self)
+
+    def from_dict(self, data: dict[str, Any]) -> None:
+        """Update this configuration recursively from a dictionary."""
+        _update_class_from_dict(self, data)
+
+    def replace(self, **kwargs) -> Self:
+        """Return a copy with the specified fields replaced."""
+        return _replace_class_with_kwargs(self, **kwargs)
+
+    def copy(self) -> Self:
+        """Return a copy of this configuration."""
+        return _copy_class(self)
+
+    def validate(self) -> list[str]:
+        """Validate that this configuration contains no missing values."""
+        return _validate(self)
 
 
 """

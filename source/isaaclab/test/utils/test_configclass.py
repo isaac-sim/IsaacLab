@@ -10,14 +10,14 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import MISSING, asdict, field
+from dataclasses import MISSING, asdict, dataclass, field
 from functools import wraps
 from typing import Any, ClassVar
 
 import pytest
 import torch
 
-from isaaclab.utils.configclass import _field_module_dir, configclass
+from isaaclab.utils.configclass import ConfigMixin, _field_module_dir, configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
@@ -690,6 +690,26 @@ def test_dir_resolution_uses_declaring_class_for_inherited_field():
         pass
 
     # Simulate subclass declared in a different package than the parent config.
+    _BaseCfg.__module__ = "test_pkg.parent.base_cfg"
+    _ChildCfg.__module__ = "other_pkg.child.child_cfg"
+
+    cfg = _ChildCfg()
+
+    assert isinstance(cfg.class_type, ResolvableString)
+    assert str(cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
+
+
+def test_dataclass_mixin_dir_resolution_uses_declaring_class_for_inherited_field():
+    """Standard dataclass fields should retain their declaring module for {DIR} expansion."""
+
+    @dataclass
+    class _BaseCfg(ConfigMixin):
+        class_type: str = field(default_factory=lambda: "{DIR}.base_mod:BaseSymbol")
+
+    @dataclass
+    class _ChildCfg(_BaseCfg):
+        pass
+
     _BaseCfg.__module__ = "test_pkg.parent.base_cfg"
     _ChildCfg.__module__ = "other_pkg.child.child_cfg"
 
