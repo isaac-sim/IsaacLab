@@ -96,7 +96,9 @@ class NewtonCouplerManager(NewtonVBDManager):
             native = solver.solver(name)
             runtime = solver._entries[name]
             if isinstance(native, SolverMuJoCo):
-                NewtonMJWarpManager.author_solver_configuration(writer, scene, native, configs[name])
+                NewtonMJWarpManager.author_solver_configuration(
+                    writer, scene, native, configs[name], scene_settings=False
+                )
                 driver = dict(writer.stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"])
             elif isinstance(native, SolverVBD):
                 driver = {"solver": "vbd", "options": json.dumps(cls.export_solver_options(native, configs[name]))}
@@ -133,7 +135,7 @@ class NewtonCouplerManager(NewtonVBDManager):
                     raise NotImplementedError(
                         "Proxy collision factories require a serializable CollisionPipeline configuration."
                     )
-                values["collision_pipeline"] = pipeline.keywords
+                values["collision_pipeline"] = {k: v for k, v in pipeline.keywords.items() if k != "deterministic"}
             proxies.append(values)
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
@@ -148,9 +150,6 @@ class NewtonCouplerManager(NewtonVBDManager):
         cls, model: Model, options: dict, particle_paths: dict[tuple[str, int], int]
     ) -> SolverCoupledProxy:
         """Construct the coupled backend solely from exported physical settings and identities."""
-        import json
-
-        from newton.solvers import SolverMuJoCo
 
         lookup = {
             kind: {path: i for i, path in enumerate(getattr(model, kind + "_label"))}
@@ -162,14 +161,9 @@ class NewtonCouplerManager(NewtonVBDManager):
             return [lookup[kind][tuple(path) if kind == "particle" else path] for path in paths]
 
         def factory(driver, view):
-            values = json.loads(driver["options"])
-            if driver["solver"] == "mujoco":
-                if "deterministic" in values:
-                    values["deterministic"] = wp.DeterministicMode(values["deterministic"])
-                return SolverMuJoCo(view, **values)
-            if driver["solver"] == "vbd":
-                return NewtonVBDManager.load_exported_solver(view, values)
-            raise ValueError(f"Unknown exported solver {driver['solver']}.")
+            from isaaclab_newton.physics.deployment import create_deployment_solver
+
+            return create_deployment_solver(view, driver)
 
         entries = [
             SolverCoupled.Entry(

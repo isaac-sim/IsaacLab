@@ -20,6 +20,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sim.usd_export_properties import UsdMaterialWriter
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -167,10 +168,14 @@ class DeformableObject(AssetBase):
 
         row = writer.env_index
         path = writer.resolve_paths(AssetPaths([(self.root_view.prim_paths[row], 0)], [])).bodies[0][0]
-        writer.write_deformable_points(path, self.data.nodal_pos_w.torch[row].cpu().numpy())
+        from isaaclab.scene_data.deformable_discovery import _classify_deformable_meshes
+
+        _, mesh, _, count, *_ = _classify_deformable_meshes(writer.stage.GetPrimAtPath(path))
+        writer.write_deformable_points(mesh, self.data.nodal_pos_w.torch[row, :count].cpu().numpy())
+        writer.deformable_paths.add(path)
         material_view = self.material_physx_view
         if material_view is not None:
-            material = writer.material_for_override(writer.stage.GetPrimAtPath(path))
+            material = UsdMaterialWriter(writer).for_override(writer.stage.GetPrimAtPath(path))
             material_row = row if material_view.count > 1 else 0
             for field, attribute in (
                 ("dynamic_friction", "dynamicFriction"),

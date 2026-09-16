@@ -113,7 +113,7 @@ class PhysicsManager(ABC):
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:configuration": (
-                "deployment after one-time prestartup/startup initialization; "
+                "deployment after fixed initialization, before startup randomization; "
                 "reset/interval and controller/sensor runtime excluded"
             ),
         }

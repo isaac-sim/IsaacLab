@@ -16,6 +16,7 @@ from newton import Contacts, JointType, Model
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
+from isaaclab.sim.usd_export_properties import UsdMassPropertiesWriter, UsdMaterialWriter
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mjwarp_tendon_control import MjWarpTendonControl
@@ -47,7 +48,13 @@ class NewtonMJWarpManager(NewtonManager):
 
     @classmethod
     def author_solver_configuration(
-        cls, writer: UsdWriter, scene: InteractiveScene, solver: SolverMuJoCo, solver_cfg: MJWarpSolverCfg
+        cls,
+        writer: UsdWriter,
+        scene: InteractiveScene,
+        solver: SolverMuJoCo,
+        solver_cfg: MJWarpSolverCfg,
+        *,
+        scene_settings: bool = True,
     ) -> None:
         """Write a standalone or coupled MuJoCo solver's native configuration."""
         import json
@@ -74,6 +81,7 @@ class NewtonMJWarpManager(NewtonManager):
             return np.asarray(data)
 
         options = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
+        options.pop("deterministic", None)
         options.pop("save_to_mjcf", None)
         options.pop("ls_parallel", None)
         for name in tuple(options):
@@ -92,6 +100,13 @@ class NewtonMJWarpManager(NewtonManager):
         options["disable_contacts"] = bool(flags & mujoco.mjtDisableBit.mjDSBL_CONTACT)
         options["disable_sensors"] = bool(flags & mujoco.mjtDisableBit.mjDSBL_SENSOR)
         options["enable_multiccd"] = not bool(flags & mujoco.mjtDisableBit.mjDSBL_MULTICCD)
+        if scene_settings:
+            from newton.usd import PrimType, SchemaResolverMjc
+
+            target = SchemaResolverMjc.mapping[PrimType.SCENE]["max_solver_iterations"].name
+            writer.write_attribute(
+                scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+            )
         options = {name: option for name, option in options.items() if option is not None}
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
@@ -113,7 +128,7 @@ class NewtonMJWarpManager(NewtonManager):
             rotation = np.asarray(Gf.Matrix3d(Gf.Quatd(float(quat[0]), Gf.Vec3d(*map(float, quat[1:]))))).T
             inertia = rotation @ np.diag(body_values["inertia"][body]) @ rotation.T
             com = np.concatenate((body_values["ipos"][body], quat[1:], quat[:1]))
-            writer.write_mass_properties(prim, float(body_values["mass"][body]), inertia, com)
+            UsdMassPropertiesWriter(writer).write(prim, float(body_values["mass"][body]), inertia, com)
             writer.write_attribute(
                 path, UsdAttribute("mjc:gravcomp", type_name="float"), float(body_values["gravcomp"][body])
             )
@@ -225,7 +240,7 @@ class NewtonMJWarpManager(NewtonManager):
             if not material or any(
                 material.GetPrim().GetAttribute(name).Get() != float(v) for name, v in native_friction.items()
             ):
-                material = writer.material_for_override(prim)
+                material = UsdMaterialWriter(writer).for_override(prim)
                 for name, v in native_friction.items():
                     writer.write_attribute(str(material.GetPath()), UsdAttribute(name, type_name="float"), float(v))
                 # Explicit MuJoCo attributes take precedence over the Newton material bridge.

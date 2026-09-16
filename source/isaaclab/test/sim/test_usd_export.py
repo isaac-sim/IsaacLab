@@ -20,7 +20,9 @@ from isaaclab.assets.physics_properties import (
     usd_fields,
 )
 from isaaclab.scene import InteractiveScene
+from isaaclab.scene_data.physx_export import author_body_contacts
 from isaaclab.sim.usd_export import UsdWriter
+from isaaclab.sim.usd_export_properties import UsdMassPropertiesWriter
 
 
 @pytest.fixture
@@ -72,7 +74,7 @@ def test_body_contacts_respect_nested_body_ownership(scene):
         UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(path))
     writer = UsdWriter.from_stage(stage)
     for path, friction in ((parent, 0.25), (child, 0.75)):
-        writer.write_body_contacts(path, False, [[friction, friction, 0]], [0.02], [0])
+        author_body_contacts(writer, path, False, [[friction, friction, 0]], [0.02], [0])
     for path, friction in ((parent, 0.25), (child, 0.75)):
         material, _ = UsdShade.MaterialBindingAPI(writer.stage.GetPrimAtPath(path)).ComputeBoundMaterial("physics")
         assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == friction
@@ -105,6 +107,9 @@ def test_copy_removes_only_ineffective_dangling_material_bindings(purpose, inher
     }
 
     writer = UsdWriter.from_stage(stage)
+    from isaaclab.sim.usd_export_properties import UsdMaterialWriter
+
+    UsdMaterialWriter(writer).remove_unused_bindings()
     output = str(tmp_path / "scene.usda")
     if inherited_purpose is None:
         writer.save(output)
@@ -277,12 +282,13 @@ def test_required_backend_binding_and_property_shadow_fail():
         usd_fields(Shadow)
 
 
-def test_articulation_rejects_unsupported_driven_joint():
+def test_articulation_rejects_unsupported_driven_joint(monkeypatch):
     from isaaclab.assets import BaseArticulation
     from isaaclab.sim.usd_export import AssetPaths
 
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.SphericalJoint.Define(stage, "/Joint")
+    monkeypatch.setattr("isaaclab.sim.usd_export_properties.UsdMassPropertiesWriter.write_bodies", lambda *_: None)
     asset = SimpleNamespace(cfg=ArticulationCfg(prim_path="/Robot", actuators={}), num_joints=1, data=None)
     asset._usd_export_paths = lambda env_index=0: AssetPaths([], [("/Joint", 0)])
     writer = SimpleNamespace(
@@ -416,8 +422,18 @@ def test_multi_axis_joint_values_do_not_overwrite_other_axes():
     joint = UsdPhysics.Joint.Define(stage, "/Joint")
     writer = UsdWriter(stage)
     for axis, angle, stiffness in (("rotX", 0.2, 13.0), ("rotZ", 0.7, 29.0)):
-        writer.write_attribute("/Joint", UsdAttribute("physics:lowerLimit", angular_power=1), -angle, axis=axis)
-        writer.write_attribute("/Joint", UsdAttribute("physics:upperLimit", angular_power=1), angle, axis=axis)
+        writer.write_attribute(
+            "/Joint",
+            UsdAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", angular_power=1),
+            -angle,
+            axis=axis,
+        )
+        writer.write_attribute(
+            "/Joint",
+            UsdAttribute("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", angular_power=1),
+            angle,
+            axis=axis,
+        )
         writer.write_attribute(
             "/Joint",
             UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", angular_power=-1),
@@ -464,7 +480,7 @@ def test_fixed_properties_write_placement_and_zero_initial_velocities(scene):
         body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.0, 0, 0, 0, 0, 0, 1]]])),
     )
     writer = UsdWriter.from_stage(scene.sim.stage)
-    writer.write_bodies(data, [(path, 0)])
+    UsdMassPropertiesWriter(writer).write_bodies(data, [(path, 0)])
     writer.clear_initial_velocities()
     actual = writer.stage.GetPrimAtPath(path)
     velocities = UsdGeom.PointBased(writer.stage.GetPrimAtPath("/Cloth")).GetVelocitiesAttr()
@@ -504,9 +520,9 @@ def test_source_contacts_preserve_distinct_materials_and_automatic_offsets(scene
     args = (body, True, [[0.5, 0.5, 0], [1, 1, 0]], [0.004, 0.008], [0, 0])
     if not preserve:
         with pytest.raises(NotImplementedError, match="Distinct per-shape"):
-            writer.write_body_contacts(*args)
+            author_body_contacts(writer, *args)
         return
-    writer.write_body_contacts(*args)
+    author_body_contacts(writer, *args)
     assert writer.stage.GetPrimAtPath(body).GetAttribute("physxRigidBody:disableGravity").Get()
     for index, friction in enumerate((0.5, 1.0)):
         collider = writer.stage.GetPrimAtPath(f"{body}/Shape{index}")

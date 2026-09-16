@@ -14,16 +14,16 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 def _load(path: str, device="cpu") -> tuple[newton.Model, dict]:
     """Load through the production deployment reader, without task configuration."""
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.deployment import create_deployment_model
 
-    return NewtonManager.create_deployment_model(path, device)
+    return create_deployment_model(path, device)
 
 
 def _make_driver(model, name, driver, *, particle_paths=None):
     """Construct a native driver using only the artifact's settings."""
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.deployment import create_deployment_solver
 
-    return NewtonManager.create_deployment_solver(model, {"solver": name, **driver}, particle_paths=particle_paths)
+    return create_deployment_solver(model, {"solver": name, **driver}, particle_paths=particle_paths)
 
 
 def _capture_mujoco_physics(solver, world):
@@ -342,15 +342,6 @@ def _capture_coupled_physics(solver, world, particle_paths):
         if isinstance(child, SolverMuJoCo):
             result.update({(name, *key): value for key, value in _capture_mujoco_physics(child, world).items()})
         elif isinstance(child, SolverVBD):
-            result[name, "effective_settings", "deterministic"] = tuple(
-                sorted(
-                    {
-                        int(options["deterministic"])
-                        for options in child._module_options.values()
-                        if "deterministic" in options
-                    }
-                )
-            )
             for field in (
                 "use_particle_tile_solve",
                 "rigid_joint_alpha",
@@ -364,7 +355,9 @@ def _capture_coupled_physics(solver, world, particle_paths):
                 if hasattr(child, field):
                     result[name, "effective_settings", field] = getattr(child, field)
             for field in inspect.signature(SolverVBD).parameters:
-                if field in {"model", "particle_collision_detection_interval"} or not hasattr(child, field):
+                if field in {"model", "deterministic", "particle_collision_detection_interval"} or not hasattr(
+                    child, field
+                ):
                     continue
                 value = getattr(child, field)
                 if isinstance(value, dict):
@@ -448,6 +441,33 @@ def _assert_physical_value_equal(key, actual, expected):
         assert actual == expected, (key, actual, expected)
 
 
+def _set_deformable_test_overrides(scene, env_id):
+    """Give each object and world distinct physical values absent from source USD."""
+    model = scene.sim.physics_manager.get_model()
+    masses = model.particle_mass.numpy()
+    radii = model.particle_radius.numpy()
+    angles = model.edge_rest_angle.numpy()
+    edges = model.edge_indices.numpy()
+    particle_paths = {}
+    for asset_index, asset in enumerate(scene.deformable_objects.values()):
+        entry = asset._registry_entry
+        for world, start in enumerate(entry.particle_offsets):
+            stop = start + entry.particles_per_body
+            masses[start:stop] *= 1 + world
+            radii[start:stop] *= 1 + world
+            owned = np.all((edges < 0) | ((edges >= start) & (edges < stop)), axis=1)
+            # Distinct rest angles cannot be reconstructed from these flat source meshes.
+            angles[owned] = 0.2 * (1 + asset_index + 2 * world)
+        root = f"/World/envs/env_{env_id}/{entry.prim_path.rsplit('/', 1)[-1]}"
+        mesh = root + entry.sim_mesh_prim_path[len(entry.prim_path) :]
+        particle_paths.update({(mesh, i): entry.particle_offsets[env_id] + i for i in range(entry.particles_per_body)})
+    model.particle_mass.assign(masses)
+    model.particle_inv_mass.assign(1 / masses)
+    model.particle_radius.assign(radii)
+    model.edge_rest_angle.assign(angles)
+    return particle_paths, angles
+
+
 @pytest.mark.parametrize(
     "env_id,num_envs,solver_name",
     [(env_id, num_envs, solver) for solver in ("xpbd", "mujoco", "kamino") for env_id, num_envs in ((0, 1), (1, 2))]
@@ -479,6 +499,10 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
                 physics_material=NewtonSurfaceDeformableBodyMaterialCfg(density=0.02, particle_radius=0.005),
             ),
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
+        cfg.other_cloth = cfg.cloth.replace(
+            prim_path="{ENV_REGEX_NS}/OtherCloth",
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 1.0)),
         )
         cfg.cable = CableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cable",
@@ -556,20 +580,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
 
         if solver_name == "vbd":
             model = manager.get_model()
-            entry = scene.deformable_objects["cloth"]._registry_entry
-            masses = model.particle_mass.numpy()
-            radii = model.particle_radius.numpy()
-            for world, start in enumerate(entry.particle_offsets):
-                masses[start : start + entry.particles_per_body] *= 1 + world
-                radii[start : start + entry.particles_per_body] *= 1 + world
-            model.particle_mass.assign(masses)
-            model.particle_inv_mass.assign(1 / masses)
-            model.particle_radius.assign(radii)
-            particle_paths = {
-                (f"/World/envs/env_{env_id}/Cloth" + entry.sim_mesh_prim_path[len(entry.prim_path) :], i): start + i
-                for i in range(entry.particles_per_body)
-                for start in [entry.particle_offsets[env_id]]
-            }
+            particle_paths, angles = _set_deformable_test_overrides(scene, env_id)
             expected_deformable = _capture_deformable_physics(model, particle_paths)
 
         pairs = (
@@ -586,7 +597,11 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
 
         elif solver_name == "kamino":
             expected_native = _capture_kamino_physics(manager._solver, env_id)
+        source_layer = scene.stage.GetRootLayer().ExportToString()
         scene.export_to_usd(str(output), env_id=env_id)
+        assert scene.stage.GetRootLayer().ExportToString() == source_layer
+        if solver_name == "vbd":
+            np.testing.assert_array_equal(model.edge_rest_angle.numpy(), angles)
     stage = Usd.Stage.Open(str(output))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
     assert bodies == {
@@ -611,7 +626,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         assert stage.GetPrimAtPath(path)
     fresh, info = _load(str(output), device=device)
     # Construct the fresh driver exclusively from export metadata, not the source cfg.
-    driver = dict(stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"])
+    driver = dict(info["driver"])
     assert driver.pop("solver") == solver_name
     solver = _make_driver(fresh, solver_name, driver)
     if solver_name == "xpbd":

@@ -1,4 +1,4 @@
 Changed
 ^^^^^^^
 
-* Moved fixed locomotion materials into backend-specific spawn presets and Lift/Reorient inertia corrections into rigid-object configuration, making both available before startup randomization. Configure fixed inertia through ``RigidObjectCfg.inertia_diagonal_offset`` and fixed materials through the robot spawn configuration instead of startup event overrides.
+* Moved fixed locomotion materials into backend-specific spawn presets, making them available before startup randomization. Configure fixed materials through the robot spawn configuration instead of startup event overrides. Startup inertia events remained task-only configuration.

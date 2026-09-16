@@ -785,8 +785,6 @@ def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, mon
     cfg.scene.num_envs = 1
     cfg.scene.replicate_physics = False
     cfg.scene.clone_in_fabric = False
-    cfg.scene.box.inertia_diagonal_offset = 0.01
-    cfg.scene.collection.rigid_objects["first"].inertia_diagonal_offset = 0.04
     cfg.events = SimpleNamespace(
         pre=EventTermCfg(func=fixed_export_prestartup, mode="prestartup"),
         start=EventTermCfg(func=fixed_export_startup, mode="startup"),
@@ -806,17 +804,17 @@ def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, mon
                 mass = UsdPhysics.MassAPI(box).GetMassAttr().Get()
                 assert 20 <= mass < 21  # Prestartup USD edits precede initialization and export.
                 assert float(env.unwrapped.scene.rigid_objects["box"].data.body_mass.torch[0, 0]) > mass
-                # A cuboid's principal inertias provide an independent reference for the fixed addition.
+                # Startup inertia changes must not enter the deployment artifact.
                 geometric_inertia = np.array([0.3**2 + 0.4**2, 0.2**2 + 0.4**2, 0.2**2 + 0.3**2]) / 12
                 np.testing.assert_allclose(
                     sorted(UsdPhysics.MassAPI(box).GetDiagonalInertiaAttr().Get()),
-                    sorted(mass * geometric_inertia + 0.01),
+                    sorted(mass * geometric_inertia),
                     rtol=1e-5,
                 )
                 collected = stage.GetPrimAtPath("/World/envs/env_0/CollectedFirst")
                 np.testing.assert_allclose(
                     sorted(UsdPhysics.MassAPI(collected).GetDiagonalInertiaAttr().Get()),
-                    sorted(1.5 * geometric_inertia + 0.04),
+                    sorted(1.5 * geometric_inertia),
                     rtol=1e-5,
                 )
                 # Fresh import receives nominal physical properties, without the task's startup event.
@@ -829,7 +827,7 @@ def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, mon
                 assert restored.body_mass.numpy()[index] == pytest.approx(mass)
                 np.testing.assert_allclose(
                     np.linalg.eigvalsh(restored.body_inertia.numpy()[index]),
-                    sorted(mass * geometric_inertia + 0.01),
+                    sorted(mass * geometric_inertia),
                     rtol=1e-5,
                 )
                 monkeypatch.setenv("RANK", "1")

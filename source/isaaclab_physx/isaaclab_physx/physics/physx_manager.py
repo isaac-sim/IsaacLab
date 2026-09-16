@@ -43,6 +43,7 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_root_path,
     resolve_deformable_vertex_count,
 )
+from isaaclab.scene_data.physx_export import author_body_contacts
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_physx.cloner import PhysxReplicateContext
@@ -618,7 +619,8 @@ class PhysxManager(PhysicsManager):
         for path in sorted(writer.body_paths):
             view = native.create_rigid_body_view(path)
             # Links without colliders still need gravity, but have no native contact buffers.
-            writer.write_body_contacts(
+            author_body_contacts(
+                writer,
                 path,
                 bool(view.get_disable_gravities().numpy()[0]),
                 view.get_material_properties().numpy()[0] if view.max_shapes else [],

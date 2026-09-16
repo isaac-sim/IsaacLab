@@ -32,8 +32,8 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
     from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import (
         assert_physics_structure_equal,
-        capture_physics_structure,
         make_fixed_scene_cfg,
+        read_physics_structure,
     )
 
     cfg = make_fixed_scene_cfg(tmp_path)
@@ -90,7 +90,7 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         sim.forward()
         scene.update(0.0)
         # Independent reference: the live backend and complete original USD, not exporter selection.
-        expected_structure.update(capture_physics_structure(scene.sim.stage))
+        expected_structure.update(read_physics_structure(scene.sim.stage))
         expected_structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.asarray(
             cfg.robot.init_state.pos
         )
@@ -113,7 +113,7 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
         scene.export_to_usd(str(output), preserve_source_contacts=True)
         assert scene.sim.stage.GetRootLayer().ExportToString() == before
     stage = Usd.Stage.Open(str(output))
-    assert_physics_structure_equal(expected_structure, capture_physics_structure(stage))
+    assert_physics_structure_equal(expected_structure, read_physics_structure(stage))
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
     assert bodies == {
         "/World/envs/env_0/Robot/Base",

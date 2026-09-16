@@ -17,6 +17,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.assets.physics_properties import UsdAttribute, read_usd_array
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
@@ -80,20 +81,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_EXPORT_FIELDS = (
-    "particle_mass",
-    "particle_inv_mass",
-    "particle_radius",
-    "particle_flags",
-    "tri_poses",
-    "tri_areas",
-    "tri_materials",
-    "edge_rest_angle",
-    "edge_rest_length",
-    "edge_bending_properties",
-    "tet_poses",
-    "tet_materials",
-)
+# Mass has a native USD representation; pinning and collision radii are importer gaps.
+_EXPORT_FIELDS = {
+    "particle_mass": UsdAttribute("physics:masses", type_name="float[]"),
+    "particle_inv_mass": UsdAttribute("newton:export:particle_inv_mass", type_name="float[]"),
+    "particle_radius": UsdAttribute("newton:export:particle_radius", type_name="float[]"),
+    "particle_flags": UsdAttribute("newton:export:particle_flags", type_name="int[]"),
+    # Native volume import cannot restore initialized rest angles [rad] independently of geometry.
+    "edge_rest_angle": UsdAttribute("newton:export:edge_rest_angle", type_name="float[]"),
+}
 
 
 def read_deformable_entry(template_prim: Usd.Prim, prim_path: str) -> DeformableRegistryEntry:
@@ -252,14 +248,14 @@ def read_deformable_entry(template_prim: Usd.Prim, prim_path: str) -> Deformable
         k_lambda=k_lambda,
         k_damp=k_damp,
     )
-    rest_points = mesh_prim.GetAttribute("newton:export:restPoints").Get()
+    rest_points = mesh_prim.GetAttribute("physics:restShapePoints").Get()
     if rest_points is not None:
         entry.initial_positions = entry.vertices
         entry.vertices = _bake_points(rest_points)
-    for name in _EXPORT_FIELDS:
-        value = mesh_prim.GetAttribute("newton:export:" + name).Get()
+    for name, target in _EXPORT_FIELDS.items():
+        value = read_usd_array(mesh_prim, target)
         if value is not None:
-            entry.export_properties[name] = list(value)
+            entry.export_properties[name] = value.tolist()
     return entry
 
 
@@ -385,9 +381,10 @@ def add_exported_deformables_to_builder(stage, builder) -> dict:
 
     entries = {}
     cache = UsdGeom.XformCache()
-    for mesh in stage.Traverse():
-        if not mesh.GetAttribute("newton:export:deformable").Get():
-            continue
+    from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+
+    for discovered in discover_deformables_on_stage(stage):
+        mesh = stage.GetPrimAtPath(discovered.sim_mesh_path)
         root = mesh
         while root and not any("DeformableBodyAPI" in api for api in root.GetPrimTypeInfo().GetAppliedAPISchemas()):
             root = root.GetParent()
@@ -556,7 +553,7 @@ class DeformableObject(BaseDeformableObject):
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Preserve source rest geometry and effective per-node and per-element physics."""
-        from pxr import Sdf, Vt
+        from pxr import Sdf
 
         entry = self._registry_entry
         from isaaclab.cloner.query import iter_sources, path_to_clone
@@ -570,30 +567,39 @@ class DeformableObject(BaseDeformableObject):
 
         _, mesh, *_ = _classify_deformable_meshes(writer.stage.GetPrimAtPath(path))
         # Nodal placement can change without changing the material's stress-free configuration.
-        mesh.CreateAttribute("newton:export:restPoints", Sdf.ValueTypeNames.Point3fArray).Set(
+        mesh.CreateAttribute("physics:restShapePoints", Sdf.ValueTypeNames.Point3fArray, custom=False).Set(
             mesh.GetAttribute("points").Get()
         )
-        mesh = writer.write_deformable_points(path, self.data.nodal_pos_w.torch[writer.env_index].cpu().numpy())
-        mesh.CreateAttribute("newton:export:deformable", Sdf.ValueTypeNames.Bool).Set(True)
+        writer.write_deformable_points(
+            mesh, self.data.nodal_pos_w.torch[writer.env_index, : entry.particles_per_body].cpu().numpy()
+        )
+        writer.deformable_paths.add(path)
         model = SimulationManager.get_model()
         start = entry.particle_offsets[writer.env_index]
         stop = start + entry.particles_per_body
-        for name in _EXPORT_FIELDS:
+        masses = model.particle_mass.numpy()[start:stop]
+        defaults = {
+            "particle_inv_mass": np.divide(1.0, masses, out=np.zeros_like(masses), where=masses > 0),
+            "particle_radius": entry.particle_radius,
+            "particle_flags": 1,
+        }
+        for name, target in _EXPORT_FIELDS.items():
             buffer = getattr(model, name)
             if buffer is None:
                 continue
             values = buffer.numpy()
-            kind = name.split("_", 1)[0]
-            if kind == "particle":
-                values = values[start:stop]
+            if name == "edge_rest_angle":
+                # Use connectivity to exclude other objects and replicated environments.
+                edges = model.edge_indices.numpy()
+                owned = np.all((edges < 0) | ((edges >= start) & (edges < stop)), axis=1)
+                values = values[owned]
             else:
-                indices = getattr(model, kind + "_indices").numpy()
-                belongs = np.all((indices < 0) | ((indices >= start) & (indices < stop)), axis=1)
-                values = values[belongs]
-            integer = values.dtype.kind in "iu"
-            type_name = Sdf.ValueTypeNames.IntArray if integer else Sdf.ValueTypeNames.FloatArray
-            array_type = Vt.IntArray if integer else Vt.FloatArray
-            mesh.CreateAttribute("newton:export:" + name, type_name).Set(array_type.FromNumpy(values.ravel()))
+                values = values[start:stop]
+            if name in defaults and np.allclose(values, defaults[name], rtol=1e-6, atol=1e-8):
+                continue
+            writer.write_attribute(str(mesh.GetPath()), target, values)
+        # A point mass array must state its native USD element association explicitly.
+        mesh.CreateAttribute("physics:masses:elementType", Sdf.ValueTypeNames.Token, custom=False).Set("point")
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the deformable object.

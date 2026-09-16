@@ -18,9 +18,8 @@ Set ``env_cfg.scene.export_usd_path`` to use the same boundary outside the train
 ``prestartup`` USD edits are already present and are retained; this path does not undo them.
 
 Fixed physical properties belong in asset configuration. Material overrides are authored by
-the spawner, actuator settings are resolved during initialization, and
-``RigidObjectCfg.inertia_diagonal_offset`` adds an isotropic inertia correction after the backend
-computes mass properties. These values are exported before training randomization can change them.
+the spawner and actuator settings are resolved during initialization. Startup inertia
+corrections remain task events and are excluded from the deployment artifact.
 Moving material settings from events requires preserving backend semantics: Newton's importer
 uses dynamic friction for its single coefficient, whereas its material randomizer uses the
 static-friction range. Referenced instance colliders must also be reachable by material binding.
@@ -155,22 +154,25 @@ nested driver configuration. Unrepresentable per-joint actuation modes fail expl
 Load with the deployment entry points to consume the physical extensions and driver settings::
 
     from pxr import Usd
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.deployment import create_deployment_model, create_deployment_solver
 
     path = "deployment.usda"
     metadata = Usd.Stage.Open(path).GetRootLayer().customLayerData
-    model, mappings = NewtonManager.create_deployment_model(path, device="cuda:0")
-    solver = NewtonManager.create_deployment_solver(
-        model, metadata["isaaclab:newtonDriver"], particle_paths=mappings["particle_paths"]
+    model, mappings = create_deployment_model(path, device="cuda:0")
+    solver = create_deployment_solver(
+        model, mappings["driver"], particle_paths=mappings["particle_paths"]
     )
     timing = metadata["isaaclab:newtonSimulation"]
     dt = timing["dt"]
 
 The loader registers the selected solver schemas and restores physical configuration without
 constructing a task or replaying its events. Cloth and volume meshes retain connectivity and
-stress-free geometry separately from nodal placement. Named ``newton:export:*`` attributes
-preserve effective particle/element properties and cable segment properties that the standard
-schemas cannot express. These extensions require this loader; a generic USD importer does not
+stress-free geometry separately from nodal placement. Particle masses use ``physics:masses``.
+Named ``newton:export:*`` attributes supplement particle pinning, radii and flags, edge rest
+angles, and cable contact properties that native import cannot reproduce. In particular,
+initialization can overwrite rest angles without changing mesh geometry; export preserves
+those effective values without changing the live simulation. These extensions require this
+loader; a generic USD importer does not
 provide equivalent physical semantics. Proxy coupling supports MJWarp/VBD children; ADMM and
 custom collision-pipeline factories are rejected.
 

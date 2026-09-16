@@ -10,7 +10,7 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdPhysics, UsdShade
 
 
-def capture_physics_structure(stage: Usd.Stage) -> dict:
+def read_physics_structure(stage: Usd.Stage) -> dict:
     """Capture parsed entity coverage, topology, collision geometry and filtering by prim identity.
 
     Drives, limits and material coefficients are compared through backend views by the caller.

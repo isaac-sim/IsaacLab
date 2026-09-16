@@ -31,6 +31,14 @@ class NewtonVBDManager(NewtonManager):
 
         super().author_fixed_configuration(writer, scene)
         options = cls.export_solver_options(cls._solver, scene.sim.cfg.physics.solver_cfg)
+        from newton.usd import PrimType, SchemaResolverNewton
+
+        from isaaclab.assets.physics_properties import UsdAttribute
+
+        target = SchemaResolverNewton.mapping[PrimType.SCENE]["max_solver_iterations"].name
+        writer.write_attribute(
+            scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+        )
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:newtonDriver": {"solver": "vbd", "options": json.dumps(options)},
@@ -71,7 +79,7 @@ class NewtonVBDManager(NewtonManager):
         }
         options = {}
         for name, parameter in inspect.signature(SolverVBD).parameters.items():
-            if name == "model" or name in superseded:
+            if name in {"model", "deterministic"} or name in superseded:
                 continue
             # Native aliases hold resolved settings; initialization-only capacities use cfg provenance.
             value = getattr(solver, aliases.get(name, name), getattr(cfg, name, parameter.default))
@@ -85,23 +93,14 @@ class NewtonVBDManager(NewtonManager):
             if not isinstance(value, (bool, int, float, str)):
                 raise NotImplementedError(f"No VBD export representation for {name}: {value!r}.")
             options[name] = value
-        modes = {
-            int(values["deterministic"]) for values in solver._module_options.values() if "deterministic" in values
-        }
-        if len(modes) != 1:
-            raise NotImplementedError("VBD export requires one determinism mode across its kernel modules.")
-        options["deterministic"] = modes.pop()
         return options
 
     @staticmethod
     def load_exported_solver(model: Model, options: dict) -> SolverVBD:
         """Restore typed collision scheduling before constructing VBD."""
-        import warp as wp
         from newton.solvers import SolverBase
 
         options = dict(options)
-        if "deterministic" in options:
-            options["deterministic"] = wp.DeterministicMode(options["deterministic"])
         for name in ("collision_frequency", "collision_frequency_type"):
             if name in options:
                 options[name] = {SolverBase.CollisionSlot(int(slot)): value for slot, value in options[name].items()}

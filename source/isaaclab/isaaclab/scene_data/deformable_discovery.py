@@ -235,11 +235,11 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
         stage: USD stage to traverse.
 
     Returns:
-        One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
+        One :class:`DeformableStageEntry` per prim with a supported deformable body API.
     """
     entries: list[DeformableStageEntry] = []
     for prim in stage.Traverse():
-        if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
+        if not _prim_has_schema(prim, "DeformableBodyAPI"):
             continue
 
         try:

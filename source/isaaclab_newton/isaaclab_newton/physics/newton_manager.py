@@ -562,126 +562,6 @@ class NewtonManager(PhysicsManager):
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
-    @staticmethod
-    def create_deployment_model(path: str, device: str = "cpu") -> tuple[Model, dict]:
-        """Load a deployment USD using its exported physical schemas and import settings.
-
-        Args:
-            path: Path to a USD written by :meth:`InteractiveScene.export_to_usd`.
-            device: Warp device on which to create the model.
-
-        Returns:
-            The initialized model and importer identity maps. ``particle_paths`` maps
-            ``(mesh_path, local_node_index)`` to model particle indices for coupled solvers.
-        """
-        import newton
-
-        builder = newton.ModelBuilder()
-        stage = Usd.Stage.Open(str(path))
-        options = stage.GetRootLayer().customLayerData.get("isaaclab:newtonImportOptions", {})
-        from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
-
-        driver = stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"]["solver"]
-        solver_type = {
-            "xpbd": newton.solvers.SolverXPBD,
-            "mujoco": newton.solvers.SolverMuJoCo,
-            "kamino": newton.solvers.SolverKamino,
-            "vbd": newton.solvers.SolverVBD,
-            "coupled_proxy": newton.solvers.SolverMuJoCo,
-        }[driver]
-        solver_type.register_custom_attributes(builder)
-        resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-        if driver in {"mujoco", "coupled_proxy"}:
-            resolvers.insert(0, SchemaResolverMjc())
-        from isaaclab_newton.physics import NewtonManager
-
-        ignored = NewtonManager._inject_terrain_heightfields(stage, builder, root_paths=("/",))
-        from isaaclab_newton.assets.cable_object.cable_object import CableObject
-
-        deformables = {}
-        if any(prim.GetAttribute("newton:export:deformable").Get() for prim in stage.Traverse()):
-            from isaaclab_contrib.deformable.deformable_object import add_exported_deformables_to_builder
-
-            deformables = add_exported_deformables_to_builder(stage, builder)
-        ignored.extend(path for entry in deformables.values() for path in entry["ignore_paths"])
-        stage_info = builder.add_usd(
-            str(path), schema_resolvers=resolvers, ignore_paths=ignored, return_deformable_results=True, **options
-        )
-        from isaaclab_newton.cloner.newton_clone_utils import _name_root_joints_after_their_body
-
-        _name_root_joints_after_their_body(builder)
-        CableObject.restore_fixed_configuration(stage, builder, stage_info.get("path_cable_map", {}))
-        replace_newton_builder_shape_colors(builder, stage)
-        if driver in {"vbd", "coupled_proxy"}:
-            builder.color()
-        model = builder.finalize(device=device)
-        if deformables:
-            inverse_masses = model.particle_inv_mass.numpy()
-            for entry in deformables.values():
-                if entry["inverse_masses"] is not None:
-                    start, stop = entry["ranges"]["particle"]
-                    inverse_masses[start:stop] = entry["inverse_masses"]
-            model.particle_inv_mass.assign(inverse_masses)
-        for name, value in stage.GetRootLayer().customLayerData.get("isaaclab:newtonModel", {}).items():
-            if name not in {"soft_contact_ke", "soft_contact_kd", "soft_contact_kf", "soft_contact_mu"}:
-                raise ValueError(f"Unknown exported Newton model property {name!r}.")
-            setattr(model, name, value)
-        stage_info["particle_paths"] = {
-            (path, i - entry["ranges"]["particle"][0]): i
-            for path, entry in deformables.items()
-            for i in range(*entry["ranges"]["particle"])
-        }
-        return model, stage_info
-
-    @staticmethod
-    def create_deployment_solver(
-        model: Model, driver: dict, *, particle_paths: dict[tuple[str, int], int] | None = None
-    ) -> SolverBase:
-        """Construct the exported native solver without a task configuration.
-
-        Args:
-            model: Model returned by :meth:`create_deployment_model`.
-            driver: The USD layer's ``isaaclab:newtonDriver`` dictionary.
-            particle_paths: Particle identity map from :meth:`create_deployment_model`.
-
-        Returns:
-            The solver initialized with the artifact's effective settings.
-        """
-        import dataclasses
-        import json
-
-        import newton
-
-        driver = dict(driver)
-        name = driver.pop("solver")
-        if name == "xpbd":
-            return newton.solvers.SolverXPBD(model, **driver)
-        options = json.loads(driver["options"])
-        if name == "vbd":
-            from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
-
-            return NewtonVBDManager.load_exported_solver(model, options)
-        if name == "coupled_proxy":
-            from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
-
-            return NewtonCouplerManager.load_exported_solver(model, options, particle_paths or {})
-        if name == "mujoco":
-            import warp as wp
-
-            if "deterministic" in options:
-                options["deterministic"] = wp.DeterministicMode(options["deterministic"])
-            return newton.solvers.SolverMuJoCo(model, **options)
-        if name != "kamino":
-            raise ValueError(f"Unknown deployment solver {name!r}.")
-        config = newton.solvers.SolverKamino.Config.from_model(model, dynamics_solver=options["dynamics_solver"])
-        for field in dataclasses.fields(config):
-            value = options[field.name]
-            default = getattr(config, field.name)
-            if dataclasses.is_dataclass(default) and value is not None:
-                value = type(default)(**value)
-            setattr(config, field.name, value)
-        return newton.solvers.SolverKamino(model, config)
-
     @classmethod
     def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
         """Preserve global driver options and contacts, including static colliders without asset objects."""
@@ -692,6 +572,8 @@ class NewtonManager(PhysicsManager):
             raise NotImplementedError(f"{cls.__name__} does not implement its solver's deployment export.")
 
         from newton import JointTargetMode
+
+        from isaaclab_newton.sim.schemas.physics_properties import SOFT_CONTACT_FIELDS
 
         cls.synchronize_model_changes()
         super().author_fixed_configuration(writer, scene)
@@ -745,10 +627,7 @@ class NewtonManager(PhysicsManager):
         }
         stage.GetRootLayer().customLayerData = {
             **stage.GetRootLayer().customLayerData,
-            "isaaclab:newtonModel": {
-                name: float(getattr(model, name))
-                for name in ("soft_contact_ke", "soft_contact_kd", "soft_contact_kf", "soft_contact_mu")
-            },
+            "isaaclab:newtonModel": {name: float(getattr(model, name)) for name in SOFT_CONTACT_FIELDS},
             "isaaclab:newtonSimulation": {
                 "dt": scene.sim.get_physics_dt(),
                 "num_substeps": cfg.num_substeps,
@@ -763,25 +642,10 @@ class NewtonManager(PhysicsManager):
         """Write effective selected-world contacts, including unregistered static geometry."""
         from pxr import UsdPhysics
 
-        from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
-
-        from isaaclab_newton.sim.schemas.schemas_cfg import NewtonCollisionCfg, NewtonMaterialPropertiesCfg
+        from isaaclab_newton.sim.schemas.physics_properties import COLLISION_FIELDS, MATERIAL_FIELDS, author_contacts
 
         model = cls.get_model()
-        declarations = {
-            NewtonCollisionCfg: (("shape_margin", "contact_margin"), ("shape_gap", "contact_gap")),
-            NewtonMaterialPropertiesCfg: (
-                ("shape_material_mu_torsional", "torsional_friction"),
-                ("shape_material_mu_rolling", "rolling_friction"),
-                ("shape_material_ke", "contact_stiffness"),
-                ("shape_material_kd", "contact_damping"),
-                ("shape_material_kf", "contact_friction_gain"),
-                ("shape_material_ka", "contact_adhesion"),
-            ),
-        }
-        sources = {source for group in declarations.values() for source, _ in group}
-        sources.update(("shape_material_mu", "shape_material_restitution"))
-        values = {name: getattr(model, name).numpy() for name in sources}
+        values = {name: getattr(model, name).numpy() for name in (*COLLISION_FIELDS, *MATERIAL_FIELDS)}
         worlds = model.shape_world.numpy() if hasattr(model, "shape_world") else None
         for index, path in enumerate(model.shape_label):
             if worlds is not None and worlds[index] not in (-1, writer.env_id):
@@ -801,53 +665,7 @@ class NewtonManager(PhysicsManager):
                         "its backend geometry needs an export representation."
                     )
                 continue
-            collision = NewtonCollisionCfg(
-                **{field: float(values[source][index]) for source, field in declarations[NewtonCollisionCfg]}
-            )
-            _apply_namespaced_schemas(
-                prim, collision, {field: getattr(collision, field) for _, field in declarations[NewtonCollisionCfg]}
-            )
-            cls._author_collision_material(writer, prim, index, values, declarations[NewtonMaterialPropertiesCfg])
-
-    @classmethod
-    def _author_collision_material(cls, writer: UsdWriter, prim, index: int, values: dict, declarations: list) -> None:
-        """Preserve a complete shared material or bind an independent effective copy."""
-        from pxr import Usd, UsdPhysics, UsdShade
-
-        from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
-
-        from isaaclab_newton.sim.schemas.schemas_cfg import NewtonMaterialPropertiesCfg
-
-        binding = UsdShade.MaterialBindingAPI.Apply(prim)
-        original, _ = binding.ComputeBoundMaterial("physics")
-        effective = {field: float(values[source][index]) for source, field in declarations}
-        cfg = NewtonMaterialPropertiesCfg(**effective)
-        # Newton has one friction coefficient; keep authored static/dynamic distinctions
-        # when the importer already resolves them to the effective dynamic value.
-        physics = UsdPhysics.MaterialAPI(original.GetPrim()) if original else None
-        mu, restitution = float(values["shape_material_mu"][index]), float(values["shape_material_restitution"][index])
-        if (
-            physics
-            and physics.GetDynamicFrictionAttr().Get() == mu
-            and physics.GetRestitutionAttr().Get() == restitution
-        ):
-            # Compare the actual schema application, including inherited/default attributes.
-            comparison_stage = Usd.Stage.CreateInMemory()
-            candidate = UsdShade.Material.Define(comparison_stage, "/Material")
-            _apply_namespaced_schemas(candidate.GetPrim(), cfg, effective.copy())
-            if all(
-                original.GetPrim().GetAttribute(attr.GetName()).Get() == attr.Get()
-                for attr in candidate.GetPrim().GetAttributes()
-                if attr.HasAuthoredValueOpinion()
-            ):
-                return
-        material = writer.material_for_override(prim)
-        physics = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
-        if not original or physics.GetDynamicFrictionAttr().Get() != mu:
-            physics.CreateStaticFrictionAttr().Set(mu)
-            physics.CreateDynamicFrictionAttr().Set(mu)
-        physics.CreateRestitutionAttr().Set(restitution)
-        _apply_namespaced_schemas(material.GetPrim(), cfg, effective.copy())
+            author_contacts(writer, prim, index, values)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -2206,27 +2024,9 @@ class NewtonManager(PhysicsManager):
             shape_cfg = builder.default_shape_cfg.copy()
             # Exported contacts belong to the retained mesh even when collision uses a heightfield.
             if "isaaclab:newtonDriver" in stage.GetRootLayer().customLayerData:
-                from pxr import UsdShade
+                from isaaclab_newton.sim.schemas.physics_properties import read_contacts
 
-                for field, name in (("margin", "contactMargin"), ("gap", "contactGap")):
-                    value = mesh_prim.GetAttribute("newton:" + name).Get()
-                    if value is not None:
-                        setattr(shape_cfg, field, float(value))
-                material, _ = UsdShade.MaterialBindingAPI(mesh_prim).ComputeBoundMaterial("physics")
-                if material:
-                    for field, name in (
-                        ("mu", "physics:dynamicFriction"),
-                        ("restitution", "physics:restitution"),
-                        ("mu_torsional", "newton:torsionalFriction"),
-                        ("mu_rolling", "newton:rollingFriction"),
-                        ("ke", "newton:contactStiffness"),
-                        ("kd", "newton:contactDamping"),
-                        ("kf", "newton:contactFrictionGain"),
-                        ("ka", "newton:contactAdhesion"),
-                    ):
-                        value = material.GetPrim().GetAttribute(name).Get()
-                        if value is not None:
-                            setattr(shape_cfg, field, float(value))
+                read_contacts(mesh_prim, shape_cfg)
             # Keep the source mesh identity when the runtime substitutes a heightfield.
             builder.add_shape_heightfield(
                 heightfield=heightfield, xform=xform, cfg=shape_cfg, label=str(mesh_prim.GetPath())

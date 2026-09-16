@@ -21,8 +21,8 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.usd_export import (
     assert_physics_structure_equal,
-    capture_physics_structure,
     make_fixed_scene_cfg,
+    read_physics_structure,
 )
 
 
@@ -73,7 +73,7 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
                 asset.set_masses_index(masses=masses * factors.reshape((-1,) + (1,) * (masses.ndim - 1)))
                 asset.set_inertias_index(inertias=inertias * factors.reshape((-1,) + (1,) * (inertias.ndim - 1)))
         if num_envs == 1:
-            structure.update(capture_physics_structure(scene.sim.stage))
+            structure.update(read_physics_structure(scene.sim.stage))
         structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.array(cfg.robot.init_state.pos)
         for group in (scene.articulations, scene.rigid_objects, scene.rigid_object_collections):
             for asset in group.values():
@@ -93,7 +93,7 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
         assert scene.sim.stage.GetRootLayer().ExportToString() == before
     stage = Usd.Stage.Open(str(output))
     if num_envs == 1:
-        assert_physics_structure_equal(structure, capture_physics_structure(stage))
+        assert_physics_structure_equal(structure, read_physics_structure(stage))
     assert all(not stage.GetPrimAtPath(f"/World/envs/env_{i}") for i in range(num_envs) if i != env_id)
     assert len([p for p in stage.Traverse() if p.HasAPI(UsdPhysics.RigidBodyAPI)]) == 5
     assert stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Table") and stage.GetPrimAtPath("/World/Ground")

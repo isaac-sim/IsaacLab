@@ -522,6 +522,9 @@ class InteractiveScene:
         phases = {name: Timer() for name in ("selection", "configuration", "validate", "save")}
         with phases["selection"]:
             writer = UsdWriter.from_stage(self.sim.stage)
+            from isaaclab.sim.usd_export_properties import UsdMaterialWriter
+
+            UsdMaterialWriter(writer).remove_unused_bindings()
             writer.preserve_source_contacts = preserve_source_contacts
             writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
         with phases["configuration"]:
@@ -553,6 +556,11 @@ class InteractiveScene:
             self.sim.physics_manager.author_fixed_configuration(writer, self)
             writer.clear_initial_velocities()
         with phases["validate"]:
+            from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+
+            expected = {entry.root_path for entry in discover_deformables_on_stage(writer.stage)}
+            if expected != writer.deformable_paths:
+                raise RuntimeError(f"Incomplete deformable export: {expected ^ writer.deformable_paths}.")
             writer.validate()
         with phases["save"]:
             result = writer.save(path, validate=False)

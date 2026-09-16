@@ -36,6 +36,7 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_root_path,
     resolve_deformable_vertex_count,
 )
+from isaaclab.scene_data.physx_export import author_body_contacts
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
@@ -767,7 +768,7 @@ class OvPhysxManager(PhysicsManager):
             view = OvPhysxView(cls._physx, prim_paths=[path], device="cpu", tensor_types=list(tokens), eager=True)
             try:
                 values = [view.get_attribute(token).numpy()[0] for token in tokens]
-                writer.write_body_contacts(path, bool(values[0]), *values[1:])
+                author_body_contacts(writer, path, bool(values[0]), *values[1:])
             finally:
                 view.close()
 

@@ -35,7 +35,7 @@ class NewtonXPBDManager(NewtonManager):
         solver = cls._solver
         options = {}
         for name, parameter in inspect.signature(SolverXPBD).parameters.items():
-            if name == "model":
+            if name in {"model", "deterministic"}:
                 continue
             value = getattr(solver, name, parameter.default)
             if value is None:
@@ -43,6 +43,14 @@ class NewtonXPBDManager(NewtonManager):
             if not isinstance(value, (bool, int, float, str)):
                 raise NotImplementedError(f"No XPBD export representation for {name}: {value!r}.")
             options[name] = value
+        from newton.usd import PrimType, SchemaResolverNewton
+
+        from isaaclab.assets.physics_properties import UsdAttribute
+
+        target = SchemaResolverNewton.mapping[PrimType.SCENE]["max_solver_iterations"].name
+        writer.write_attribute(
+            scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+        )
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:newtonDriver": {"solver": "xpbd", **options},

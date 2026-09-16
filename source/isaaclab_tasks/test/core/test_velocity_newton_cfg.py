@@ -59,6 +59,7 @@ def test_velocity_fixed_material_is_authored_before_initialization(robot, backen
     stage = Usd.Stage.CreateInMemory()
     with use_stage(stage):
         spawn_from_usd("/Robot", spawn_cfg)
+    assert stage.GetPrimAtPath("/Robot/Geometry").IsInstance() == (not spawn_cfg.make_uninstanceable)
     collider = stage.GetPrimAtPath("/Robot/Geometry/Collision")
     material, _ = UsdShade.MaterialBindingAPI(collider).ComputeBoundMaterial("physics")
     assert material

@@ -104,7 +104,6 @@ class SceneCfg(InteractiveSceneCfg):
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=ObjectCfg(),  # type: ignore
-        inertia_diagonal_offset=0.01,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
     )
 
@@ -259,6 +258,17 @@ class EventCfg:
             "dynamic_friction_range": [0.5, 1.0],
             "restitution_range": [0.0, 0.0],
             "num_buckets": 250,
+        },
+    )
+
+    object_physics_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "inertia_distribution_params": [0.01, 0.01],
+            "operation": "add",
+            "diagonal_only": True,
         },
     )
 

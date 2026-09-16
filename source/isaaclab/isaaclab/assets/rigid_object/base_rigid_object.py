@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.sim.usd_export_properties import UsdMassPropertiesWriter
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -129,7 +130,9 @@ class BaseRigidObject(AssetBase):
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Supplement this rigid object's placement and mass properties in the export stage."""
 
-        writer.write_bodies(self.data, writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies)
+        UsdMassPropertiesWriter(writer).write_bodies(
+            self.data, writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies
+        )
 
     @abstractmethod
     def reset(
@@ -723,14 +726,6 @@ class BaseRigidObject(AssetBase):
     """
     Internal simulation callbacks.
     """
-
-    def _initialize_callback(self, event) -> None:
-        was_initialized = self._is_initialized
-        super()._initialize_callback(event)
-        if not was_initialized:
-            from ..physics_properties import _apply_inertia_diagonal_offsets
-
-            _apply_inertia_diagonal_offsets(self, [self.cfg.inertia_diagonal_offset])
 
     @abstractmethod
     def _invalidate_initialize_callback(self, event) -> None:

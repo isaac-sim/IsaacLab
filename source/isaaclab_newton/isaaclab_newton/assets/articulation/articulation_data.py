@@ -396,21 +396,39 @@ class ArticulationData(BaseArticulationData):
         return self._joint_damping_ta
 
     @property
-    @usd_field(UsdAttribute("newton:limitStiffness", angular_power=-1, type_name="float"))
+    @usd_field(
+        UsdAttribute("newton:limitStiffness", angular_power=-1, type_name="float", axes=("angular", "linear")),
+        UsdAttribute(
+            "newton:{axis}:limitStiffness",
+            angular_power=-1,
+            type_name="float",
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+            replaces=("newton:limitStiffness",),
+        ),
+    )
     def joint_limit_stiffness(self) -> np.ndarray:
         """Effective limit stiffness [N/m or N*m/rad], shape [num_instances, num_joints]."""
         values = self._root_view.get_attribute("joint_limit_ke", SimulationManager.get_model()).numpy()[:, 0]
         return values[:, self.joint_ordering.user_to_backend.numpy()] if self.has_joint_ordering else values
 
     @property
-    @usd_field(UsdAttribute("newton:limitDamping", angular_power=-1, type_name="float"))
+    @usd_field(
+        UsdAttribute("newton:limitDamping", angular_power=-1, type_name="float", axes=("angular", "linear")),
+        UsdAttribute(
+            "newton:{axis}:limitDamping",
+            angular_power=-1,
+            type_name="float",
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+            replaces=("newton:limitDamping",),
+        ),
+    )
     def joint_limit_damping(self) -> np.ndarray:
         """Effective limit damping [N*s/m or N*m*s/rad], shape [num_instances, num_joints]."""
         values = self._root_view.get_attribute("joint_limit_kd", SimulationManager.get_model()).numpy()[:, 0]
         return values[:, self.joint_ordering.user_to_backend.numpy()] if self.has_joint_ordering else values
 
     @property
-    @usd_field(UsdAttribute("newton:armature", type_name="float"), extend=True)
+    @usd_field(UsdAttribute("newton:armature", type_name="float", require_uniform=True), extend=True)
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -421,7 +439,7 @@ class ArticulationData(BaseArticulationData):
     @property
     @usd_field(
         UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float"),
-        UsdAttribute("newton:friction", type_name="float"),
+        UsdAttribute("newton:friction", type_name="float", require_uniform=True),
     )
     def joint_friction_coeff(self) -> ProxyArray:
         """Newton joint friction force/torque provided to the simulation.

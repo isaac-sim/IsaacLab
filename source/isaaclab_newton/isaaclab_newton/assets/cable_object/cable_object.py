@@ -17,6 +17,7 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
+from isaaclab.assets.physics_properties import UsdAttribute, read_usd_array
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
@@ -46,34 +47,28 @@ class CableObject(BaseCableObject):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
 
+    # Native curve import reconstructs body/joint properties, but uses builder contact defaults.
     _export_fields = {
-        "body": ("body_mass", "body_inertia", "body_com", "body_flags"),
-        "joint": ("joint_X_p", "joint_X_c", "joint_enabled"),
-        "dof": (
-            "joint_target_ke",
-            "joint_target_kd",
-            "joint_limit_ke",
-            "joint_limit_kd",
-            "joint_armature",
-            "joint_friction",
-        ),
-        "shape": (
-            "shape_margin",
-            "shape_gap",
-            "shape_material_mu",
-            "shape_material_restitution",
-            "shape_material_ke",
-            "shape_material_kd",
-            "shape_material_kf",
-            "shape_material_ka",
-            "shape_material_mu_torsional",
-            "shape_material_mu_rolling",
-        ),
+        "shape": {
+            "shape_" + field: UsdAttribute("newton:export:shape_" + field, type_name="float[]")
+            for field in (
+                "margin",
+                "gap",
+                "material_mu",
+                "material_restitution",
+                "material_ke",
+                "material_kd",
+                "material_kf",
+                "material_ka",
+                "material_mu_torsional",
+                "material_mu_rolling",
+            )
+        }
     }
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Keep the curve schema and supplement native segment properties it cannot express."""
-        from pxr import Sdf, Usd, Vt
+        from pxr import Usd
 
         from isaaclab.sim.usd_export import AssetPaths
 
@@ -100,17 +95,17 @@ class CableObject(BaseCableObject):
             {int(model.joint_parent.numpy()[i]) for i in joints} | {int(model.joint_child.numpy()[i]) for i in joints}
         )
         rows = self._export_rows(model, bodies, joints)
+        from newton import ModelBuilder
+
+        defaults = ModelBuilder().default_shape_cfg
         for kind, fields in self._export_fields.items():
-            for name in fields:
+            for name, target in fields.items():
                 values = getattr(model, name).numpy()[rows[kind]]
-                integer = values.dtype.kind in "biu"
-                type_name = Sdf.ValueTypeNames.IntArray if integer else Sdf.ValueTypeNames.FloatArray
-                array = (
-                    Vt.IntArray.FromNumpy(values.astype(np.int32).ravel())
-                    if integer
-                    else Vt.FloatArray.FromNumpy(values.astype(np.float32).ravel())
-                )
-                prim.CreateAttribute("newton:export:" + name, type_name).Set(array)
+                field = name.removeprefix("shape_").removeprefix("material_")
+                if getattr(defaults, field) is None or not np.allclose(
+                    values, getattr(defaults, field), rtol=1e-6, atol=1e-8
+                ):
+                    writer.write_attribute(path, target, values)
         writer.represented_collider_paths.update(model.shape_label[i] for i in rows["shape"])
 
     @staticmethod
@@ -139,8 +134,8 @@ class CableObject(BaseCableObject):
             prim = stage.GetPrimAtPath(path)
             rows = cls._export_rows(builder, bodies, joints)
             for kind, fields in cls._export_fields.items():
-                for name in fields:
-                    value = prim.GetAttribute("newton:export:" + name).Get()
+                for name, declaration in fields.items():
+                    value = read_usd_array(prim, declaration)
                     if value is None:
                         continue
                     target = getattr(builder, name)

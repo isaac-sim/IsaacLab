@@ -460,7 +460,7 @@ class BaseArticulationData(ABC):
     @leapp_tensor_semantics(const=True)
     @usd_field(
         UsdAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", type_name="float"),
-        UsdAttribute("physxJoint:armature", "PhysxJointAPI", type_name="float"),
+        UsdAttribute("physxJoint:armature", "PhysxJointAPI", type_name="float", axes=("angular", "linear")),
     )
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
@@ -489,8 +489,22 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     @usd_field(
-        UsdAttribute("physics:lowerLimit", angular_power=1, component=0),
-        UsdAttribute("physics:upperLimit", angular_power=1, component=1),
+        UsdAttribute("physics:lowerLimit", angular_power=1, component=0, axes=("angular", "linear")),
+        UsdAttribute(
+            "limit:{axis}:physics:low",
+            "PhysicsLimitAPI:{axis}",
+            angular_power=1,
+            component=0,
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+        ),
+        UsdAttribute("physics:upperLimit", angular_power=1, component=1, axes=("angular", "linear")),
+        UsdAttribute(
+            "limit:{axis}:physics:high",
+            "PhysicsLimitAPI:{axis}",
+            angular_power=1,
+            component=1,
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+        ),
     )
     def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits provided to the simulation.
@@ -509,7 +523,13 @@ class BaseArticulationData(ABC):
         UsdAttribute(
             "physxJointAxis:{axis}:maxJointVelocity", "PhysxJointAxisAPI:{axis}", angular_power=1, type_name="float"
         ),
-        UsdAttribute("physxJoint:maxJointVelocity", "PhysxJointAPI", angular_power=1, type_name="float"),
+        UsdAttribute(
+            "physxJoint:maxJointVelocity",
+            "PhysxJointAPI",
+            angular_power=1,
+            type_name="float",
+            axes=("angular", "linear"),
+        ),
     )
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.

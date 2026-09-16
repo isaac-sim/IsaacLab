@@ -78,6 +78,22 @@ class NewtonKaminoManager(NewtonManager):
             "isaaclab:newtonDriver": {"solver": "kamino", "options": json.dumps(configuration)},
         }
 
+    @staticmethod
+    def load_exported_solver(model: Model, options: dict) -> SolverKamino:
+        """Restore Kamino's nested physical solver configuration."""
+        import dataclasses
+
+        import newton
+
+        config = newton.solvers.SolverKamino.Config.from_model(model, dynamics_solver=options["dynamics_solver"])
+        for field in dataclasses.fields(config):
+            value = options[field.name]
+            default = getattr(config, field.name)
+            if dataclasses.is_dataclass(default) and value is not None:
+                value = type(default)(**value)
+            setattr(config, field.name, value)
+        return newton.solvers.SolverKamino(model, config)
+
     @classmethod
     def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:
         cfg = PhysicsManager._cfg

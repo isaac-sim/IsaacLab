@@ -15,28 +15,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-    from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
-
-
-def _apply_inertia_diagonal_offsets(asset: BaseRigidObject | BaseRigidObjectCollection, offsets: list[float]) -> None:
-    """Apply configured isotropic inertia additions in public body order after initialization."""
-    import math
-
-    if any(not math.isfinite(value) or value < 0.0 for value in offsets):
-        raise ValueError("inertia_diagonal_offset must be finite and nonnegative.")
-    if not any(offsets):
-        return
-    import torch
-
-    inertias = asset.data.body_inertia.torch.clone()
-    values = torch.tensor(offsets, dtype=inertias.dtype, device=inertias.device)
-    # Adding a multiple of the identity is invariant to the backend's inertial frame.
-    inertias[..., (0, 4, 8)] += values[None, :, None]
-    asset.set_inertias_index(inertias=inertias)
 
 
 @dataclass(frozen=True)
@@ -46,7 +24,9 @@ class UsdAttribute:
     ``schema`` names a registered schema, optionally followed by ``:{axis}`` for
     multi-apply instances. Unregistered extensions require an explicit ``type_name``.
     ``angular_power`` converts SI angular values by (degrees/radian)**power;
-    linear values are unchanged. ``component`` selects a vector element.
+    linear values are unchanged. ``component`` selects a vector element. ``axes``
+    restricts a binding to matching joint axes. ``require_uniform`` rejects conflicting
+    writes to a shared target. ``replaces`` removes obsolete aliases before authoring.
     """
 
     attribute: str
@@ -54,6 +34,9 @@ class UsdAttribute:
     angular_power: int = 0
     component: int | None = None
     type_name: str | None = None
+    axes: tuple[str, ...] | None = None
+    require_uniform: bool = False
+    replaces: tuple[str, ...] = ()
 
 
 def usd_field(*targets: UsdAttribute, extend: bool = False) -> Callable:
@@ -89,3 +72,16 @@ def usd_fields(data_type: type) -> dict[str, tuple[UsdAttribute, ...]]:
         if not targets:
             raise NotImplementedError(f"Missing backend USD declaration for {data_type.__name__}.{name}.")
     return result
+
+
+def read_usd_array(prim, target: UsdAttribute):
+    """Read an optional declared scalar array."""
+    import numpy as np
+
+    value = prim.GetAttribute(target.attribute).Get()
+    if value is None:
+        return None
+    array = np.asarray(value)
+    if array.ndim != 1:
+        raise ValueError(f"Expected a scalar array for {prim.GetPath()}.{target.attribute}.")
+    return array
