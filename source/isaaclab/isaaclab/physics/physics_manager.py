@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -99,17 +98,7 @@ class PhysicsManager(ABC):
 
     @classmethod
     def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
-        """Author fixed simulation timing; backend overrides preserve native scene semantics."""
-        from isaaclab.assets.physics_properties import UsdAttribute
-
-        frequency = 1 / scene.sim.get_physics_dt()
-        if not math.isclose(frequency, round(frequency), rel_tol=1e-6):
-            raise NotImplementedError("PhysX USD timeStepsPerSecond cannot represent this timestep.")
-        writer.write_attribute(
-            scene.physics_scene_path,
-            UsdAttribute("physxScene:timeStepsPerSecond", "PhysxSceneAPI", type_name="uint"),
-            round(frequency),
-        )
+        """Record the common initialization boundary; backend owners supply scene settings."""
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:configuration": (

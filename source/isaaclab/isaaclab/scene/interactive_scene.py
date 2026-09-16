@@ -487,13 +487,14 @@ class InteractiveScene:
         path: str,
         *,
         env_id: int = 0,
-        timings: dict[str, float] | None = None,
+        include_solver_settings: bool = False,
         preserve_source_contacts: bool = False,
     ) -> str:
         """Export one deployment environment after one-time initialization.
 
-        Call after the task constructor returns and before the first training reset or
-        step. Prestartup/startup results, including random samples, are retained. Current
+        Call after asset initialization and before startup events, reset or stepping.
+        Prestartup USD edits are retained; startup results are outside this boundary.
+        Current
         physical properties are exported without mutating the live simulation. Body
         placement is retained; explicit joint-state samples are omitted and initial
         body/joint velocities are zeroed.
@@ -502,7 +503,8 @@ class InteractiveScene:
         Args:
             path: Destination USD file. External dependencies must remain accessible.
             env_id: Environment to export, retaining its world frame and shared resources.
-            timings: Optional output of selection/configuration/validate/save durations [s].
+            include_solver_settings: Include optional Newton MJWarp settings when available.
+                Other Newton solvers export scene/assets without solver settings.
             preserve_source_contacts: Preserve authored PhysX collider materials and offset defaults.
                 Use only before backend-buffer contact overrides. Automatic pre-startup export
                 enables this; Newton retains its explicit native shape mapping.
@@ -511,7 +513,6 @@ class InteractiveScene:
 
         from isaaclab.cloner.query import iter_sources
         from isaaclab.sim.usd_export import UsdWriter
-        from isaaclab.utils.timer import Timer
 
         if not 0 <= env_id < self.num_envs:
             raise ValueError(f"Environment {env_id} is outside [0, {self.num_envs}).")
@@ -519,53 +520,45 @@ class InteractiveScene:
             raise ValueError("Deployment export must precede the first physics step.")
         if self.surface_grippers:
             raise NotImplementedError("Deployment export does not support surface grippers.")
-        phases = {name: Timer() for name in ("selection", "configuration", "validate", "save")}
-        with phases["selection"]:
-            writer = UsdWriter.from_stage(self.sim.stage)
-            from isaaclab.sim.usd_export_properties import UsdMaterialWriter
+        writer = UsdWriter.from_stage(self.sim.stage)
+        writer.remove_unused_bindings()
+        writer.include_solver_settings = include_solver_settings
+        writer.preserve_source_contacts = preserve_source_contacts
+        writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
+        # Layout queries select the public instance row; effective values come from objects.
+        for asset in chain(
+            self.articulations.values(),
+            self.rigid_objects.values(),
+            self.rigid_object_collections.values(),
+            self.deformable_objects.values(),
+            self.cable_objects.values(),
+        ):
+            cfgs = asset.cfg.rigid_objects.values() if hasattr(asset.cfg, "rigid_objects") else (asset.cfg,)
+            memberships = []
+            for cfg in cfgs:
+                ids = (
+                    sorted({i for *_, envs in iter_sources(self.clone_plan, cfg.prim_path) for i in envs})
+                    if self.clone_plan is not None
+                    else []
+                )
+                memberships.append(ids)
+            if any(ids != memberships[0] for ids in memberships):
+                raise NotImplementedError("Collection members must share environment membership for export.")
+            ids = memberships[0]
+            if ids and env_id not in ids:
+                continue
+            writer.env_index = ids.index(env_id) if ids else 0
+            asset.author_fixed_configuration(writer)
+        writer.write_fixed_root_frames()
+        self.sim.physics_manager.author_fixed_configuration(writer, self)
+        writer.clear_initial_velocities()
+        from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
 
-            UsdMaterialWriter(writer).remove_unused_bindings()
-            writer.preserve_source_contacts = preserve_source_contacts
-            writer.select_environment(self.clone_plan, env_id, self.env_prim_paths)
-        with phases["configuration"]:
-            # Layout queries select the public instance row; effective values come from objects.
-            for asset in chain(
-                self.articulations.values(),
-                self.rigid_objects.values(),
-                self.rigid_object_collections.values(),
-                self.deformable_objects.values(),
-                self.cable_objects.values(),
-            ):
-                cfgs = asset.cfg.rigid_objects.values() if hasattr(asset.cfg, "rigid_objects") else (asset.cfg,)
-                memberships = []
-                for cfg in cfgs:
-                    ids = (
-                        sorted({i for *_, envs in iter_sources(self.clone_plan, cfg.prim_path) for i in envs})
-                        if self.clone_plan is not None
-                        else []
-                    )
-                    memberships.append(ids)
-                if any(ids != memberships[0] for ids in memberships):
-                    raise NotImplementedError("Collection members must share environment membership for export.")
-                ids = memberships[0]
-                if ids and env_id not in ids:
-                    continue
-                writer.env_index = ids.index(env_id) if ids else 0
-                asset.author_fixed_configuration(writer)
-            writer.write_fixed_root_frames()
-            self.sim.physics_manager.author_fixed_configuration(writer, self)
-            writer.clear_initial_velocities()
-        with phases["validate"]:
-            from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
-
-            expected = {entry.root_path for entry in discover_deformables_on_stage(writer.stage)}
-            if expected != writer.deformable_paths:
-                raise RuntimeError(f"Incomplete deformable export: {expected ^ writer.deformable_paths}.")
-            writer.validate()
-        with phases["save"]:
-            result = writer.save(path, validate=False)
-        if timings is not None:
-            timings.update({name: timer.total_run_time for name, timer in phases.items()})
+        expected = {entry.root_path for entry in discover_deformables_on_stage(writer.stage)}
+        if expected != writer.deformable_paths:
+            raise RuntimeError(f"Incomplete deformable export: {expected ^ writer.deformable_paths}.")
+        writer.validate()
+        result = writer.save(path, validate=False)
         return result
 
     def reset(self, env_ids: Sequence[int] | None = None):

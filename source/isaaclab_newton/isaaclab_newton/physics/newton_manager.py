@@ -564,16 +564,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
-        """Preserve global driver options and contacts, including static colliders without asset objects."""
-        if (
-            cls is not NewtonManager
-            and cls.author_fixed_configuration.__func__ is NewtonManager.author_fixed_configuration.__func__
-        ):
-            raise NotImplementedError(f"{cls.__name__} does not implement its solver's deployment export.")
-
+        """Preserve gravity, joint actuation semantics and contacts, including unregistered static colliders."""
         from newton import JointTargetMode
-
-        from isaaclab_newton.sim.schemas.physics_properties import SOFT_CONTACT_FIELDS
 
         cls.synchronize_model_changes()
         super().author_fixed_configuration(writer, scene)
@@ -583,7 +575,6 @@ class NewtonManager(PhysicsManager):
             writer.write_gravity(
                 scene.physics_scene_path, model.gravity.numpy()[writer.env_id if model.world_count else -1]
             )
-        cfg = scene.sim.cfg.physics
         gains = zip(
             *(getattr(model, name).numpy() for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"))
         )
@@ -625,16 +616,6 @@ class NewtonManager(PhysicsManager):
             **stage.GetRootLayer().customLayerData,
             "isaaclab:newtonImportOptions": {"force_position_velocity_actuation": supported[0]},
         }
-        stage.GetRootLayer().customLayerData = {
-            **stage.GetRootLayer().customLayerData,
-            "isaaclab:newtonModel": {name: float(getattr(model, name)) for name in SOFT_CONTACT_FIELDS},
-            "isaaclab:newtonSimulation": {
-                "dt": scene.sim.get_physics_dt(),
-                "num_substeps": cfg.num_substeps,
-                "collision_decimation": cfg.collision_decimation,
-            },
-        }
-
         cls._author_collision_configuration(writer)
 
     @classmethod
@@ -642,10 +623,10 @@ class NewtonManager(PhysicsManager):
         """Write effective selected-world contacts, including unregistered static geometry."""
         from pxr import UsdPhysics
 
-        from isaaclab_newton.sim.schemas.physics_properties import COLLISION_FIELDS, MATERIAL_FIELDS, author_contacts
+        from isaaclab_newton.assets.physics_properties import NewtonContactData
 
         model = cls.get_model()
-        values = {name: getattr(model, name).numpy() for name in (*COLLISION_FIELDS, *MATERIAL_FIELDS)}
+        data = NewtonContactData(model)
         worlds = model.shape_world.numpy() if hasattr(model, "shape_world") else None
         for index, path in enumerate(model.shape_label):
             if worlds is not None and worlds[index] not in (-1, writer.env_id):
@@ -665,7 +646,8 @@ class NewtonManager(PhysicsManager):
                         "its backend geometry needs an export representation."
                     )
                 continue
-            author_contacts(writer, prim, index, values)
+            writer.write_properties(path, None, data, row=index, scope="collision", env_index=0)
+            writer.write_material_override(path, data, index, env_index=0)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -2022,11 +2004,6 @@ class NewtonManager(PhysicsManager):
             )
             heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
             shape_cfg = builder.default_shape_cfg.copy()
-            # Exported contacts belong to the retained mesh even when collision uses a heightfield.
-            if "isaaclab:newtonDriver" in stage.GetRootLayer().customLayerData:
-                from isaaclab_newton.sim.schemas.physics_properties import read_contacts
-
-                read_contacts(mesh_prim, shape_cfg)
             # Keep the source mesh identity when the runtime substitutes a heightfield.
             builder.add_shape_heightfield(
                 heightfield=heightfield, xform=xform, cfg=shape_cfg, label=str(mesh_prim.GetPath())

@@ -334,9 +334,7 @@ class Articulation(BaseArticulation):
         paths = writer.resolve_paths(self._usd_export_paths(writer.env_index))
         for path, row in paths.joints:
             joint = writer.stage.GetPrimAtPath(path)
-            axis = paths.joint_axes.get(row) or (
-                "angular" if joint.GetTypeName() == "PhysicsRevoluteJoint" else "linear"
-            )
+            axis = paths.joint_axes[row]
             # Pinned Newton consumes angular initial velocity in rad/s; USD uses deg/s.
             for name in ("position", "velocity"):
                 value = joint.GetAttribute(f"state:{axis}:physics:{name}").Get()
@@ -347,6 +345,8 @@ class Articulation(BaseArticulation):
 
     def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
+        from pxr import UsdPhysics
+
         from isaaclab.sim.usd_export import AssetPaths
 
         view = self.root_view
@@ -359,7 +359,13 @@ class Articulation(BaseArticulation):
         dimensions = view.get_attribute("joint_dof_dim", model).numpy()[env_index, 0]
         offset = 0
         for path, count, (linear, angular) in zip(view.joint_labels, view.joint_dof_counts, dimensions):
-            if count > 1 or self.stage.GetPrimAtPath(path).GetTypeName() == "PhysicsJoint":
+            prim = self.stage.GetPrimAtPath(path)
+            if prim.IsA(UsdPhysics.RevoluteJoint) or prim.IsA(UsdPhysics.PrismaticJoint):
+                if count != 1:
+                    raise RuntimeError(f"Unexpected DOF count for {path}: {count}.")
+                row = self.joint_names.index(self.backend_joint_names[offset])
+                axes[row] = "angular" if prim.IsA(UsdPhysics.RevoluteJoint) else "linear"
+            elif prim.GetPrimTypeInfo().GetSchemaType() == UsdPhysics.Joint._GetStaticTfType():
                 for local in range(count):
                     vector = native_axes[offset + local]
                     matches = [i for i, cardinal in enumerate(np.eye(3)) if np.allclose(vector, cardinal, atol=1e-6)]
@@ -367,6 +373,8 @@ class Articulation(BaseArticulation):
                         raise NotImplementedError(f"Non-cardinal multi-axis joint {path}: {vector}.")
                     row = self.joint_names.index(self.backend_joint_names[offset + local])
                     axes[row] = ("trans" if local < linear else "rot") + "XYZ"[matches[0]]
+            elif count:
+                raise NotImplementedError(f"No independent per-axis representation for {path} ({prim.GetTypeName()}).")
             offset += count
         return AssetPaths(
             [(path, self.body_names.index(name)) for path, name in zip(view.body_labels, self.backend_body_names)],

@@ -17,7 +17,7 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.assets.physics_properties import UsdAttribute, read_usd_array
+from isaaclab.assets.physics_properties import property_metadata, read_usd_array, usd_fields
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
@@ -47,25 +47,6 @@ class CableObject(BaseCableObject):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
 
-    # Native curve import reconstructs body/joint properties, but uses builder contact defaults.
-    _export_fields = {
-        "shape": {
-            "shape_" + field: UsdAttribute("newton:export:shape_" + field, type_name="float[]")
-            for field in (
-                "margin",
-                "gap",
-                "material_mu",
-                "material_restitution",
-                "material_ke",
-                "material_kd",
-                "material_kf",
-                "material_ka",
-                "material_mu_torsional",
-                "material_mu_rolling",
-            )
-        }
-    }
-
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
         """Keep the curve schema and supplement native segment properties it cannot express."""
         from pxr import Usd
@@ -83,66 +64,37 @@ class CableObject(BaseCableObject):
         prim = writer.stage.GetPrimAtPath(path)
         if not prim or not prim.IsA(UsdGeom.BasisCurves):
             raise RuntimeError(f"Missing cable curve {path}.")
-        selected_joints = {
-            writer.resolve_paths(AssetPaths([], [(label, 0)])).joints[0][0] for label in self.root_view.joint_labels
-        }
-        joints = [
-            i
-            for i, label in enumerate(model.joint_label)
-            if label in selected_joints and int(model.joint_world.numpy()[i]) in (-1, writer.env_id)
-        ]
-        bodies = sorted(
-            {int(model.joint_parent.numpy()[i]) for i in joints} | {int(model.joint_child.numpy()[i]) for i in joints}
-        )
-        rows = self._export_rows(model, bodies, joints)
-        from newton import ModelBuilder
-
-        defaults = ModelBuilder().default_shape_cfg
-        for kind, fields in self._export_fields.items():
-            for name, target in fields.items():
-                values = getattr(model, name).numpy()[rows[kind]]
-                field = name.removeprefix("shape_").removeprefix("material_")
-                if getattr(defaults, field) is None or not np.allclose(
-                    values, getattr(defaults, field), rtol=1e-6, atol=1e-8
-                ):
-                    writer.write_attribute(path, target, values)
-        writer.represented_collider_paths.update(model.shape_label[i] for i in rows["shape"])
-
-    @staticmethod
-    def _export_rows(model, bodies, joints) -> dict:
-        """Resolve curve-local physical rows before copying or restoring properties."""
-
-        def array(name):
-            value = getattr(model, name)
-            return value.numpy() if hasattr(value, "numpy") else np.asarray(value)
-
-        starts = array("joint_qd_start")
-        # Builders append the terminal offset only when finalized.
-        if len(starts) == model.joint_count:
-            starts = np.append(starts, model.joint_dof_count)
-        return {
-            "body": bodies,
-            "joint": joints,
-            "dof": [i for j in joints for i in range(starts[j], starts[j + 1])],
-            "shape": np.flatnonzero(np.isin(array("shape_body"), bodies)).tolist(),
-        }
+        writer.write_array_properties(path, self.data, env_index=writer.env_index)
+        rows = self.data.shape_indices[writer.env_index]
+        writer.represented_collider_paths.update(model.shape_label[i] for i in rows)
 
     @classmethod
     def restore_fixed_configuration(cls, stage, builder, cable_map) -> None:
-        """Restore curve-local overrides after the standard Newton cable importer."""
-        for path, (bodies, joints) in cable_map.items():
+        """Read the same data declarations after native curve import, without live data instances."""
+        from pxr import UsdPhysics
+
+        from isaaclab.sim.usd_units import UnitConverter, UsdPhysicsUnits
+
+        for path, (bodies, _) in cable_map.items():
             prim = stage.GetPrimAtPath(path)
-            rows = cls._export_rows(builder, bodies, joints)
-            for kind, fields in cls._export_fields.items():
-                for name, declaration in fields.items():
+            rows = np.flatnonzero(np.isin(builder.shape_body, bodies))
+            for name, declarations in usd_fields(CableObjectData, "array").items():
+                for declaration in declarations:
                     value = read_usd_array(prim, declaration)
                     if value is None:
                         continue
+                    value = UnitConverter.convert(
+                        value,
+                        UsdPhysicsUnits.for_attribute(prim, declaration, None),
+                        property_metadata(CableObjectData, name, "_source_units"),
+                        length=UsdGeom.GetStageMetersPerUnit(stage),
+                        mass=UsdPhysics.GetStageKilogramsPerUnit(stage),
+                    )
+                    if value.shape != rows.shape:
+                        raise ValueError(f"Cable collider count mismatch for {path}.{declaration.attribute}.")
                     target = getattr(builder, name)
-                    shape = np.asarray([target[i] for i in rows[kind]]).shape
-                    values = np.asarray(value).reshape(shape)
-                    for index, value in zip(rows[kind], values):
-                        target[index] = value.tolist()
+                    for index, item in zip(rows, value):
+                        target[index] = float(item)
 
     def __init__(self, cfg: CableObjectCfg) -> None:
         """Initialize the cable object.

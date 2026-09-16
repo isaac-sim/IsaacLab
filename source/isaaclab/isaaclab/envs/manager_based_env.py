@@ -22,7 +22,7 @@ from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from .common import VecEnvObs, _apply_deprecated_viewer_cfg, _export_deployment_scene
+from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 from .utils.video_recorder import VideoRecorder
@@ -204,7 +204,8 @@ class ManagerBasedEnv:
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
         # Fixed asset properties are ready; startup events must not affect this artifact.
-        _export_deployment_scene(self.scene, self.cfg.scene.export_usd_path)
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path, preserve_source_contacts=True)
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()

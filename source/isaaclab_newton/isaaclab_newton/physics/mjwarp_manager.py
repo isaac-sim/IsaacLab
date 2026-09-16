@@ -12,11 +12,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from newton import Contacts, JointType, Model
+from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.usd_export_properties import UsdMassPropertiesWriter, UsdMaterialWriter
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mjwarp_tendon_control import MjWarpTendonControl
@@ -42,9 +41,10 @@ class NewtonMJWarpManager(NewtonManager):
 
     @classmethod
     def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
-        """Export MuJoCo options and native contact properties from the selected solver world."""
+        """Export physical configuration and optionally the selected world's MuJoCo settings."""
         super().author_fixed_configuration(writer, scene)
-        cls.author_solver_configuration(writer, scene, cls._solver, scene.sim.cfg.physics.solver_cfg)
+        if writer.include_solver_settings and cls._solver is not None:
+            cls.author_solver_configuration(writer, scene, cls._solver, scene.sim.cfg.physics.solver_cfg)
 
     @classmethod
     def author_solver_configuration(
@@ -53,21 +53,12 @@ class NewtonMJWarpManager(NewtonManager):
         scene: InteractiveScene,
         solver: SolverMuJoCo,
         solver_cfg: MJWarpSolverCfg,
-        *,
-        scene_settings: bool = True,
     ) -> None:
-        """Write a standalone or coupled MuJoCo solver's native configuration."""
+        """Write optional MuJoCo settings without making asset import depend on them."""
         import json
 
-        from pxr import Gf, Sdf, UsdPhysics, UsdShade
-
         from isaaclab.assets.physics_properties import UsdAttribute
-        from isaaclab.sim.usd_export import AssetPaths
 
-        from isaaclab_newton.sim.schemas import apply_mujoco_collision
-        from isaaclab_newton.sim.schemas.schemas_cfg import MujocoCollisionCfg
-
-        model = solver.model
         world = writer.env_id if solver.mjc_body_to_newton.shape[0] > 1 else 0
         native = solver.mj_model if solver.use_mujoco_cpu else solver.mjw_model
 
@@ -100,231 +91,18 @@ class NewtonMJWarpManager(NewtonManager):
         options["disable_contacts"] = bool(flags & mujoco.mjtDisableBit.mjDSBL_CONTACT)
         options["disable_sensors"] = bool(flags & mujoco.mjtDisableBit.mjDSBL_SENSOR)
         options["enable_multiccd"] = not bool(flags & mujoco.mjtDisableBit.mjDSBL_MULTICCD)
-        if scene_settings:
-            from newton.usd import PrimType, SchemaResolverMjc
+        from newton.usd import PrimType, SchemaResolverMjc
 
-            target = SchemaResolverMjc.mapping[PrimType.SCENE]["max_solver_iterations"].name
-            writer.write_attribute(
-                scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
-            )
+        target = SchemaResolverMjc.mapping[PrimType.SCENE]["max_solver_iterations"].name
+        writer.write_attribute(
+            scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+        )
         options = {name: option for name, option in options.items() if option is not None}
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:newtonDriver": {"solver": "mujoco", "options": json.dumps(options)},
         }
         writer.write_gravity(scene.physics_scene_path, value(native.opt, "gravity"))
-
-        def path_for(kind, index):
-            path = getattr(model, kind + "_label")[index]
-            return writer.resolve_paths(AssetPaths([(path, 0)], [])).bodies[0][0]
-
-        body_values = {name: value(native, "body_" + name) for name in ("mass", "inertia", "ipos", "iquat", "gravcomp")}
-        for body, index in enumerate(solver.mjc_body_to_newton.numpy()[world]):
-            if index < 0 or model.body_world.numpy()[index] not in (-1, writer.env_id):
-                continue
-            path = path_for("body", index)
-            prim = writer.stage.GetPrimAtPath(path)
-            quat = body_values["iquat"][body]
-            rotation = np.asarray(Gf.Matrix3d(Gf.Quatd(float(quat[0]), Gf.Vec3d(*map(float, quat[1:]))))).T
-            inertia = rotation @ np.diag(body_values["inertia"][body]) @ rotation.T
-            com = np.concatenate((body_values["ipos"][body], quat[1:], quat[:1]))
-            UsdMassPropertiesWriter(writer).write(prim, float(body_values["mass"][body]), inertia, com)
-            writer.write_attribute(
-                path, UsdAttribute("mjc:gravcomp", type_name="float"), float(body_values["gravcomp"][body])
-            )
-
-        starts = model.joint_qd_start.numpy()
-        shared_joint_values = {}
-
-        def write_joint_value(path, name, data):
-            key = (path, name)
-            previous = shared_joint_values.setdefault(key, data.copy())
-            if not np.array_equal(previous, data):
-                raise NotImplementedError(f"MuJoCo USD cannot represent distinct per-axis {name} at {path}.")
-            attribute = writer.stage.GetPrimAtPath(path).GetAttribute(name)
-            # Existing MJC assets may use double precision for these numeric properties.
-            type_name = str(attribute.GetTypeName()) if attribute else ("float[]" if data.ndim else "float")
-            writer.write_attribute(path, UsdAttribute(name, type_name=type_name), data)
-
-        dof_values = {
-            name: value(native, "dof_" + name) for name in ("armature", "damping", "frictionloss", "solref", "solimp")
-        }
-        for dof, index in enumerate(solver.mjc_dof_to_newton_dof.numpy()[world]):
-            if index < 0:
-                continue
-            joint = int(np.searchsorted(starts, index, side="right") - 1)
-            if model.joint_world.numpy()[joint] not in (-1, writer.env_id) or int(
-                model.joint_type.numpy()[joint]
-            ) == int(JointType.FREE):
-                continue
-            path = path_for("joint", joint)
-            if not writer.stage.GetPrimAtPath(path):
-                continue
-            for name, data in dof_values.items():
-                target = {"solref": "solreffriction", "solimp": "solimpfriction"}.get(name, name)
-                write_joint_value(path, "mjc:" + target, data[dof])
-        joint_values = {name: value(native, "jnt_" + name) for name in ("stiffness", "margin", "solref", "solimp")}
-        regenerated_limits = cls._regenerated_limit_joints(
-            model,
-            solver.mjc_jnt_to_newton_jnt.numpy()[world],
-            solver.mjc_jnt_to_newton_dof.numpy()[world],
-            joint_values,
-            value(native, "dof_invweight0"),
-            value(native, "jnt_dofadr"),
-        )
-        for joint, index in enumerate(solver.mjc_jnt_to_newton_jnt.numpy()[world]):
-            if (
-                index < 0
-                or int(model.joint_type.numpy()[index]) == int(JointType.FREE)
-                or model.joint_world.numpy()[index] not in (-1, writer.env_id)
-            ):
-                continue
-            path = path_for("joint", index)
-            if not writer.stage.GetPrimAtPath(path):
-                continue
-            for name, data in joint_values.items():
-                if name == "solref" and regenerated_limits.get(index, False):
-                    # Force-space gains are exported per axis. MuJoCo regenerates solref
-                    # from those gains and axis inertia; writing it as a raw override changes intent.
-                    writer.stage.GetPrimAtPath(path).RemoveProperty("mjc:solreflimit")
-                    continue
-                target = {"solref": "solreflimit", "solimp": "solimplimit"}.get(name, name)
-                write_joint_value(path, "mjc:" + target, data[joint])
-
-        mapping = solver.mjc_geom_to_newton_shape.numpy()[world]
-        fields = {
-            name: value(native, "geom_" + name)
-            for name in (
-                "condim",
-                "group",
-                "priority",
-                "solimp",
-                "solmix",
-                "solref",
-                "friction",
-                "contype",
-                "conaffinity",
-            )
-        }
-        cls._author_collision_filters(
-            writer,
-            mapping,
-            fields,
-            value(native, "geom_bodyid"),
-            set(map(int, np.asarray(solver.mj_model.exclude_signature))),
-            model,
-        )
-
-        for geom, shape in enumerate(mapping):
-            if shape < 0 or model.shape_world.numpy()[shape] not in (-1, writer.env_id):
-                continue
-            path = writer.resolve_paths(AssetPaths([(model.shape_label[shape], 0)], [])).bodies[0][0]
-            prim = writer.stage.GetPrimAtPath(path)
-            if not prim or not prim.HasAPI(UsdPhysics.CollisionAPI):
-                continue
-            cfg = MujocoCollisionCfg(
-                **{
-                    name: data[geom].tolist()
-                    for name, data in fields.items()
-                    if name not in {"friction", "contype", "conaffinity"}
-                }
-            )
-            apply_mujoco_collision(cfg, path, writer.stage)
-            material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
-            friction = fields["friction"][geom]
-            native_friction = {
-                "physics:dynamicFriction": friction[0],
-                "newton:torsionalFriction": friction[1],
-                "newton:rollingFriction": friction[2],
-            }
-            if not material or any(
-                material.GetPrim().GetAttribute(name).Get() != float(v) for name, v in native_friction.items()
-            ):
-                material = UsdMaterialWriter(writer).for_override(prim)
-                for name, v in native_friction.items():
-                    writer.write_attribute(str(material.GetPath()), UsdAttribute(name, type_name="float"), float(v))
-                # Explicit MuJoCo attributes take precedence over the Newton material bridge.
-                for name, v in (("mjc:torsionalfriction", friction[1]), ("mjc:rollingfriction", friction[2])):
-                    writer.write_attribute(str(material.GetPath()), UsdAttribute(name, type_name="float"), float(v))
-            for name in ("contype", "conaffinity"):
-                prim.CreateAttribute("mjc:" + name, Sdf.ValueTypeNames.Int64).Set(int(fields[name][geom]))
-
-    @classmethod
-    def _regenerated_limit_joints(
-        cls, model, joint_map, dof_map, joint_values, invweights, addresses
-    ) -> dict[int, bool]:
-        """Check every axis before replacing joint-wide native solref with force-space gains."""
-        limit_modes = model.mujoco.solreflimit_mode.numpy()
-        # Preserve direct native overrides; omit only values reproduced by the exported gains.
-        regenerated_limits = {}
-        limit_ke, limit_kd = model.joint_limit_ke.numpy(), model.joint_limit_kd.numpy()
-        for joint, (index, dof) in enumerate(zip(joint_map, dof_map)):
-            if index < 0 or dof < 0:
-                continue
-            ke, kd = float(limit_ke[dof]), float(limit_kd[dof])
-            invw, dmax = float(invweights[addresses[joint]]), float(joint_values["solimp"][joint, 1])
-            expected = cls._force_space_solref(ke, kd, invw, dmax)
-            matches = limit_modes[dof] == 0 and np.allclose(
-                joint_values["solref"][joint], expected, rtol=3e-5, atol=1e-7
-            )
-            regenerated_limits[index] = regenerated_limits.get(index, True) and matches
-        return regenerated_limits
-
-    @staticmethod
-    def _force_space_solref(ke: float, kd: float, invweight: float, dmax: float) -> tuple[float, float]:
-        """Recognize Newton's force-space conversion without overwriting native buffer overrides."""
-        if ke <= 0 or kd <= 0:
-            return (0.02, 1.0)
-        factor = invweight * (1 - dmax) if invweight > 0 and dmax < 1 else 1.0
-        stiffness, damping = max(ke * factor, 1e-15), max(kd * factor, 1e-15)
-        return (2 / damping, damping / (2 * np.sqrt(stiffness)))
-
-    @classmethod
-    def _author_collision_filters(
-        cls,
-        writer: UsdWriter,
-        mapping: np.ndarray,
-        fields: dict[str, np.ndarray],
-        bodies: np.ndarray,
-        excluded: set[int],
-        model: Model | None = None,
-    ) -> None:
-        """Preserve effective native collision relationships independently of mask bit allocation."""
-        from pxr import UsdPhysics
-
-        from isaaclab.sim.usd_export import AssetPaths
-
-        model = cls.get_model() if model is None else model
-        # Native masks can have runtime overrides absent from the Newton model and source USD.
-        # Encode disabled pairs as standard relationships because USD imports regenerate mask bits.
-        for first, shape in enumerate(mapping):
-            if shape < 0 or model.shape_world.numpy()[shape] not in (-1, writer.env_id):
-                continue
-            prim = writer.stage.GetPrimAtPath(
-                writer.resolve_paths(AssetPaths([(model.shape_label[shape], 0)], [])).bodies[0][0]
-            )
-            if not prim or not prim.HasAPI(UsdPhysics.CollisionAPI):
-                continue
-            filtered = []
-            for second in range(first + 1, len(mapping)):
-                other = mapping[second]
-                if other < 0 or model.shape_world.numpy()[other] not in (-1, writer.env_id):
-                    continue
-                target = writer.stage.GetPrimAtPath(
-                    writer.resolve_paths(AssetPaths([(model.shape_label[other], 0)], [])).bodies[0][0]
-                )
-                if not target or not target.HasAPI(UsdPhysics.CollisionAPI):
-                    continue
-                body0, body1 = sorted((int(bodies[first]), int(bodies[second])))
-                enabled = (int(fields["contype"][first]) & int(fields["conaffinity"][second])) or (
-                    int(fields["contype"][second]) & int(fields["conaffinity"][first])
-                )
-                if not enabled or body0 == body1 or ((body0 << 16) + body1) in excluded:
-                    filtered.append(target.GetPath())
-            if filtered:
-                relationship = UsdPhysics.FilteredPairsAPI.Apply(prim).CreateFilteredPairsRel()
-                for target in filtered:
-                    relationship.AddTarget(target)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:

@@ -212,10 +212,21 @@ class Articulation(BaseArticulation):
                         matches = paths[joint_name]
                         # OVPhysX names spherical DOFs by twist/swing1/swing2, corresponding to X/Y/Z.
                         axes[row] = ("rotX", "rotY", "rotZ")[int(suffix)]
-                        if self.stage.GetPrimAtPath(matches[0]).GetTypeName() != "PhysicsJoint":
+                        if (
+                            self.stage.GetPrimAtPath(matches[0]).GetPrimTypeInfo().GetSchemaType()
+                            != UsdPhysics.Joint._GetStaticTfType()
+                        ):
                             raise NotImplementedError(f"No per-axis USD drive representation for {matches[0]}.")
                     else:
                         raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
+                if paths is joints and row not in axes:
+                    prim = self.stage.GetPrimAtPath(matches[0])
+                    if prim.IsA(UsdPhysics.RevoluteJoint):
+                        axes[row] = "angular"
+                    elif prim.IsA(UsdPhysics.PrismaticJoint):
+                        axes[row] = "linear"
+                    else:
+                        raise NotImplementedError(f"No scalar joint axis for {matches[0]}.")
                 result.append((matches[0], row))
             return result
 

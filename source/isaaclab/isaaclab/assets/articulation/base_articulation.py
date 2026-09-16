@@ -17,8 +17,6 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
-from isaaclab.sim.usd_export_properties import UsdMassPropertiesWriter
-
 from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
@@ -497,17 +495,14 @@ class BaseArticulation(AssetBase):
                 raise NotImplementedError(f"Controller {name!r} has no native USD representation.")
         paths = writer.resolve_paths(self._usd_export_paths(writer.env_index))
         data = self.data
-        UsdMassPropertiesWriter(writer).write_bodies(data, paths.bodies)
+        writer.write_bodies(data, paths.bodies)
         if sorted(row for _, row in paths.joints) != list(range(self.num_joints)):
             raise RuntimeError(f"Incomplete DOF identities for {self.cfg.prim_path}.")
         for path, row in paths.joints:
             prim = writer.stage.GetPrimAtPath(path)
             if not prim:
                 raise RuntimeError(f"Missing joint {path}.")
-            axis = paths.joint_axes.get(row) or {
-                "PhysicsRevoluteJoint": "angular",
-                "PhysicsPrismaticJoint": "linear",
-            }.get(prim.GetTypeName())
+            axis = paths.joint_axes.get(row)
             if axis is None:
                 raise NotImplementedError(f"Unsupported driven joint {path} ({prim.GetTypeName()}).")
             writer.write_properties(path, axis, data, row=row)

@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added selected-environment Newton USD export and deployment loading with XPBD, MJWarp, Kamino and VBD driver settings, effective body/joint/contact and cable properties, and preserved authored geometry and terrain heightfield conversion.
+* Added selected-environment Newton scene/asset export with declared physical properties and cable contact supplements. Used native USD loading and made MJWarp solver settings optional; excluded other Newton solver settings and determinism.

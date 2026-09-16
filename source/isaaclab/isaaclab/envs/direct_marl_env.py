@@ -33,7 +33,6 @@ from .common import (
     ObsType,
     StateType,
     _apply_deprecated_viewer_cfg,
-    _export_deployment_scene,
 )
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
@@ -185,7 +184,8 @@ class DirectMARLEnv(gym.Env):
         # fold the full loop into a single step() when possible
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
-        _export_deployment_scene(self.scene, self.cfg.scene.export_usd_path)
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path, preserve_source_contacts=True)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)

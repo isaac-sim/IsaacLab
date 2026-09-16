@@ -14,7 +14,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import IntEnum
 from functools import lru_cache
+
+import numpy as np
 
 
 @dataclass(frozen=True)
@@ -23,23 +26,32 @@ class UsdAttribute:
 
     ``schema`` names a registered schema, optionally followed by ``:{axis}`` for
     multi-apply instances. Unregistered extensions require an explicit ``type_name``.
-    ``angular_power`` converts SI angular values by (degrees/radian)**power;
-    linear values are unchanged. ``component`` selects a vector element. ``axes``
+    ``component`` selects a vector element and ``output`` selects a representation
+    transform result. ``axes``
     restricts a binding to matching joint axes. ``require_uniform`` rejects conflicting
     writes to a shared target. ``replaces`` removes obsolete aliases before authoring.
+    ``condition`` names a boolean data property that identifies applicable rows.
     """
 
     attribute: str
     schema: str | None = None
-    angular_power: int = 0
-    component: int | None = None
+    component: int | slice | None = None
+    output: str | None = None
     type_name: str | None = None
     axes: tuple[str, ...] | None = None
     require_uniform: bool = False
     replaces: tuple[str, ...] = ()
+    omit_if_default: float | None = None
+    condition: str | None = None
 
 
-def usd_field(*targets: UsdAttribute, extend: bool = False) -> Callable:
+def usd_field(
+    *targets: UsdAttribute,
+    extend: bool = False,
+    scope: str = "joint",
+    transform: Callable | None = None,
+    inputs: tuple[str, ...] = (),
+) -> Callable:
     """Bind USD targets to the decorated property's getter without wrapping it.
 
     Place below ``@property``. Getter overrides inherit the nearest declaration;
@@ -48,14 +60,14 @@ def usd_field(*targets: UsdAttribute, extend: bool = False) -> Callable:
     """
 
     def bind(getter: Callable) -> Callable:
-        getter._usd_field = (targets, extend)
+        getter._usd_field = (targets, extend, scope, transform, inputs)
         return getter
 
     return bind
 
 
 @lru_cache
-def usd_fields(data_type: type) -> dict[str, tuple[UsdAttribute, ...]]:
+def usd_fields(data_type: type, scope: str | None = None) -> dict[str, tuple[UsdAttribute, ...]]:
     """Discover inherited declarations statically, without invoking any getter."""
     result = {}
     for base in reversed(data_type.__mro__):
@@ -66,7 +78,9 @@ def usd_fields(data_type: type) -> dict[str, tuple[UsdAttribute, ...]]:
                 continue
             declaration = getattr(prop.fget, "_usd_field", None)
             if declaration is not None:
-                targets, extend = declaration
+                targets, extend, group, _, _ = declaration
+                if scope is not None and scope != group:
+                    continue
                 result[name] = result.get(name, ()) + targets if extend else targets
     for name, targets in result.items():
         if not targets:
@@ -85,3 +99,58 @@ def read_usd_array(prim, target: UsdAttribute):
     if array.ndim != 1:
         raise ValueError(f"Expected a scalar array for {prim.GetPath()}.{target.attribute}.")
     return array
+
+
+class LimitComponent(IntEnum):
+    """Named components of a public lower/upper joint-limit pair."""
+
+    LOWER = 0
+    UPPER = 1
+
+
+def source_units(unit: str | None = None, **variants: str) -> Callable:
+    """Declare physical source units, optionally by joint axis kind or transform output."""
+    if (unit is None) == (not variants):
+        raise ValueError("Declare either one unit or named variants.")
+
+    def bind(getter: Callable) -> Callable:
+        getter._source_units = unit if unit is not None else variants
+        return getter
+
+    return bind
+
+
+def property_metadata(data_type: type, name: str, key: str):
+    """Find inherited getter metadata without evaluating a backend property."""
+    for owner in data_type.__mro__:
+        prop = vars(owner).get(name)
+        if isinstance(prop, property) and hasattr(prop.fget, key):
+            return getattr(prop.fget, key)
+    raise NotImplementedError(f"Missing {key} declaration for {data_type.__name__}.{name}.")
+
+
+def principal_inertia(value: np.ndarray, frame: np.ndarray) -> dict[str, np.ndarray]:
+    """Decompose a link-frame inertia [kg*m²] into principal moments and xyzw axes.
+
+    This is a representation transform with two outputs, not a unit conversion.
+    """
+    from pxr import Gf
+
+    tensor = np.asarray(value).reshape(3, 3)
+    if not np.isfinite(tensor).all() or not np.allclose(tensor, tensor.T, atol=1e-7):
+        raise ValueError("Inertia must be finite and symmetric.")
+    rotation = Gf.Quatd(float(frame[3]), Gf.Vec3d(*map(float, frame[:3])))
+    axes = np.asarray(Gf.Matrix3d(rotation)).T
+    principal = axes.T @ tensor @ axes
+    # Retain an existing principal frame, including its axis order and repeated eigenvalues.
+    if np.allclose(principal, np.diag(np.diag(principal)), atol=1e-7):
+        if np.any(np.diag(principal) < -1e-7):
+            raise ValueError("Negative inertia.")
+        return {"moments": np.diag(principal), "axes": np.asarray(frame)}
+    moments, axes = np.linalg.eigh(tensor)
+    if np.any(moments < -1e-7):
+        raise ValueError("Negative inertia.")
+    if np.linalg.det(axes) < 0:
+        axes[:, 0] *= -1
+    rotation = Gf.Matrix3d(*map(float, axes.T.flatten())).ExtractRotation().GetQuat()
+    return {"moments": np.maximum(moments, 0), "axes": np.array([*rotation.GetImaginary(), rotation.GetReal()])}

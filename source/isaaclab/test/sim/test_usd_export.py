@@ -16,18 +16,55 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.assets.physics_properties import (
     UsdAttribute,
+    source_units,
     usd_field,
     usd_fields,
 )
+from isaaclab.assets.physx_contact_data import PhysxContactData
 from isaaclab.scene import InteractiveScene
-from isaaclab.scene_data.physx_export import author_body_contacts
 from isaaclab.sim.usd_export import UsdWriter
-from isaaclab.sim.usd_export_properties import UsdMassPropertiesWriter
+
+
+def _stage():
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
+    return stage
+
+
+class BodyDeclarations:
+    from isaaclab.assets import BaseRigidObjectData as _Data
+
+    body_mass = _Data.body_mass
+    body_inertia = _Data.body_inertia
+    body_com_pos_b = _Data.body_com_pos_b
+
+
+class BodyData(BodyDeclarations):
+    def __init__(self, **values):
+        self.values = values
+        self.body_link_pose_w = values["body_link_pose_w"]
+
+    @property
+    def body_mass(self):
+        return self.values["body_mass"]
+
+    @property
+    def body_inertia(self):
+        return self.values["body_inertia"]
+
+    @property
+    def body_com_quat_b(self):
+        return self.values["body_com_pose_b"].torch[..., 3:].numpy()
+
+    @property
+    def body_com_pos_b(self):
+        return self.values["body_com_pose_b"].torch[..., :3].numpy()
 
 
 @pytest.fixture
 def scene():
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
     UsdPhysics.Scene.Define(stage, "/physicsScene")
@@ -74,7 +111,7 @@ def test_body_contacts_respect_nested_body_ownership(scene):
         UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(path))
     writer = UsdWriter.from_stage(stage)
     for path, friction in ((parent, 0.25), (child, 0.75)):
-        author_body_contacts(writer, path, False, [[friction, friction, 0]], [0.02], [0])
+        PhysxContactData(False, [[friction, friction, 0]], [0.02], [0]).author_configuration(writer, path)
     for path, friction in ((parent, 0.25), (child, 0.75)):
         material, _ = UsdShade.MaterialBindingAPI(writer.stage.GetPrimAtPath(path)).ComputeBoundMaterial("physics")
         assert UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get() == friction
@@ -85,7 +122,7 @@ def test_body_contacts_respect_nested_body_ownership(scene):
     [("", None), ("physics", None), ("custom", None), ("", ""), ("custom", "custom"), ("physics", "physics")],
 )
 def test_copy_removes_only_ineffective_dangling_material_bindings(purpose, inherited_purpose, tmp_path):
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
     root = UsdGeom.Xform.Define(stage, "/Root").GetPrim()
@@ -107,9 +144,7 @@ def test_copy_removes_only_ineffective_dangling_material_bindings(purpose, inher
     }
 
     writer = UsdWriter.from_stage(stage)
-    from isaaclab.sim.usd_export_properties import UsdMaterialWriter
-
-    UsdMaterialWriter(writer).remove_unused_bindings()
+    writer.remove_unused_bindings()
     output = str(tmp_path / "scene.usda")
     if inherited_purpose is None:
         writer.save(output)
@@ -185,7 +220,7 @@ def test_declared_joint_mapping_authors_effective_values(angular):
     data = Data()
     assert set(usd_fields(Data)) == {"joint_stiffness", "joint_pos_limits"}
     assert data.reads == 0  # Discovery traverses declarations, never backend getters.
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     writer = UsdWriter(stage)
     axis, scale = ("angular", 180 / math.pi) if angular else ("linear", 1.0)
     for row, (gain, lower, upper) in enumerate(((83.0, -0.4, 0.8), (41.0, -0.2, 0.3))):
@@ -202,38 +237,27 @@ def test_declared_joint_mapping_authors_effective_values(angular):
 def test_binding_override_extension_and_scalar_vector_schema_types():
     class Base:
         @property
+        @source_units("kg")
         @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"))
         def value(self):
-            raise AssertionError("An overridden getter must not execute.")
+            return np.array([[2.5]])
 
     class Derived(Base):
         @property
         @usd_field(UsdAttribute("physics:density", "PhysicsMassAPI"), extend=True)
         def value(self):
-            return np.array([[2.5]])
+            return super().value
 
-        @property
-        @usd_field(UsdAttribute("physics:centerOfMass", "PhysicsMassAPI"))
-        def center(self):
-            return np.array([[[0.1, -0.2, 0.3]]])
-
-    class Replaced(Derived):
-        @property
-        @usd_field(UsdAttribute("custom:replacement", type_name="double"))
-        def value(self):
-            return np.array([[7.0]])
-
-    stage = Usd.Stage.CreateInMemory()
+    assert len(usd_fields(Derived)["value"]) == 2
+    stage = _stage()
     body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(body)
     writer = UsdWriter(stage)
-    writer.write_properties("/Body", None, Derived(), row=0)
+    writer.write_properties("/Body", None, Base(), row=0)
     assert body.GetAttribute("physics:mass").Get() == 2.5
-    assert body.GetAttribute("physics:density").Get() == 2.5
-    np.testing.assert_allclose(body.GetAttribute("physics:centerOfMass").Get(), [0.1, -0.2, 0.3])
-    writer.write_properties("/Body", None, Replaced(), row=0)
-    assert body.GetAttribute("physics:mass").Get() == 2.5
-    assert body.GetAttribute("custom:replacement").Get() == 7.0
-    # Registered typed schemas validate the prim type; they are never applied as APIs.
+    # A mass value cannot be reused as a density merely because both are scalar floats.
+    with pytest.raises(ValueError, match="Incompatible physical units"):
+        writer.write_properties("/Body", None, Derived(), row=0)
     writer.write_attribute("/Body", UsdAttribute("visibility", "Imageable"), "invisible")
     assert body.GetAttribute("visibility").Get() == "invisible"
 
@@ -252,7 +276,7 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
     ],
 )
 def test_unsupported_binding_fails_explicitly(target, error):
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     UsdGeom.Xform.Define(stage, "/Body")
     with pytest.raises(error):
         UsdWriter(stage).write_attribute("/Body", target, 1.0, axis="angular")
@@ -286,9 +310,9 @@ def test_articulation_rejects_unsupported_driven_joint(monkeypatch):
     from isaaclab.assets import BaseArticulation
     from isaaclab.sim.usd_export import AssetPaths
 
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     UsdPhysics.SphericalJoint.Define(stage, "/Joint")
-    monkeypatch.setattr("isaaclab.sim.usd_export_properties.UsdMassPropertiesWriter.write_bodies", lambda *_: None)
+    monkeypatch.setattr("isaaclab.sim.usd_export.UsdWriter.write_bodies", lambda *_: None)
     asset = SimpleNamespace(cfg=ArticulationCfg(prim_path="/Robot", actuators={}), num_joints=1, data=None)
     asset._usd_export_paths = lambda env_index=0: AssetPaths([], [("/Joint", 0)])
     writer = SimpleNamespace(
@@ -316,7 +340,7 @@ def test_unregistered_physical_body_fails_before_save(scene, tmp_path):
     asset = SimpleNamespace(
         cfg=RigidObjectCfg(prim_path=path),
         root_view=SimpleNamespace(prim_paths=[path]),
-        data=SimpleNamespace(
+        data=BodyData(
             body_link_pose_w=SimpleNamespace(torch=torch.tensor([[0.0, 0, 0, 0, 0, 0, 1]])),
             body_com_vel_w=SimpleNamespace(torch=torch.zeros((1, 6))),
             body_mass=SimpleNamespace(torch=torch.ones((1, 1))),
@@ -389,12 +413,12 @@ def test_atomic_save_rejects_missing_dependencies_and_preserves_destination(scen
 @pytest.mark.parametrize("available", [True, False])
 def test_dependency_validation_uses_authored_uri(available, monkeypatch):
     """A localization-only URI normalization must not reject a reachable resource."""
-    from pxr import Sdf, Usd, UsdUtils
+    from pxr import Sdf, UsdUtils
 
     from isaaclab.sim.usd_export import UsdWriter
     from isaaclab.utils import assets
 
-    stage = Usd.Stage.CreateInMemory()
+    stage = _stage()
     uri = "https://assets.example.test/sky.hdr"
     stage.DefinePrim("/Light").CreateAttribute("inputs:texture:file", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(uri))
     monkeypatch.setattr(UsdUtils, "ComputeAllDependencies", lambda _: ([], [], ["https:/assets.example.test/sky.hdr"]))
@@ -414,49 +438,52 @@ def test_dependency_validation_uses_authored_uri(available, monkeypatch):
     assert stage.GetPrimAtPath("/Light").GetAttribute("inputs:texture:file").Get().path == uri
 
 
-def test_multi_axis_joint_values_do_not_overwrite_other_axes():
-    """Per-axis limits and drives retain distinct values and convert radians independently."""
-    from isaaclab.assets.physics_properties import UsdAttribute
+@pytest.mark.parametrize("length", [1.0, 0.01])
+def test_multi_axis_joint_values_do_not_overwrite_other_axes(length):
+    """Independent Cartesian DOFs convert compound units and retain axis identity."""
+    from isaaclab.assets import BaseArticulationData
 
-    stage = Usd.Stage.CreateInMemory()
+    class Declarations:
+        joint_pos_limits = BaseArticulationData.joint_pos_limits
+        joint_stiffness = BaseArticulationData.joint_stiffness
+
+    class Data(Declarations):
+        @property
+        def joint_pos_limits(self):
+            return np.array([[[-0.2, 0.2], [-0.7, 0.7], [-0.3, 0.4]]])
+
+        @property
+        def joint_stiffness(self):
+            return np.array([[13.0, 29.0, 47.0]])
+
+    stage = _stage()
+    UsdGeom.SetStageMetersPerUnit(stage, length)
     joint = UsdPhysics.Joint.Define(stage, "/Joint")
     writer = UsdWriter(stage)
-    for axis, angle, stiffness in (("rotX", 0.2, 13.0), ("rotZ", 0.7, 29.0)):
-        writer.write_attribute(
-            "/Joint",
-            UsdAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", angular_power=1),
-            -angle,
-            axis=axis,
-        )
-        writer.write_attribute(
-            "/Joint",
-            UsdAttribute("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", angular_power=1),
-            angle,
-            axis=axis,
-        )
-        writer.write_attribute(
-            "/Joint",
-            UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", angular_power=-1),
-            stiffness,
-            axis=axis,
-        )
+    for row, axis in enumerate(("rotX", "rotZ", "transY")):
+        writer.write_properties("/Joint", axis, Data(), row=row)
     for axis, angle, stiffness in (("rotX", 0.2, 13.0), ("rotZ", 0.7, 29.0)):
         limit = UsdPhysics.LimitAPI(joint.GetPrim(), axis)
         assert limit.GetLowAttr().Get() == pytest.approx(-np.degrees(angle))
         assert limit.GetHighAttr().Get() == pytest.approx(np.degrees(angle))
         assert UsdPhysics.DriveAPI(joint.GetPrim(), axis).GetStiffnessAttr().Get() == pytest.approx(
-            stiffness * np.pi / 180
+            stiffness * np.pi / 180 / length**2
         )
+    assert UsdPhysics.LimitAPI(joint.GetPrim(), "transY").GetLowAttr().Get() == pytest.approx(-0.3 / length)
+    assert UsdPhysics.DriveAPI(joint.GetPrim(), "transY").GetStiffnessAttr().Get() == 47.0
     assert not joint.GetPrim().HasAttribute("physics:lowerLimit")
 
 
-def test_fixed_properties_write_placement_and_zero_initial_velocities(scene):
+@pytest.mark.parametrize("length,mass_unit", [(1.0, 1.0), (0.01, 0.001)])
+def test_fixed_properties_write_placement_and_zero_initial_velocities(scene, length, mass_unit):
     import torch
 
     from pxr import Gf
 
     from isaaclab.assets import BaseArticulationData
 
+    UsdGeom.SetStageMetersPerUnit(scene.sim.stage, length)
+    UsdPhysics.SetStageKilogramsPerUnit(scene.sim.stage, mass_unit)
     path = "/World/envs/env_0/Body"
     prim = scene.sim.stage.GetPrimAtPath(path)
     UsdGeom.XformCommonAPI(prim).SetTranslate((1, 2, 3))
@@ -473,20 +500,25 @@ def test_fixed_properties_write_placement_and_zero_initial_velocities(scene):
     points.CreateVelocitiesAttr().Set([(1, 2, 3), (4, 5, 6)])
     points.GetVelocitiesAttr().Set([(2, 3, 4), (5, 6, 7)], 1)
     before = scene.sim.stage.GetRootLayer().ExportToString()
-    data = SimpleNamespace(
+    data = BodyData(
         body_link_pose_w=SimpleNamespace(torch=torch.tensor([[[3.0, 2, 1, 0, 0, 0, 1]]])),
         body_mass=SimpleNamespace(torch=torch.tensor([[2.0]])),
         body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
         body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.0, 0, 0, 0, 0, 0, 1]]])),
     )
     writer = UsdWriter.from_stage(scene.sim.stage)
-    UsdMassPropertiesWriter(writer).write_bodies(data, [(path, 0)])
+    writer.write_bodies(data, [(path, 0)])
     writer.clear_initial_velocities()
     actual = writer.stage.GetPrimAtPath(path)
+    properties = UsdPhysics.MassAPI(actual)
+    assert properties.GetMassAttr().Get() == pytest.approx(2.0 / mass_unit)
+    np.testing.assert_allclose(properties.GetDiagonalInertiaAttr().Get(), np.ones(3) / mass_unit / length**2)
     velocities = UsdGeom.PointBased(writer.stage.GetPrimAtPath("/Cloth")).GetVelocitiesAttr()
     np.testing.assert_array_equal(np.asarray(velocities.Get()), np.zeros((2, 3)))
     assert velocities.GetTimeSamples() == []
-    assert UsdGeom.XformCache().GetLocalToWorldTransform(actual).ExtractTranslation() == Gf.Vec3d(3, 2, 1)
+    assert UsdGeom.XformCache().GetLocalToWorldTransform(actual).ExtractTranslation() == Gf.Vec3d(
+        3 / length, 2 / length, 1 / length
+    )
     for name in ("physics:velocity", "physics:angularVelocity"):
         assert actual.GetAttribute(name).Get() == Gf.Vec3f(0)
         assert actual.GetAttribute(name).GetTimeSamples() == []
@@ -520,9 +552,9 @@ def test_source_contacts_preserve_distinct_materials_and_automatic_offsets(scene
     args = (body, True, [[0.5, 0.5, 0], [1, 1, 0]], [0.004, 0.008], [0, 0])
     if not preserve:
         with pytest.raises(NotImplementedError, match="Distinct per-shape"):
-            author_body_contacts(writer, *args)
+            PhysxContactData(*args[1:]).author_configuration(writer, args[0])
         return
-    author_body_contacts(writer, *args)
+    PhysxContactData(*args[1:]).author_configuration(writer, args[0])
     assert writer.stage.GetPrimAtPath(body).GetAttribute("physxRigidBody:disableGravity").Get()
     for index, friction in enumerate((0.5, 1.0)):
         collider = writer.stage.GetPrimAtPath(f"{body}/Shape{index}")

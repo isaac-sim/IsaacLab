@@ -3,248 +3,160 @@ isaaclab.sim.usd_export
 
 .. automodule:: isaaclab.sim.usd_export
 
-Fixed deployment export
+Initialization boundary
 -----------------------
 
 Use ``--export_deployment_usd`` with the unified RSL-RL, RL-Games, SKRL or SB3 training
-entrypoint to write ``deployment.usda`` beside the run's configuration files in ``log_dir``.
-The option is off by default. Only global rank zero exports; RLINF and the experimental
-Warp task frontend are not supported by this integration.
+entrypoint to write ``deployment.usda`` into the run log directory. The option is off
+by default; only global rank zero exports. For example::
 
-The normal task construction exports environment zero after backend and asset initialization,
-before ``startup`` events and the first reset or step. Training then runs its startup events
-normally. There is no second environment, saved nominal snapshot or export-only script.
-Set ``env_cfg.scene.export_usd_path`` to use the same boundary outside the training entrypoint.
-``prestartup`` USD edits are already present and are retained; this path does not undo them.
+    uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
+        physics=newton_mjwarp env.scene.num_envs=1 --headless --export_deployment_usd
 
-Fixed physical properties belong in asset configuration. Material overrides are authored by
-the spawner and actuator settings are resolved during initialization. Startup inertia
-corrections remain task events and are excluded from the deployment artifact.
-Moving material settings from events requires preserving backend semantics: Newton's importer
-uses dynamic friction for its single coefficient, whereas its material randomizer uses the
-static-friction range. Referenced instance colliders must also be reachable by material binding.
-Removing fixed randomizers changes random-number consumption, so the same training seed may
-produce different samples than before the configuration migration.
+Environment construction calls ``scene.export_to_usd`` after physics and asset
+initialization and before startup events, reset or stepping. Set
+``env_cfg.scene.export_usd_path`` before construction to use the same boundary outside
+training. Prestartup changes already authored to USD are retained. Startup randomization
+and task-only inertia corrections are excluded; training executes these events normally.
+The flag does not create a second environment or a cached nominal snapshot. No metrics
+sidecar is produced. RLINF and the experimental Warp frontend are outside this integration.
 
-The exporter reads initialized physical properties, retains body placement and authored joint
-defaults, and writes zero initial body/joint velocities. Backend warmup velocities are not
-deployment initial conditions. It does not reset the scene or apply
-``default_*`` buffers. Newton delivers queued property-change notifications to its native solver
-without advancing physics. Tasks must finish and register their physical scene before this
-boundary; unregistered enabled bodies fail completeness checks. Physics added or changed later
-in a task constructor is not part of the automatic artifact and must move into scene/asset setup.
-A task that steps before this boundary cannot use initialization-only export.
+A standalone scene can call ``scene.export_to_usd("environment.usda", env_id=0,
+preserve_source_contacts=True)`` after ``sim.reset()`` initializes its assets, before
+applying startup/task changes. A call after task construction cannot recover pre-startup
+values. The method rejects export after the first physics step. It retains body placement
+and authored joint defaults, omits explicit live joint-state samples, and clears initial
+body, joint and nodal velocities.
 
-Direct calls to ``InteractiveScene.export_to_usd`` still export the current scene at the time of
-the call, with the same body-placement/zero-velocity policy. To export nominal properties,
-call before randomization; a manual call after startup
-retains its effective changes. Neither mode serializes controllers, observation processing or
-sensor execution for policy deployment.
+Fixed materials belong in spawn configuration. The locomotion preset migration preserves
+backend friction semantics: Newton has one dynamic-friction coefficient, while PhysX
+retains static and dynamic values and combine modes. Removing fixed event terms changes
+random-number consumption compared with the earlier task configuration. Startup inertia
+events remain unchanged.
 
-For a standalone robot and box, launch the backend normally and use the scene's export method.
-Here ``sim_cfg`` is the resolved simulation configuration for that backend::
+Selection and ownership
+-----------------------
 
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass
-    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+The scene selects registered articulations, rigid objects, collections and cables using
+ClonePlan queries, retains static geometry and shared resources, and removes other
+environments. ``env_id`` defaults to zero; one environment is sufficient. ClonePlan
+provides layout and source variants, not subsequent property overrides. Physics-only
+clones are materialized from their authored sources before selected-instance values are
+written. Replicated layouts with different property values have fixture coverage;
+arbitrary heterogeneous scenes are not certified.
 
-    @configclass
-    class DeploymentSceneCfg(InteractiveSceneCfg):
-        robot = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        box = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Box",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(1.0, 0.0, 0.5)),
-        )
+Assets supply stable prim paths, public row indices and joint axes. Revolute/prismatic
+axes are resolved through schema types; Cartesian multi-axis joints provide one axis
+per public DOF. Multiple DOFs may address one USD joint prim. This does not imply that
+SphericalJoint cone limits equal independent Cartesian limits; unsupported mappings fail.
 
-    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
-        scene = InteractiveScene(DeploymentSceneCfg(num_envs=1, env_spacing=2.0))
-        sim.reset()
-        scene.export_to_usd("environment.usda", preserve_source_contacts=True)
+The existing ``UsdWriter`` owns copying, property writes, frame conversion, conditional
+material copying/binding, dependency checks and atomic saving. Backend owners interpret
+native buffers and resolve collider identities. Source material bindings remain when
+they already express the effective values; changed shared materials receive independent
+copies with connections preserved. Before PhysX buffer overrides,
+``preserve_source_contacts=True`` retains source materials and automatic contact offsets.
+Distinct per-shape buffer overrides without stable collider identities are rejected.
+Newton contact defaults applied during asset initialization may require explicit material
+values even when no startup event has run.
 
-In this standalone example, no backend-buffer contact overrides have run, so
-``preserve_source_contacts=True`` retains authored PhysX materials and automatic offsets.
-Automatic pre-startup export uses the same setting. Leave it false when exporting actual
-buffer contact overrides; ambiguous per-shape overrides fail explicitly. Newton uses its
-native shape identities in either case. The exporter never executes event functions.
+Property declarations and units
+-------------------------------
 
-Preservation and authoring
---------------------------
-
-``InteractiveScene.export_to_usd`` copies the stage and calls each registered asset's
-``author_fixed_configuration(writer)``. In this example the robot supplies its
-mass and joint properties; the box supplies its mass properties. Both write into the
-same copy through a shared ``UsdWriter``. Articulation resolves and traverses its own joints;
-the writer discovers data declarations and performs the common attribute writes. Collections use that same body writer for
-all members. Scene-wide settings, dependencies and completeness are checked before saving.
-Concrete assets map their native view identities into public data order. Physics managers own
-global driver settings and backend collision tables, including static colliders without registered assets.
-There is no scene export adapter or backend factory. ``UsdWriter.from_stage`` owns the isolated copy.
-
-One environment is sufficient for export. ``env_id`` defaults to zero and selects a single
-environment from an existing replicated scene; for example, ``env_id=37`` selects environment
-37 when that environment exists. Differences in other environments do not change the selected
-environment's effective configuration. The replicated-scene regression covers matching
-object layouts with different runtime overrides; this does not certify heterogeneous scenes.
-ClonePlan queries supply
-its source variants and instance membership, not runtime property values. Physics-only
-clones missing from USD are materialized from their authored sources; objects supply the
-selected instance's effective buffers. Other environments are removed, shared scene content
-and dependencies retained, and the selected environment keeps its world frame.
-
-The in-memory USD stage carries geometry, mass/inertia/COM, topology, collision materials,
-filtering, static objects, terrain, shared resources, tendon schemas and other authored settings.
-Native Flatten/Stage.Export preserve that content. Effective body/joint state, mass, inertia, COM, actuator properties and supported native
-contact/gravity values are written onto the isolated copy.
-The live stage and caller's configuration are not authored by the exporter. Newton's
-queued property notifications synchronize solver buffers at the snapshot boundary.
-
-Data properties declare targets alongside their getters with ``@usd_field(UsdAttribute(...))``.
-Source names come from the decorated properties, without a second exporter field list. For example::
+Data getters declare physical source units and USD targets in the same place::
 
     @property
-    @usd_field(UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", angular_power=-1))
-    def joint_stiffness(self):
+    @source_units(angular="rad", linear="m")
+    @usd_field(
+        UsdAttribute("physics:lowerLimit", component=LimitComponent.LOWER,
+                     axes=("angular", "linear")),
+        UsdAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}",
+                     component=LimitComponent.LOWER,
+                     axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ")),
+    )
+    def joint_pos_limits(self):
         ...
 
-``usd_fields`` discovers declarations through the class MRO without evaluating getters.
-Backend getter overrides inherit declarations; an explicit decorator replaces them, or appends
-with ``extend=True``. Empty declarations require a backend definition. Joint friction is declared
-by each concrete backend: OVPhysX's raw binding values are not converted into another backend's
-effort units. Abstract-property and existing observation metadata are preserved.
+``UsdPhysicsUnits`` maintains target units from the schema semantics; it does not infer
+units from names alone or claim that USD supplies complete unit metadata. The generic
+converter checks length, mass, time and angle dimensions, supports compound units, and
+uses the stage's length/mass scales. Thus angular stiffness declares ``N*m/rad`` and
+converts to the USD angular-drive unit, independently of joint-limit conversion.
+Unknown unit rules fail explicitly.
 
-Registered schemas supply exact attribute names and types through ``GetSchemaAttributeNames``
-and ``Prim.GetAttribute``. Single/multi-apply and typed schemas are distinguished. Generic writing
-supports scalar, vector and scalar-array attributes, and declared components such as lower/upper limits.
-Matrices and relationship semantics need dedicated operations; body placement,
-fixed-root frames and Newton material bindings remain explicit. Unregistered extensions require
-an explicit target type. Schema discovery cannot infer source fields, units or backend semantics.
+``usd_fields`` discovers inherited getter declarations without invoking the getters.
+The declaration scope distinguishes body, joint, collider, material and array properties
+on shared data objects. A binding may name a boolean data property for applicability;
+Newton uses this to retain native MuJoCo limits instead of authoring fallback force gains.
+Inertia uses an explicit multi-output representation transform:
+``principal_inertia`` reads the tensor and declared COM quaternion input, preserves an
+existing principal frame where possible, and returns principal moments and axes. Each
+output has its own source unit and follows the same generic USD write path. This
+representation change is separate from unit conversion.
 
-The common writer targets standard USD Physics plus the
-PhysX extension dialect used by Isaac Sim. Concrete assets and physics managers supply required
-native extensions; this does not make PhysX-specific friction or drive semantics backend-neutral.
-Explicit controller gains never become implicit solver gains.
+Cable properties use the same declarations on ``CableObjectData``. The owner resolves
+per-environment shape indices; the writer receives complete array rows. Declared native
+defaults may be omitted. The cable reader discovers those declarations at class level,
+without constructing live backend data. There is no separate export field table.
 
-Missing required objects, unsupported driven joint types and
-unresolved dependencies fail before replacing the destination. The implementation currently
-requires SI stage units and a representable timestep. Newton cloth, soft bodies and cables,
-and Isaac Sim surface/volume deformables retain their authored geometry and effective physical
-properties. Surface grippers are rejected. Native schemas unsupported by a deployment consumer still
-need separate validation. Flattening is not packaging: referenced textures, MDL modules and other
-external assets must remain accessible.
+Native loading and optional solver settings
+-------------------------------------------
 
-Newton loading
---------------
+Ordinary scene/asset export does not depend on solver metadata. Load Newton rigid assets
+with its native builder and schema resolvers::
 
-Newton preserves the original geometry and adds its fixed contact/joint properties. Colliders get
-independent physics-material bindings when native values are authored, preserving differences even
-when the source material was shared. Missing bindings receive explicit native material values.
-
-XPBD, MJWarp, Kamino and VBD managers own their driver exports. The proxy coupler delegates
-to its MJWarp/VBD children and preserves solver ownership, proxy relationships and substeps.
-MJWarp additionally reads native body, joint and contact buffers; Kamino stores its resolved
-nested driver configuration. Unrepresentable per-joint actuation modes fail explicitly.
-Load with the deployment entry points to consume the physical extensions and driver settings::
-
+    import newton
     from pxr import Usd
-    from isaaclab_newton.physics.deployment import create_deployment_model, create_deployment_solver
+    from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
-    path = "deployment.usda"
-    metadata = Usd.Stage.Open(path).GetRootLayer().customLayerData
-    model, mappings = create_deployment_model(path, device="cuda:0")
-    solver = create_deployment_solver(
-        model, mappings["driver"], particle_paths=mappings["particle_paths"]
+    stage = Usd.Stage.Open("deployment.usda")
+    builder = newton.ModelBuilder()
+    newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
+    info = builder.add_usd(
+        stage,
+        schema_resolvers=[SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()],
+        **stage.GetRootLayer().customLayerData.get("isaaclab:newtonImportOptions", {}),
     )
-    timing = metadata["isaaclab:newtonSimulation"]
-    dt = timing["dt"]
+    model = builder.finalize(device="cuda:0")
 
-The loader registers the selected solver schemas and restores physical configuration without
-constructing a task or replaying its events. Cloth and volume meshes retain connectivity and
-stress-free geometry separately from nodal placement. Particle masses use ``physics:masses``.
-Named ``newton:export:*`` attributes supplement particle pinning, radii and flags, edge rest
-angles, and cable contact properties that native import cannot reproduce. In particular,
-initialization can overwrite rest angles without changing mesh geometry; export preserves
-those effective values without changing the live simulation. These extensions require this
-loader; a generic USD importer does not
-provide equivalent physical semantics. Proxy coupling supports MJWarp/VBD children; ADMM and
-custom collision-pipeline factories are rejected.
+The optional import dictionary describes joint actuation modes. It is independent of
+solver settings. For cables, request ``return_deformable_results=True`` from ``add_usd``
+and call ``CableObject.restore_fixed_configuration(stage, builder,
+info.get("path_cable_map", {}))`` before finalization to restore contact supplements
+that native curve import does not read. No duplicate deployment model/solver loader is
+provided. Source terrain meshes remain in USD; a consumer's heightfield substitution
+requires separate validation.
 
-The deployment stepping loop must honor ``dt``, ``num_substeps`` and ``collision_decimation``
-in ``isaaclab:newtonSimulation``.
+Set ``include_solver_settings=True`` on ``scene.export_to_usd`` to request available
+Newton MJWarp settings. Other Newton solvers still export scene/assets; VBD, XPBD,
+Kamino and coupled solver settings are not serialized or reconstructed. Determinism is
+excluded. PhysX and OVPhysX keep their supported scene settings and integer timestep
+frequency; Newton asset export does not require that PhysX representation. Missing optional
+settings never prevent scene/asset export or loading.
 
-The metadata consumers are the deployment loader (illustrated above) and the independent
-fresh-load tests. Isaac Sim/OVPhysX do not consume these Newton driver options. The descriptive
-``isaaclab:configuration`` marker does not execute task code.
+MJWarp iterations use the native ``mjc:option:iterations`` attribute. Remaining supported
+constructor settings are stored as JSON in ``isaaclab:newtonDriver.options``; a caller
+may pass these options to ``newton.solvers.SolverMuJoCo`` and obtain iterations from
+the exported physics scene. There is no automatic task reconstruction or event replay.
+A deployment loop must choose its own stepping schedule.
 
-The fresh-load tests compare complete fixture entity coverage, topology, geometry,
-materials, collision relationships, body/joint properties and gravity. MJWarp and
-Kamino also compare native solver configuration after loading without task overrides.
-Initial velocities are checked as zero; post-warmup poses and velocities are not compared.
+Limits and validation
+---------------------
 
-Runtime integration and cost
-----------------------------
+Deformable export and its dedicated loading are deferred. The existing deformation and
+coupling simulation implementations remain unchanged; exporting a scene containing a
+registered deformable fails explicitly. Surface grippers are also unsupported. Source
+geometry, schemas, camera prims and external resources are retained where supported,
+but flattening does not package external textures or MDL dependencies.
 
-The artifact is a physical deployment configuration, not a policy or controller checkpoint.
-Native ``NewtonActuator`` schemas are retained. Isaac Sim's experimental
-``isaacsim.core.experimental.actuators.ArticulationActuators`` loader requires explicit attachment;
-loading USD alone does not start controllers. This interface was checked at Isaac Sim develop
-``b023e77b0534f11fc6e2f1a0e500d46524f5e10d``; loader execution is not certified here. Python-only
-controllers without a native representation are rejected.
+Fresh same-backend tests compare stable entity identities, exact discrete topology and
+collision relationships, and floating-point mass/inertia/COM, joint, geometry/material
+and gravity values with tolerances. They verify selection from multiple environments,
+source USD preservation and the initialization boundary. Non-MJWarp solver configuration
+reconstruction is not a test gate. Physical round-trip results do not certify controllers,
+policy observations, sensor execution or cross-backend semantics.
 
-Deployment must restore policies, observations, sensor sampling/rendering, controller histories,
-and task logic. Complete same-backend fresh-load tests are the first gate; use on a different
-backend requires a separate physical-semantics validation.
-
-``deployment.metrics.json`` reports selection/materialization, configuration authoring,
-validation and saving durations, total export wall time, source environment count, selected
-id and output size. It measures incremental export in the already initialized process.
-Same-seed integration tests compare event results and subsequent training with the flag off/on.
-
-PhysX tensor interfaces expose body identities but not per-collider identities. Before
-buffer overrides, source bindings, geometry and automatic offset semantics are preserved,
-including distinct source materials. Manual buffer-override export supports single colliders
-and uniform per-body values; distinct per-shape overrides are rejected. Uniform values also
-cover cooked meshes with multiple convex pieces. Newton retains explicit shape labels,
-including static colliders. These support boundaries are separate from task/preset availability.
-
-Additional support boundaries
------------------------------
-
-Newton, OVPhysX and Isaac Sim PhysX Cartesian multi-axis joints retain axis-specific limits
-and drives. MJWarp force-based joint limits are exported as per-axis stiffness/damping;
-the fresh solver derives its inertia-dependent ``solreflimit`` values. Explicit native
-joint-wide limit settings are retained when representable. Non-Cartesian Newton axes,
-unrepresentable joint-wide native overrides, and OVPhysX spherical-joint drives are rejected.
-
-OVPhysX cannot export different contact/material values for individual cooked convex pieces
-until its tensor API exposes stable piece-to-USD identity and cooked geometry. Body identity
-alone is insufficient. Native warmup can generate motion even before a task takes its first
-step; this transient state is excluded from deployment export. OVPhysX scene frequency is
-authored from the simulation timestep so native contact-default calculation uses the configured rate.
-
-Newton terrain heightfields retain the source mesh, conversion resolution and effective
-contact properties. The deployment loader repeats the same mesh-to-heightfield conversion.
-Other native colliders without an authored USD identity or a supported curve representation
-are rejected.
-
-The exporter does not reconstruct arbitrary edits to private solver topology or geometry
-buffers, Kamino-only body/material buffer mutations, solver warm-start caches, active contacts,
-or transient applied forces. Use supported object-data setters for physical randomization.
-Authored tendon/actuator schemas are retained, but runtime tendon/control buffers require
-separate validation. A successful physical export does not certify policy observation support:
-cameras, ray/contact sensors, sampling schedules and controller histories need deployment
-integration even when their authored scene prims are present.
-
-Unreachable external resources and dangling dependencies fail completeness checks.
-Missing direct material targets are cleared only when all resolved materials on the
-affected subtree remain unchanged, including inherited bindings and material purposes.
-Bindings whose removal would change material resolution still fail completeness checks.
-A reachable authored URL is checked in its original form when USD dependency discovery
-normalizes its scheme incorrectly. Missing source materials are not invented or replaced.
+Policies, explicit controller code/history, observation processing, sensor sampling and
+rendering, warm-start caches, active contacts, transient forces and runtime solver choices
+require deployment integration. Export is an initialized physical configuration, not a
+training-state checkpoint.

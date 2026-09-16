@@ -183,12 +183,20 @@ class Articulation(BaseArticulation):
 
     def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""
+        from pxr import UsdPhysics
+
         from isaaclab.sim.usd_export import AssetPaths
 
         view = self.root_view
         axes = {}
         for path, name in zip(view.dof_paths[env_index], self.backend_joint_names):
-            if self.stage.GetPrimAtPath(str(path)).GetTypeName() == "PhysicsJoint":
+            prim = self.stage.GetPrimAtPath(str(path))
+            row = self.joint_names.index(name)
+            if prim.IsA(UsdPhysics.RevoluteJoint):
+                axes[row] = "angular"
+            elif prim.IsA(UsdPhysics.PrismaticJoint):
+                axes[row] = "linear"
+            elif prim.GetPrimTypeInfo().GetSchemaType() == UsdPhysics.Joint._GetStaticTfType():
                 _, _, suffix = name.rpartition(":")
                 if suffix not in {"0", "1", "2"}:
                     raise NotImplementedError(f"Unknown PhysX joint axis for {path}: {name}.")

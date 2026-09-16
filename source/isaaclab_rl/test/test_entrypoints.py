@@ -767,7 +767,6 @@ def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, mon
     from isaaclab.test.utils.usd_export import fixed_export_prestartup, fixed_export_startup, make_fixed_scene_cfg
 
     from isaaclab_rl.entrypoints.common import create_isaaclab_env
-    from isaaclab_rl.entrypoints.deployment import export_training_scene
 
     task = "Isaac-Fixed-Export-Probe-v0"
     if task not in gym.registry:
@@ -830,9 +829,7 @@ def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, mon
                     sorted(mass * geometric_inertia),
                     rtol=1e-5,
                 )
-                monkeypatch.setenv("RANK", "1")
-                assert export_training_scene(env.unwrapped, args) is None
-                monkeypatch.setenv("RANK", "0")
+                assert not (tmp_path / "run/deployment.metrics.json").exists()
             observations, _ = env.reset(seed=713)
             samples = [observations["policy"].clone()]
             for _ in range(3):
