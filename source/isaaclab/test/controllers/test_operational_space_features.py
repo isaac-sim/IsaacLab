@@ -21,7 +21,7 @@ def test_inertial_decoupling_handles_singular_task_inertia(partial_inertial_deco
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=partial_inertial_decoupling,
     )
-    controller = OperationalSpaceController(cfg, num_envs=num_envs, device="cpu")
+    controller = OperationalSpaceController(cfg, num_envs=num_envs, device="cpu", num_joints=7)
 
     target_pose = torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]).repeat(num_envs, 1)
     controller.set_command(target_pose)
@@ -53,7 +53,7 @@ def test_inertial_decoupling_handles_singular_task_inertia(partial_inertial_deco
 
 def _pose_abs_controller(num_envs: int) -> OperationalSpaceController:
     cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"], inertial_dynamics_decoupling=False)
-    return OperationalSpaceController(cfg, num_envs=num_envs, device="cpu")
+    return OperationalSpaceController(cfg, num_envs=num_envs, device="cpu", num_joints=7)
 
 
 def test_pose_abs_target_quaternion_is_normalized():

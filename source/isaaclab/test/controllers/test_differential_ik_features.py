@@ -49,7 +49,15 @@ def _make_controller(
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
         joint_limit_avoidance_margin=joint_limit_avoidance_margin,
     )
-    return DifferentialIKController(cfg, num_envs=num_envs, device="cpu")
+    return DifferentialIKController(
+        cfg,
+        num_envs=num_envs,
+        device="cpu",
+        num_joints=_NUM_JOINTS,
+        joint_pos_limits=torch.tensor([-1.0, 1.0]).repeat(_NUM_JOINTS, 1)
+        if cfg.joint_limit_avoidance_gain > 0.0
+        else None,
+    )
 
 
 def test_adaptive_dls_default_params():

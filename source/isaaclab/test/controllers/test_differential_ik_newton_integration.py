@@ -25,17 +25,26 @@ def _make_controller(
     *,
     command_type: str = "pose",
     orientation_weight: float | tuple[float, float, float] | None = None,
+    use_relative_mode: bool = False,
     joint_limit_avoidance_gain: float = 0.0,
     device: str = "cpu",
 ) -> DifferentialIKController:
     cfg = DifferentialIKControllerCfg(
         command_type=command_type,
-        use_relative_mode=False,
+        use_relative_mode=use_relative_mode,
         ik_method=ik_method,
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
     )
-    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
+    return DifferentialIKController(
+        cfg,
+        num_envs=_NUM_ENVS,
+        device=device,
+        num_joints=_NUM_JOINTS,
+        joint_pos_limits=torch.tensor([-1.0, 1.0]).repeat(_NUM_JOINTS, 1)
+        if cfg.joint_limit_avoidance_gain > 0.0
+        else None,
+    )
 
 
 def _well_conditioned_jacobian(device: str) -> torch.Tensor:
@@ -246,12 +255,13 @@ def test_default_output_is_a_snapshot_and_out_is_caller_owned():
     assert out.data_ptr() != joint_pos.data_ptr()
 
 
-def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary():
+@pytest.mark.parametrize("use_relative_mode", [False, True])
+def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary(use_relative_mode):
     """The float32 Warp bridge accepts floating inputs and returns the requested public dtype."""
-    controller = _make_controller("trans")
+    controller = _make_controller("trans", use_relative_mode=use_relative_mode)
     ee_pos, ee_quat, command, joint_pos = (value.to(torch.float64) for value in _pose_inputs("cpu"))
     jacobian = _well_conditioned_jacobian("cpu").to(torch.float64)
-    controller.set_command(command)
+    controller.set_command(command[:, :6] if use_relative_mode else command, ee_pos, ee_quat)
 
     result = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     assert result.dtype == torch.float64
@@ -264,33 +274,44 @@ def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary():
 
 
 @pytest.mark.parametrize("device", ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else []))
-def test_joint_limits_accept_float64_cpu_tensors_before_and_after_initialization(device: str):
-    """Joint limits retain the legacy conversion behavior at the float32 Warp boundary."""
+def test_joint_limits_accept_float64_cpu_tensors_without_rebuilding(device: str):
+    """Limit values update while the controller topology and captured solve stay fixed."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2, device=device)
-    lower = torch.full((_NUM_JOINTS,), -1.0, dtype=torch.float64, device="cpu")
-    upper = torch.full((_NUM_JOINTS,), 1.0, dtype=torch.float64, device="cpu")
-    controller.set_joint_pos_limits(lower, upper)
-
+    backend = controller._controller
+    lower = torch.full((_NUM_JOINTS,), -1.0, dtype=torch.float64)
+    upper = torch.full((_NUM_JOINTS,), 1.0, dtype=torch.float64)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs(device)
+    joint_pos[:, 0] = 0.95
     jacobian = _well_conditioned_jacobian(device)
     controller.set_command(command)
-    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    first = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    controller.set_joint_pos_limits(lower - 0.5, upper + 0.5)
+    second = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    assert controller._controller is backend
+    assert not torch.allclose(first, second)
     assert controller._joint_pos_lower.dtype == torch.float32
     assert controller._joint_pos_lower.device == torch.device(device)
-
-    controller.set_joint_pos_limits(lower - 0.5, upper + 0.5)
     torch.testing.assert_close(controller._joint_pos_lower.cpu(), torch.full((_NUM_JOINTS,), -1.5))
-    torch.testing.assert_close(controller._joint_pos_upper.cpu(), torch.full((_NUM_JOINTS,), 1.5))
 
 
-def test_joint_limit_count_is_checked_when_controller_initializes():
-    """Limits supplied before the joint count is known must match the first compute call."""
+def test_joint_limits_are_required_and_sized_at_construction():
+    """Avoidance must be configured with real limits before the first solve."""
+    cfg = DifferentialIKControllerCfg(
+        command_type="pose", use_relative_mode=False, ik_method="trans", joint_limit_avoidance_gain=0.2
+    )
+    with pytest.raises(ValueError, match="Initial joint_pos_limits"):
+        DifferentialIKController(cfg, _NUM_ENVS, "cpu", num_joints=_NUM_JOINTS)
+    with pytest.raises(ValueError, match="Expected joint_pos_limits"):
+        DifferentialIKController(
+            cfg,
+            _NUM_ENVS,
+            "cpu",
+            num_joints=_NUM_JOINTS,
+            joint_pos_limits=torch.tensor([-1.0, 1.0]).repeat(_NUM_JOINTS - 1, 1),
+        )
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2)
-    controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
-    controller.set_command(command)
     with pytest.raises(ValueError, match="limits for 7 joints"):
-        controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)
+        controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
 
 
 def test_compute_rejects_integral_out_buffer():
@@ -304,13 +325,14 @@ def test_compute_rejects_integral_out_buffer():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for Warp graph capture")
-def test_dls_backend_captures_with_stable_bridge_buffers():
+@pytest.mark.parametrize("use_relative_mode", [False, True])
+def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
     """The graphable DLS backend captures and replays through the wrapper's stable buffers."""
     device = "cuda:0"
-    controller = _make_controller("dls", device=device)
+    controller = _make_controller("dls", device=device, use_relative_mode=use_relative_mode)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs(device)
     jacobian = _well_conditioned_jacobian(device)
-    controller.set_command(command)
+    controller.set_command(command[:, :6] if use_relative_mode else command, ee_pos, ee_quat)
     controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     wp.synchronize_device(device)
 
@@ -320,7 +342,11 @@ def test_dls_backend_captures_with_stable_bridge_buffers():
     with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
         with wp.ScopedCapture(device=device) as capture:
             controller.compute(ee_pos, ee_quat, jacobian, joint_pos, out=out)
-        controller.set_command(torch.cat((ee_pos, ee_quat), dim=-1))
+        controller.set_command(
+            torch.zeros(_NUM_ENVS, 6, device=device) if use_relative_mode else torch.cat((ee_pos, ee_quat), dim=-1),
+            ee_pos,
+            ee_quat,
+        )
         wp.capture_launch(capture.graph)
     wp.synchronize_device(device)
     torch.testing.assert_close(out, joint_pos)

@@ -168,20 +168,18 @@ class JointImpedanceController:
         desired_dof_pos = desired_dof_pos.clip(min=self._dof_pos_limits[..., 0], max=self._dof_pos_limits[..., 1])
 
         # -- Newton input ports
-        wp.to_torch(self._controller_input.joint_q_des).view(self.num_robots, self.num_dof).copy_(desired_dof_pos)
-        wp.to_torch(self._controller_input.joint_q).view(self.num_robots, self.num_dof).copy_(dof_pos)
-        wp.to_torch(self._controller_input.joint_qd).view(self.num_robots, self.num_dof).copy_(dof_vel)
+        self._joint_q_des.copy_(desired_dof_pos)
+        self._joint_q.copy_(dof_pos)
+        self._joint_qd.copy_(dof_vel)
         if self.cfg.inertial_compensation:
-            wp.to_torch(self._controller_input.mass_matrix).copy_(mass_matrix)
+            self._mass_matrix.copy_(mass_matrix)
         if self.cfg.gravity_compensation:
-            wp.to_torch(self._controller_input.gravity_force).view(self.num_robots, self.num_dof).copy_(gravity)
+            self._gravity.copy_(gravity)
 
         # -- solve and return an independent snapshot (dt is unused)
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
-        return (
-            wp.to_torch(self._controller_output.joint_f)
-            .view(self.num_robots, self.num_dof)
-            .to(dtype=torch.promote_types(torch.float32, torch.promote_types(dof_pos.dtype, dof_vel.dtype)), copy=True)
+        return self._joint_f.to(
+            dtype=torch.promote_types(torch.float32, torch.promote_types(dof_pos.dtype, dof_vel.dtype)), copy=True
         )
 
     """
@@ -209,3 +207,11 @@ class JointImpedanceController:
 
         self._p_gains = wp.to_torch(self._controller_input.stiffness).view(self.num_robots, self.num_dof)
         self._d_gains = wp.to_torch(self._controller_input.damping).view(self.num_robots, self.num_dof)
+        self._joint_q = wp.to_torch(self._controller_input.joint_q).view(self.num_robots, self.num_dof)
+        self._joint_qd = wp.to_torch(self._controller_input.joint_qd).view(self.num_robots, self.num_dof)
+        self._joint_q_des = wp.to_torch(self._controller_input.joint_q_des).view(self.num_robots, self.num_dof)
+        if self.cfg.gravity_compensation:
+            self._gravity = wp.to_torch(self._controller_input.gravity_force).view(self.num_robots, self.num_dof)
+        if self.cfg.inertial_compensation:
+            self._mass_matrix = wp.to_torch(self._controller_input.mass_matrix)
+        self._joint_f = wp.to_torch(self._controller_output.joint_f).view(self.num_robots, self.num_dof)

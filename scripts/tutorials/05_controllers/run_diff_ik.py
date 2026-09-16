@@ -95,9 +95,21 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # note: we only do this here for readability.
     robot = scene["robot"]
 
+    # Specify robot-specific parameters
+    if args_cli.robot == "franka_panda":
+        robot_entity_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])
+    elif args_cli.robot == "ur10":
+        robot_entity_cfg = SceneEntityCfg("robot", joint_names=[".*"], body_names=["ee_link"])
+    else:
+        raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
+    # Resolving the scene entities
+    robot_entity_cfg.resolve(scene)
+
     # Create controller
     diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
-    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
+    diff_ik_controller = DifferentialIKController(
+        diff_ik_cfg, num_envs=scene.num_envs, device=sim.device, num_joints=len(robot_entity_cfg.joint_ids)
+    )
 
     # Markers
     frame_marker_cfg = FRAME_MARKER_CFG.copy()
@@ -118,15 +130,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     ik_commands = torch.zeros(scene.num_envs, diff_ik_controller.action_dim, device=robot.device)
     ik_commands[:] = ee_goals[current_goal_idx]
 
-    # Specify robot-specific parameters
-    if args_cli.robot == "franka_panda":
-        robot_entity_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])
-    elif args_cli.robot == "ur10":
-        robot_entity_cfg = SceneEntityCfg("robot", joint_names=[".*"], body_names=["ee_link"])
-    else:
-        raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
-    # Resolving the scene entities
-    robot_entity_cfg.resolve(scene)
     # Obtain the frame index of the end-effector
     # For a fixed base robot, the frame index is one less than the body index. This is because
     # the root body is not included in the returned Jacobians.

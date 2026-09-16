@@ -70,7 +70,7 @@ will use the absolute pose command mode.
 .. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # Create controller
-   :end-at: diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
+   :end-before: # Markers
 
 Obtaining the robot's joint and body indices
 --------------------------------------------

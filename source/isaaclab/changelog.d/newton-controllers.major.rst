@@ -3,6 +3,9 @@ Changed
 
 * Changed differential IK, joint impedance, and operational space controllers to use Newton's
   model-free controller APIs. Updated the Newton dependency to 1.6.0.
+* **Breaking:** DiffIK and OSC required ``num_joints=`` at construction and kept their topology
+  fixed. Pass the selected joint count; provide initial ``joint_pos_limits=`` for DiffIK
+  joint-limit avoidance. Update custom subclasses to forward these constructor arguments.
 * **Breaking:** Controller solves used float32 internal buffers. Callers requiring float64
   solver precision must retain the previous implementation; output tensors remain independent snapshots.
 

@@ -88,16 +88,20 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # create the differential IK controller
         self._ik_controller = self.cfg.controller.class_type(
-            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
+            cfg=self.cfg.controller,
+            num_envs=self.num_envs,
+            device=self.device,
+            num_joints=self._num_joints,
+            joint_pos_limits=(
+                self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
+                if self.cfg.controller.joint_limit_avoidance_gain > 0.0
+                else None
+            ),
         )
         # ``out`` is additive to the public controller API. Keep action terms compatible with custom controllers
         # that override the historical four-argument ``compute`` method, while selecting the allocation-free path
         # once at construction for controllers that accept it.
         self._ik_compute_accepts_out = self._compute_accepts_out(self._ik_controller)
-        # joint limits are injected lazily on the first apply (asset data is populated by then) so
-        # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
-        self._limits_injected = False
-
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self.raw_actions)
@@ -154,9 +158,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         jacobian = self.jacobian_w
         base_rot = self._asset.data.root_quat_w.torch
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
-        self._jacobian_b[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
-        self._jacobian_b[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
-        return self._jacobian_b
+        return torch.cat(
+            (torch.bmm(base_rot_matrix, jacobian[:, :3, :]), torch.bmm(base_rot_matrix, jacobian[:, 3:, :])), dim=1
+        )
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
@@ -210,12 +214,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
-        # lazily provide joint limits to the controller for null-space joint-limit avoidance
-        # (limits are uniform across envs for these articulations; env 0 is representative)
-        if not self._limits_injected and getattr(self.cfg.controller, "joint_limit_avoidance_gain", 0.0) > 0.0:
-            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
-            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
-            self._limits_injected = True
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
@@ -281,8 +279,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         This function accounts for the target frame offset and applies the necessary transformations to obtain
         the right Jacobian from the parent body Jacobian.
         """
-        # Retain an explicit copy even though the base property currently fills the owned buffer itself. Custom
-        # action terms may override ``jacobian_b`` with a view into engine data, which must never be mutated below.
+        # Custom jacobian_b properties may expose engine data; apply offsets only to our owned buffer.
         self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
@@ -406,7 +403,9 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._task_frame_pose_b = None
 
         # create the operational space controller
-        self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
+        self._osc = OperationalSpaceController(
+            cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device, num_joints=self._num_DoF
+        )
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)

@@ -83,7 +83,6 @@ def _make_apply_stub(controller):
         cfg=SimpleNamespace(controller=SimpleNamespace(joint_limit_avoidance_gain=0.0)),
         _asset=_ApplyAsset(),
         _joint_ids=[0, 1],
-        _limits_injected=False,
         _ik_controller=controller,
         _joint_pos_des=torch.zeros(1, 2),
         _compute_frame_pose=lambda: (torch.zeros(1, 3), torch.tensor([[0.0, 0.0, 0.0, 1.0]])),
