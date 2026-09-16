@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import functools
 import importlib
+import os
 import runpy
 import subprocess
 import sys
@@ -415,6 +417,39 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
 
     with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
         _resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+
+
+def test_rlinf_checkpoint_directory_resolves_to_the_weights_file(tmp_path) -> None:
+    """A ``global_step_<N>`` directory names the weights RLinf wrote three levels inside it."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
+
+    step_dir = tmp_path / "checkpoints" / "global_step_400"
+    weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"")
+
+    resolve = functools.partial(
+        _resolve_rlinf_checkpoint, log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo"
+    )
+    assert resolve(str(step_dir)) == str(weights)
+    assert resolve(str(weights.parent)) == str(weights)
+    assert resolve(str(weights)) == str(weights)
+
+
+def test_rlinf_resume_dir_is_the_global_step_directory(tmp_path) -> None:
+    """RLinf appends ``actor`` to ``resume_dir`` and parses the step from its name, so it gets that directory."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_resume_dir
+
+    step_dir = tmp_path / "checkpoints" / "global_step_400"
+    weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"")
+
+    resume_dir = _resolve_rlinf_resume_dir(str(weights))
+
+    assert resume_dir == str(step_dir)
+    assert os.path.isdir(os.path.join(resume_dir, "actor"))
+    assert int(resume_dir.split("global_step_")[-1]) == 400
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:

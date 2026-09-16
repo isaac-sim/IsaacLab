@@ -3,6 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
+# SPDX-License-Identifier: BSD-3-Clause
+
+# GR00T N1.7 PPO + optional SFT co-training for H2 + Sharpa Pack-AGX.
+# The checkpoint processor owns N1.7 normalization/modality configuration, so
+# data_config_class is intentionally omitted.
+
 defaults:
   - override hydra/job_logging: stdout
 
@@ -14,40 +21,37 @@ hydra:
 cluster:
   num_nodes: 1
   component_placement:
-      actor,env,rollout: all
+    actor,env,rollout: all
 
 runner:
   task_type: embodied
   logger:
     log_path: "../results"
-    project_name: rlinf
-    experiment_name: "test_gr00t"
-    logger_backends: ["tensorboard"] # wandb, swanlab
-
-  max_epochs: 1000
+    project_name: pack_agx_orin
+    experiment_name: "gr00t_pack_agx_orin_n17"
+    logger_backends: ["tensorboard"]  # wandb needs a login; keep the demo self-contained
+  max_epochs: 200
   max_steps: -1
-
   only_eval: False
-  eval_policy_path: null # Optional: .pt file or None, if None, will use the checkpoint in rollout.model.model_path
+  eval_policy_path: null
   val_check_interval: -1
-  save_interval: 2
+  save_interval: 20
   seq_length: 4096
   max_prompt_length: 30
-
   resume_dir: null
 
 algorithm:
   normalize_advantages: True
-  kl_penalty: kl  # how to estimate kl divergence: kl or kl_penalty
+  kl_penalty: kl
   group_size: 1
   reward_coef: 1.0
-  rollout_epoch: 2
-  eval_rollout_epoch: 1 # set eval_rollout_epoch > 0 when enable runner.only_eval or runner.val_check_interval > 0
-
+  # (96 envs / 8 ranks) * (416 steps / 16 chunks) = 312 samples/rank.
+  # global_batch_size=1248 gives 156 samples/rank/update and two minibatches.
+  rollout_epoch: 1
+  eval_rollout_epoch: 1
   reward_type: chunk_level
-  logprob_type: chunk_level
+  logprob_type: action_level
   entropy_type: chunk_level
-
   update_epoch: 4
   adv_type: gae
   loss_type: actor_critic
@@ -59,14 +63,11 @@ algorithm:
   clip_ratio_c: 3.0
   value_clip: 0.2
   huber_delta: 10.0
-
   gamma: 0.99
   gae_lambda: 0.95
-
   filter_rewards: False
   rewards_lower_bound: 0.1
   rewards_upper_bound: 0.9
-  # params for generation
   sampling_params:
     do_sample: True
     temperature_train: 1.0
@@ -75,17 +76,11 @@ algorithm:
     top_p: 1.0
     repetition_penalty: 1.0
     add_BOS: False
-
-  # length argument for autoregressive sampling
-  # max length means max amount of tokens to generate
   length_params:
     max_new_token: null
     max_length: 1024
     min_length: 1
 
-# ---------------------------------------------------------------------------
-# Environment
-# ---------------------------------------------------------------------------
 env:
   group_name: "EnvGroup"
   channel:
@@ -96,7 +91,7 @@ env:
 
   train:
     env_type: isaaclab
-    total_num_envs: 4
+    total_num_envs: 96
     auto_reset: False
     ignore_terminations: False
     use_rel_reward: True
@@ -104,99 +99,81 @@ env:
     group_size: 1
     reward_coef: 1.0
     use_fixed_reset_state_ids: True
-    max_steps_per_rollout_epoch: 256
-    max_episode_steps: 256
+    max_steps_per_rollout_epoch: 416
+    max_episode_steps: 416
     video_cfg:
       save_video: False
       info_on_video: True
       video_base_dir: ${runner.logger.log_path}/video/train
     init_params:
-      id: "IsaacContrib-Assemble-Trocar-G129-Dex3"
+      id: "IsaacContrib-Pack-AGX-Orin-H2-Sharpa"
       num_envs: null
       max_episode_steps: ${env.train.max_episode_steps}
-      task_description: "assemble trocar from tray"
-
-    # ========================================================================
-    # IsaacLab -> RLinf -> GR00T observation/action mapping configuration
-    # This section defines how IsaacLab observations are converted to GR00T format
-    # ========================================================================
-    isaaclab: &isaaclab_config  # YAML anchor for reuse in eval
-      # Task description for language conditioning
-      task_description: "assemble trocar from tray"
-
-      # --- IsaacLab -> RLinf observation mapping ---
-      # main_images: single camera key for main view
+      task_description: "place the AGX Orin in the protective box"
+    isaaclab: &isaaclab_config
+      task_description: "place the AGX Orin in the protective box"
+      gpu_resize_height: 240
+      gpu_resize_width: 320
+      gpu_crop_scale: 0.0
+      gpu_crop_random: false
       main_images: "front_camera"
-      # extra_view_images: list of camera keys to stack as (B, N, H, W, C)
       extra_view_images:
         - "left_wrist_camera"
         - "right_wrist_camera"
-      # states: list of state specs with optional slicing
-      # Each entry can be a string (use full tensor) or dict with "key" and "slice"
       states:
-        - key: "robot_joint_state"
-          slice: [15, 29]  # G129 shoulder joints
-        - key: "robot_dex3_joint_state"
-          # slice: null  # Use full tensor
-
-      # --- RLinf -> GR00T format conversion ---
+        - key: "robot_policy_joint_pos"
       gr00t_mapping:
         video:
-          main_images: "video.room_view"
+          main_images: "video.high"
           extra_view_images:
             - "video.left_wrist_view"
             - "video.right_wrist_view"
         state:
-          # Slice concatenated states into GR00T state keys
-          # Total states: 14 (shoulder) + 14 (dex3) = 28 dims
           - gr00t_key: "state.left_arm"
             slice: [0, 7]
           - gr00t_key: "state.right_arm"
             slice: [7, 14]
           - gr00t_key: "state.left_hand"
-            slice: [14, 21]
+            slice: [14, 36]
           - gr00t_key: "state.right_hand"
-            slice: [21, 28]
-
-      # --- GR00T -> IsaacLab action conversion ---
+            slice: [36, 58]
       action_mapping:
-        prefix_pad: 15  # Pad zeros at front for G129 body joints (not controlled)
+        prefix_pad: 17
         suffix_pad: 0
-
-      # --- GR00T model configuration (single source of truth) ---
-      # actor.model.embodiment_tag and obs_converter_type reference these values via ${}
-      obs_converter_type: "dex3"
+      hold_pose_on_midchunk_reset: true
+      obs_converter_type: "h2_sharpa"
+      # N1.7 takes no data_config_class; this module registers the H2 modalities instead.
+      modality_config_module: "isaaclab_tasks.contrib.pack_agx.config.gr00t_config"
       embodiment_tag: "new_embodiment"
       embodiment_tag_id: 31
-      data_config_class: "gr00t_config:IsaacLabDataConfig"
 
   eval:
     env_type: isaaclab
-    total_num_envs: 4
-    auto_reset: True
-    ignore_terminations: True
+    total_num_envs: 32
+    auto_reset: false
+    ignore_terminations: false
     use_rel_reward: True
     seed: 0
     group_size: 1
     reward_coef: 1.0
     use_fixed_reset_state_ids: True
-    max_steps_per_rollout_epoch: 256
-    max_episode_steps: 256
+    # 448, not the 416 env.train uses: this is the cap the evaluation runs the task at, and
+    # env.train's value is tied to global_batch_size (see the note above the algorithm block).
+    max_steps_per_rollout_epoch: 448
+    max_episode_steps: 448
     video_cfg:
-      save_video: True
+      save_video: False
       info_on_video: True
       video_base_dir: ${runner.logger.log_path}/video/eval
     init_params:
-      id: "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
+      id: "IsaacContrib-Pack-AGX-Orin-H2-Sharpa-Eval"
       num_envs: null
       max_episode_steps: ${env.eval.max_episode_steps}
-      task_description: "install trocar from box"
-    # Reuse IsaacLab config from train section via YAML anchor
-    isaaclab: *isaaclab_config
+      task_description: "place the AGX Orin in the protective box"
+    isaaclab:
+      <<: *isaaclab_config
+      gpu_crop_random: false
 
-# ---------------------------------------------------------------------------
-# Rollout
-# ---------------------------------------------------------------------------
 rollout:
   group_name: "RolloutGroup"
   channel:
@@ -207,16 +184,22 @@ rollout:
   backend: "huggingface"
   enable_offload: True
   pipeline_stage_num: 1
-
   model:
-    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
+    model_type: ${actor.model.model_type}
+    num_action_chunks: ${actor.model.num_action_chunks}
+    policy_setup: ${actor.model.policy_setup}
+    action_dim: ${actor.model.action_dim}
+    denoising_steps: ${actor.model.denoising_steps}
+    add_value_head: ${actor.model.add_value_head}
+    trust_remote_code: ${actor.model.trust_remote_code}
+    is_lora: ${actor.model.is_lora}
+    rl_head_config: ${actor.model.rl_head_config}
+    model_path: ".pretrained_checkpoints/rlinf/pack_agx/pack_agx_mimicgen_sft_l40s-1/checkpoint-40000"
+    backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
 
-# ---------------------------------------------------------------------------
-# Actor
-# ---------------------------------------------------------------------------
 actor:
   group_name: "ActorGroup"
   channel:
@@ -224,19 +207,31 @@ actor:
     queue_name: "replay_buffer"
     queue_size: 0
   training_backend: "fsdp"
-  micro_batch_size: 2
-  global_batch_size: 4
+  micro_batch_size: 4
+  global_batch_size: 1248
   seed: 1234
   enable_offload: False
 
+  # Stock RLinf has no SFT dataloader for gr00t_n1d7, so the demo runs pure PPO. Co-training
+  # needs an N1.7 SFT dataloader registered with RLinf before this can be enabled.
+  enable_sft_co_train: False
+  sft_loss_weight: 0.1
+  sft_data_path: "datasets/mimicGen_lerobot"
+  sft_batch_size: 4
+  sft_shard_size: 1024
+  sft_episode_sampling_rate: 1.0
+  sft_num_shards_per_epoch: 1000
+  sft_num_workers: 2
+
   model:
-    model_type: "gr00t"
-    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
+    model_type: "gr00t_n1d7"
+    model_path: ".pretrained_checkpoints/rlinf/pack_agx/pack_agx_mimicgen_sft_l40s-1/checkpoint-40000"
+    backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
     precision: "bf16"
     trust_remote_code: True
     is_lora: false
-    action_dim: 28
-    num_action_chunks: 1
+    action_dim: 58
+    num_action_chunks: 16
     denoising_steps: 4
     policy_setup: "widowx_bridge"
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
@@ -249,29 +244,30 @@ actor:
       safe_get_logprob: False
       noise_anneal: False
       noise_params: [0.7, 0.3, 400]
-      noise_level: 0.3
+      noise_level: 0.1
+      action_noise_scale: 0.0
       add_value_head: ${actor.model.add_value_head}
       chunk_critic_input: False
       detach_critic_input: True
       disable_dropout: True
       use_vlm_value: False
       value_vlm_mode: "mean_token"
-      padding_value: 850
+      padding_value: 2048
 
   optim:
-    lr: 5e-6
+    lr: 1e-5
     value_lr: 1e-4
     adam_beta1: 0.9
     adam_beta2: 0.95
     adam_eps: 1.0e-08
     clip_grad: 1.0
     weight_decay: 0.01
-    critic_warmup_steps: 0
+    critic_warmup_steps: 5
 
   fsdp_config:
     strategy: "fsdp"
     sharding_strategy: "full_shard"
-    gradient_checkpointing: False
+    gradient_checkpointing: True
     cpu_offload: False
     offload_pin_memory: False
     reshard_after_forward: True
@@ -279,7 +275,7 @@ actor:
     forward_prefetch: False
     limit_all_gathers: False
     backward_prefetch: null
-    use_orig_params: False
+    use_orig_params: True
     use_liger_kernel: False
     fsdp_size: -1
     mixed_precision:
@@ -296,3 +292,17 @@ reward:
 
 critic:
   use_critic_model: False
+
+weight_syncer:
+  type: patch
+  patch:
+    snapshot_device: cpu
+    delta_encoding: True
+    compression: none
+    init_sync:
+      enabled: True
+      prefixes: null
+      bucket_size: 134217728
+
+zimage:
+  enabled: False

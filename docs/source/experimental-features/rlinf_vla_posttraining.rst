@@ -57,14 +57,10 @@ Prerequisites
    include Ubuntu and Debian, Red Hat-family distributions, and Arch Linux.
 
 - **Isaac Lab** installed and configured
-- **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
-  ``assemble_trocar`` is available and can be downloaded via:
+- At least one GPU (FSDP requires one; multi-GPU recommended)
 
-  .. code-block:: bash
-
-     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
-- Multi-GPU setup recommended (FSDP requires at least 1 GPU)
+Isaac-GR00T and the pretrained VLA checkpoint are *not* prerequisites. The setup script below fetches
+both on demand, so neither has to be baked into an Isaac Lab environment or container image.
 
 Installation
 ------------
@@ -77,27 +73,21 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the rlinf and video extras
-   # NOTE: On DGX Spark / aarch64 systems, build decord from source first
-   # (see "Building decord on DGX Spark / aarch64" below), then run this step.
-   # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
-   # adding the rlinf and video dependencies from the root pyproject.
-   uv sync --inexact --extra rlinf --extra video
+   # Step 1: Install the dependencies the resolver can handle
+   ./isaaclab.sh -i contrib[rlinf]
 
-   # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   # Step 2: Fetch and install everything else on demand, for one GR00T generation
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n15   # assemble_trocar
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n17   # H2 + Sharpa tasks
 
-   # Step 3: Install Isaac-GR00T (pinned version)
-   git clone https://github.com/NVIDIA/Isaac-GR00T.git
-   cd Isaac-GR00T
-   git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-   uv pip install -e ".[base]" --no-deps
-   cd ../
+Both generations install as the same ``gr00t`` package, so one environment holds one at a time;
+re-run Step 2 with the other value to swap. Checkpoints land in
+:file:`.pretrained_checkpoints/rlinf/`, and the N1.7 profile also fetches the gated
+``nvidia/Cosmos-Reason2-2B`` backbone, so the Hugging Face login must have access to it. Every step is
+idempotent, so the script can be re-run to repair a partial install; ``--help`` lists its remaining
+options.
 
-   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
-
-The packages installed in Step 2 intentionally differ from the versions in the
+The packages the setup script installs intentionally differ from the versions in the
 Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 ``uv`` does not replace these GR00T-compatible versions before launching.
 
@@ -106,7 +96,8 @@ Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 Skipping flash-attn
 ~~~~~~~~~~~~~~~~~~~
 
-If Step 4 fails, skip installation of flash-attn and apply this patch instead:
+The setup script applies this patch automatically when the ``flash-attn`` build fails. To apply it by
+hand:
 
 .. code-block:: bash
 
@@ -179,6 +170,10 @@ Quick Start
              --model_path /path/to/base_model \
              --video
 
+Both commands read the base model from the ``model_path`` in the task YAML, which defaults to the
+location the setup script downloads to. Pass ``--model_path /path/to/checkpoint`` to point them
+somewhere else; a relative path is resolved against the current working directory.
+
 **Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
 
 .. tab-set::
@@ -209,6 +204,9 @@ directory (the ``global_step_<N>`` folder). The script loads the model
 architecture from the base model and overlays the RL-finetuned weights
 (``full_weights.pt``) from the checkpoint.
 
+An RL run exported to Hugging Face format (``model-*.safetensors`` plus a processor config) is a
+complete model, so it loads through ``--model_path`` instead.
+
 .. note::
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
@@ -236,6 +234,13 @@ accepts ``latest`` and ``best``; both select the newest saved RLinf checkpoint.
    Training throughput scales with the number of parallel environments. If your
    GPU has spare memory, increase ``env.train.total_num_envs`` (default: ``4``)
    in the task YAML.
+
+.. note::
+
+   ``--num_envs`` alone can break RLinf's batch arithmetic: the rollout size
+   (``total_num_envs * max_steps_per_rollout_epoch / num_action_chunks``) must stay a multiple of
+   ``actor.global_batch_size``. Shrinking a config for a smoke test means lowering the batch sizes
+   with it, in a copy of the YAML passed via ``--config_path``.
 
 .. tip::
 

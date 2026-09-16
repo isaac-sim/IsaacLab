@@ -146,7 +146,21 @@ def run(argv: list[str]) -> None:
                 task=args_cli.task or task_id,
                 config_name=config_name,
             )
-            cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
+            # Ray workers do not inherit the launcher's working directory, so the resolved directory
+            # is absolute.
+            cfg.runner.resume_dir = cli_args._resolve_rlinf_resume_dir(checkpoint_path)
+
+        # RLinf builds the eval rollout model from ``rollout.model`` (older releases deep-copied
+        # ``actor.model``), so give it every actor key the YAML leaves out: model_type,
+        # rl_head_config, denoising_steps and the rest are all read at worker init.
+        for key, value in cfg.actor.model.items():
+            if key not in cfg.rollout.model:
+                cfg.rollout.model[key] = value
+
+        # Ray workers do not inherit the launcher's working directory, so a relative
+        # checkpoint path from the YAML must be made absolute before it reaches them.
+        for model_cfg in (cfg.actor.model, cfg.rollout.model):
+            model_cfg.model_path = str(Path(model_cfg.model_path).expanduser().resolve())
 
     from isaaclab_rl.entrypoints.common import write_run_manifest
 

@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import collections.abc
+import importlib
 import logging
 import os
 from enum import Enum
@@ -113,6 +114,14 @@ def _load_full_cfg() -> dict:
     return _full_cfg_cache
 
 
+def _gr00t_model_type() -> str:
+    """Return ``actor.model.model_type`` from the cached config (``gr00t`` when unset).
+
+    RLinf dispatches on this value; ``gr00t_n1d7`` selects the GR00T N1.7 code paths.
+    """
+    return str(_load_full_cfg().get("actor", {}).get("model", {}).get("model_type", "gr00t"))
+
+
 def _get_isaaclab_cfg() -> dict:
     """Return the ``env.train.isaaclab`` section from the cached full config.
 
@@ -179,6 +188,10 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
         logger.info("No data_config_class specified, using RLinf's default get_model")
         return
 
+    if _gr00t_model_type() == "gr00t_n1d7":
+        logger.info("model_type=gr00t_n1d7: RLinf's native N1.7 loader reads the checkpoint processor")
+        return
+
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
@@ -201,7 +214,11 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
         # Handle custom embodiment (we only get here if tag was not natively supported)
         from gr00t.experiment.data_config import load_data_config
-        from rlinf.models.embodiment.gr00t.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
+
+        try:
+            from rlinf.models.embodiment.gr00t.gr00t_n1d5.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
+        except ImportError:  # RLinf < 0.3 kept the N1.5 model at the package root
+            from rlinf.models.embodiment.gr00t.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
         from rlinf.models.embodiment.gr00t.utils import replace_dropout_with_identity
         from rlinf.utils.patcher import Patcher
 
@@ -243,7 +260,10 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
         )
 
         if rl_model_path:
-            rl_weights = Path(rl_model_path) / "actor" / "model_state_dict" / "full_weights.pt"
+            # Accept either the full_weights.pt file itself or the global_step_<N> directory holding it.
+            rl_weights = Path(rl_model_path)
+            if rl_weights.is_dir():
+                rl_weights = rl_weights / "actor" / "model_state_dict" / "full_weights.pt"
             if not rl_weights.exists():
                 raise FileNotFoundError(
                     f"rl_model_path={rl_model_path}: cannot find full_weights.pt "
@@ -266,6 +286,105 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     logger.info(f"Patched get_model for data_config_class='{data_config_class}'")
 
 
+def _resolve_action_converter(cfg: dict):
+    """Return the GR00T -> IsaacLab action converter for this task.
+
+    GR00T N1.7 checkpoints take no ``data_config_class``; a task instead names a
+    ``modality_config_module`` whose import registers the embodiment's modality layout with GR00T.
+    When that module also defines ``convert_gr00t_to_isaaclab_action``, it replaces the generic
+    prefix/suffix-padding converter. The module is only imported for ``gr00t_n1d7`` because it
+    depends on the N1.7 release of ``gr00t``.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+    """
+    module_name = cfg.get("modality_config_module", "")
+    if not module_name or _gr00t_model_type() != "gr00t_n1d7":
+        return _convert_gr00t_to_isaaclab_action
+    module = importlib.import_module(module_name)
+    logger.info(f"Imported GR00T N1.7 modality config module: {module_name}")
+    return getattr(module, "convert_gr00t_to_isaaclab_action", _convert_gr00t_to_isaaclab_action)
+
+
+def _resolve_state_to_action_indices(cfg: dict) -> list[int] | None:
+    """Return where the policy's joint-state vector lands in the action vector, if the task says so.
+
+    Needed to command "hold the current pose". A task whose action order differs from its policy
+    order — H2 interleaves the two hands, so the state is not a contiguous slice of the action —
+    publishes the mapping as ``POLICY_STATE_TO_ACTION_INDICES`` in its ``modality_config_module``.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+
+    Returns:
+        Action-vector index for each state entry, or ``None`` when the task publishes no mapping.
+    """
+    module_name = cfg.get("modality_config_module", "")
+    if not module_name or _gr00t_model_type() != "gr00t_n1d7":
+        return None
+    indices = getattr(importlib.import_module(module_name), "POLICY_STATE_TO_ACTION_INDICES", None)
+    return None if indices is None else list(indices)
+
+
+def _extract_states(policy_obs: dict, cfg: dict) -> torch.Tensor | None:
+    """Concatenate the state terms a task lists under ``states`` into one vector.
+
+    Args:
+        policy_obs: The environment's policy observation group.
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+
+    Returns:
+        The concatenated state of shape ``(B, D)``, or ``None`` when no listed term is present.
+    """
+    state_parts = []
+    for spec in cfg.get("states") or []:
+        if isinstance(spec, str):
+            state = policy_obs.get(spec)
+        else:
+            state = policy_obs.get(spec.get("key"))
+            slice_range = spec.get("slice") if state is not None else None
+            if slice_range:
+                state = state[:, slice_range[0] : slice_range[1]]
+        if state is not None:
+            state_parts.append(state)
+    return torch.cat(state_parts, dim=-1) if state_parts else None
+
+
+def _apply_reset_sensor_refresh(env) -> None:
+    """Step once after every reset so the first observation shows the new episode.
+
+    ``TiledCamera`` refreshes its annotators only through a real simulation step: the observation
+    returned by ``reset`` still carries the previous episode's image, which the policy would then
+    act on. Re-commanding the robot's current joint positions advances the render without moving
+    it. Requires the task to publish :func:`_resolve_state_to_action_indices`; other tasks are
+    left untouched.
+
+    Args:
+        env: The unwrapped IsaacLab environment to patch in place.
+    """
+    cfg = _get_isaaclab_cfg()
+    indices = _resolve_state_to_action_indices(cfg)
+    if indices is None:
+        return
+
+    action_indices = torch.as_tensor(indices, dtype=torch.long, device=env.device)
+    original_reset = env.reset
+
+    def reset_then_refresh(*args, **kwargs):
+        obs, extras = original_reset(*args, **kwargs)
+        states = _extract_states(obs.get("policy", obs), cfg)
+        if states is None:
+            return obs, extras
+        # Zero raw actions map to the default pose for the joints the policy does not predict
+        # (see the action term's offset), so this holds the whole robot where the reset put it.
+        hold = torch.zeros((env.num_envs, env.action_manager.total_action_dim), device=env.device)
+        hold[:, action_indices] = states.to(device=hold.device, dtype=hold.dtype)
+        obs, _, _, _, extras = env.step(hold)
+        return obs, extras
+
+    env.reset = reset_then_refresh
+
+
 def _register_gr00t_converters(cfg: dict) -> None:
     """Register GR00T obs/action converters for IsaacLab tasks.
 
@@ -284,9 +403,13 @@ def _register_gr00t_converters(cfg: dict) -> None:
         simulation_io.OBS_CONVERSION[obs_converter_type] = _convert_isaaclab_obs_to_gr00t
         logger.info(f"Registered obs converter: {obs_converter_type}")
 
-    if obs_converter_type not in simulation_io.ACTION_CONVERSION:
-        simulation_io.ACTION_CONVERSION[obs_converter_type] = _convert_gr00t_to_isaaclab_action
-        logger.info(f"Registered action converter: {obs_converter_type}")
+    action_converter = _resolve_action_converter(cfg)
+    # RLinf < 0.3 keeps one ACTION_CONVERSION table; newer versions split it per GR00T generation.
+    for registry_name in ("ACTION_CONVERSION", "ACTION_CONVERSION_N1D5", "ACTION_CONVERSION_N1D7"):
+        registry = getattr(simulation_io, registry_name, None)
+        if isinstance(registry, dict) and obs_converter_type not in registry:
+            registry[obs_converter_type] = action_converter
+            logger.info(f"Registered action converter into {registry_name}: {obs_converter_type}")
 
 
 def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
@@ -342,6 +465,10 @@ def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
 
     # Pass through task descriptions
     groot_obs["annotation.human.action.task_description"] = env_obs.get("task_descriptions", [])
+    # N1.7's processor reads the non-action annotation key, while N1.5's transform asserts that exactly
+    # one ``annotation.*`` key is present, so the extra key is only added for N1.7.
+    if _gr00t_model_type() == "gr00t_n1d7":
+        groot_obs["annotation.human.task_description"] = groot_obs["annotation.human.action.task_description"]
 
     return groot_obs
 
@@ -468,6 +595,61 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             infos["episode"] = episode_info
             return infos
 
+        def chunk_step(self, chunk_actions):
+            """Execute an action chunk, holding the pose of sub-environments that reset mid-chunk.
+
+            ``ManagerBasedRLEnv.step`` resets a terminated sub-environment before returning, so the
+            remainder of the chunk — predicted from the episode that just ended — would otherwise be
+            applied to the fresh one, yanking the robot toward the previous episode's final pose.
+            When the task sets ``hold_pose_on_midchunk_reset``, those actions are replaced by the
+            post-reset joint positions, leaving the robot still until the next chunk boundary
+            produces policy output for the new episode.
+
+            The masking is installed on ``self.step`` for the duration of the chunk rather than by
+            reimplementing the chunk loop, so RLinf keeps doing its own reward and done bookkeeping.
+
+            Args:
+                chunk_actions: Actions of shape ``(num_envs, chunk_size, action_dim)``.
+
+            Returns:
+                The tuple returned by ``IsaaclabBaseEnv.chunk_step``.
+            """
+            cfg = _get_isaaclab_cfg()
+            if not cfg.get("hold_pose_on_midchunk_reset", False):
+                return super().chunk_step(chunk_actions)
+
+            indices = _resolve_state_to_action_indices(cfg)
+            action_indices = None if indices is None else torch.as_tensor(indices, dtype=torch.long, device=self.device)
+            done_so_far = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            last_states = [None]
+            base_step = super().step
+
+            def step_holding_reset_envs(actions, auto_reset=True):
+                states = last_states[0]
+                if states is not None and bool(done_so_far.any()):
+                    rows = done_so_far.nonzero(as_tuple=False).squeeze(-1)
+                    hold = states[rows].to(device=actions.device, dtype=actions.dtype)
+                    actions = actions.clone()
+                    if action_indices is None:
+                        # Without a published mapping the state is assumed to occupy the action's
+                        # tail, which is how ``action_mapping.prefix_pad`` lays it out.
+                        actions[rows, actions.shape[-1] - hold.shape[-1] :] = hold
+                    else:
+                        # Zero raw actions hold the joints the policy does not predict at their
+                        # default pose (see the action term's offset).
+                        actions[rows] = 0.0
+                        actions[rows[:, None], action_indices[None, :]] = hold
+                obs, step_reward, terminations, truncations, infos = base_step(actions, auto_reset=auto_reset)
+                last_states[0] = obs.get("states")
+                done_so_far.logical_or_((terminations | truncations).bool())
+                return obs, step_reward, terminations, truncations, infos
+
+            self.step = step_holding_reset_envs
+            try:
+                return super().chunk_step(chunk_actions)
+            finally:
+                del self.step
+
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.
 
@@ -495,6 +677,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 isaac_env_cfg = parse_env_cfg(self.isaaclab_env_id, num_envs=self.cfg.init_params.num_envs)
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
+                _apply_reset_sensor_refresh(env)
 
                 return env, sim_app
 
@@ -548,24 +731,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
             # states: list of state specs -> concatenate to (B, D)
-            # Each spec: string "key" or dict {"key": "...", "slice": [start, end]}
-            state_specs = cfg.get("states")
-            if state_specs:
-                state_parts = []
-                for spec in state_specs:
-                    if isinstance(spec, str):
-                        state = policy_obs.get(spec)
-                        if state is not None:
-                            state_parts.append(state)
-                    elif isinstance(spec, dict):
-                        state = policy_obs.get(spec.get("key"))
-                        if state is not None:
-                            slice_range = spec.get("slice")
-                            if slice_range:
-                                state = state[:, slice_range[0] : slice_range[1]]
-                            state_parts.append(state)
-                if state_parts:
-                    rlinf_obs["states"] = torch.cat(state_parts, dim=-1)
+            states = _extract_states(policy_obs, cfg)
+            if states is not None:
+                rlinf_obs["states"] = states
 
             return rlinf_obs
 

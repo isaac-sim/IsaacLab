@@ -61,8 +61,27 @@ def _resolve_rlinf_checkpoint(
 
     checkpoint_path = Path(checkpoint)
     if checkpoint_path.is_dir():
-        checkpoint_path = checkpoint_path / "full_weights.pt"
+        # RLinf writes full_weights.pt under actor/model_state_dict/ inside each global_step_<N> directory.
+        nested = checkpoint_path / "actor" / "model_state_dict" / "full_weights.pt"
+        checkpoint_path = nested if nested.exists() else checkpoint_path / "full_weights.pt"
     return str(checkpoint_path)
+
+
+def _resolve_rlinf_resume_dir(weights_path: str) -> str:
+    """Return the checkpoint directory RLinf resumes training from.
+
+    RLinf appends ``actor`` to ``runner.resume_dir`` and reads the step count out of its name, so it
+    wants the ``global_step_<N>`` directory rather than the weights file inside it.
+
+    Args:
+        weights_path: Path to the ``full_weights.pt`` selected by ``--checkpoint``.
+
+    Returns:
+        The enclosing ``global_step_<N>`` directory, absolute; the file's parent when the path has no
+        such ancestor.
+    """
+    weights = Path(weights_path).expanduser().resolve()
+    return str(next((p for p in weights.parents if p.name.startswith("global_step_")), weights.parent))
 
 
 def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
