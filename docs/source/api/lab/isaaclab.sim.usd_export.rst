@@ -24,9 +24,10 @@ sidecar is produced. RLINF and the experimental Warp frontend are outside this i
 A standalone scene can call ``scene.export_to_usd("environment.usda", env_id=0,
 preserve_source_contacts=True)`` after ``sim.reset()`` initializes its assets, before
 applying startup/task changes. A call after task construction cannot recover pre-startup
-values. The method rejects export after the first physics step. It retains body placement
-and authored joint defaults, omits explicit live joint-state samples, and clears initial
-body, joint and nodal velocities.
+values. The method rejects export after the first physics step. It retains root placement
+and source joint defaults. It neither samples nor clears body, joint or nodal velocities;
+existing source state remains untouched. Arbitrary post-initialization buffer mutations
+are outside this fixed-configuration export contract.
 
 Fixed materials belong in spawn configuration. The locomotion preset migration preserves
 backend friction semantics: Newton has one dynamic-friction coefficient, while PhysX
@@ -52,13 +53,19 @@ SphericalJoint cone limits equal independent Cartesian limits; unsupported mappi
 
 The existing ``UsdWriter`` owns copying, property writes, frame conversion, conditional
 material copying/binding, dependency checks and atomic saving. Backend owners interpret
-native buffers and resolve collider identities. Source material bindings remain when
-they already express the effective values; changed shared materials receive independent
-copies with connections preserved. Before PhysX buffer overrides,
-``preserve_source_contacts=True`` retains source materials and automatic contact offsets.
-Distinct per-shape buffer overrides without stable collider identities are rejected.
-Newton contact defaults applied during asset initialization may require explicit material
-values even when no startup event has run.
+native buffers and select fixed overrides missing from USD. Imported properties,
+automatic defaults and source material bindings are preserved without buffer writeback.
+``preserve_source_contacts`` remains accepted for compatibility; source contact settings
+are now always retained. Newton builder defaults require writeback only when configured
+differently from native defaults and not superseded by source shape or material opinions.
+Material copies are shared between consumers requesting the same necessary override.
+
+Actuator configuration records affected joint/field identities without copying values.
+``None`` inherits the source; scalars and dictionaries select the whole actuator group,
+preserving the existing unmatched-dictionary zero-fill behavior. Explicit control can
+also require disabled solver gains. Only selected fields are read during export, and
+equivalent values are skipped before changing schemas, bindings or instanceability.
+Body mass/inertia/COM and articulation child transforms remain as authored in the source.
 
 Property declarations and units
 -------------------------------
@@ -93,8 +100,8 @@ output follows the same generic USD write path. This
 representation change is separate from unit conversion.
 
 Cable properties use the same declarations on ``CableObjectData``. The owner resolves
-per-environment shape indices; the writer receives complete effective array rows, including
-default-valued entries so reconstruction does not depend on builder defaults. The cable reader discovers those declarations at class level,
+per-environment shape indices; the writer receives only array fields selected by fixed
+contact-default overrides. The cable reader discovers those declarations at class level,
 without constructing live backend data. There is no separate export field table.
 
 Native loading and optional solver settings

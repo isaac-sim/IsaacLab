@@ -487,7 +487,7 @@ class BaseArticulation(AssetBase):
     """
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
-        """Supplement link mass properties and fixed joint parameters in the export stage."""
+        """Register the articulation and supplement only fixed actuator overrides."""
         from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 
         for name, cfg in self.cfg.actuators.items():
@@ -495,7 +495,8 @@ class BaseArticulation(AssetBase):
                 raise NotImplementedError(f"Controller {name!r} has no native USD representation.")
         paths = writer.resolve_paths(self._usd_export_paths(writer.env_index))
         data = self.data
-        writer.write_bodies(data, paths.bodies)
+        writer.register_bodies(paths.bodies, self.num_bodies)
+        writer.write_root_placement(data, [(path, row) for path, row in paths.bodies if row == 0])
         if sorted(row for _, row in paths.joints) != list(range(self.num_joints)):
             raise RuntimeError(f"Incomplete DOF identities for {self.cfg.prim_path}.")
         for path, row in paths.joints:
@@ -505,7 +506,7 @@ class BaseArticulation(AssetBase):
             axis = paths.joint_axes.get(row)
             if axis is None:
                 raise NotImplementedError(f"Unsupported driven joint {path} ({prim.GetTypeName()}).")
-            writer.write_properties(path, axis, data, row=row)
+            writer.write_properties(path, axis, data, row=row, fields=self.actuators.usd_override_fields(row))
 
     @abstractmethod
     def reset(

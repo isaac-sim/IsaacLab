@@ -9,7 +9,6 @@ import numpy as np
 import ovphysx
 import ovstage
 import pytest
-import torch
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.sim.views import OvPhysxView
@@ -65,13 +64,6 @@ def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
         scene.reset_to_default()
         sim.forward()
         scene.update(0.0)
-        for group in (scene.articulations, scene.rigid_objects, scene.rigid_object_collections):
-            for asset in group.values():
-                masses = asset.data.body_mass.torch.clone()
-                inertias = asset.data.body_inertia.torch.clone()
-                factors = 1.1 + torch.arange(num_envs, device=asset.device) / 100
-                asset.set_masses_index(masses=masses * factors.reshape((-1,) + (1,) * (masses.ndim - 1)))
-                asset.set_inertias_index(inertias=inertias * factors.reshape((-1,) + (1,) * (inertias.ndim - 1)))
         if num_envs == 1:
             structure.update(read_physics_structure(scene.sim.stage))
         structure["/World/envs/env_0/Robot/FixedRoot", "localPose0Position"] = np.array(cfg.robot.init_state.pos)

@@ -76,6 +76,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._groups: dict[str, ActuatorBase | object] = {}
         self._group_joint_names: dict[str, list[str]] = {}
         self._group_joint_indices: dict[str, slice | torch.Tensor] = {}
+        self._usd_override_fields: dict[int, set[str]] = {}
         self._implicit_group_names: set[str] = set()
         self._native_group_names: set[str] = set()
         self._debug_value_resolution = debug_value_resolution
@@ -132,6 +133,10 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def usd_actuator_groups(self) -> frozenset[str]:
         """Groups executed from authored NewtonActuator schemas rather than Python-only controllers."""
         return frozenset(self._native_group_names)
+
+    def usd_override_fields(self, joint_id: int) -> frozenset[str]:
+        """Public data fields changed by fixed configuration for one articulation joint."""
+        return frozenset(self._usd_override_fields.get(joint_id, ()))
 
     def __setitem__(self, name: str, actuator: ActuatorBase) -> None:
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
@@ -335,6 +340,27 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 joint_names,
                 actuator_joint_ids,
             )
+            # Preserve existing dictionary zero-fill semantics: the whole group is affected.
+            selected = {
+                data_name
+                for cfg_name, data_name in (
+                    ("stiffness", "joint_stiffness"),
+                    ("damping", "joint_damping"),
+                    ("armature", "joint_armature"),
+                    ("friction", "joint_friction_coeff"),
+                    ("dynamic_friction", "joint_dynamic_friction_coeff"),
+                    ("viscous_friction", "joint_viscous_friction_coeff"),
+                    ("joint_effort_limit", "joint_effort_limits"),
+                    ("joint_velocity_limit", "joint_vel_limits"),
+                )
+                if getattr(actuator_cfg, cfg_name) is not None
+            }
+            if not implicit or native_managed:
+                selected.update(("joint_stiffness", "joint_damping"))
+            for joint_id in (
+                range(self.num_joints) if isinstance(actuator_joint_ids, slice) else actuator_joint_ids.tolist()
+            ):
+                self._usd_override_fields.setdefault(joint_id, set()).update(selected)
             if native_managed:
                 # placeholder keeps configuration order; replaced by the Newton actuator
                 # objects once the backend selection is finalized.

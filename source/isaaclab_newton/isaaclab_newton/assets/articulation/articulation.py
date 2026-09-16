@@ -44,7 +44,7 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-    from isaaclab.sim.usd_export import AssetPaths, UsdWriter
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 # import logger
@@ -326,23 +326,6 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.link_names
-
-    def author_fixed_configuration(self, writer: UsdWriter) -> None:
-        """Author fixed links/DOFs plus Newton limit compliance and initial-state compatibility."""
-        from pxr import Sdf
-
-        super().author_fixed_configuration(writer)
-        paths = writer.resolve_paths(self._usd_export_paths(writer.env_index))
-        for path, row in paths.joints:
-            joint = writer.stage.GetPrimAtPath(path)
-            axis = paths.joint_axes[row]
-            # Pinned Newton consumes angular initial velocity in rad/s; USD uses deg/s.
-            for name in ("position", "velocity"):
-                value = joint.GetAttribute(f"state:{axis}:physics:{name}").Get()
-                if value is not None:
-                    if name == "velocity" and axis in {"angular", "rotX", "rotY", "rotZ"}:
-                        value = np.deg2rad(value)
-                    joint.CreateAttribute(f"newton:{axis}:{name}", Sdf.ValueTypeNames.Float).Set(float(value))
 
     def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
         """Pair concrete view identities with public data rows in a fixed single environment."""

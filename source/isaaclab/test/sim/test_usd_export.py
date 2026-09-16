@@ -145,16 +145,19 @@ def test_copy_removes_only_ineffective_dangling_material_bindings(purpose, inher
     writer = UsdWriter.from_stage(stage)
     writer.remove_ineffective_material_bindings()
     output = str(tmp_path / "scene.usda")
+    writer.save(output)
+    fresh = Usd.Stage.Open(output)
     if inherited_purpose is None:
-        writer.save(output)
-        fresh = Usd.Stage.Open(output)
         assert not fresh.GetPrimAtPath(body.GetPath()).GetRelationship(name).GetTargets()
-        for (path, purpose), material_path in expected.items():
-            actual = UsdShade.MaterialBindingAPI(fresh.GetPrimAtPath(path)).ComputeBoundMaterial(purpose)[0]
-            assert actual.GetPath() == material_path
     else:
-        with pytest.raises(RuntimeError, match="Unresolved export dependency"):
-            writer.save(output)
+        # A source binding that masks inheritance must retain its existing semantics.
+        assert fresh.GetPrimAtPath(body.GetPath()).GetRelationship(name).GetTargets() == [Sdf.Path("/Missing")]
+    for (path, purpose), material_path in expected.items():
+        actual = UsdShade.MaterialBindingAPI(fresh.GetPrimAtPath(path)).ComputeBoundMaterial(purpose)[0]
+        assert actual.GetPath() == material_path
+    writer.stage.GetPrimAtPath(body.GetPath()).GetRelationship(name).SetTargets(["/NewMissing"])
+    with pytest.raises(RuntimeError, match="Unresolved export dependency"):
+        writer.save(output)
     assert stage.GetRootLayer().ExportToString() == before
 
 
@@ -233,6 +236,40 @@ def test_declared_joint_mapping_authors_effective_values(angular):
     assert data.reads == 2  # One read per source, including a two-target source.
 
 
+def test_selected_properties_preserve_untouched_instance_and_source():
+    """Selection and equivalence must precede schema and instance edits."""
+    stage = _stage()
+    source = UsdGeom.Xform.Define(stage, "/Source").GetPrim()
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Source/Joint").GetPrim()
+    UsdPhysics.DriveAPI.Apply(joint, "angular").CreateStiffnessAttr(2.0)
+    instance = stage.DefinePrim("/Instance")
+    instance.GetReferences().AddInternalReference(source.GetPath())
+    instance.SetInstanceable(True)
+
+    class Data:
+        @property
+        @usd_field(UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}"))
+        def gain(self):
+            return np.array([[2.0 + 1e-7, 7.0]])
+
+        @property
+        @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"))
+        def unselected(self):
+            raise AssertionError("Unselected getters must not be evaluated.")
+
+    before = stage.GetRootLayer().ExportToString()
+    writer = UsdWriter.from_stage(stage)
+    baseline = writer.stage.GetRootLayer().ExportToString()
+    writer.write_properties("/Instance/Joint", "angular", Data(), row=0, fields=set())
+    writer.write_properties("/Instance/Joint", "angular", Data(), row=0, fields={"gain"})
+    assert writer.stage.GetRootLayer().ExportToString() == baseline
+    assert writer.stage.GetPrimAtPath("/Instance").IsInstance()
+    writer.write_properties("/Instance/Joint", "angular", Data(), row=1, fields={"gain"})
+    assert writer.stage.GetPrimAtPath("/Instance/Joint").GetAttribute("drive:angular:physics:stiffness").Get() == 7
+    assert not writer.stage.GetPrimAtPath("/Instance").IsInstance()
+    assert stage.GetRootLayer().ExportToString() == before
+
+
 def test_binding_override_extension_and_scalar_vector_schema_types():
     class Base:
         @property
@@ -275,6 +312,8 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
 def test_unsupported_binding_fails_explicitly(target, error):
     stage = _stage()
     UsdGeom.Xform.Define(stage, "/Body")
+    # An equal existing value must not bypass schema/type validation.
+    UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath("/Body")).CreateMassAttr().Set(1.0)
     with pytest.raises(error):
         UsdWriter(stage).write_attribute("/Body", target, 1.0, axis="angular")
 
@@ -310,11 +349,14 @@ def test_articulation_rejects_unsupported_driven_joint(monkeypatch):
     stage = _stage()
     UsdPhysics.SphericalJoint.Define(stage, "/Joint")
     monkeypatch.setattr("isaaclab.sim.usd_export.UsdWriter.write_bodies", lambda *_: None)
-    asset = SimpleNamespace(cfg=ArticulationCfg(prim_path="/Robot", actuators={}), num_joints=1, data=None)
+    asset = SimpleNamespace(
+        cfg=ArticulationCfg(prim_path="/Robot", actuators={}), num_joints=1, num_bodies=0, data=None
+    )
     asset._usd_export_paths = lambda env_index=0: AssetPaths([], [("/Joint", 0)])
     writer = SimpleNamespace(
         stage=stage,
-        write_bodies=lambda *_: None,
+        register_bodies=lambda *_: None,
+        write_root_placement=lambda *_: None,
         env_index=0,
         resolve_paths=lambda paths: paths,
     )

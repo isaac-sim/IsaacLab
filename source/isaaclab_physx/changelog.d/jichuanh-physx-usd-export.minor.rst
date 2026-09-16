@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added selected-environment PhysX USD export with view identity resolution, declared body/material properties, Cartesian multi-axis joints and fresh Isaac Sim validation, including links without collision shapes.
+* Added selected-environment PhysX USD export with view identity resolution and fixed actuator overrides, preserving source body properties, materials and automatic contacts, including links without collision shapes.

@@ -100,7 +100,7 @@ def _value(value):
     return tuple(_value(v) for v in values)
 
 
-def make_fixed_scene_cfg(directory):
+def make_fixed_scene_cfg(directory, num_envs: int = 1):
     """Create a portable deployment fixture using locally authored assets and non-default cfg values."""
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -168,7 +168,7 @@ def make_fixed_scene_cfg(directory):
     )
     stage.GetRootLayer().Save()
 
-    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=3.0)
+    cfg = InteractiveSceneCfg(num_envs=num_envs, env_spacing=3.0)
     cfg.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(usd_path=str(source)),
@@ -203,6 +203,12 @@ def make_fixed_scene_cfg(directory):
         )
 
     cfg.box = rigid("Box", 2.5, (1.0, 0, 1.0))
+    if num_envs > 1:
+        # Source variants exercise fixed mass/inertia differences without post-startup randomization.
+        cfg.box.spawn = sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[rigid("Box", 2.5 * (1 + index / 100), (1, 0, 1)).spawn for index in range(num_envs)],
+            random_choice=False,
+        )
     cfg.collection = RigidObjectCollectionCfg(
         rigid_objects={
             "first": rigid("CollectedFirst", 1.5, (2, 0, 1)),

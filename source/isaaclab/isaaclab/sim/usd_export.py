@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 import os
 import tempfile
+from collections.abc import Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -85,23 +86,38 @@ class UsdWriter:
         self.env_id = 0
         self.clone_plan: ClonePlan | None = None
         self.body_paths: set[str] = set()
+        self._moved_body_paths: set[str] = set()
         self.represented_collider_paths: set[str] = set()
         self._joint_shared_values: dict[tuple[str, str], float] = {}
         # Retain owners with their arrays, so ids cannot be reused during an export.
         self._values: dict[int, tuple[object, dict[str, np.ndarray]]] = {}
+        self._source_missing_bindings: set[tuple[str, Sdf.Path]] = set()
 
     @classmethod
     def from_stage(cls, stage: Usd.Stage) -> UsdWriter:
         """Preserve composition in an isolated writable stage without changing the source."""
-        snapshot = Usd.Stage.Open(stage.Flatten())
-        # Expanding an outer instance can expose nested instances on the next traversal.
-        while True:
-            instances = [prim for prim in snapshot.Traverse() if prim.IsInstance()]
-            if not instances:
-                writer = cls(Usd.Stage.Open(snapshot.Flatten()))
-                return writer
-            for prim in instances:
-                prim.SetInstanceable(False)
+        writer = cls(Usd.Stage.Open(stage.Flatten()))
+        # Preserve ineffective source bindings rather than rewriting unrelated scene content.
+        for prim in writer.stage.Traverse(Usd.TraverseInstanceProxies()):
+            for rel in prim.GetRelationships():
+                if rel.GetName().startswith("material:binding"):
+                    writer._source_missing_bindings.update(
+                        (str(rel.GetPath()), target)
+                        for target in rel.GetTargets()
+                        if target.IsPrimPath() and not writer.stage.GetPrimAtPath(target)
+                    )
+        return writer
+
+    def writable_prim(self, path: str | Sdf.Path) -> Usd.Prim:
+        """Expand only instance ancestors of a prim that actually needs an edit."""
+        prim = self.stage.GetPrimAtPath(path)
+        while prim and prim.IsInstanceProxy():
+            parent = prim.GetParent()
+            while parent.IsInstanceProxy():
+                parent = parent.GetParent()
+            parent.SetInstanceable(False)
+            prim = self.stage.GetPrimAtPath(path)
+        return prim
 
     def select_environment(self, plan: ClonePlan | None, env_id: int, env_paths: list[str]) -> None:
         """Materialize the selected USD variant and retain its shared resources.
@@ -144,7 +160,7 @@ class UsdWriter:
         # Relationship dependencies may live in a different prototype environment.
         # Retain resources, but never pull a foreign physical entity into the export.
         copied = {}
-        pending = list(self.stage.Traverse())
+        pending = list(self.stage.Traverse(Usd.TraverseInstanceProxies()))
         for prim in pending:
             if any(prim.GetPath().HasPrefix(root) for root in excluded):
                 continue
@@ -178,6 +194,8 @@ class UsdWriter:
                         pending.extend(Usd.PrimRange(self.stage.GetPrimAtPath(destination)))
                     rewritten.append(target.ReplacePrefix(source, destination))
                 if rewritten != targets:
+                    prim = self.writable_prim(prim.GetPath())
+                    prop = prim.GetProperty(prop.GetName())
                     prop.SetTargets(rewritten) if relationship else prop.SetConnections(rewritten)
         for root in excluded:
             self.stage.RemovePrim(root)
@@ -225,12 +243,16 @@ class UsdWriter:
             values[source] = np.asarray(value).copy()
         return values[source]
 
-    def bound_properties(self, path, axis, data, row, scope, env_index):
+    def bound_properties(self, path, axis, data, row, scope, env_index, *, fields: Set[str] | None = None):
         """Yield converted declaration/value pairs for writing or equivalence checks."""
+        if fields is not None and not fields:
+            return
         declarations = usd_fields(type(data), scope)
         if not declarations:
             raise NotImplementedError(f"No {scope} USD declarations on {type(data).__name__}.")
         for source, targets in declarations.items():
+            if fields is not None and source not in fields:
+                continue
             values = self._property_values(data, source)[env_index]
             value = values if row is None else values[row]
             _, _, _, transform, inputs, angular_conversion = property_metadata(type(data), source, "_usd_field")
@@ -250,18 +272,44 @@ class UsdWriter:
                 yield target, selected
 
     def write_properties(
-        self, path: str, axis: str | None, data: object, *, row: int, scope: str = "joint", env_index: int | None = None
+        self,
+        path: str,
+        axis: str | None,
+        data: object,
+        *,
+        row: int,
+        scope: str = "joint",
+        env_index: int | None = None,
+        fields: Set[str] | None = None,
     ) -> None:
         """Write declared properties from one public data row using the declared angular conversion."""
         for target, value in self.bound_properties(
-            path, axis, data, row, scope, self.env_index if env_index is None else env_index
+            path, axis, data, row, scope, self.env_index if env_index is None else env_index, fields=fields
         ):
             self.write_attribute(path, target, value, axis=axis)
 
-    def write_array_properties(self, path: str, data: object, *, env_index: int) -> None:
+    def write_array_properties(
+        self, path: str, data: object, *, env_index: int, fields: Set[str] | None = None
+    ) -> None:
         """Write an owner's complete array row, without interpreting its element identities."""
-        for target, value in self.bound_properties(path, None, data, None, "array", env_index):
+        for target, value in self.bound_properties(path, None, data, None, "array", env_index, fields=fields):
             self.write_attribute(path, target, value)
+
+    def register_bodies(self, paths: list[tuple[str, int]], count: int) -> None:
+        """Account for every body independently of whether its properties need writes."""
+        if sorted(row for _, row in paths) != list(range(count)):
+            raise RuntimeError("Incomplete body identities for fixed configuration.")
+        for path, _ in paths:
+            prim = self.stage.GetPrimAtPath(path)
+            if path in self.body_paths or not prim or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                raise RuntimeError(f"Missing or multiply owned body {path}.")
+            self.body_paths.add(path)
+
+    def write_root_placement(self, data, paths: list[tuple[str, int]]) -> None:
+        """Apply explicitly selected root placements without baking articulation child poses."""
+        poses = self._property_values(data, "body_link_pose_w")[self.env_index].reshape(-1, 7)
+        for path, row in paths:
+            self._write_body_pose(self.stage.GetPrimAtPath(path), poses[row])
 
     def write_bodies(self, data, paths: list[tuple[str, int]]) -> None:
         """Write public body placement and declared mass properties, parents first."""
@@ -287,6 +335,10 @@ class UsdWriter:
         parent = UsdGeom.XformCache().GetLocalToWorldTransform(prim.GetParent())
         # Retain geometry scale while replacing the physical pose relative to its parent.
         local = Gf.Matrix4d().SetScale(scale) * transform * parent.GetInverse()
+        if np.allclose(np.asarray(previous * parent.GetInverse()), np.asarray(local), rtol=1e-6, atol=1e-7):
+            return
+        self._moved_body_paths.add(str(prim.GetPath()))
+        prim = self.writable_prim(prim.GetPath())
         xform = UsdGeom.Xformable(prim)
         xform.ClearXformOpOrder()
         xform.AddTransformOp(opSuffix="export").Set(local)
@@ -301,8 +353,6 @@ class UsdWriter:
             previous = self._joint_shared_values.setdefault(key, np.asarray(value).copy())
             if not np.array_equal(previous, value):
                 raise NotImplementedError(f"Distinct per-axis values cannot share {key}.")
-        for name in target.replaces:
-            self.stage.GetPrimAtPath(path).RemoveProperty(name)
         if ("{axis}" in target.attribute or "{axis}" in (target.schema or "")) and axis not in {
             "angular",
             "linear",
@@ -314,6 +364,12 @@ class UsdWriter:
             "transZ",
         }:
             raise ValueError(f"Missing supported axis for {target.attribute}.")
+        attr = self._attribute(path, target, axis, author=False)
+        if attr and self.equivalent(attr.Get(), value):
+            return
+        prim = self.writable_prim(path)
+        for name in target.replaces:
+            prim.RemoveProperty(name)
         attr = self._attribute(path, target, axis)
         converted = np.asarray(value)
         value_type = attr.GetTypeName()
@@ -344,7 +400,23 @@ class UsdWriter:
         if not attr.Set(value):
             raise RuntimeError(f"Could not author {attr.GetPath()}.")
 
-    def _attribute(self, path: str, target: UsdAttribute, axis: str | None) -> Usd.Attribute:
+    @staticmethod
+    def equivalent(authored, value) -> bool:
+        """Compare physical values without turning float32 conversion noise into edits."""
+        if authored is None:
+            return False
+        if isinstance(authored, (Gf.Quatf, Gf.Quatd)):
+            authored = np.array([*authored.GetImaginary(), authored.GetReal()])
+            return UsdWriter.equivalent(authored, value) or UsdWriter.equivalent(-authored, value)
+        first, second = np.asarray(authored), np.asarray(value)
+        if first.shape != second.shape:
+            return False
+        if first.dtype.kind not in "fc" and second.dtype.kind not in "fc":
+            return bool(np.array_equal(first, second))
+        # Relative-only tolerance preserves small nonzero quantities and automatic sentinels.
+        return bool(np.allclose(first, second, rtol=8 * np.finfo(np.float32).eps, atol=0, equal_nan=False))
+
+    def _attribute(self, path: str, target: UsdAttribute, axis: str | None, *, author: bool = True) -> Usd.Attribute:
         """Resolve the exact registered schema attribute or an explicitly typed extension."""
         prim = self.stage.GetPrimAtPath(path)
         if not prim:
@@ -362,38 +434,39 @@ class UsdWriter:
                 if name not in names:
                     raise NotImplementedError(f"{name} is not an attribute of {target.schema}.")
                 if Usd.SchemaRegistry.IsAppliedAPISchema(schema_type):
-                    applied = api.Apply(prim, instance) if multiple else api.Apply(prim)
-                    if not applied:
-                        raise RuntimeError(f"Could not apply {target.schema} at {path}.")
+                    if author:
+                        applied = api.Apply(prim, instance) if multiple else api.Apply(prim)
+                        if not applied:
+                            raise RuntimeError(f"Could not apply {target.schema} at {path}.")
                 elif not prim.IsA(api):
                     raise ValueError(f"{path} is not a {schema} prim.")
             elif target.type_name is None:
                 raise NotImplementedError(f"Unregistered schema {schema} requires an explicit target type.")
-            elif not prim.AddAppliedSchema(target.schema.format(axis=axis)):
+            elif author and not prim.AddAppliedSchema(target.schema.format(axis=axis)):
                 raise RuntimeError(f"Could not apply extension {target.schema} at {path}.")
         attr = prim.GetAttribute(name)
         if target.type_name:
             value_type = Sdf.ValueTypeNames.Find(target.type_name)
             if not value_type or (attr and attr.GetTypeName() != value_type):
                 raise ValueError(f"Invalid or conflicting type {target.type_name} for {path}.{name}.")
-            if not attr:
+            if author and not attr:
                 attr = prim.CreateAttribute(name, value_type, custom=False)
-        if not attr:
+        if author and not attr:
             raise NotImplementedError(f"No declared USD attribute/type for {path}.{name}.")
         return attr
 
     def write_fixed_root_frames(self) -> None:
         """Update world anchors moved by fixed-base default root-pose initialization."""
         cache = UsdGeom.XformCache()
-        for prim in self.stage.Traverse():
+        for prim in self.stage.Traverse(Usd.TraverseInstanceProxies()):
             if not prim.IsA(UsdPhysics.FixedJoint):
                 continue
             joint = UsdPhysics.Joint(prim)
             body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
-            if not body0 and len(body1) == 1 and str(body1[0]) in self.body_paths:
+            if not body0 and len(body1) == 1 and str(body1[0]) in self._moved_body_paths:
                 other, world = 1, 0
                 body = body1[0]
-            elif not body1 and len(body0) == 1 and str(body0[0]) in self.body_paths:
+            elif not body1 and len(body0) == 1 and str(body0[0]) in self._moved_body_paths:
                 other, world = 0, 1
                 body = body0[0]
             else:
@@ -403,8 +476,17 @@ class UsdWriter:
             local = Gf.Matrix4d(1.0).SetRotate(Gf.Quatd(rotation))
             local.SetTranslateOnly(Gf.Vec3d(position))
             anchor = local * cache.GetLocalToWorldTransform(self.stage.GetPrimAtPath(body))
-            prim.GetAttribute(f"physics:localPos{world}").Set(Gf.Vec3f(anchor.ExtractTranslation()))
-            prim.GetAttribute(f"physics:localRot{world}").Set(Gf.Quatf(anchor.ExtractRotationQuat()))
+            rotation = anchor.ExtractRotationQuat()
+            self.write_attribute(
+                str(prim.GetPath()),
+                UsdAttribute(f"physics:localPos{world}", "PhysicsJoint"),
+                anchor.ExtractTranslation(),
+            )
+            self.write_attribute(
+                str(prim.GetPath()),
+                UsdAttribute(f"physics:localRot{world}", "PhysicsJoint"),
+                [*rotation.GetImaginary(), rotation.GetReal()],
+            )
 
     def clear_initial_velocities(self) -> None:
         """Start deployment at rest, including velocities inherited from source layers."""
@@ -448,8 +530,17 @@ class UsdWriter:
         gravity = np.asarray(gravity, dtype=float)
         magnitude = float(np.linalg.norm(gravity))
         physics = UsdPhysics.Scene(self.stage.GetPrimAtPath(scene_path))
-        physics.CreateGravityMagnitudeAttr().Set(magnitude / UsdGeom.GetStageMetersPerUnit(self.stage))
-        physics.CreateGravityDirectionAttr().Set(Gf.Vec3f(*(gravity / magnitude if magnitude else (0, 0, -1))))
+        direction = physics.GetGravityDirectionAttr().Get()
+        previous = physics.GetGravityMagnitudeAttr().Get()
+        if previous is not None and direction is not None and np.linalg.norm(direction):
+            if self.equivalent(np.asarray(direction) / np.linalg.norm(direction) * previous, gravity):
+                return
+        self.write_attribute(scene_path, UsdAttribute("physics:gravityMagnitude", "PhysicsScene"), magnitude)
+        self.write_attribute(
+            scene_path,
+            UsdAttribute("physics:gravityDirection", "PhysicsScene"),
+            gravity / magnitude if magnitude else (0, 0, -1),
+        )
 
     ##
     # Contacts and materials.
@@ -486,15 +577,59 @@ class UsdWriter:
             values = self.bound_properties(str(original.GetPath()), None, data, row, "material", env_index)
             if all(
                 original.GetPrim().GetAttribute(target.attribute).Get() is not None
-                and np.array_equal(original.GetPrim().GetAttribute(target.attribute).Get(), value)
+                and self.equivalent(original.GetPrim().GetAttribute(target.attribute).Get(), value)
                 for target, value in values
             ):
                 return
         material = self.material_for_override(collider)
         self.write_properties(str(material.GetPath()), None, data, row=row, scope="material", env_index=env_index)
 
+    def write_material_overrides(self, data: object, selections: dict[str, tuple[int, frozenset[str]]]) -> None:
+        """Share material edits only when every retained consumer requests the same override."""
+        groups = {}
+        consumers = {}
+        for prim in self.stage.Traverse(Usd.TraverseInstanceProxies()):
+            # Unknown or non-rigid consumers must not inherit a collider-only material edit.
+            material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
+            if material:
+                consumers.setdefault(str(material.GetPath()), set()).add(str(prim.GetPath()))
+        for path, (row, fields) in selections.items():
+            material, _ = UsdShade.MaterialBindingAPI(self.stage.GetPrimAtPath(path)).ComputeBoundMaterial("physics")
+            source = str(material.GetPath()) if material else ""
+            values = tuple(
+                (target, float(value))
+                for target, value in self.bound_properties(path, None, data, row, "material", 0, fields=fields)
+            )
+            if source and all(
+                self.equivalent(material.GetPrim().GetAttribute(target.attribute).Get(), value)
+                for target, value in values
+            ):
+                continue
+            groups.setdefault((source, values), []).append(path)
+        for (source, values), paths in groups.items():
+            if source and set(paths) == consumers.get(source):
+                material_path = source
+            else:
+                material_path = str(self.material_for_override(self.writable_prim(paths[0])).GetPath())
+                for path in paths[1:]:
+                    binding = UsdShade.MaterialBindingAPI.Apply(self.writable_prim(path))
+                    binding.Bind(
+                        UsdShade.Material(self.stage.GetPrimAtPath(material_path)),
+                        bindingStrength=UsdShade.Tokens.weakerThanDescendants,
+                        materialPurpose="physics",
+                    )
+                    if str(binding.ComputeBoundMaterial("physics")[0].GetPath()) != material_path:
+                        raise NotImplementedError(f"An ancestor material binding prevents contact overrides at {path}.")
+            for target, value in values:
+                # Native contact readers identify physics materials through this API.
+                material_prim = self.stage.GetPrimAtPath(material_path)
+                if not material_prim.HasAPI(UsdPhysics.MaterialAPI):
+                    UsdPhysics.MaterialAPI.Apply(self.writable_prim(material_path))
+                self.write_attribute(material_path, target, value)
+
     def material_for_override(self, prim: Usd.Prim) -> UsdShade.Material:
         """Return an independently bound physics material, preserving its existing resources."""
+        prim = self.writable_prim(prim.GetPath())
         binding = UsdShade.MaterialBindingAPI.Apply(prim)
         original, _ = binding.ComputeBoundMaterial("physics")
         destination = prim.GetPath().AppendChild("ExportPhysicsMaterial")
@@ -546,8 +681,7 @@ class UsdWriter:
             before = resolved_materials()
             targets = relationship.GetTargets()
             relationship.SetTargets([])
-            # An invalid direct binding can mask an inherited material. Keep rejecting
-            # that case instead of changing the appearance or physics-material fallback.
+            # A missing direct target can still mask an inherited material.
             if resolved_materials() != before:
                 relationship.SetTargets(targets)
 
@@ -559,7 +693,7 @@ class UsdWriter:
         """Reject physical bodies retained from USD without a corresponding initialized backend data."""
         authored = {
             str(prim.GetPath())
-            for prim in self.stage.Traverse()
+            for prim in self.stage.Traverse(Usd.TraverseInstanceProxies())
             if prim.HasAPI(UsdPhysics.RigidBodyAPI) and UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get()
         }
         if authored != self.body_paths:
@@ -571,7 +705,7 @@ class UsdWriter:
 
     def validate_dependencies(self) -> None:
         """Reject dangling prim/property connections and unresolved external resources."""
-        for prim in self.stage.Traverse():
+        for prim in self.stage.Traverse(Usd.TraverseInstanceProxies()):
             for prop in prim.GetProperties():
                 targets = prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.GetConnections()
                 for path in targets:
@@ -579,6 +713,8 @@ class UsdWriter:
                         self.stage.GetPropertyAtPath(path) if path.IsPropertyPath() else self.stage.GetPrimAtPath(path)
                     )
                     if not target:
+                        if (str(prop.GetPath()), path) in self._source_missing_bindings:
+                            continue
                         raise RuntimeError(f"Unresolved export dependency {prop.GetPath()}: {path}")
         _, _, unresolved = UsdUtils.ComputeAllDependencies(Sdf.AssetPath(self.stage.GetRootLayer().identifier))
         unresolved = [p for p in unresolved if p not in {"OmniPBR.mdl", "OmniGlass.mdl", "OmniSurface.mdl"}]
