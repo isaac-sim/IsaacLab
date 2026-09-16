@@ -34,6 +34,8 @@ from pxr import Gf, UsdPhysics
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from dataclasses import dataclass
+
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -43,7 +45,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils import math as math_utils  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
 
@@ -143,7 +144,7 @@ def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCf
     )
 
 
-@configclass
+@dataclass
 class _SingleJointSceneCfg(InteractiveSceneCfg):
     """Scene with a single-joint articulation and the joint-wrench sensor."""
 
@@ -153,7 +154,7 @@ class _SingleJointSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class _CartpoleSceneCfg(InteractiveSceneCfg):
     """Scene with a cartpole (2-joint) articulation and the joint-wrench sensor."""
 
@@ -163,7 +164,7 @@ class _CartpoleSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
     """Cartpole with pole damping for steady-state physics validation tests."""
 
@@ -173,7 +174,7 @@ class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class _NestedRootAntSceneCfg(InteractiveSceneCfg):
     """Ant USD asset whose articulation root is nested under the configured asset prim."""
 

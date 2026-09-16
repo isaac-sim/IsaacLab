@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
 
 from .keyboard_schema import (
     DEFAULT_BUCKET_SIZES,
@@ -24,7 +24,7 @@ from .keyboard_schema import (
 )
 
 
-@configclass
+@dataclass
 class KeyboardSpawnerCfg(SpawnerCfg):
     """Configuration for one deterministic procedural keyboard.
 

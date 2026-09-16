@@ -8,18 +8,19 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 __all__ = [
     "ResetDatasetSamplerCfg",
 ]
 
 
-@configclass
-class ResetDatasetSamplerCfg:
+@dataclass
+class ResetDatasetSamplerCfg(ConfigMixin):
     """Configuration for the Franka Pour reset-dataset sampler."""
 
     monitored_history_len: int = 50

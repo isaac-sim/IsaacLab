@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 import warp as wp
@@ -21,10 +23,9 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class PvaTestSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and a PVA sensor."""
 
@@ -189,7 +190,7 @@ def test_reset(sim):
     torch.testing.assert_close(quat, expected_quat)
 
 
-@configclass
+@dataclass
 class FreefallSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and PVA but no ground plane (freefall)."""
 
@@ -256,7 +257,7 @@ def test_freefall_acceleration(sim):
     torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc), atol=0.05, rtol=0.0)
 
 
-@configclass
+@dataclass
 class OffsetRotatedSceneCfg(InteractiveSceneCfg):
     """Scene with a tilted cube and offset PVA sensor in freefall.
 

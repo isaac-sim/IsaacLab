@@ -13,13 +13,14 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from collections import namedtuple
+from dataclasses import dataclass
 
 import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -79,8 +80,8 @@ def test_config_equivalence(env):
     rew_man_from_dict = RewardManager(cfg, env)
 
     # create from config class
-    @configclass
-    class MyRewardManagerCfg:
+    @dataclass
+    class MyRewardManagerCfg(ConfigMixin):
         """Reward manager config with no type annotations."""
 
         my_term = RewardTermCfg(func=grilled_chicken, weight=10.0)
@@ -91,8 +92,8 @@ def test_config_equivalence(env):
     rew_man_from_cfg = RewardManager(cfg, env)
 
     # create from config class
-    @configclass
-    class MyRewardManagerAnnotatedCfg:
+    @dataclass
+    class MyRewardManagerAnnotatedCfg(ConfigMixin):
         """Reward manager config with type annotations."""
 
         my_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken, weight=10.0)

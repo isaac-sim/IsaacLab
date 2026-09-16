@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from .joint_pos_env_cfg import UR10eReachEnvCfg
 
 
-@configclass
+@dataclass
 class UR10eReachROSInferenceEnvCfg(UR10eReachEnvCfg):
     """Exposing variables for ROS inferences"""
 

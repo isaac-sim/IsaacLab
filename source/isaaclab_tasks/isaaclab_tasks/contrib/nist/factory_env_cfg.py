@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -15,7 +17,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.nist import mdp
 from isaaclab_tasks.contrib.nist.factory_presets import (
@@ -31,11 +33,11 @@ from isaaclab_tasks.utils import PresetCfg, preset
 _FRANKA_END_EFFECTOR = "panda_fingertip_centered"
 
 
-@configclass
-class FactoryObservationsCfg:
+@dataclass
+class FactoryObservationsCfg(ConfigMixin):
     """Observation specifications for Factory."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         end_effector_vel_lin_ang_b = ObsTerm(
             func=mdp.asset_link_velocity_in_root_asset_frame,
@@ -85,8 +87,8 @@ class FactoryObservationsCfg:
     critic: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class FactoryEventCfg:
+@dataclass
+class FactoryEventCfg(ConfigMixin):
     """Events specifications for Factory"""
 
     held_asset_material = EventTerm(
@@ -147,8 +149,8 @@ class FactoryEventCfg:
     )
 
 
-@configclass
-class FactoryRewardsCfg:
+@dataclass
+class FactoryRewardsCfg(ConfigMixin):
     """Reward terms for Factory. Success is terminal and carries the dominant weight."""
 
     action_l2 = RewTerm(func=mdp.action_l2_clamped, weight=-1e-4)
@@ -162,8 +164,8 @@ class FactoryRewardsCfg:
     success_reward = RewTerm(func=mdp.success_reward, weight=100.0)
 
 
-@configclass
-class FactoryTerminationsCfg:
+@dataclass
+class FactoryTerminationsCfg(ConfigMixin):
     """Termination terms for Factory. Reaching the assembled pose ends the episode."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -200,8 +202,8 @@ class FactoryTerminationsCfg:
     success = DoneTerm(func=mdp.success_termination)
 
 
-@configclass
-class FactoryCurriculumsCfg:
+@dataclass
+class FactoryCurriculumsCfg(ConfigMixin):
     """Curriculum terms for Factory."""
 
     difficulty_scheduler = CurrTerm(
@@ -235,7 +237,7 @@ class FactoryCurriculumsCfg:
 ##
 
 
-@configclass
+@dataclass
 class FactoryPhysicsCfg(PresetCfg):
     """Factory physics backend presets."""
 
@@ -277,8 +279,8 @@ class FactoryPhysicsCfg(PresetCfg):
     default = isaacsim_physx
 
 
-@configclass
-class FactoryActionsCfg:
+@dataclass
+class FactoryActionsCfg(ConfigMixin):
     """Franka joint actions for Factory."""
 
     arm_action = mdp.RelativeJointPositionActionCfg(
@@ -295,7 +297,7 @@ class FactoryActionsCfg:
     )
 
 
-@configclass
+@dataclass
 class FactoryEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the Franka Factory environment."""
 

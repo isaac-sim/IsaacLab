@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -25,10 +26,10 @@ from isaaclab.sim.schemas.schemas_cfg import (
     SpatialTendonFragment,
     _deprecate_field_alias,
 )
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
+@dataclass
 class OmniPhysicsDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     """OmniPhysics properties for a deformable body.
 
@@ -49,8 +50,8 @@ class OmniPhysicsDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     """The material mass [kg]. Defaults to None, in which case the material density is used to compute the mass."""
 
 
-@configclass
-class PhysXDeformableBodyPropertiesCfg:
+@dataclass
+class PhysXDeformableBodyPropertiesCfg(ConfigMixin):
     """PhysX-specific properties for a deformable body.
 
     These properties are set with the prefix ``physxDeformableBody:<property_name>``
@@ -132,7 +133,7 @@ class PhysXDeformableBodyPropertiesCfg:
     """
 
 
-@configclass
+@dataclass
 class PhysxDeformableBodyPropertiesCfg(
     OmniPhysicsDeformableBodyPropertiesCfg,
     PhysXDeformableBodyPropertiesCfg,
@@ -156,7 +157,7 @@ class PhysxDeformableBodyPropertiesCfg(
     """
 
 
-@configclass
+@dataclass
 class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
     """Deprecated: use :class:`PhysxDeformableBodyPropertiesCfg`.
 
@@ -176,7 +177,7 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """PhysX-specific rigid body properties.
 
@@ -234,7 +235,7 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
 
 
-@configclass
+@dataclass
 class PhysxRigidBodyCfg(RigidBodyFragment):
     """``physxRigidBody:*`` rigid-body attributes from `PhysxRigidBodyAPI`_.
 
@@ -292,7 +293,7 @@ class PhysxRigidBodyCfg(RigidBodyFragment):
     """
 
 
-@configclass
+@dataclass
 class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
     """Deprecated: use :class:`PhysxRigidBodyPropertiesCfg` or :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
 
@@ -315,7 +316,7 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class PhysxJointCfg(JointDriveFragment):
     """``physxJoint:*`` joint attributes from `PhysxJointAPI`_.
 
@@ -365,7 +366,7 @@ class PhysxJointCfg(JointDriveFragment):
     """
 
 
-@configclass
+@dataclass
 class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     """PhysX-specific joint drive properties.
 
@@ -390,7 +391,7 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     _usd_namespace: ClassVar[str | None] = "physxJoint"
 
 
-@configclass
+@dataclass
 class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
     """Deprecated: use :class:`PhysxJointDrivePropertiesCfg` or :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`.
 
@@ -413,7 +414,7 @@ class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class PhysxCollisionCfg(CollisionFragment):
     """``physxCollision:*`` collision attributes from `PhysxCollisionAPI`_.
 
@@ -465,7 +466,7 @@ class PhysxCollisionCfg(CollisionFragment):
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
-@configclass
+@dataclass
 class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     """PhysX-specific rigid-body collision properties.
 
@@ -500,7 +501,7 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
-@configclass
+@dataclass
 class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """PhysX-specific articulation-root properties.
 
@@ -557,7 +558,7 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
 
 
-@configclass
+@dataclass
 class PhysxArticulationCfg(ArticulationRootFragment):
     """``physxArticulation:*`` articulation-root attributes from `PhysxArticulationAPI`_.
 
@@ -602,7 +603,7 @@ class PhysxArticulationCfg(ArticulationRootFragment):
     stabilization [m²/s²]."""
 
 
-@configclass
+@dataclass
 class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
     """Deprecated: use :class:`PhysxArticulationRootPropertiesCfg` or the solver-common base class.
 
@@ -631,7 +632,7 @@ class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
     """Deprecated: use :class:`PhysxCollisionPropertiesCfg` or :class:`~isaaclab.sim.schemas.CollisionBaseCfg`.
 
@@ -664,7 +665,7 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
 # -------------------------------------------------------------------------------------
 
 
-@configclass
+@dataclass
 class PhysxConvexHullCfg(MeshCollisionFragment):
     """``physxConvexHullCollision:*`` mesh-cooking attributes from `PhysxConvexHullCollisionAPI`_.
 
@@ -688,7 +689,7 @@ class PhysxConvexHullCfg(MeshCollisionFragment):
     """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
 
 
-@configclass
+@dataclass
 class PhysxConvexDecompositionCfg(MeshCollisionFragment):
     """``physxConvexDecompositionCollision:*`` mesh-cooking attributes from `PhysxConvexDecompositionCollisionAPI`_.
 
@@ -726,7 +727,7 @@ class PhysxConvexDecompositionCfg(MeshCollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class PhysxTriangleMeshCfg(MeshCollisionFragment):
     """``physxTriangleMeshCollision:*`` mesh-cooking attributes from `PhysxTriangleMeshCollisionAPI`_.
 
@@ -749,7 +750,7 @@ class PhysxTriangleMeshCfg(MeshCollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class PhysxTriangleMeshSimplificationCfg(MeshCollisionFragment):
     """``physxTriangleMeshSimplificationCollision:*`` attributes from `PhysxTriangleMeshSimplificationCollisionAPI`_.
 
@@ -777,7 +778,7 @@ class PhysxTriangleMeshSimplificationCfg(MeshCollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class PhysxSDFMeshCfg(MeshCollisionFragment):
     """``physxSDFMeshCollision:*`` mesh-cooking attributes from `PhysxSDFMeshCollisionAPI`_.
 
@@ -819,7 +820,7 @@ class PhysxSDFMeshCfg(MeshCollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX convex-hull cooking properties for a mesh collider.
 
@@ -852,7 +853,7 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX convex-decomposition cooking properties for a mesh collider.
 
@@ -900,7 +901,7 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX triangle-mesh cooking properties for a mesh collider.
 
@@ -926,7 +927,7 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX triangle-mesh-simplification cooking properties for a mesh collider.
 
@@ -955,7 +956,7 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX SDF-mesh cooking properties for a mesh collider.
 
@@ -1020,7 +1021,7 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
     """Deprecated: use :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`.
 
@@ -1042,7 +1043,7 @@ class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
     """Deprecated: use :class:`PhysxConvexHullPropertiesCfg`.
 
@@ -1061,7 +1062,7 @@ class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
     """Deprecated: use :class:`PhysxConvexDecompositionPropertiesCfg`.
 
@@ -1080,7 +1081,7 @@ class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
     """Deprecated: use :class:`PhysxTriangleMeshPropertiesCfg`.
 
@@ -1099,7 +1100,7 @@ class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPropertiesCfg):
     """Deprecated: use :class:`PhysxTriangleMeshSimplificationPropertiesCfg`.
 
@@ -1118,7 +1119,7 @@ class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPro
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
     """Deprecated: use :class:`PhysxSDFMeshPropertiesCfg`.
 
@@ -1137,8 +1138,8 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
-class PhysxFixedTendonPropertiesCfg:
+@dataclass
+class PhysxFixedTendonPropertiesCfg(ConfigMixin):
     """PhysX fixed-tendon properties for an articulation.
 
     Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
@@ -1183,7 +1184,7 @@ class PhysxFixedTendonPropertiesCfg:
     """Upper limit of the tendon's length [m]."""
 
 
-@configclass
+@dataclass
 class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
     """Deprecated: use :class:`PhysxFixedTendonPropertiesCfg`.
 
@@ -1204,8 +1205,8 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
-class PhysxSpatialTendonPropertiesCfg:
+@dataclass
+class PhysxSpatialTendonPropertiesCfg(ConfigMixin):
     """PhysX spatial-tendon properties for an articulation.
 
     Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
@@ -1241,7 +1242,7 @@ class PhysxSpatialTendonPropertiesCfg:
     """
 
 
-@configclass
+@dataclass
 class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
     """Deprecated: use :class:`PhysxSpatialTendonPropertiesCfg`.
 
@@ -1262,7 +1263,7 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class PhysxTendonAxisRootCfg(FixedTendonFragment):
     """Whole-tendon attributes from `PhysxTendonAxisRootAPI`_.
 
@@ -1311,7 +1312,7 @@ class PhysxTendonAxisRootCfg(FixedTendonFragment):
     """Upper limit of the tendon's length [m]."""
 
 
-@configclass
+@dataclass
 class PhysxTendonAxisCfg(FixedTendonFragment):
     """Per-joint-axis attributes from `PhysxTendonAxisAPI`_.
 
@@ -1341,7 +1342,7 @@ class PhysxTendonAxisCfg(FixedTendonFragment):
     """Joint axes corresponding to :attr:`gearing` and :attr:`force_coefficient`."""
 
 
-@configclass
+@dataclass
 class PhysxTendonAttachmentRootCfg(SpatialTendonFragment):
     """Whole-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
 

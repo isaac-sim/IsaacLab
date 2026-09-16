@@ -8,7 +8,7 @@ We modified parts of the environment, such as the target's position and orientat
 as well as certain object properties, to better suit the smaller robot.
 """
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -25,7 +25,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -44,7 +44,7 @@ from isaaclab_tasks.core.cabinet import mdp
 ##
 
 
-@configclass
+@dataclass
 class CabinetSceneCfg(InteractiveSceneCfg):
     """Configuration for the cabinet scene with a robot and a cabinet.
 
@@ -129,19 +129,19 @@ class CabinetSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     arm_action: mdp.JointPositionActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -167,8 +167,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     robot_physics_material = EventTerm(
@@ -207,8 +207,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # 1. Approach the handle
@@ -248,8 +248,8 @@ class RewardsCfg:
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.0001)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -260,7 +260,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 

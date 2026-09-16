@@ -9,14 +9,15 @@ include the basic configuration for different types of cameras, support scene-sp
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class CameraBaseCfg:
+@dataclass
+class CameraBaseCfg(ConfigMixin):
     """camera base configuration class
 
     provide the default configuration for different types of cameras, support scene-specific parameter customization
@@ -74,8 +75,8 @@ class CameraBaseCfg:
         )
 
 
-@configclass
-class CameraPresets:
+@dataclass
+class CameraPresets(ConfigMixin):
     """camera preset configuration collection
 
     include the common camera configuration preset for different scenes

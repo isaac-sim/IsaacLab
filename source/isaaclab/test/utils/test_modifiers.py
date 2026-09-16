@@ -3,20 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import pytest
 import torch
 
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.unit
 
 
-@configclass
-class ModifierTestCfg:
+@dataclass
+class ModifierTestCfg(ConfigMixin):
     """Configuration for testing modifiers."""
 
     cfg: modifiers.ModifierCfg = MISSING

@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
@@ -74,7 +75,7 @@ def validate_shadow_hand_camera_settings(
         )
 
 
-@configclass
+@dataclass
 class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     """Base camera configuration for the shadow hand vision environment.
 
@@ -101,7 +102,7 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
 
-@configclass
+@dataclass
 class ShadowHandTiledCameraCfg(PresetCfg):
     """Camera data-type presets for the shadow hand vision environment.
 
@@ -169,7 +170,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
     """Semantic segmentation (3 CNN input channels)."""
 
 
-@configclass
+@dataclass
 class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)

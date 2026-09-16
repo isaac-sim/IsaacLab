@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import torch
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.utils import configclass
 
 from .joint_pos_env_cfg import Rizon4sGearAssemblyEnvCfg
 
@@ -19,7 +19,7 @@ def constant_obs(env, value: tuple) -> torch.Tensor:
     return torch.tensor([value], device=env.device, dtype=torch.float32).expand(env.num_envs, -1)
 
 
-@configclass
+@dataclass
 class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
     """Configuration for ROS inference with Flexiv Rizon 4s and Grav gripper.
 

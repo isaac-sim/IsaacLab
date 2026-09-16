@@ -7,22 +7,22 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import CommandTermCfg, EventTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ...keyboards.keyboard_schema import KEY_ACTUATION_FRACTION
 from .typing_commands import LetterTypingCommand
 
 
-@configclass
+@dataclass
 class LetterTypingCommandCfg(CommandTermCfg):
     """Configuration for :class:`LetterTypingCommand`."""
 
-    @configclass
-    class ResetCfg:
+    @dataclass
+    class ResetCfg(ConfigMixin):
         """All reset behavior for the typing task: the per-reset differential-IK arm snap (the ``ik*`` fields;
         runs on every reset whenever :attr:`ik` is set) plus an optional success-conditioned replay curriculum
         layered on top (:attr:`enabled` and the sampling/buffer fields).

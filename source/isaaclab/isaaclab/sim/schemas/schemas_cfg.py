@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import ClassVar, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
@@ -106,8 +107,8 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     setattr(cfg, alias, None)
 
 
-@configclass
-class SchemaFragment:
+@dataclass
+class SchemaFragment(ConfigMixin):
     """Base for a single-namespace USD-schema config fragment.
 
     Each subclass mirrors exactly one USD applied schema. The fragment carries class-level
@@ -143,14 +144,14 @@ class SchemaFragment:
     """
 
 
-@configclass
+@dataclass
 class RigidBodyFragment(SchemaFragment):
     """Marker base for rigid-body fragments; types the ``rigid_props`` slot."""
 
     pass
 
 
-@configclass
+@dataclass
 class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
     """``physics:*`` rigid-body attributes from `UsdPhysics.RigidBodyAPI`_.
 
@@ -174,14 +175,14 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
     """
 
 
-@configclass
+@dataclass
 class CollisionFragment(SchemaFragment):
     """Marker base for collision fragments; types the ``collision_props`` slot."""
 
     pass
 
 
-@configclass
+@dataclass
 class ArticulationRootFragment(SchemaFragment):
     """Marker base for articulation-root fragments; types the ``articulation_props`` slot.
 
@@ -196,14 +197,14 @@ class ArticulationRootFragment(SchemaFragment):
     pass
 
 
-@configclass
+@dataclass
 class JointDriveFragment(SchemaFragment):
     """Marker base for joint-drive fragments; types the ``joint_drive_props`` slot."""
 
     pass
 
 
-@configclass
+@dataclass
 class MeshCollisionFragment(SchemaFragment):
     """Marker base for mesh-collision fragments; types the ``mesh_collision_props`` slot.
 
@@ -221,7 +222,7 @@ class MeshCollisionFragment(SchemaFragment):
     func: Callable | str = "isaaclab.sim.schemas:apply_mesh_collision"
 
 
-@configclass
+@dataclass
 class FixedTendonFragment(SchemaFragment):
     """Marker base for fixed-tendon fragments; types the ``fixed_tendons_props`` slot.
 
@@ -235,7 +236,7 @@ class FixedTendonFragment(SchemaFragment):
     pass
 
 
-@configclass
+@dataclass
 class SpatialTendonFragment(SchemaFragment):
     """Marker base for spatial-tendon fragments; types the ``spatial_tendons_props`` slot.
 
@@ -249,7 +250,7 @@ class SpatialTendonFragment(SchemaFragment):
     pass
 
 
-@configclass
+@dataclass
 class UsdPhysicsCollisionCfg(CollisionFragment):
     """``physics:*`` collision attributes from `UsdPhysics.CollisionAPI`_.
 
@@ -270,7 +271,7 @@ class UsdPhysicsCollisionCfg(CollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class UsdPhysicsDriveCfg(JointDriveFragment):
     """``drive:<linear|angular>:physics:*`` joint-drive attributes from `UsdPhysics.DriveAPI`_.
 
@@ -351,7 +352,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
     """
 
 
-@configclass
+@dataclass
 class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
     """``physics:approximation`` mesh-collision token from `UsdPhysics.MeshCollisionAPI`_.
 
@@ -382,8 +383,8 @@ class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
     """
 
 
-@configclass
-class ArticulationRootBaseCfg:
+@dataclass
+class ArticulationRootBaseCfg(ConfigMixin):
     """Solver-common properties to apply to the root of an articulation.
 
     Carries :attr:`fix_root_link` (writer-side; materializes a
@@ -449,8 +450,8 @@ class ArticulationRootBaseCfg:
     """
 
 
-@configclass
-class RigidBodyBaseCfg:
+@dataclass
+class RigidBodyBaseCfg(ConfigMixin):
     """Solver-common properties to apply to a rigid body.
 
     Contains properties from the `UsdPhysics.RigidBodyAPI`_ that are common across all
@@ -515,8 +516,8 @@ class RigidBodyBaseCfg:
     """
 
 
-@configclass
-class CollisionBaseCfg:
+@dataclass
+class CollisionBaseCfg(ConfigMixin):
     """Solver-common properties to apply to colliders.
 
     Contains :attr:`collision_enabled` from the `UsdPhysics.CollisionAPI`_ and the
@@ -589,8 +590,8 @@ class CollisionBaseCfg:
     """
 
 
-@configclass
-class MassPropertiesCfg:
+@dataclass
+class MassPropertiesCfg(ConfigMixin):
     """Properties to define explicit mass properties of a rigid body.
 
     See :meth:`modify_mass_properties` for more information.
@@ -622,14 +623,14 @@ class MassPropertiesCfg:
     """
 
 
-@configclass
+@dataclass
 class MassFragment(SchemaFragment):
     """Marker base for mass fragments; types the ``mass_props`` slot."""
 
     pass
 
 
-@configclass
+@dataclass
 class MassCfg(MassFragment):
     """``physics:*`` mass attributes from `UsdPhysics.MassAPI`_.
 
@@ -664,8 +665,8 @@ class MassCfg(MassFragment):
     """
 
 
-@configclass
-class JointDriveBaseCfg:
+@dataclass
+class JointDriveBaseCfg(ConfigMixin):
     """Solver-common properties to define the drive mechanism of a joint.
 
     Contains properties from the `UsdPhysics.DriveAPI`_ that are common across all
@@ -780,8 +781,8 @@ class JointDriveBaseCfg:
     """
 
 
-@configclass
-class MeshCollisionBaseCfg:
+@dataclass
+class MeshCollisionBaseCfg(ConfigMixin):
     """Solver-common properties to apply to a mesh in regards to collision.
 
     Carries only the standard ``UsdPhysics:MeshCollisionAPI`` token
@@ -843,7 +844,7 @@ class MeshCollisionBaseCfg:
         raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
 
-@configclass
+@dataclass
 class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     """Bounding-cube mesh collision approximation. USD-only; authors no PhysX schema.
 
@@ -858,7 +859,7 @@ class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     """Name of mesh collision approximation method. Default: "boundingCube"."""
 
 
-@configclass
+@dataclass
 class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     """Bounding-sphere mesh collision approximation. USD-only; authors no PhysX schema.
 
@@ -873,8 +874,8 @@ class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     """Name of mesh collision approximation method. Default: "boundingSphere"."""
 
 
-@configclass
-class DeformableBodyPropertiesBaseCfg:
+@dataclass
+class DeformableBodyPropertiesBaseCfg(ConfigMixin):
     """Base deformable body properties for backend-specific extensions.
 
     This class is currently empty. It will be populated once the USD deformable

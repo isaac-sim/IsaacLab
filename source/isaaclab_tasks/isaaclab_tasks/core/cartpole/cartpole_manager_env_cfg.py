@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
@@ -24,7 +25,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
@@ -38,7 +39,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 ##
 
 
-@configclass
+@dataclass
 class CartpolePhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -68,7 +69,7 @@ class CartpolePhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class CartpoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
@@ -97,18 +98,18 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -124,8 +125,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     # reset
@@ -150,8 +151,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # (1) Constant running reward
@@ -180,8 +181,8 @@ class RewardsCfg:
     success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     # (1) Time out
@@ -198,7 +199,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
 

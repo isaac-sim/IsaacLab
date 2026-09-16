@@ -44,5 +44,5 @@ GOAL_MARKER_CFG = VisualizationMarkersCfg(
 """Goal-marker template shared by the Direct environment and the manager command term.
 
 Consumers relying on a different prim path use ``replace``
-on this template; configclass deep-copies defaults, so sharing the instance is safe.
+on this template; configuration post-initialization deep-copies defaults, so sharing the instance is safe.
 """

@@ -4,14 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.utils import configclass
 
 from .joint_pos_env_cfg import UR10e2F85GearAssemblyEnvCfg, UR10e2F140GearAssemblyEnvCfg
 
 
-@configclass
+@dataclass
 class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
     """Configuration for ROS inference with UR10e and Robotiq 2F-140 gripper.
 
@@ -110,7 +110,7 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
         ]
 
 
-@configclass
+@dataclass
 class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
     """Configuration for ROS inference with UR10e and Robotiq 2F-85 gripper.
 

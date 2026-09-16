@@ -6,9 +6,8 @@
 """Configuration for the ray-cast camera sensor."""
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 from .ray_caster_camera_cfg import RayCasterCameraCfg
@@ -20,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@configclass
+@dataclass
 class MultiMeshRayCasterCameraCfg(RayCasterCameraCfg, MultiMeshRayCasterCfg):
     """Configuration for the multi-mesh ray-cast camera sensor."""
 

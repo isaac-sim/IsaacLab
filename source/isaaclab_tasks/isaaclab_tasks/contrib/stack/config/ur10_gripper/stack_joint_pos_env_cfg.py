@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_physx.assets import SurfaceGripperCfg
 
 from isaaclab.assets import RigidObjectCfg
@@ -13,7 +15,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -35,8 +37,8 @@ from isaaclab_assets.robots.universal_robots import (  # isort: skip
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 
-@configclass
-class EventCfgLongSuction:
+@dataclass
+class EventCfgLongSuction(ConfigMixin):
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
@@ -69,7 +71,7 @@ class EventCfgLongSuction:
     )
 
 
-@configclass
+@dataclass
 class UR10CubeStackEnvCfg(StackEnvCfg):
     # Rigid body properties of each cube
     cube_properties = RigidBodyPropertiesCfg(
@@ -145,7 +147,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         self.sim.render_interval = 5
 
 
-@configclass
+@dataclass
 class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
     """Configuration for the UR10 Long Suction Cube Stack Environment."""
 
@@ -187,7 +189,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent

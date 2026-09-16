@@ -5,9 +5,9 @@
 
 """Franka soft lifting environment using the custom coupling manager."""
 
-from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from dataclasses import dataclass
 
-from isaaclab.utils import configclass
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
@@ -15,7 +15,7 @@ from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import Phys
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
-@configclass
+@dataclass
 class PhysicsCfg(CorePhysicsCfg):
     """Adds the manual MJWarp and VBD coupling preset on top of the core proxy presets."""
 
@@ -39,7 +39,7 @@ class PhysicsCfg(CorePhysicsCfg):
     default = newton_mjwarp_vbd
 
 
-@configclass
+@dataclass
 class FrankaSoftCustomCouplingEnvCfg(FrankaSoftEnvCfg):
     """Franka soft lifting with manual MJWarp and VBD coupling."""
 

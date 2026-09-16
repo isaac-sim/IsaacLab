@@ -12,6 +12,7 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import h5py
@@ -22,7 +23,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
-from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -37,11 +37,11 @@ class DummyStepRecorderTerm(RecorderTerm):
         return "record_post_step", torch.ones(self._env.num_envs, 5, device=self._env.device)
 
 
-@configclass
+@dataclass
 class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     """Recorder configuration for environment lifecycle integration coverage."""
 
-    @configclass
+    @dataclass
     class DummyStepRecorderTermCfg(RecorderTermCfg):
         """Configuration for the dummy step recorder term."""
 

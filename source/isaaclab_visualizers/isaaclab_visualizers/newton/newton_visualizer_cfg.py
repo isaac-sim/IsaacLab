@@ -8,16 +8,16 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 
-@configclass
+@dataclass
 class NewtonVisualizerCfg(VisualizerCfg):
     """Shared configuration base for Newton visualizer backends.
 
@@ -111,7 +111,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     """Light color RGB [0, 1]."""
 
 
-@configclass
+@dataclass
 class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     """Configuration for the Newton OpenGL rasterizer visualizer.
 
@@ -138,7 +138,7 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     """
 
 
-@configclass
+@dataclass
 class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Configuration for the Newton OVRTX path-tracer visualizer.
 

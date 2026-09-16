@@ -3,13 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.managers import ActionTermCfg, ObservationGroupCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class PreTrainedPolicyActionCfg(ActionTermCfg):
     """Configuration for pre-trained policy action term.
 

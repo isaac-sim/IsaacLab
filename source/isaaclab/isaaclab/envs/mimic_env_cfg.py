@@ -13,13 +13,14 @@ Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 from __future__ import annotations
 
 import enum
+from dataclasses import dataclass
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class DataGenConfig:
+@dataclass
+class DataGenConfig(ConfigMixin):
     """Configuration settings for data generation processes within the Isaac Lab Mimic environment."""
 
     name: str = "demo"
@@ -97,8 +98,8 @@ class DataGenConfig:
     """Whether to use a navigation controller to generate loco-manipulation trajectories."""
 
 
-@configclass
-class SubTaskConfig:
+@dataclass
+class SubTaskConfig(ConfigMixin):
     """
     Configuration settings for specifying subtasks used in Mimic environments.
     """
@@ -184,8 +185,8 @@ class SubTaskConstraintCoordinationScheme(enum.IntEnum):
     TRANSLATE = 2
 
 
-@configclass
-class SubTaskConstraintConfig:
+@dataclass
+class SubTaskConstraintConfig(ConfigMixin):
     """
     Configuration settings for specifying subtask constraints used in multi-eef Mimic environments.
     """
@@ -312,8 +313,8 @@ class SubTaskConstraintConfig:
         return task_constraints_dict
 
 
-@configclass
-class MimicEnvCfg:
+@dataclass
+class MimicEnvCfg(ConfigMixin):
     """
     Configuration class for the Mimic environment integration.
 

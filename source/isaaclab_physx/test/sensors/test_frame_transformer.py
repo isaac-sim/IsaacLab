@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
@@ -30,7 +31,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -50,7 +50,7 @@ def euler_rpy_apply(rpy, xyz, degrees=False):
     return tuple(rot.apply(xyz).tolist())
 
 
-@configclass
+@dataclass
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
@@ -668,7 +668,7 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
     """
 
     # Create a custom scene config with two robots
-    @configclass
+    @dataclass
     class MultiRobotSceneCfg(InteractiveSceneCfg):
         """Scene with two robots having bodies with same names."""
 

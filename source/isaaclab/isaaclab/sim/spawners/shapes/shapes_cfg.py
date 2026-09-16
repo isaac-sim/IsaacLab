@@ -6,18 +6,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.sim import schemas
 
 
-@configclass
+@dataclass
 class ShapeCfg(RigidObjectSpawnerCfg):
     """Configuration parameters for a USD Geometry or Geom prim."""
 
@@ -57,7 +56,7 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     """
 
 
-@configclass
+@dataclass
 class SphereCfg(ShapeCfg):
     """Configuration parameters for a sphere prim.
 
@@ -70,7 +69,7 @@ class SphereCfg(ShapeCfg):
     """Radius of the sphere (in m)."""
 
 
-@configclass
+@dataclass
 class CuboidCfg(ShapeCfg):
     """Configuration parameters for a cuboid prim.
 
@@ -83,7 +82,7 @@ class CuboidCfg(ShapeCfg):
     """Size of the cuboid."""
 
 
-@configclass
+@dataclass
 class CylinderCfg(ShapeCfg):
     """Configuration parameters for a cylinder prim.
 
@@ -100,7 +99,7 @@ class CylinderCfg(ShapeCfg):
     """Axis of the cylinder. Defaults to "Z"."""
 
 
-@configclass
+@dataclass
 class CapsuleCfg(ShapeCfg):
     """Configuration parameters for a capsule prim.
 
@@ -117,7 +116,7 @@ class CapsuleCfg(ShapeCfg):
     """Axis of the capsule. Defaults to "Z"."""
 
 
-@configclass
+@dataclass
 class ConeCfg(ShapeCfg):
     """Configuration parameters for a cone prim.
 
@@ -134,7 +133,7 @@ class ConeCfg(ShapeCfg):
     """Axis of the cone. Defaults to "Z"."""
 
 
-@configclass
+@dataclass
 class CableCfg(SpawnerCfg):
     """Configuration parameters for an open linear cable."""
 

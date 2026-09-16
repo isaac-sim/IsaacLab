@@ -7,9 +7,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -30,8 +31,8 @@ def _get_visualizer_install_hint(visualizer_type: str) -> str:
     return f"Run your command with: uv run --extra {extra} <command>."
 
 
-@configclass
-class VisualizerCfg:
+@dataclass
+class VisualizerCfg(ConfigMixin):
     """Base configuration for all visualizer backends.
 
     Note:

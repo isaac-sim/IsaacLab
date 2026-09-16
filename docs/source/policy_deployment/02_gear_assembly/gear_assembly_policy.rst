@@ -115,7 +115,7 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
 
 .. code-block:: python
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -1038,7 +1038,7 @@ To match a specific real-world setup, edit the play-mode constants at the top of
 
 .. code-block:: python
 
-    @configclass
+    @dataclass
     class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
         # ── Play-mode scene setup ──
         GEAR_TYPE: str = "gear_large"                          # which gear to grasp

@@ -8,15 +8,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.managers import ManagerTermBaseCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg as SuccessMonitorCfg
 
 
-@configclass
+@dataclass
 class MeshClearanceCfg(ManagerTermBaseCfg):
     """Validity criterion for :class:`conditional_reset`: object clear of the robot.
 
@@ -48,7 +47,7 @@ class MeshClearanceCfg(ManagerTermBaseCfg):
     """Required clearance [m]; states with any signed distance below this are invalid."""
 
 
-@configclass
+@dataclass
 class GraspTravelDistanceCfg(ManagerTermBaseCfg):
     """Spread descriptor for :class:`conditional_reset`: how far the hand and the object each have to go.
 
@@ -84,7 +83,7 @@ class GraspTravelDistanceCfg(ManagerTermBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class SlabClearanceCfg(ManagerTermBaseCfg):
     """Validity criterion for :class:`conditional_reset`: robot and object clear of slabs.
 

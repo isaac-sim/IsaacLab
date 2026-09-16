@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
@@ -14,7 +14,7 @@ from .track_position_state_based_env_cfg import TrackPositionNoObstaclesEnvCfg
 ##
 
 
-@configclass
+@dataclass
 class NoObstacleEnvCfg(TrackPositionNoObstaclesEnvCfg):
     def __post_init__(self):
         # post init of parent

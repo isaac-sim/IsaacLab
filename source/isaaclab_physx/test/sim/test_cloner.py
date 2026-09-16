@@ -626,12 +626,12 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     4096 envs ≈ 64K firings keeps listener cost above noise. See PR #5432.
     """
     import time
+    from dataclasses import dataclass
 
     import isaaclab.cloner._fabric_notices as fabric_notices_mod
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass
 
     if fabric_notices_mod.get_bindings() is None:
         pytest.skip("omni::fabric::IFabricUsd unavailable")
@@ -643,7 +643,7 @@ def test_disabled_fabric_change_notifies_speedup_regression():
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3 * (i % 4), 0.3 * (i // 4), 0.5)),
         )
 
-    @configclass
+    @dataclass
     class _SceneCfg(InteractiveSceneCfg):
         pass
 

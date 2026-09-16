@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
-@configclass
+@dataclass
 class CabinetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 96
     max_iterations = 400
@@ -41,6 +41,6 @@ class CabinetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class FrankaCabinetPPORunnerCfg(CabinetPPORunnerCfg):
     experiment_name = "franka_open_drawer_direct"

@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .thruster import Thruster
 
 
-@configclass
-class ThrusterCfg:
+@dataclass
+class ThrusterCfg(ConfigMixin):
     """Configuration for thruster actuator groups.
 
     This config defines per-actuator-group parameters used by the low-level

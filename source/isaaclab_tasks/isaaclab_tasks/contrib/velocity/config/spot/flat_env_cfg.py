@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
@@ -23,7 +25,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -34,7 +36,7 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoug
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
@@ -81,15 +83,15 @@ COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
 )
 
 
-@configclass
-class SpotActionsCfg:
+@dataclass
+class SpotActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.2, use_default_offset=True)
 
 
-@configclass
-class SpotCommandsCfg:
+@dataclass
+class SpotCommandsCfg(ConfigMixin):
     """Command specifications for the MDP."""
 
     base_velocity = mdp.UniformVelocityCommandCfg(
@@ -105,11 +107,11 @@ class SpotCommandsCfg:
     )
 
 
-@configclass
-class SpotObservationsCfg:
+@dataclass
+class SpotObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -142,8 +144,8 @@ class SpotObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class SpotNewtonEventCfg:
+@dataclass
+class SpotNewtonEventCfg(ConfigMixin):
     """Newton event configuration for Spot (reset + interval only)."""
 
     # reset
@@ -196,8 +198,8 @@ class SpotNewtonEventCfg:
     )
 
 
-@configclass
-class SpotStartupEventCfg:
+@dataclass
+class SpotStartupEventCfg(ConfigMixin):
     """PhysX-only startup randomization for Spot."""
 
     # startup
@@ -224,12 +226,12 @@ class SpotStartupEventCfg:
     )
 
 
-@configclass
+@dataclass
 class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
     pass
 
 
-@configclass
+@dataclass
 class SpotEventCfg(PresetCfg):
     physx = SpotPhysxEventCfg()
     isaacsim_physx = physx
@@ -238,8 +240,8 @@ class SpotEventCfg(PresetCfg):
     newton_kamino = newton_mjwarp
 
 
-@configclass
-class SpotRewardsCfg:
+@dataclass
+class SpotRewardsCfg(ConfigMixin):
     # -- task
     air_time = RewardTermCfg(
         func=spot_mdp.air_time_reward,
@@ -332,8 +334,8 @@ class SpotRewardsCfg:
     )
 
 
-@configclass
-class SpotTerminationsCfg:
+@dataclass
+class SpotTerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -348,7 +350,7 @@ class SpotTerminationsCfg:
     )
 
 
-@configclass
+@dataclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for the Spot robot in a flat environment."""
 

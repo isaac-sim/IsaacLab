@@ -6,18 +6,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class VisualMaterialCfg(SpawnerCfg):
     """Configuration parameters for creating a visual material."""
 
 
-@configclass
+@dataclass
 class PreviewSurfaceCfg(VisualMaterialCfg):
     """Configuration parameters for creating a preview surface.
 
@@ -42,7 +41,7 @@ class PreviewSurfaceCfg(VisualMaterialCfg):
     """
 
 
-@configclass
+@dataclass
 class MdlFileCfg(VisualMaterialCfg):
     """Configuration parameters for loading an MDL material from a file.
 
@@ -80,7 +79,7 @@ class MdlFileCfg(VisualMaterialCfg):
     """
 
 
-@configclass
+@dataclass
 class PbrMdlCfg(MdlFileCfg):
     """Configuration parameters for the OmniPBR MDL material."""
 
@@ -92,7 +91,7 @@ class PbrMdlCfg(MdlFileCfg):
     """Constant surface roughness. The material default is used when None."""
 
 
-@configclass
+@dataclass
 class GlassMdlCfg(VisualMaterialCfg):
     """Configuration parameters for loading a glass MDL material.
 

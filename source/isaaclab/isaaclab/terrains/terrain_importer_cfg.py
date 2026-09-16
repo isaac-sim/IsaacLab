@@ -5,20 +5,20 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners import materials
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
     from .terrain_importer import TerrainImporter
 
 
-@configclass
-class TerrainImporterCfg:
+@dataclass
+class TerrainImporterCfg(ConfigMixin):
     """Configuration for the terrain manager."""
 
     class_type: type[TerrainImporter] | str = "{DIR}.terrain_importer:TerrainImporter"

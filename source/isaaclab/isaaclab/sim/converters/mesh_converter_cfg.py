@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from isaaclab.sim.schemas import schemas_cfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class MeshConverterCfg(AssetConverterBaseCfg):
     """The configuration class for MeshConverter."""
 

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
@@ -14,7 +16,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.datasets import EpisodeData
 from isaaclab.visualizers import VisualizerCfg
@@ -43,7 +44,7 @@ ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
 }
 
 
-@configclass
+@dataclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     packing_table_2 = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/PackingTable2",
@@ -119,13 +120,13 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
             setattr(self, f"box_{i}", box)
 
 
-@configclass
+@dataclass
 class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
     """Observation specifications for the MDP.
     This class is required by the environment configuration but not used in this implementation
     """
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
         robot_pov_cam = ObsTerm(
             func=manip_mdp.image,
@@ -135,7 +136,7 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
+@dataclass
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 

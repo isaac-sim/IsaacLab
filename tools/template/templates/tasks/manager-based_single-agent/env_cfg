@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -16,7 +17,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -33,7 +34,7 @@ from ... import mdp
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 
-@configclass
+@dataclass
 class {{ task.classname }}PhysicsCfg(PresetCfg):
     """Physics presets for the generated cart-pole environment."""
 
@@ -65,7 +66,7 @@ class {{ task.classname }}PhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
@@ -90,18 +91,18 @@ class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -117,8 +118,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     # reset
@@ -143,8 +144,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # (1) Constant running reward
@@ -171,8 +172,8 @@ class RewardsCfg:
     )
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     # (1) Time out
@@ -189,7 +190,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the generated cart-pole environment."""
 

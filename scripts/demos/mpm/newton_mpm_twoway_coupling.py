@@ -156,12 +156,13 @@ def create_sim_cfg():
 
 def create_scene_cfg():
     """Create the declarative rigid-sphere and granular-bath scene."""
+    from dataclasses import dataclass
+
     from isaaclab_newton.assets.mpm_object import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,
@@ -224,7 +225,7 @@ def create_scene_cfg():
         for index, (position, orientation) in enumerate(CHUTE_PANEL_POSES)
     )
 
-    @configclass
+    @dataclass
     class CoupledSceneCfg(InteractiveSceneCfg):
         """Scene containing a static bath, three rigid spheres, and MPM sand."""
 

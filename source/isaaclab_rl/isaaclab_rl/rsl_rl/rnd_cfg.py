@@ -3,26 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class RslRlRndCfg:
+@dataclass
+class RslRlRndCfg(ConfigMixin):
     """Configuration for the Random Network Distillation (RND) module.
 
     For more information, please check the work from :cite:`schwarke2023curiosity`.
     """
 
-    @configclass
-    class WeightScheduleCfg:
+    @dataclass
+    class WeightScheduleCfg(ConfigMixin):
         """Configuration for the weight schedule."""
 
         mode: str = "constant"
         """The type of weight schedule. Defaults to "constant"."""
 
-    @configclass
+    @dataclass
     class LinearWeightScheduleCfg(WeightScheduleCfg):
         """Configuration for the linear weight schedule.
 
@@ -48,7 +48,7 @@ class RslRlRndCfg:
         For steps after this step, the weight is the final value specified in :attr:`final_value`.
         """
 
-    @configclass
+    @dataclass
     class StepWeightScheduleCfg(WeightScheduleCfg):
         """Configuration for the step weight schedule.
 

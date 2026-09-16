@@ -33,13 +33,14 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -47,7 +48,7 @@ from isaaclab.utils import configclass
 from isaaclab_assets import CARTPOLE_CFG  # isort:skip
 
 
-@configclass
+@dataclass
 class CartpoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 

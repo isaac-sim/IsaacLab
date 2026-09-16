@@ -7,9 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
 
-@configclass
+@dataclass
 class XPBDSolverCfg(NewtonSolverCfg):
     """An implicit integrator using eXtended Position-Based Dynamics (XPBD) for rigid and soft body simulation.
 

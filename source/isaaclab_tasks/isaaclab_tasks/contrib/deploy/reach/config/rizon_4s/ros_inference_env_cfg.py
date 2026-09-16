@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from .joint_pos_env_cfg import Rizon4sReachEnvCfg
 
 
-@configclass
+@dataclass
 class Rizon4sReachROSInferenceEnvCfg(Rizon4sReachEnvCfg):
     """ROS / Isaac Manipulator inference fields plus deployment alignment for NVIDIA Hubble Lab.
 

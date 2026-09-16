@@ -7,17 +7,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg, VBDSolverCfg
-
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
 
-@configclass
+@dataclass
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the custom MJWarp and VBD coupling manager."""
 

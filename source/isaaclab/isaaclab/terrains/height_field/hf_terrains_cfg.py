@@ -3,14 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
+from dataclasses import MISSING, dataclass
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 
-@configclass
+@dataclass
 class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The base configuration for height field terrains."""
 
@@ -43,7 +41,7 @@ Different height field terrain configurations.
 """
 
 
-@configclass
+@dataclass
 class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a random uniform height field terrain."""
 
@@ -64,7 +62,7 @@ class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid sloped height field terrain."""
 
@@ -83,7 +81,7 @@ class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class HfInvertedPyramidSlopedTerrainCfg(HfPyramidSlopedTerrainCfg):
     """Configuration for an inverted pyramid sloped height field terrain.
 
@@ -96,7 +94,7 @@ class HfInvertedPyramidSlopedTerrainCfg(HfPyramidSlopedTerrainCfg):
     inverted: bool = True
 
 
-@configclass
+@dataclass
 class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid stairs height field terrain."""
 
@@ -118,7 +116,7 @@ class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class HfInvertedPyramidStairsTerrainCfg(HfPyramidStairsTerrainCfg):
     """Configuration for an inverted pyramid stairs height field terrain.
 
@@ -131,7 +129,7 @@ class HfInvertedPyramidStairsTerrainCfg(HfPyramidStairsTerrainCfg):
     inverted: bool = True
 
 
-@configclass
+@dataclass
 class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a discrete obstacles height field terrain."""
 
@@ -156,7 +154,7 @@ class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class HfWaveTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a wave height field terrain."""
 
@@ -169,7 +167,7 @@ class HfWaveTerrainCfg(HfTerrainBaseCfg):
     """The number of waves to generate. Defaults to 1."""
 
 
-@configclass
+@dataclass
 class HfSteppingStonesTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a stepping stones height field terrain."""
 

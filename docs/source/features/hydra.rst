@@ -251,19 +251,20 @@ override is given:
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab.utils import configclass
+    from dataclasses import dataclass
+    from isaaclab.utils import ConfigMixin
     from isaaclab_newton.physics import NewtonCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
-    @configclass
+    @dataclass
     class PhysicsPresetsCfg(PresetCfg):
         isaacsim_physx: PhysxCfg = PhysxCfg()
         default: PhysxCfg = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg()
 
-    @configclass
-    class MyEnvCfg:
+    @dataclass
+    class MyEnvCfg(ConfigMixin):
         sim: SimulationCfg = SimulationCfg(physics=PhysicsPresetsCfg())
 
 Physics is owned by :class:`~isaaclab.sim.SimulationCfg`, so the preset's config
@@ -282,19 +283,19 @@ disabled unless explicitly selected:
 
 .. code-block:: python
 
-    @configclass
-    class CameraSettingsCfg:
+    @dataclass
+    class CameraSettingsCfg(ConfigMixin):
         width: int = 64
         height: int = 64
 
-    @configclass
+    @dataclass
     class CameraPresetCfg(PresetCfg):
         default = None
         small: CameraSettingsCfg = CameraSettingsCfg()
         large: CameraSettingsCfg = CameraSettingsCfg(width=256, height=256)
 
-    @configclass
-    class SceneCfg:
+    @dataclass
+    class SceneCfg(ConfigMixin):
         camera: CameraPresetCfg = CameraPresetCfg()
 
 Here, ``env.scene.camera`` resolves to ``None`` by default. A registered task using
@@ -380,7 +381,7 @@ instances:
     width = preset(default=64, res128=128, res256=256)
 
     # List preset for camera data types
-    @configclass
+    @dataclass
     class DataTypeCfg(PresetCfg):
         default: list = ["rgb"]
         depth: list = ["depth"]

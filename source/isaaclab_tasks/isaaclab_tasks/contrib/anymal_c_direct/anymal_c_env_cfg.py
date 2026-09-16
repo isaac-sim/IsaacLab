@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -15,7 +17,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 ##
 # Pre-defined configs
@@ -24,8 +26,8 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for randomization."""
 
     physics_material = EventTerm(
@@ -51,7 +53,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 20.0
@@ -122,7 +124,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
 
-@configclass
+@dataclass
 class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
     observation_space = 235

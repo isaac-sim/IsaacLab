@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
 
 from . import stack_joint_pos_instance_randomize_env_cfg
 
@@ -15,7 +16,7 @@ from . import stack_joint_pos_instance_randomize_env_cfg
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
-@configclass
+@dataclass
 class FrankaCubeStackInstanceRandomizeEnvCfg(
     stack_joint_pos_instance_randomize_env_cfg.FrankaCubeStackInstanceRandomizeEnvCfg
 ):

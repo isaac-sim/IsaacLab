@@ -61,6 +61,7 @@ if args_cli.physics == "newton_mjwarp":
         parser.error("the Kit visualizer is not supported with Newton physics; select newton, rerun, viser, or none")
 
 import random
+from dataclasses import dataclass
 
 import torch
 
@@ -70,7 +71,6 @@ from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -209,7 +209,7 @@ else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
 
 
-@configclass
+@dataclass
 class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the asset."""
 

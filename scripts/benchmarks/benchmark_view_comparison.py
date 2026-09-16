@@ -138,14 +138,15 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
 @torch.no_grad()
 def benchmark_newton(num_iterations: int) -> dict[str, float]:
     """Benchmark Newton FrameView."""
+    from dataclasses import dataclass
+
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
 
     timing_results = {}
 
-    @configclass
+    @dataclass
     class _SceneCfg(InteractiveSceneCfg):
         cube: RigidObjectCfg = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",

@@ -5,10 +5,8 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from isaaclab_experimental.managers.manager_term_cfg import ActionTermCfg
 
@@ -20,7 +18,7 @@ if TYPE_CHECKING:
 ##
 
 
-@configclass
+@dataclass
 class JointActionCfg(ActionTermCfg):
     """Configuration for the base joint action term.
 
@@ -37,7 +35,7 @@ class JointActionCfg(ActionTermCfg):
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
 
-@configclass
+@dataclass
 class JointPositionActionCfg(JointActionCfg):
     """Configuration for the joint position action term.
 
@@ -55,7 +53,7 @@ class JointPositionActionCfg(JointActionCfg):
     """
 
 
-@configclass
+@dataclass
 class JointEffortActionCfg(JointActionCfg):
     """Configuration for the joint effort action term.
 

@@ -11,10 +11,10 @@ https://arxiv.org/abs/2601.18336.
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -79,8 +79,8 @@ def default_ppisp_inputs() -> dict[str, float | tuple[float, float]]:
     return dict(PPISP_DEFAULT_INPUTS)
 
 
-@configclass
-class PpispCfg:
+@dataclass
+class PpispCfg(ConfigMixin):
     """Configuration for PPISP post-processing.
 
     PPISP inputs are static in IsaacLab. NRE exports store the authoritative

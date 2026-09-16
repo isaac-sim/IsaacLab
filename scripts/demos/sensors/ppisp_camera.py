@@ -123,6 +123,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -139,10 +141,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class PpispCameraSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 

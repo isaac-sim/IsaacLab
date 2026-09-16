@@ -3,15 +3,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import dataclass
+
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.franka.stack_ik_rel_blueprint_env_cfg import (
     FrankaCubeStackBlueprintEnvCfg,
 )
 
 
-@configclass
+@dataclass
 class FrankaCubeStackIKRelBlueprintMimicEnvCfg(FrankaCubeStackBlueprintEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.

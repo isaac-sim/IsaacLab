@@ -13,12 +13,12 @@ Ensure that the configurations for the other RL libraries are updated if this on
 ====================================================================================================
 """
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
-@configclass
+@dataclass
 class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
     max_iterations = 1000
@@ -51,6 +51,6 @@ class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class HumanoidDirectPPORunnerCfg(HumanoidPPORunnerCfg):
     experiment_name = "humanoid_direct"

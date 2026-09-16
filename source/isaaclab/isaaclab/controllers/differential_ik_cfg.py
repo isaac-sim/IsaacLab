@@ -5,17 +5,17 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .differential_ik import DifferentialIKController
 
 
-@configclass
-class DifferentialIKControllerCfg:
+@dataclass
+class DifferentialIKControllerCfg(ConfigMixin):
     """Configuration for differential inverse kinematics controller."""
 
     class_type: type[DifferentialIKController] | str = "{DIR}.differential_ik:DifferentialIKController"

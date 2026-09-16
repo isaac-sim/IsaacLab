@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import numpy as np
@@ -26,13 +27,12 @@ from isaaclab.cloner import CloneCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 
 
-@configclass
+@dataclass
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 

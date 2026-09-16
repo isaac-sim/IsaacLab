@@ -3,14 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.envs import mdp
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class AgileTeacherPolicyObservationsCfg(ObsGroup):
     """Observation specifications for the Agile lower body policy.
 

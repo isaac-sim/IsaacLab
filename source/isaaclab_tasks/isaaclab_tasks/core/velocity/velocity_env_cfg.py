@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
@@ -31,7 +31,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -49,7 +49,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 ##
 
 
-@configclass
+@dataclass
 class RoughPhysicsCfg(PresetCfg):
     """Shared backend presets for locomotion velocity environments."""
 
@@ -79,7 +79,7 @@ class RoughPhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class MySceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
@@ -133,8 +133,8 @@ class MySceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Command specifications for the MDP."""
 
     base_velocity = mdp.UniformVelocityCommandCfg(
@@ -151,18 +151,18 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -192,8 +192,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventsCfg:
+@dataclass
+class EventsCfg(ConfigMixin):
     """Configuration for events."""
 
     # startup
@@ -277,8 +277,8 @@ class EventsCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # -- task
@@ -313,8 +313,8 @@ class RewardsCfg:
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -324,8 +324,8 @@ class TerminationsCfg:
     )
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     """Curriculum terms for the MDP."""
 
     terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
@@ -336,7 +336,7 @@ class CurriculumCfg:
 ##
 
 
-@configclass
+@dataclass
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 

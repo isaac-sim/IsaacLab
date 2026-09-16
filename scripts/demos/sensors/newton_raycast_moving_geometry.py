@@ -32,6 +32,7 @@ parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -45,7 +46,6 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 BOX_DROP_POSITIONS = [(1.0, 0.6, 3.0), (-0.8, -1.0, 3.5), (0.2, -1.2, 4.0)]
 
@@ -64,7 +64,7 @@ def _falling_box_cfg(index: int) -> RigidObjectCfg:
     )
 
 
-@configclass
+@dataclass
 class MovingGeometrySceneCfg(InteractiveSceneCfg):
     """Ground plane, falling boxes, a sweeping bar, and a hovering sensor."""
 

@@ -11,6 +11,7 @@ import argparse
 import dataclasses
 import os
 import sys
+from dataclasses import dataclass
 
 import gymnasium as gym
 import torch
@@ -19,7 +20,6 @@ from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -37,7 +37,7 @@ _TASK_CONFIGS = {
 }
 
 
-@configclass
+@dataclass
 class CartpoleCaptureCfg(CartpoleEnvCfg):
     """Cartpole configuration with a compact OVRTX recording viewport."""
 
@@ -46,7 +46,7 @@ class CartpoleCaptureCfg(CartpoleEnvCfg):
         _configure_capture(self, focal_length=18.0)
 
 
-@configclass
+@dataclass
 class G1FlatCaptureCfg(G1FlatEnvCfg):
     """G1 flat-terrain configuration with a compact OVRTX recording viewport."""
 
@@ -55,7 +55,7 @@ class G1FlatCaptureCfg(G1FlatEnvCfg):
         _configure_capture(self, focal_length=20.0)
 
 
-@configclass
+@dataclass
 class KukaAllegroCaptureCfg(KukaAllegroLiftEnvCfg):
     """Kuka Allegro lift configuration with a compact OVRTX recording viewport."""
 
@@ -64,7 +64,7 @@ class KukaAllegroCaptureCfg(KukaAllegroLiftEnvCfg):
         _configure_capture(self, focal_length=22.0)
 
 
-@configclass
+@dataclass
 class FrankaCabinetCaptureCfg(FrankaCabinetEnvCfg):
     """Franka cabinet configuration with a compact OVRTX recording viewport."""
 

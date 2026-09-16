@@ -5,14 +5,14 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from enum import StrEnum
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class AssetConverterBaseCfg:
+@dataclass
+class AssetConverterBaseCfg(ConfigMixin):
     """The base configuration class for asset converters."""
 
     class PhysicsVariant(StrEnum):

@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ..selection_utils import SceneEntitySelectionCfg
 
@@ -20,12 +20,12 @@ if TYPE_CHECKING:
     from .commands import SelectedUniformPoseCommand
 
 
-@configclass
+@dataclass
 class SelectedUniformPoseCommandCfg(CommandTermCfg):
     """Configuration for a selection-aware uniform pose command."""
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Uniform pose sampling ranges."""
 
         pos_x: tuple[float, float] = MISSING

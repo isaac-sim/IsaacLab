@@ -6,14 +6,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class LightCfg(SpawnerCfg):
     """Configuration parameters for creating a light in the scene.
 
@@ -63,7 +62,7 @@ class LightCfg(SpawnerCfg):
     """Scales the power of the light linearly. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class DiskLightCfg(LightCfg):
     """Configuration parameters for creating a disk light in the scene.
 
@@ -81,7 +80,7 @@ class DiskLightCfg(LightCfg):
     """Radius of the disk (in m). Defaults to 0.5m."""
 
 
-@configclass
+@dataclass
 class DistantLightCfg(LightCfg):
     """Configuration parameters for creating a distant light in the scene.
 
@@ -103,7 +102,7 @@ class DistantLightCfg(LightCfg):
     """
 
 
-@configclass
+@dataclass
 class DomeLightCfg(LightCfg):
     """Configuration parameters for creating a dome light in the scene.
 
@@ -145,7 +144,7 @@ class DomeLightCfg(LightCfg):
     """
 
 
-@configclass
+@dataclass
 class CylinderLightCfg(LightCfg):
     """Configuration parameters for creating a cylinder light in the scene.
 
@@ -169,7 +168,7 @@ class CylinderLightCfg(LightCfg):
     """Treats the cylinder as a line source, i.e. a zero-radius cylinder. Defaults to false."""
 
 
-@configclass
+@dataclass
 class SphereLightCfg(LightCfg):
     """Configuration parameters for creating a sphere light in the scene.
 

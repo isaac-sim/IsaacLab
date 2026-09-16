@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import os
 import tempfile
+from dataclasses import dataclass
 
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
@@ -23,7 +24,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from . import mdp
@@ -260,7 +261,7 @@ def _build_g1_inspire_pickplace_pipeline():
 ##
 # Scene definition
 ##
-@configclass
+@dataclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the Unitree G1 Inspire Hand Pick Place Base Scene."""
 
@@ -342,8 +343,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     pink_ik_cfg = PinkInverseKinematicsActionCfg(
@@ -437,11 +438,11 @@ class ActionsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -476,8 +477,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -489,8 +490,8 @@ class TerminationsCfg:
     success = DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
@@ -509,7 +510,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 

@@ -39,6 +39,8 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import torch
 
 import isaaclab.envs.mdp as mdp
@@ -51,7 +53,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
@@ -69,7 +71,7 @@ def _bindings(body: str, legs: str, feet: str) -> dict[str, str]:
     }
 
 
-@configclass
+@dataclass
 class VisualMaterialSceneCfg(InteractiveSceneCfg):
     """One of five styled ANYmal variants per environment and three materials per style."""
 
@@ -160,18 +162,18 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Hold the robot at its default pose."""
 
     joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Minimal policy observation group."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
 
@@ -181,8 +183,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Randomize each style's three material assets independently."""
 
     randomize_surface_style = EventTerm(
@@ -235,7 +237,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class VisualMaterialEnvCfg(ManagerBasedEnvCfg):
     """Manager-based environment for the visual-material demo."""
 

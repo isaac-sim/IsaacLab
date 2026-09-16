@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, field
+from dataclasses import MISSING, dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
 
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
     from .newton_ik_actions import NewtonInverseKinematicsAction
 
 
-@configclass
+@dataclass
 class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for a Newton inverse-kinematics action term.
 

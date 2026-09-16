@@ -5,6 +5,8 @@
 
 from dataclasses import dataclass, is_dataclass
 
+import pytest
+
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
@@ -53,9 +55,11 @@ def test_simulation_cfg_mutable_defaults_are_independent():
 def test_simulation_cfg_supports_legacy_configclass_subclasses():
     """Existing downstream configclass subclasses should remain compatible during migration."""
 
-    @configclass
-    class LegacyDerivedSimulationCfg(SimulationCfg):
-        substeps: int = 1
+    with pytest.deprecated_call(match="Use dataclasses.dataclass with ConfigMixin"):
+
+        @configclass
+        class LegacyDerivedSimulationCfg(SimulationCfg):
+            substeps: int = 1
 
     cfg = LegacyDerivedSimulationCfg(dt=0.01, substeps=2)
 

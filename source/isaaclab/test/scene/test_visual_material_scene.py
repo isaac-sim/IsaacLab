@@ -13,6 +13,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Everything else follows."""
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 
@@ -22,12 +24,11 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, VisualMaterial, VisualMaterialCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
 
-@configclass
+@dataclass
 class _VisualMaterialSceneCfg(InteractiveSceneCfg):
     # Deliberately declared first: nested materials must wait for the heterogeneous Robot prototypes.
     warm = VisualMaterialCfg(

@@ -14,6 +14,7 @@ require an Isaac Sim launch, so they can run without AppLauncher.
 
 from collections import namedtuple
 from collections.abc import Sequence
+from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,7 +23,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import ConfigMixin, modifiers
 
 pytestmark = pytest.mark.integration
 
@@ -70,14 +71,14 @@ def reset_dummy2_to_zero(env, env_ids: torch.Tensor):
     env.dummy2[env_ids] = 0
 
 
-@configclass
-class OpaqueCfg:
+@dataclass
+class OpaqueCfg(ConfigMixin):
     """Configuration that is outside ``ManagerBase`` ownership."""
 
     func: str = f"{__name__}:reset_dummy2_to_zero"
 
 
-@configclass
+@dataclass
 class NestedFieldTermCfg(ManagerTermBaseCfg):
     """Manager term with owned and opaque fields outside ``params``."""
 

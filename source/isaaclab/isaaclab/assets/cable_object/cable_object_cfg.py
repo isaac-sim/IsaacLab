@@ -5,16 +5,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .cable_object import CableObject
 
 
-@configclass
+@dataclass
 class CableObjectCfg(AssetBaseCfg):
     """Configuration parameters for a cable object.
 

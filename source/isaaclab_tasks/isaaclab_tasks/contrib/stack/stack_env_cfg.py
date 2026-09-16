@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -23,7 +23,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -88,7 +88,7 @@ def apply_default_semantics(scene: "ObjectTableSceneCfg") -> None:
 ##
 # Scene definition
 ##
-@configclass
+@dataclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the stacking scene with a robot and objects.
     This is the abstract base implementation, the exact scene is defined in the derived classes
@@ -157,8 +157,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
@@ -166,8 +166,8 @@ class ActionsCfg:
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
-@configclass
-class StackEventCfg:
+@dataclass
+class StackEventCfg(ConfigMixin):
     """Robot-neutral reset events shared by the stacking tasks.
 
     Derived robot cfgs typically override the cube ``pose_range`` / ``min_separation`` to match the
@@ -197,11 +197,11 @@ class StackEventCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -219,7 +219,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
@@ -227,7 +227,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
@@ -266,8 +266,8 @@ class ObservationsCfg:
     subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -287,7 +287,7 @@ class TerminationsCfg:
     success = DoneTerm(func=mdp.cubes_stacked)
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for stack tasks."""
 
@@ -356,7 +356,7 @@ def raise_if_surface_gripper_on_gpu(env_cfg) -> None:
         )
 
 
-@configclass
+@dataclass
 class StackEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 

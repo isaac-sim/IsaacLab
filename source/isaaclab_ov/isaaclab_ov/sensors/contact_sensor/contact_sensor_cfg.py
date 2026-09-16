@@ -3,16 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as _BaseContactSensorCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
 
 
-@configclass
+@dataclass
 class ContactSensorCfg(_BaseContactSensorCfg):
     """OVPhysX contact sensor configuration."""
 

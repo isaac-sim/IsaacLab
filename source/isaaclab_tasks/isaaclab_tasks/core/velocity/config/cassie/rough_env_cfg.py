@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from dataclasses import dataclass
+
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
@@ -20,7 +21,7 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort: skip
 
 
-@configclass
+@dataclass
 class CassieRewardsCfg(RewardsCfg):
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_air_time = RewTerm(
@@ -50,7 +51,7 @@ class CassieRewardsCfg(RewardsCfg):
     )
 
 
-@configclass
+@dataclass
 class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: CassieRewardsCfg = CassieRewardsCfg()
 

@@ -114,13 +114,14 @@ def create_sim_cfg():
 
 def create_scene_cfg():
     """Create an Isaac Lab scene config using declarative assets."""
+    from dataclasses import dataclass
+
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils import configclass
 
     def collider_cfg(prim_path: str, center, half_extents, orientation, friction: float = 0.1) -> AssetBaseCfg:
         return AssetBaseCfg(
@@ -140,7 +141,7 @@ def create_scene_cfg():
             init_state=AssetBaseCfg.InitialStateCfg(pos=center, rot=orientation),
         )
 
-    @configclass
+    @dataclass
     class GranularSceneCfg(InteractiveSceneCfg):
         """Scene containing static colliders and one Newton MPM object."""
 

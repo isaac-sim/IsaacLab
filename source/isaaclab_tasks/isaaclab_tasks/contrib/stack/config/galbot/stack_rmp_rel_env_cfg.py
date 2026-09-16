@@ -5,6 +5,7 @@
 
 
 import os
+from dataclasses import dataclass
 
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -16,7 +17,6 @@ from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils.presets import (
@@ -39,7 +39,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 ##
 # RmpFlow Controller for Galbot Left Arm Cube Stack Task (with Parallel Gripper)
 ##
-@configclass
+@dataclass
 class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmCubeStackEnvCfg):
     """Configuration for the Galbot Left Arm Cube Stack Environment."""
 
@@ -91,7 +91,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
 ##
 # RmpFlow Controller for Galbot Right Arm Cube Stack Task (with Surface Gripper)
 ##
-@configclass
+@dataclass
 class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightArmCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -144,7 +144,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 ##
 # Visuomotor Env for Record, Generate and Replay (in Task Space)
 ##
-@configclass
+@dataclass
 class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackEnvCfg):
     def validate_config(self):
         """Check for invalid renderer/data-type combinations after preset resolution."""
@@ -282,7 +282,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
 ##
 
 
-@configclass
+@dataclass
 class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -308,7 +308,7 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCu
 ##
 # Task Envs for VLA Policy Close-loop Evaluation (in Task Space)
 ##
-@configclass
+@dataclass
 class GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
     def __post_init__(self):
         # post init of parent

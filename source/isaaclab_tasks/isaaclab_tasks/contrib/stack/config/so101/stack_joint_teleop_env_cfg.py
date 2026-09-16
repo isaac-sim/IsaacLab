@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.stack import mdp
 
@@ -98,8 +98,8 @@ def _build_so101_joint_teleop_pipeline():
     return OutputCombiner({"action": connected_reorderer.output("output")})
 
 
-@configclass
-class SO101JointTeleopActionsCfg:
+@dataclass
+class SO101JointTeleopActionsCfg(ConfigMixin):
     """Action terms for SO-101 joint-space teleop, ordered to match the pipeline ``output_order``.
 
     This is a fresh (non-inheriting) action container declared in field order
@@ -116,7 +116,7 @@ class SO101JointTeleopActionsCfg:
     gripper_action: mdp.JointPositionActionCfg = MISSING
 
 
-@configclass
+@dataclass
 class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     """SO-101 cube-stack environment teleoperated by the SO-101 leader arm (joint-space control).
 

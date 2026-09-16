@@ -10,19 +10,19 @@ from __future__ import annotations
 import dataclasses
 import os
 import sys
+from dataclasses import dataclass
 
 import gymnasium as gym
 from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
 
 
-@configclass
+@dataclass
 class AnymalDFlatCaptureCfg(AnymalDFlatEnvCfg):
     """Anymal-D flat-terrain configuration for a fixed OVRTX progression recording."""
 

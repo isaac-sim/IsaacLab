@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
+"""Configuration helpers for standard dataclasses and the deprecated ``configclass`` shim."""
 
 import dataclasses
 import inspect
 import re
 import sys
 import types
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
@@ -36,35 +37,28 @@ def __dataclass_transform__():
 
 @__dataclass_transform__()
 def configclass(cls, **kwargs):
-    """Wrapper around `dataclass` functionality to add extra checks and utilities.
+    """Decorate a legacy configuration class.
 
-    As of Python 3.7, the standard dataclasses have two main issues which makes them non-generic for
-    configuration use-cases. These include:
-
-    1. Requiring a type annotation for all its members.
-    2. Requiring explicit usage of :meth:`field(default_factory=...)` to reinitialize mutable variables.
-
-    This function provides a decorator that wraps around Python's `dataclass`_ utility to deal with
-    the above two issues. It also provides additional helper functions for dictionary <-> class
-    conversion and easily copying class instances.
+    .. deprecated:: 3.0
+        Use :func:`dataclasses.dataclass` with :class:`ConfigMixin` instead.
 
     Usage:
 
     .. code-block:: python
 
-        from dataclasses import MISSING
+        from dataclasses import MISSING, dataclass
 
-        from isaaclab.utils import configclass
-
-
-        @configclass
-        class ViewerCfg:
-            eye: list = [7.5, 7.5, 7.5]  # field missing on purpose
-            lookat: list = field(default_factory=[0.0, 0.0, 0.0])
+        from isaaclab.utils import ConfigMixin
 
 
-        @configclass
-        class EnvCfg:
+        @dataclass
+        class ViewerCfg(ConfigMixin):
+            eye: list = [7.5, 7.5, 7.5]
+            lookat: list = [0.0, 0.0, 0.0]
+
+
+        @dataclass
+        class EnvCfg(ConfigMixin):
             num_envs: int = MISSING
             episode_length: int = 2000
             viewer: ViewerCfg = ViewerCfg()
@@ -91,6 +85,11 @@ def configclass(cls, **kwargs):
 
     .. _dataclass: https://docs.python.org/3/library/dataclasses.html
     """
+    warnings.warn(
+        "configclass is deprecated. Use dataclasses.dataclass with ConfigMixin instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     # snapshot field names declared in *this* class body before configclass
     # merges parent fields — used by _field_module_dir to resolve {DIR} correctly.
     _own_ann = set(cls.__dict__.get("__annotations__", {}).keys())
@@ -121,18 +120,23 @@ def configclass(cls, **kwargs):
 class ConfigMixin:
     """Provide Isaac Lab configuration helpers to standard dataclasses.
 
-    Classes using this mixin must also be decorated with :func:`dataclasses.dataclass`. Mutable defaults must use
-    :func:`dataclasses.field` factories, as required by standard dataclasses. Subclasses that define
-    ``__post_init__`` must call ``super().__post_init__()`` to retain independent mutable values and resolvable-string
+    Root configuration classes inherit this mixin and use :func:`dataclasses.dataclass`; configuration subclasses
+    inherit the mixin transitively and only need the decorator. The mixin preserves independent mutable defaults,
+    inferred annotations for legacy declarations, dictionary conversion, copying, validation, and resolvable-string
     handling.
     """
 
     def __init_subclass__(cls, **kwargs) -> None:
-        """Record fields declared by each subclass for relative string resolution."""
+        """Prepare a subclass for standard dataclass decoration."""
         super().__init_subclass__(**kwargs)
         own_annotations = set(cls.__dict__.get("__annotations__", {}))
         own_attributes = {key for key in cls.__dict__ if not key.startswith("__")}
         cls.__configclass_own_fields__ = frozenset(own_annotations | own_attributes)
+        _add_annotation_types(cls)
+        _process_mutable_types(cls)
+        user_post_init = cls.__dict__.get("__post_init__")
+        if user_post_init is not None:
+            cls.__post_init__ = _combined_function(user_post_init, _custom_post_init)
 
     def __post_init__(self) -> None:
         """Copy field values and resolve callable strings after dataclass initialization."""
@@ -202,8 +206,8 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
 
     .. code-block:: python
 
-        @configclass(frozen=True)
-        class C:
+        @dataclass(frozen=True)
+        class C(ConfigMixin):
             x: int
             y: int
 
@@ -251,6 +255,15 @@ def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
     return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
 
 
+def _set_attribute(obj: Any, key: str, value: Any) -> None:
+    """Set an attribute during post-initialization, including on frozen dataclasses."""
+    params = getattr(type(obj), "__dataclass_params__", None)
+    if params is not None and params.frozen:
+        object.__setattr__(obj, key, value)
+    else:
+        setattr(obj, key, value)
+
+
 def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: set[int] | None = None) -> Any:
     """Recursively wrap callable-like strings with :class:`ResolvableString`."""
     if isinstance(value, str) and (_CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value)):
@@ -288,7 +301,7 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: s
     if is_dataclass_instance:
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)
-            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
+            _set_attribute(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
     return value
 
 
@@ -355,7 +368,7 @@ def _add_annotation_types(cls):
                     # add type annotation
                     hints[key] = type(value)
             elif key != value.__name__:
-                # note: we don't want to add type annotations for nested configclass. Thus, we check if
+                # note: we don't want to add type annotations for nested configuration classes. Thus, we check if
                 #   the name of the type matches the name of the variable.
                 # since Python 3.10, type hints are stored as strings
                 hints[key] = f"type[{value.__name__}]"
@@ -371,15 +384,15 @@ def _add_annotation_types(cls):
 
 
 def _validate(obj: object, prefix: str = "") -> list[str]:
-    """Check the validity of configclass object.
+    """Check the validity of a configuration object.
 
-    This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
+    This function checks if the object is a valid configuration object. A valid configuration contains no MISSING
     entries. Additionally, if the top-level object defines a ``_validate_config`` method, it is called to perform
     domain-specific validation.
 
     Subclasses can define ``validate_config(self)`` to add custom checks::
 
-        @configclass
+        @dataclass
         class MyEnvCfg(ManagerBasedEnvCfg):
             def validate_config(self):
                 if self.some_field == "bad":
@@ -540,12 +553,23 @@ def _custom_post_init(obj):
             continue
         # get data member
         value = getattr(obj, key)
+        # ``ConfigMixin.__init_subclass__`` prepares fields before ``@dataclass`` runs. A subclass that intentionally
+        # inherits a configuration dataclass without decorating itself therefore retains those temporary Field
+        # descriptors. Materialize their defaults so legacy plain subclasses keep their pre-migration behavior.
+        if isinstance(value, Field):
+            if value.default_factory is not MISSING:
+                value = value.default_factory()
+            elif value.default is not MISSING:
+                value = value.default
+            else:
+                continue
+            _set_attribute(obj, key, value)
         # check annotation
         ann = obj.__class__.__dict__.get(key)
         # duplicate data members that are mutable
         if not callable(value) and not isinstance(ann, property):
             copied_value = deepcopy(value)
-            setattr(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
+            _set_attribute(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
 
 
 def _combined_function(f1: Callable, f2: Callable) -> Callable:
@@ -573,7 +597,7 @@ Helper functions
 
 
 def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> bool:
-    """Check if the class member should be skipped in configclass processing.
+    """Check if the class member should be skipped during configuration processing.
 
     The following members are skipped:
 

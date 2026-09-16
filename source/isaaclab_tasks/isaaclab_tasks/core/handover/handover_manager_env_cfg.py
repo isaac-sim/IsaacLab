@@ -5,6 +5,8 @@
 
 """Manager-based counterpart of the Shadow Hand handover task."""
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -16,7 +18,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
@@ -36,7 +38,7 @@ from isaaclab_assets.robots.shadow_hand import (
 )
 
 
-@configclass
+@dataclass
 class HandoverManagerSceneCfg(InteractiveSceneCfg):
     """Two Shadow hands facing each other over a ground plane."""
 
@@ -57,15 +59,15 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Handover goal command."""
 
     object_pose = mdp.HandoverCommandCfg(asset_name="object", success_distance_threshold=0.1, debug_vis=True)
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Two-hand action terms, ordered right then left like the Direct adapter.
 
     Declaration order is the action layout: the manager concatenates terms as declared, and the
@@ -108,7 +110,7 @@ class ActionsCfg:
     )
 
 
-@configclass
+@dataclass
 class PolicyCfg(ObsGroup):
     # Right agent: 133 hand dimensions followed by 24 object/goal dimensions.
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
@@ -163,15 +165,15 @@ class PolicyCfg(ObsGroup):
         self.concatenate_terms = True
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Single-agent observations matching the Direct MARL adapter."""
 
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class RandomizationEventCfg:
+@dataclass
+class RandomizationEventCfg(ConfigMixin):
     """Randomization of both hands and the object, applied on every physics backend."""
 
     right_hand_joint_stiffness_and_damping = EventTerm(
@@ -225,8 +227,8 @@ class RandomizationEventCfg:
     )
 
 
-@configclass
-class ResetEventCfg:
+@dataclass
+class ResetEventCfg(ConfigMixin):
     """Reset distributions matching the Direct handover environment."""
 
     reset_object = EventTerm(
@@ -259,12 +261,12 @@ class ResetEventCfg:
     )
 
 
-@configclass
+@dataclass
 class HandoverEventCfg(RandomizationEventCfg, ResetEventCfg):
     """Randomization plus the state reset the manager task applies on every episode."""
 
 
-@configclass
+@dataclass
 class HandoverEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the reset."""
 
@@ -272,8 +274,8 @@ class HandoverEventPresetCfg(PresetCfg):
     default = ResetEventCfg()
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Summed two-agent reward exposed by the Direct single-agent adapter."""
 
     goal_distance = RewTerm(
@@ -287,8 +289,8 @@ class RewardsCfg:
     )
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination conditions for the handover task.
 
     The generic ``time_out`` term ends an episode one control step later than the Direct
@@ -302,7 +304,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
-@configclass
+@dataclass
 class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based handover environment matching the Direct RSL-RL view."""
 

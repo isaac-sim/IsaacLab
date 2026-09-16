@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
@@ -20,7 +20,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -41,8 +41,8 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_LEFT_ARM_RMPFLOW_CFG  # 
 ##
 
 
-@configclass
-class EventCfgPlaceUprightMug:
+@dataclass
+class EventCfgPlaceUprightMug(ConfigMixin):
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
@@ -68,11 +68,11 @@ class EventCfgPlaceUprightMug:
 ##
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -94,7 +94,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
@@ -117,8 +117,8 @@ class ObservationsCfg:
     subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
@@ -126,8 +126,8 @@ class ActionsCfg:
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)

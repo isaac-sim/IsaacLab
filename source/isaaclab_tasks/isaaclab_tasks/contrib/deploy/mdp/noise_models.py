@@ -15,12 +15,11 @@ __all__ = [
 ]
 
 from collections.abc import Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModel, NoiseModelCfg
 
@@ -102,7 +101,7 @@ class ResetSampledConstantNoiseModel(NoiseModel):
             raise ValueError(f"Unknown operation in noise: {self._noise_cfg.operation}")
 
 
-@configclass
+@dataclass
 class ResetSampledConstantNoiseModelCfg(NoiseModelCfg):
     """Configuration for a noise model that samples noise ONLY during reset."""
 
@@ -164,7 +163,7 @@ class ResetSampledQuaternionNoiseModel(NoiseModel):
         return quat_mul(self._perturbation_quat, data)
 
 
-@configclass
+@dataclass
 class ResetSampledQuaternionNoiseModelCfg(NoiseModelCfg):
     """Configuration for a quaternion noise model that samples rotation perturbations at reset.
 

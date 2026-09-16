@@ -5,12 +5,14 @@
 
 """Manager-based counterpart of the state-based Shadow Hand reorientation task."""
 
+from dataclasses import dataclass
+
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
@@ -40,7 +42,7 @@ from isaaclab_assets.robots.shadow_hand import (
 ##
 
 
-@configclass
+@dataclass
 class ShadowHandManagerSceneCfg(ReorientSceneBaseCfg):
     """The shared scene, holding the Shadow hand and its in-hand cube."""
 
@@ -48,7 +50,7 @@ class ShadowHandManagerSceneCfg(ReorientSceneBaseCfg):
     object: RigidObjectCfg = CUBE_CFG
 
 
-@configclass
+@dataclass
 class ShadowHandActionsCfg(ActionsCfg):
     """The shared joint term, plus the tendon term only this hand needs.
 
@@ -68,7 +70,7 @@ class ShadowHandActionsCfg(ActionsCfg):
     )
 
 
-@configclass
+@dataclass
 class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
@@ -93,18 +95,18 @@ class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 ##
 
 
-@configclass
+@dataclass
 class ShadowHandAsymmetricSceneCfg(ShadowHandManagerSceneCfg):
     """Scene with the fingertip joint-wrench sensing the privileged critic reads."""
 
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
-class ShadowHandAsymmetricObservationsCfg:
+@dataclass
+class ShadowHandAsymmetricObservationsCfg(ConfigMixin):
     """A reduced actor observation paired with a privileged critic."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Only what a physical hand can measure."""
 
@@ -127,7 +129,7 @@ class ShadowHandAsymmetricObservationsCfg:
         def __post_init__(self):
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class CriticCfg(ReorientFullStateObsCfg):
         """The full state, plus contact sensing only the simulator can supply."""
 
@@ -143,7 +145,7 @@ class ShadowHandAsymmetricObservationsCfg:
     critic: CriticCfg = CriticCfg()
 
 
-@configclass
+@dataclass
 class ShadowHandAsymmetricEnvCfg(ShadowHandManagerEnvCfg):
     """The state task with a reduced actor and a privileged critic."""
 
@@ -151,7 +153,7 @@ class ShadowHandAsymmetricEnvCfg(ShadowHandManagerEnvCfg):
     observations: ShadowHandAsymmetricObservationsCfg = ShadowHandAsymmetricObservationsCfg()
 
 
-@configclass
+@dataclass
 class ShadowHandManagerEnvPresetCfg(PresetCfg):
     """``presets=asymmetric`` swaps in the reduced actor and its privileged critic."""
 

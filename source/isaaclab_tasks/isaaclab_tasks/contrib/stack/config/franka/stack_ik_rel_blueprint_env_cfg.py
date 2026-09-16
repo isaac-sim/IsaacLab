@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
@@ -19,7 +20,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
@@ -107,11 +108,11 @@ def image(
     return images.clone()
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -129,7 +130,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
@@ -178,7 +179,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
@@ -217,7 +218,7 @@ class ObservationsCfg:
     subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
-@configclass
+@dataclass
 class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     observations: ObservationsCfg = ObservationsCfg()
 

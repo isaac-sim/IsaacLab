@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/AutoMate"
@@ -37,8 +39,8 @@ STATE_DIM_CFG = {
 }
 
 
-@configclass
-class FixedAssetCfg:
+@dataclass
+class FixedAssetCfg(ConfigMixin):
     usd_path: str = ""
     diameter: float = 0.0
     height: float = 0.0
@@ -47,8 +49,8 @@ class FixedAssetCfg:
     mass: float = 0.05
 
 
-@configclass
-class HeldAssetCfg:
+@dataclass
+class HeldAssetCfg(ConfigMixin):
     usd_path: str = ""
     diameter: float = 0.0  # Used for gripper width.
     height: float = 0.0
@@ -56,15 +58,15 @@ class HeldAssetCfg:
     mass: float = 0.05
 
 
-@configclass
-class RobotCfg:
+@dataclass
+class RobotCfg(ConfigMixin):
     robot_usd: str = ""
     franka_fingerpad_length: float = 0.017608
     friction: float = 0.75
 
 
-@configclass
-class DisassemblyTask:
+@dataclass
+class DisassemblyTask(ConfigMixin):
     robot_cfg: RobotCfg = RobotCfg()
     name: str = ""
     duration_s = 5.0
@@ -93,7 +95,7 @@ class DisassemblyTask:
     num_point_robot_traj: int = 10  # number of waypoints included in the end-effector trajectory
 
 
-@configclass
+@dataclass
 class Peg8mm(HeldAssetCfg):
     usd_path = "plug.usd"
     obj_path = "plug.obj"
@@ -102,7 +104,7 @@ class Peg8mm(HeldAssetCfg):
     mass = 0.019
 
 
-@configclass
+@dataclass
 class Hole8mm(FixedAssetCfg):
     usd_path = "socket.usd"
     obj_path = "socket.obj"
@@ -111,7 +113,7 @@ class Hole8mm(FixedAssetCfg):
     base_height = 0.0
 
 
-@configclass
+@dataclass
 class Extraction(DisassemblyTask):
     name = "extraction"
 

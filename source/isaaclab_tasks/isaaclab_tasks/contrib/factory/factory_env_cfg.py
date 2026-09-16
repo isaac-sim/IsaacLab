@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -12,7 +14,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .factory_tasks_cfg import ASSET_DIR, FactoryTask, GearMesh, NutThread, PegInsert
 
@@ -43,13 +45,13 @@ STATE_DIM_CFG = {
 }
 
 
-@configclass
-class ObsRandCfg:
+@dataclass
+class ObsRandCfg(ConfigMixin):
     fixed_asset_pos = [0.001, 0.001, 0.001]
 
 
-@configclass
-class CtrlCfg:
+@dataclass
+class CtrlCfg(ConfigMixin):
     """Controller and action-space configuration for the Factory environments.
 
     In the Factory environments, policy actions are interpreted as displacements relative to the
@@ -81,7 +83,7 @@ class CtrlCfg:
     kd_null = 6.3246
 
 
-@configclass
+@dataclass
 class FactoryEnvCfg(DirectRLEnvCfg):
     decimation = 8
     action_space = 6
@@ -202,21 +204,21 @@ class FactoryEnvCfg(DirectRLEnvCfg):
     )
 
 
-@configclass
+@dataclass
 class FactoryTaskPegInsertCfg(FactoryEnvCfg):
     task_name = "peg_insert"
     task = PegInsert()
     episode_length_s = 10.0
 
 
-@configclass
+@dataclass
 class FactoryTaskGearMeshCfg(FactoryEnvCfg):
     task_name = "gear_mesh"
     task = GearMesh()
     episode_length_s = 20.0
 
 
-@configclass
+@dataclass
 class FactoryTaskNutThreadCfg(FactoryEnvCfg):
     task_name = "nut_thread"
     task = NutThread()

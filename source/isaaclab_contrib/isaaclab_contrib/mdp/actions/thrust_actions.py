@@ -49,16 +49,19 @@ class ThrustAction(ActionTerm):
     Example:
         .. code-block:: python
 
+            from dataclasses import dataclass
+
             from isaaclab.envs import ManagerBasedRLEnvCfg
+            from isaaclab.utils import ConfigMixin
             from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 
-            @configclass
+            @dataclass
             class MyEnvCfg(ManagerBasedRLEnvCfg):
                 # ... other configuration ...
 
-                @configclass
-                class ActionsCfg:
+                @dataclass
+                class ActionsCfg(ConfigMixin):
                     # Direct thrust control (normalized actions)
                     thrust = ThrustActionCfg(
                         asset_name="robot",

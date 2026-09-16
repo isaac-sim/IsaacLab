@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from .lee_attitude_control import LeeAttController
 from .lee_controller_base_cfg import LeeControllerBaseCfg
 
 
-@configclass
+@dataclass
 class LeeAttControllerCfg(LeeControllerBaseCfg):
     """Configuration for a Lee-style geometric quadrotor attitude controller.
 

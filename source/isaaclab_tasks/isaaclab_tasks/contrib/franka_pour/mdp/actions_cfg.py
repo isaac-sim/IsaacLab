@@ -7,11 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions import BinaryJointPositionActionCfg, RelativeJointPositionActionCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .actions import (
@@ -20,7 +19,7 @@ if TYPE_CHECKING:
     )
 
 
-@configclass
+@dataclass
 class EMARelativeJointPositionActionCfg(RelativeJointPositionActionCfg):
     """Configuration for :class:`EMARelativeJointPositionAction`."""
 
@@ -30,7 +29,7 @@ class EMARelativeJointPositionActionCfg(RelativeJointPositionActionCfg):
     class_type: type[EMARelativeJointPositionAction] | str = "{DIR}.actions:EMARelativeJointPositionAction"
 
 
-@configclass
+@dataclass
 class CurriculumGripperPositionActionCfg(BinaryJointPositionActionCfg):
     """Configuration for :class:`CurriculumGripperPositionAction`."""
 

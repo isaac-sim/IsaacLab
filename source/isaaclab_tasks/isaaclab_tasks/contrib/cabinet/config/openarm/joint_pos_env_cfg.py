@@ -6,9 +6,10 @@
 ##
 # Pre-defined configs
 ##
+from dataclasses import dataclass
+
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cabinet import mdp
 
@@ -20,7 +21,7 @@ from isaaclab_tasks.contrib.cabinet.config.openarm.cabinet_openarm_env_cfg impor
 )
 
 
-@configclass
+@dataclass
 class OpenArmCabinetEnvCfg(CabinetEnvCfg):
     def __post_init__(self):
         # post init of parent

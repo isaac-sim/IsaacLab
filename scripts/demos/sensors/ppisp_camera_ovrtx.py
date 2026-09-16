@@ -19,6 +19,7 @@ OVRTX must run kit-less: launch this script with ``uv run python``.
 
 import argparse
 import os
+from dataclasses import dataclass
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -39,7 +40,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
@@ -128,7 +128,7 @@ if args_cli.save_interval < 1:
     parser.error("--save_interval must be at least 1.")
 
 
-@configclass
+@dataclass
 class PpispCameraOvrtxSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 

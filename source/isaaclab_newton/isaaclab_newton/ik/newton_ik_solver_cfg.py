@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class NewtonIKSolverCfg:
+@dataclass
+class NewtonIKSolverCfg(ConfigMixin):
     """Configuration for the Newton inverse-kinematics solver.
 
     Holds solver hyperparameters only. Objectives (and their residual weights)

@@ -29,6 +29,8 @@ add_sensor_benchmark_args(
 )
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import warp as wp
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.sensors import ContactSensorCfg
@@ -40,12 +42,11 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 wp.init()
 
 
-@configclass
+@dataclass
 class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
     """Scene with one cube per environment and a contact sensor on the cube."""
 

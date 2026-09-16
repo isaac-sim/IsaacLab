@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_tasks.contrib.factory.factory_tasks_cfg import FactoryTask, GearMesh, NutThread, PegInsert
 
 
-@configclass
+@dataclass
 class ForgeTask(FactoryTask):
     action_penalty_ee_scale: float = 0.0
     action_penalty_asset_scale: float = 0.001
@@ -18,16 +18,16 @@ class ForgeTask(FactoryTask):
     contact_penalty_threshold_range = [5.0, 10.0]
 
 
-@configclass
+@dataclass
 class ForgePegInsert(PegInsert, ForgeTask):
     contact_penalty_scale: float = 0.2
 
 
-@configclass
+@dataclass
 class ForgeGearMesh(GearMesh, ForgeTask):
     contact_penalty_scale: float = 0.05
 
 
-@configclass
+@dataclass
 class ForgeNutThread(NutThread, ForgeTask):
     contact_penalty_scale: float = 0.05

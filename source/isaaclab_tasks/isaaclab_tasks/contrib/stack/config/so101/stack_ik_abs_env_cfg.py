@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import numpy as np
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils import preset
@@ -169,8 +169,8 @@ def _build_so101_stack_pipeline():
     return OutputCombiner({"action": connected_reorderer.output("output")})
 
 
-@configclass
-class SO101IkActionsCfg:
+@dataclass
+class SO101IkActionsCfg(ConfigMixin):
     """Action terms for SO-101 IK-Abs teleop, ordered to match the pipeline ``output_order``.
 
     This is a fresh (non-inheriting) action container declared in field order
@@ -185,7 +185,7 @@ class SO101IkActionsCfg:
     gripper_action: mdp.JointPositionActionCfg = MISSING
 
 
-@configclass
+@dataclass
 class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     """SO-101 cube-stack environment with absolute task-space (IK) control.
 

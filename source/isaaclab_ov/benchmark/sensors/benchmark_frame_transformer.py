@@ -33,6 +33,8 @@ parser.add_argument(
 )
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import isaaclab_ov.tensor_types as TT
 import torch
 import warp as wp
@@ -45,12 +47,11 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils import configclass
 
 wp.init()
 
 
-@configclass
+@dataclass
 class FrameTransformerBenchmarkSceneCfg(InteractiveSceneCfg):
     """Two kinematic rigid bodies and one FrameTransformer per environment."""
 

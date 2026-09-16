@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -28,7 +30,6 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -53,7 +54,7 @@ from .franka_soft_env_cfg import (
 ##
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
@@ -116,7 +117,7 @@ SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
 )
 
 
-@configclass
+@dataclass
 class DeformableCfg(PresetCfg):
     """Preset configurations for the cloth."""
 
@@ -167,7 +168,7 @@ class DeformableCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka surface deformable environment."""
 
@@ -193,7 +194,7 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
         self.robot.actuators["panda_hand"].damping = 100.0
 
 
-@configclass
+@dataclass
 class FrankaClothScenePresetCfg(PresetCfg):
     """Preset config for the Franka surface deformable scene."""
 
@@ -208,14 +209,14 @@ class FrankaClothScenePresetCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
     """Franka cloth scene with a base camera."""
 
     base_camera: CameraCfg = FRANKA_CAMERA_CFG
 
 
-@configclass
+@dataclass
 class FrankaClothCameraScenePresetCfg(PresetCfg):
     """Scene presets for visual Franka cloth lifting."""
 
@@ -227,7 +228,7 @@ class FrankaClothCameraScenePresetCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class FrankaClothEventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
 
@@ -248,7 +249,7 @@ class FrankaClothEventCfg(FrankaSoftEventCfg):
 ##
 
 
-@configclass
+@dataclass
 class FrankaClothRewardsCfg(FrankaSoftRewardsCfg):
     """Rewards for the Franka cloth environment."""
 
@@ -265,7 +266,7 @@ class FrankaClothRewardsCfg(FrankaSoftRewardsCfg):
     )
 
 
-@configclass
+@dataclass
 class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a surface deformable."""
 
@@ -281,7 +282,7 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
 
 
-@configclass
+@dataclass
 class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
     """Visual Franka surface-deformable lifting environment."""
 

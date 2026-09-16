@@ -10,6 +10,8 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -21,7 +23,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
@@ -33,8 +35,8 @@ from isaaclab_assets.robots.shadow_hand import (
 )
 
 
-@configclass
-class ShadowHandRandomizationEventCfg:
+@dataclass
+class ShadowHandRandomizationEventCfg(ConfigMixin):
     """Randomization of the hand and the object, applied on every physics backend."""
 
     robot_joint_stiffness_and_damping = EventTerm(
@@ -115,8 +117,8 @@ class ShadowHandRandomizationEventCfg:
     )
 
 
-@configclass
-class ShadowHandManagerResetEventCfg:
+@dataclass
+class ShadowHandManagerResetEventCfg(ConfigMixin):
     """Only the per-episode state reset, with no domain randomization."""
 
     reset_object = EventTerm(
@@ -139,12 +141,12 @@ class ShadowHandManagerResetEventCfg:
     )
 
 
-@configclass
+@dataclass
 class ShadowHandManagerEventCfg(ShadowHandRandomizationEventCfg, ShadowHandManagerResetEventCfg):
     """Randomization plus the state reset the manager tasks apply on every episode."""
 
 
-@configclass
+@dataclass
 class ShadowHandManagerEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
@@ -152,7 +154,7 @@ class ShadowHandManagerEventPresetCfg(PresetCfg):
     default = ShadowHandManagerResetEventCfg()
 
 
-@configclass
+@dataclass
 class ShadowHandRobotCfg(PresetCfg):
     """The same hand on every engine; only the asset's physics variant differs.
 
@@ -206,7 +208,7 @@ CUBE_CFG = RigidObjectCfg(
 """In-hand cube for the Shadow Hand reorientation tasks."""
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,

@@ -5,10 +5,10 @@
 
 """Configuration for the ray-cast camera sensor."""
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .patterns import PinholeCameraPatternCfg
 from .ray_caster_cfg import RayCasterCfg
@@ -17,12 +17,12 @@ if TYPE_CHECKING:
     from .ray_caster_camera import RayCasterCamera
 
 
-@configclass
+@dataclass
 class RayCasterCameraCfg(RayCasterCfg):
     """Configuration for the ray-cast sensor."""
 
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)

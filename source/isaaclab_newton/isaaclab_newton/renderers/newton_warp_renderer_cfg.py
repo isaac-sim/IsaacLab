@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .newton_warp_renderer import NewtonWarpRenderer
 
 
-@configclass
+@dataclass
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""
 

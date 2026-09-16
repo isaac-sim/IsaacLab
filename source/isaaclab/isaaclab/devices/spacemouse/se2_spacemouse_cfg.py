@@ -7,9 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from ..device_base import DeviceCfg
 
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
     from .se2_spacemouse import Se2SpaceMouse
 
 
-@configclass
+@dataclass
 class Se2SpaceMouseCfg(DeviceCfg):
     """Configuration for SE2 space mouse devices."""
 

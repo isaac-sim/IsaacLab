@@ -3,14 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
-from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
@@ -99,7 +98,7 @@ WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
 )
 
 
-@configclass
+@dataclass
 class BaseTiledCameraCfg(PresetCfg):
     """Tiled camera configurations"""
 
@@ -143,7 +142,7 @@ class BaseTiledCameraCfg(PresetCfg):
     default = rgb64
 
 
-@configclass
+@dataclass
 class WristTiledCameraCfg(PresetCfg):
     """Tiled camera configurations"""
 
@@ -190,7 +189,7 @@ class WristTiledCameraCfg(PresetCfg):
 ############################
 
 
-@configclass
+@dataclass
 class StateObservationCfg(lift.ObservationsCfg):
     """Kuka Allegro participant scene for Lift Lifting/Reorientation"""
 
@@ -204,11 +203,11 @@ class StateObservationCfg(lift.ObservationsCfg):
         self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
 
 
-@configclass
+@dataclass
 class SingleCameraObservationsCfg(StateObservationCfg):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class BaseImageObsCfg(ObsGroup):
         """Camera observations for policy group."""
 
@@ -224,11 +223,11 @@ class SingleCameraObservationsCfg(StateObservationCfg):
     base_image: BaseImageObsCfg = BaseImageObsCfg()
 
 
-@configclass
+@dataclass
 class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class WristImageObsCfg(ObsGroup):
         wrist_observation = ObsTerm(
             func=mdp.vision_camera,

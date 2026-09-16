@@ -41,6 +41,8 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 # ---------------------------------------------------------------------------
 # Imports (after wheel gate)
 # ---------------------------------------------------------------------------
+from dataclasses import dataclass
+
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
@@ -51,7 +53,6 @@ from isaaclab.assets import RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
 
 wp.init()
 
@@ -147,7 +148,7 @@ def _make_pva(prim_path: str, offset: PvaCfg.OffsetCfg | None = None) -> Pva:
     return Pva(cfg)
 
 
-@configclass
+@dataclass
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 

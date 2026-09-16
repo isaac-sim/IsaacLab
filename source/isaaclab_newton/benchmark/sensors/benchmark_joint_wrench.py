@@ -29,6 +29,8 @@ add_sensor_benchmark_args(
 )
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import torch
 import warp as wp
 from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
@@ -38,12 +40,11 @@ from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
 from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import configclass
 
 from isaaclab_assets import CARTPOLE_CFG
 
 
-@configclass
+@dataclass
 class JointWrenchBenchmarkSceneCfg(InteractiveSceneCfg):
     """One cartpole articulation and JointWrench sensor per environment."""
 

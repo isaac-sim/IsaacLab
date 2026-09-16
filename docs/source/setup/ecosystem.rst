@@ -69,7 +69,7 @@ Isaac Lab is organized into a set of focused packages that can be used independe
 
 **Extensions**
 
-* ``isaaclab_assets`` — pre-configured robot and sensor :class:`~isaaclab.utils.configclass`
+* ``isaaclab_assets`` — pre-configured robot and sensor dataclasses
   dataclasses for a wide range of robots (Franka, Unitree, ANYmal, Spot, Allegro, humanoids,
   quadcopters, and more) and sensors (Velodyne, GelSight).
 * ``isaaclab_tasks`` — registered `gymnasium`_ environments organized into two authoring patterns:

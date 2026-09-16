@@ -4,9 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from .camera_cfg import CameraCfg
 
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
     from .tiled_camera import TiledCamera
 
 
-@configclass
+@dataclass
 class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor.
 

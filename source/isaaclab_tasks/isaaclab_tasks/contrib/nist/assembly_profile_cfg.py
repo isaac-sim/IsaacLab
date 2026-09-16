@@ -20,7 +20,9 @@ noise applied on top of each segment's start pose.  ``None`` means no noise.
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 from isaaclab_tasks.contrib.nist.assembly_profile import (
@@ -37,16 +39,16 @@ from isaaclab_tasks.contrib.nist.assembly_profile import (
 # ---------------------------------------------------------------------------
 
 
-@configclass
-class UniformYawCfg:
+@dataclass
+class UniformYawCfg(ConfigMixin):
     """Uniformly random yaw in ``[-pi, pi]``, no position noise."""
 
     class_type: type = UniformYaw
     """Class of the sampler implementation."""
 
 
-@configclass
-class DiscreteYawCfg:
+@dataclass
+class DiscreteYawCfg(ConfigMixin):
     """Randomly chosen from a discrete set of yaw angles [rad], no position noise."""
 
     class_type: type = DiscreteYaw
@@ -56,8 +58,8 @@ class DiscreteYawCfg:
     """Yaw angles [rad] to sample from."""
 
 
-@configclass
-class UniformPoseNoiseCfg:
+@dataclass
+class UniformPoseNoiseCfg(ConfigMixin):
     """Uniform noise over user-defined position [m] and euler-angle [rad] ranges."""
 
     class_type: type = UniformPoseNoise
@@ -87,8 +89,8 @@ class UniformPoseNoiseCfg:
 # ---------------------------------------------------------------------------
 
 
-@configclass
-class EndPointsSegmentCfg:
+@dataclass
+class EndPointsSegmentCfg(ConfigMixin):
     """Segment defined by explicit start and end poses.
 
     See :class:`EndPointsSegment` for the runtime implementation.
@@ -113,8 +115,8 @@ class EndPointsSegmentCfg:
     """Extra full turns ``(roll, pitch, yaw)`` between the two endpoints."""
 
 
-@configclass
-class IncrementalSegmentCfg:
+@dataclass
+class IncrementalSegmentCfg(ConfigMixin):
     """Segment defined by start pose, travel distance, and rotation ratio.
 
     See :class:`IncrementalSegment` for the runtime implementation.
@@ -139,8 +141,8 @@ class IncrementalSegmentCfg:
     """Screw pitch per axis: meters of travel per radian [m/rad]. Zero means no rotation."""
 
 
-@configclass
-class AssemblyProfileCfg:
+@dataclass
+class AssemblyProfileCfg(ConfigMixin):
     """Complete assembly path as a list of contiguous segment configs.
 
     ``fraction=0`` means fully assembled; increasing fraction moves toward the

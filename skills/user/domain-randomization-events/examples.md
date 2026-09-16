@@ -39,14 +39,16 @@ Input: start a manager-based lift task at zero gravity, then approach full gravi
 Given a reset event named `variable_gravity`, add a task-owned scheduler and interpolation term:
 
 ```python
+from dataclasses import dataclass
+
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from . import mdp
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     adr = CurrTerm(func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10})
     gravity_adr = CurrTerm(
         func=mdp.modify_term_cfg,
@@ -108,15 +110,17 @@ Expected setup:
 Pattern:
 
 ```python
+from dataclasses import dataclass
+
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
-class PhysxEventCfg:
+@dataclass
+class PhysxEventCfg(ConfigMixin):
     physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
@@ -130,8 +134,8 @@ class PhysxEventCfg:
     )
 
 
-@configclass
-class NewtonEventCfg:
+@dataclass
+class NewtonEventCfg(ConfigMixin):
     physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
@@ -145,7 +149,7 @@ class NewtonEventCfg:
     )
 
 
-@configclass
+@dataclass
 class EventCfg(PresetCfg):
     default = PhysxEventCfg()
     physx = PhysxEventCfg()

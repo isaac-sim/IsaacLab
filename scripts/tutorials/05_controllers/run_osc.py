@@ -36,6 +36,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import torch
 
 import isaaclab.sim as sim_utils
@@ -45,7 +47,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.math import (
     combine_frame_transforms,
     matrix_from_quat,
@@ -60,7 +61,7 @@ from isaaclab.utils.math import (
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 
 
-@configclass
+@dataclass
 class SceneCfg(InteractiveSceneCfg):
     """Configuration for a simple scene with a tilted wall."""
 

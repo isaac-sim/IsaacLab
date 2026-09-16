@@ -6,20 +6,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .modifier import DigitalFilter, Integrator
     from .modifier_base import ModifierBase
 
 
-@configclass
-class ModifierCfg:
+@dataclass
+class ModifierCfg(ConfigMixin):
     """Configuration parameters for function and class modifiers."""
 
     func: Callable[..., torch.Tensor] | type[ModifierBase] | str = MISSING
@@ -37,7 +37,7 @@ class ModifierCfg:
     """
 
 
-@configclass
+@dataclass
 class DigitalFilterCfg(ModifierCfg):
     """Configuration parameters for a digital filter modifier.
 
@@ -68,7 +68,7 @@ class DigitalFilterCfg(ModifierCfg):
     """
 
 
-@configclass
+@dataclass
 class IntegratorCfg(ModifierCfg):
     """Configuration parameters for an integrator modifier.
 

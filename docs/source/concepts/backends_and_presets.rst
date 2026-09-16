@@ -217,14 +217,15 @@ For a multi-backend task, the preset wrapper belongs in
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab.sim import SimulationCfg
-   from isaaclab.utils import configclass
+   from dataclasses import dataclass
+   from isaaclab.utils import ConfigMixin
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
 
-   @configclass
+   @dataclass
    class PhysicsCfg(PresetCfg):
        isaacsim_physx = PhysxCfg()
        ovphysx = OvPhysxCfg()
@@ -236,8 +237,8 @@ For a multi-backend task, the preset wrapper belongs in
        newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg())
 
 
-   @configclass
-   class MyEnvCfg:
+   @dataclass
+   class MyEnvCfg(ConfigMixin):
        sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
 Keep backend-specific values inside named configurations whenever possible.

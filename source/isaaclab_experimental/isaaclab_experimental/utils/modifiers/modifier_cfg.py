@@ -6,14 +6,14 @@
 """Warp-native modifier configuration (experimental)."""
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class ModifierCfg:
+@dataclass
+class ModifierCfg(ConfigMixin):
     """Configuration parameters for Warp-native modifiers.
 
     Experimental fork of :class:`isaaclab.utils.modifiers.ModifierCfg` adapted for the

@@ -71,6 +71,8 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 
@@ -85,7 +87,6 @@ from isaaclab.devices import HaplyDeviceCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
@@ -143,7 +144,7 @@ def apply_haply_to_robot_mapping(
     return robot_pos
 
 
-@configclass
+@dataclass
 class FrankaHaplySceneCfg(InteractiveSceneCfg):
     """Configuration for Franka scene with Haply teleoperation and contact sensors."""
 

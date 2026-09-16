@@ -5,13 +5,13 @@
 
 """Deprecated compatibility configuration for absolute DiffIK Franka Reach."""
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 from isaaclab_tasks.utils import resolve_presets
 
 
-@configclass
+@dataclass
 class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
     """Compatibility configuration that selects the canonical absolute DiffIK preset."""
 

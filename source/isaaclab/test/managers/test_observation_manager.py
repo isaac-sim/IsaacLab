@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from collections import namedtuple
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
@@ -29,7 +30,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
     RewardTermCfg,
 )
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import ConfigMixin, modifiers
 
 pytestmark = pytest.mark.integration
 
@@ -125,11 +126,11 @@ def test_str(setup_env):
     env = setup_env
     """Test the string representation of the observation manager."""
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -165,11 +166,11 @@ def test_str_with_history(setup_env):
 
     TERM_1_HISTORY = 5
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -204,11 +205,11 @@ def test_config_equivalence(setup_env):
     """Test the equivalence of observation manager created from different config types."""
 
     # create from config class
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -226,11 +227,11 @@ def test_config_equivalence(setup_env):
     obs_man_from_cfg = ObservationManager(cfg, env)
 
     # create from config class
-    @configclass
-    class MyObservationManagerAnnotatedCfg:
+    @dataclass
+    class MyObservationManagerAnnotatedCfg(ConfigMixin):
         """Test config class for observation manager with annotations on terms."""
 
-        @configclass
+        @dataclass
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -263,18 +264,18 @@ def test_config_terms(setup_env):
     env = setup_env
     """Test the number of terms in the observation manager."""
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
             term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
             term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
 
-        @configclass
+        @dataclass
         class SampleMixedGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group with a mix of vector and matrix terms."""
 
@@ -282,7 +283,7 @@ def test_config_terms(setup_env):
             term_1 = ObservationTermCfg(func=grilled_chicken, scale=2.0)
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5})
 
-        @configclass
+        @dataclass
         class SampleImageGroupCfg(ObservationGroupCfg):
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
@@ -315,11 +316,11 @@ def test_compute(setup_env):
 
     pos_scale_tuple = (2.0, 3.0, 1.0)
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -328,14 +329,14 @@ def test_compute(setup_env):
             term_3 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
             term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
-        @configclass
+        @dataclass
         class CriticCfg(ObservationGroupCfg):
             term_1 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
             term_2 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
             term_3 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
             term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
-        @configclass
+        @dataclass
         class ImageCfg(ObservationGroupCfg):
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
@@ -376,11 +377,11 @@ def test_compute_with_history(setup_env):
     """Test the observation computation with history buffers."""
     HISTORY_LENGTH = 5
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -428,11 +429,11 @@ def test_compute_with_2d_history(setup_env):
     """Test the observation computation with history buffers for 2D observations."""
     HISTORY_LENGTH = 5
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class FlattenedPolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -441,7 +442,7 @@ def test_compute_with_2d_history(setup_env):
             )
             # total observation size: term_dim (128, 256) * history_len (5) = 163840
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -475,11 +476,11 @@ def test_compute_with_group_history(setup_env):
     TERM_HISTORY_LENGTH = 5
     GROUP_HISTORY_LENGTH = 10
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -531,11 +532,11 @@ def test_invalid_observation_config(setup_env):
     env = setup_env
     """Test the invalid observation config."""
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -555,11 +556,11 @@ def test_callable_class_term(setup_env):
     env = setup_env
     """Test the observation computation with callable class term."""
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -594,11 +595,11 @@ def test_non_callable_class_term(setup_env):
     env = setup_env
     """Test the observation computation with non-callable class term."""
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -623,11 +624,11 @@ def test_modifier_compute(setup_env):
     modifier_3 = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (-0.5, 0.5)})
     modifier_4 = modifiers.IntegratorCfg(dt=env.dt)
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -636,7 +637,7 @@ def test_modifier_compute(setup_env):
             term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
             term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4])
 
-        @configclass
+        @dataclass
         class CriticCfg(ObservationGroupCfg):
             """Test config class for critic observation group"""
 
@@ -683,11 +684,11 @@ def test_serialize(setup_env):
         def serialize(self) -> dict:
             return serialize_data
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -710,11 +711,11 @@ def test_modifier_invalid_config(setup_env):
 
     modifier = modifiers.ModifierCfg(func=modifiers.clip, params={"min": -0.5, "max": 0.5})
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -734,11 +735,11 @@ def test_concatenate_dim(setup_env):
     """Test concatenation of observations along different dimensions."""
     env = setup_env
 
-    @configclass
-    class MyObservationManagerCfg:
+    @dataclass
+    class MyObservationManagerCfg(ConfigMixin):
         """Test config class for observation manager."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
@@ -747,7 +748,7 @@ def test_concatenate_dim(setup_env):
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
 
-        @configclass
+        @dataclass
         class CriticCfg(ObservationGroupCfg):
             """Test config class for critic observation group."""
 
@@ -756,7 +757,7 @@ def test_concatenate_dim(setup_env):
             term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
             term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
 
-        @configclass
+        @dataclass
         class CriticCfg_neg_dim(ObservationGroupCfg):
             """Test config class for critic observation group."""
 

@@ -3,14 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.sim.spawners.materials import VisualMaterialCfg as VisualMaterialSpawnerCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class VisualMaterialCfg(AssetBaseCfg):
     """A runtime-writable material declared like any other scene asset.
 

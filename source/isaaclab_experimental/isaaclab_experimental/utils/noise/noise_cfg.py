@@ -8,18 +8,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 import warp as wp
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from . import noise_model
 
 
-@configclass
-class NoiseCfg:
+@dataclass
+class NoiseCfg(ConfigMixin):
     """Configuration for a Warp-native noise term.
 
     Experimental fork of :class:`isaaclab.utils.noise.NoiseCfg` adapted for the
@@ -38,7 +38,7 @@ class NoiseCfg:
     """The operation to apply the noise on the data. Defaults to ``"add"``."""
 
 
-@configclass
+@dataclass
 class ConstantNoiseCfg(NoiseCfg):
     """Configuration for a constant noise term (Warp-native)."""
 
@@ -48,7 +48,7 @@ class ConstantNoiseCfg(NoiseCfg):
     """The bias to add. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class UniformNoiseCfg(NoiseCfg):
     """Configuration for a uniform noise term (Warp-native)."""
 
@@ -60,7 +60,7 @@ class UniformNoiseCfg(NoiseCfg):
     """The maximum value of the noise. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class GaussianNoiseCfg(NoiseCfg):
     """Configuration for a gaussian noise term (Warp-native)."""
 

@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlRNNModelCfg
 
 
-@configclass
+@dataclass
 class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
     max_iterations = 10000
@@ -42,7 +42,7 @@ class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class ShadowHandAsymLSTMPPORunnerCfg(ShadowHandAsymFFPPORunnerCfg):
     """RSL-RL recurrent policy configuration for the asymmetric OpenAI observations."""
 

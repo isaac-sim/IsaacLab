@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from dataclasses import dataclass
+
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.galbot.stack_rmp_rel_env_cfg import (
     RmpFlowGalbotLeftArmCubeStackEnvCfg,
@@ -13,7 +14,7 @@ from isaaclab_tasks.contrib.stack.config.galbot.stack_rmp_rel_env_cfg import (
 )
 
 
-@configclass
+@dataclass
 class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCubeStackEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Galbot Gripper Cube Stack IK Rel env.
@@ -138,7 +139,7 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
         self.subtask_configs["galbot"] = subtask_configs
 
 
-@configclass
+@dataclass
 class RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg(RmpFlowGalbotRightArmCubeStackEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Galbot Suction Gripper Cube Stack RmpFlow Abs env.

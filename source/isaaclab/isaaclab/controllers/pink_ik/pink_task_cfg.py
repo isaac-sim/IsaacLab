@@ -7,14 +7,14 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, field
+from dataclasses import MISSING, dataclass, field
 from typing import Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class PinkIKTaskCfg:
+@dataclass
+class PinkIKTaskCfg(ConfigMixin):
     """Base task specification for deferred runtime construction.
 
     All Pink IK task configs inherit from this class.  The :attr:`class_type`
@@ -25,7 +25,7 @@ class PinkIKTaskCfg:
     """Task builder as ``"module.path:callable"`` or callable object."""
 
 
-@configclass
+@dataclass
 class FrameTaskCfg(PinkIKTaskCfg):
     """Configuration for a :class:`~isaaclab.controllers.pink_ik.pink_tasks.FrameTask`.
 
@@ -51,7 +51,7 @@ class FrameTaskCfg(PinkIKTaskCfg):
     """Default builder pointing to :class:`FrameTask`."""
 
 
-@configclass
+@dataclass
 class DampingTaskCfg(PinkIKTaskCfg):
     """Configuration for a :class:`~isaaclab.controllers.pink_ik.pink_tasks.DampingTask`.
 
@@ -65,7 +65,7 @@ class DampingTaskCfg(PinkIKTaskCfg):
     """Default builder pointing to :class:`DampingTask`."""
 
 
-@configclass
+@dataclass
 class LocalFrameTaskCfg(PinkIKTaskCfg):
     """Configuration for a :class:`~isaaclab.controllers.pink_ik.pink_tasks.LocalFrameTask`.
 
@@ -95,7 +95,7 @@ class LocalFrameTaskCfg(PinkIKTaskCfg):
     """Default builder pointing to :class:`LocalFrameTask`."""
 
 
-@configclass
+@dataclass
 class NullSpacePostureTaskCfg(PinkIKTaskCfg):
     """Configuration for a :class:`~isaaclab.controllers.pink_ik.null_space_posture_task.NullSpacePostureTask`.
 

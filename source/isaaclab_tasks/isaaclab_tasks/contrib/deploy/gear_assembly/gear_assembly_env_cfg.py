@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -20,7 +20,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg
 from isaaclab.visualizers import VisualizerCfg
@@ -38,7 +38,7 @@ ASSETS_DIR = os.path.join(CONFIG_DIR, "assets")
 ##
 
 
-@configclass
+@dataclass
 class GearAssemblySceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
@@ -169,19 +169,19 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     arm_action: ActionTerm = MISSING
     gripper_action: ActionTerm | None = None
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -201,7 +201,7 @@ class ObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class CriticCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -219,8 +219,8 @@ class ObservationsCfg:
     critic: CriticCfg = CriticCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
@@ -240,8 +240,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     end_effector_gear_keypoint_tracking = RewTerm(
@@ -267,8 +267,8 @@ class RewardsCfg:
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -292,7 +292,7 @@ class TerminationsCfg:
     )
 
 
-@configclass
+@dataclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
     scene: GearAssemblySceneCfg = GearAssemblySceneCfg(num_envs=1024, env_spacing=2.5)

@@ -4,10 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from collections.abc import Iterable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
-
-from isaaclab.utils import configclass
 
 from .actuator_pd_cfg import DCMotorCfg
 
@@ -15,7 +13,7 @@ if TYPE_CHECKING:
     from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 
 
-@configclass
+@dataclass
 class ActuatorNetLSTMCfg(DCMotorCfg):
     """Configuration for LSTM-based actuator model."""
 
@@ -28,7 +26,7 @@ class ActuatorNetLSTMCfg(DCMotorCfg):
     """Path to the file containing network weights."""
 
 
-@configclass
+@dataclass
 class ActuatorNetMLPCfg(DCMotorCfg):
     """Configuration for MLP-based actuator model."""
 

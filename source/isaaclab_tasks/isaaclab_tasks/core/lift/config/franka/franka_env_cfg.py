@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -11,7 +13,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_assets.robots import FRANKA_PANDA_CFG
@@ -76,7 +78,7 @@ THUMB_SENSOR = "panda_leftfinger_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != THUMB_SENSOR.replace("_object_s", "")]
 
 
-@configclass
+@dataclass
 class FrankaSceneCfg(lift.SceneCfg):
     """Franka scene for the Lift and Reorient tasks."""
 
@@ -115,7 +117,7 @@ class FrankaSceneCfg(lift.SceneCfg):
         self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
 
 
-@configclass
+@dataclass
 class StateObservationCfg(lift.ObservationsCfg):
     """State observations for the Franka lift tasks."""
 
@@ -129,12 +131,12 @@ class StateObservationCfg(lift.ObservationsCfg):
         self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = FINGERTIP_LIST
 
 
-@configclass
-class FrankaRelJointPosActionCfg:
+@dataclass
+class FrankaRelJointPosActionCfg(ConfigMixin):
     action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
 
 
-@configclass
+@dataclass
 class FrankaReorientRewardCfg(lift.RewardsCfg):
     good_finger_contact = RewTerm(
         func=mdp.contacts,
@@ -162,7 +164,7 @@ class FrankaReorientRewardCfg(lift.RewardsCfg):
         self.success.params["finger_names"] = FINGER_SENSORS
 
 
-@configclass
+@dataclass
 class FrankaEventCfg(lift.EventCfg):
     """Franka-specific event configuration."""
 
@@ -211,8 +213,8 @@ class FrankaEventCfg(lift.EventCfg):
         self.joint_stiffness_and_damping.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
 
 
-@configclass
-class FrankaMixinCfg:
+@dataclass
+class FrankaMixinCfg(ConfigMixin):
     scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: FrankaReorientRewardCfg = FrankaReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
@@ -227,7 +229,7 @@ class FrankaMixinCfg:
         self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
 
 
-@configclass
+@dataclass
 class FrankaReorientEnvCfg(FrankaMixinCfg, lift.ReorientEnvCfg):
     def play_mode(self):
         # play-mode overrides of parent
@@ -238,7 +240,7 @@ class FrankaReorientEnvCfg(FrankaMixinCfg, lift.ReorientEnvCfg):
         self.events.gripper_closing_speed = None
 
 
-@configclass
+@dataclass
 class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
     def play_mode(self):
         # play-mode overrides of parent

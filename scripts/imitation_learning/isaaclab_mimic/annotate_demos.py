@@ -75,10 +75,11 @@ import isaaclab_mimic.envs  # noqa: F401
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
     from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
+from dataclasses import dataclass
+
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
@@ -127,7 +128,7 @@ class PreStepDatagenInfoRecorder(RecorderTerm):
         return "obs/datagen_info", datagen_info
 
 
-@configclass
+@dataclass
 class PreStepDatagenInfoRecorderCfg(RecorderTermCfg):
     """Configuration for the datagen info recorder term."""
 
@@ -141,7 +142,7 @@ class PreStepSubtaskStartsObservationsRecorder(RecorderTerm):
         return "obs/datagen_info/subtask_start_signals", self._env.get_subtask_start_signals()
 
 
-@configclass
+@dataclass
 class PreStepSubtaskStartsObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the subtask start observations recorder term."""
 
@@ -155,14 +156,14 @@ class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
         return "obs/datagen_info/subtask_term_signals", self._env.get_subtask_term_signals()
 
 
-@configclass
+@dataclass
 class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the step subtask terms observation recorder term."""
 
     class_type: type[RecorderTerm] = PreStepSubtaskTermsObservationsRecorder
 
 
-@configclass
+@dataclass
 class MimicRecorderManagerCfg(ActionStateRecorderManagerCfg):
     """Mimic specific recorder terms."""
 

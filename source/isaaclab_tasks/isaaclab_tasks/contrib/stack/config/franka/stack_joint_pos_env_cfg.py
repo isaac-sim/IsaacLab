@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -32,7 +33,7 @@ _FRANKA_STACK_IK_REL_INIT_JOINT_POS: dict[str, float] = {
 }
 
 
-@configclass
+@dataclass
 class FrankaCubeStackEnvCfg(StackEnvCfg):
     """Configuration for the Franka Cube Stack Environment.
 

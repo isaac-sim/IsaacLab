@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
+from dataclasses import dataclass
 
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -11,7 +12,6 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 from isaaclab_tasks.utils import preset
@@ -21,7 +21,7 @@ class _DeprecatedDiffIKAbsWeight(float):
     """Marker for the deprecated ``diffik_abs`` no-op alias; replaced by a plain float during validation."""
 
 
-@configclass
+@dataclass
 class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
     def validate_config(self) -> None:
         """Validate the physics backend and warn about the deprecated ``diffik_abs`` alias."""

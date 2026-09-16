@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from dataclasses import dataclass
+
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
@@ -20,7 +21,7 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 
 
-@configclass
+@dataclass
 class G1Rewards(RewardsCfg):
     """Reward terms for the MDP."""
 
@@ -104,7 +105,7 @@ class G1Rewards(RewardsCfg):
     )
 
 
-@configclass
+@dataclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: G1Rewards = G1Rewards()
 

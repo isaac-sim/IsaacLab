@@ -190,11 +190,13 @@ double-buffered states, no collision pipeline, and no visualizer force input.
    from newton import Model
    from newton.solvers import SolverMySolver
 
-   from isaaclab.utils import configclass
+   from dataclasses import dataclass
+
+   from isaaclab.utils import ConfigMixin
    from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
 
 
-   @configclass
+   @dataclass
    class MySolverCfg(NewtonSolverCfg):
        class_type: type[NewtonManager] | str = "{DIR}.my_solver_manager:NewtonMySolverManager"
        solver_type: str = "my_solver"

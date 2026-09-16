@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import warnings
-from dataclasses import MISSING, fields
+from dataclasses import MISSING, dataclass, fields
 from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 ##
 # Deprecated: ViewerCfg
@@ -26,8 +26,8 @@ def _viewer_cfg_field_matches_default(value, default) -> bool:
     return value == default
 
 
-@configclass
-class ViewerCfg:
+@dataclass
+class ViewerCfg(ConfigMixin):
     """Configuration of the scene viewport camera.
 
     .. deprecated::
@@ -69,7 +69,7 @@ class ViewerCfg:
         # Warn only when the user configured a non-default field so that bare ``ViewerCfg()``
         # usage (e.g. in task configs that haven't been migrated yet) stays silent.
         #
-        # @configclass stores mutable defaults (tuples, lists) via default_factory rather than
+        # ConfigMixin stores mutable defaults (tuples, lists) via default_factory rather than
         # default, so we must check both to obtain the canonical default value.
         differing = []
         for f in fields(self):

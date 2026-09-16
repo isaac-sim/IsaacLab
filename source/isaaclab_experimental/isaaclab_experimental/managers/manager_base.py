@@ -59,12 +59,14 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from isaaclab.utils import configclass
+        from dataclasses import dataclass
+
+        from isaaclab.utils import ConfigMixin
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 
-        @configclass
-        class MyManagerCfg:
+        @dataclass
+        class MyManagerCfg(ConfigMixin):
             my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
@@ -386,7 +388,7 @@ class ManagerBase(ABC):
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
-        # Materialize configclass defaults from the function signature into params.
+        # Materialize configuration defaults from the function signature into params.
         # Without this, defaults live only in the callable signature and never get
         # resolved/cached by the manager (e.g. SceneEntityCfg.resolve() is never called).
         signature = inspect.signature(func_static)

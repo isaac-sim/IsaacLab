@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -16,7 +16,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -28,7 +28,7 @@ import isaaclab_tasks.contrib.deploy.mdp as mdp
 ##
 
 
-@configclass
+@dataclass
 class SceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
@@ -61,8 +61,8 @@ class SceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Command terms for the MDP."""
 
     ee_pose = mdp.UniformPoseCommandCfg(
@@ -81,19 +81,19 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     arm_action: ActionTerm = MISSING
     gripper_action: ActionTerm | None = None
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -110,8 +110,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_robot_joints = EventTerm(
@@ -149,8 +149,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     end_effector_keypoint_tracking = RewTerm(
@@ -178,8 +178,8 @@ class RewardsCfg:
     action = RewTerm(func=mdp.action_l2, weight=-0.005)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -190,7 +190,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class ReachEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the end-effector pose tracking environment that has been deployed on a real robot."""
 

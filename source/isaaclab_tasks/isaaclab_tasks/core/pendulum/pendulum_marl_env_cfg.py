@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -16,14 +17,13 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
 
 
-@configclass
+@dataclass
 class PendulumPhysicsCfg(PresetCfg):
     """Physics presets for the multi-agent pendulum environment."""
 
@@ -50,7 +50,7 @@ class PendulumPhysicsCfg(PresetCfg):
     )
 
 
-@configclass
+@dataclass
 class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     """Configuration for the multi-agent cart-double-pendulum balancing environment."""
 

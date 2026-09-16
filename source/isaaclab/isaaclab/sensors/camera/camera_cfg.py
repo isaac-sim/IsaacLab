@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 import warnings
-from dataclasses import MISSING, field
+from dataclasses import MISSING, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
@@ -32,12 +32,12 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
 }
 
 
-@configclass
+@dataclass
 class CameraCfg(SensorBaseCfg):
     """Configuration for a camera sensor."""
 
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)

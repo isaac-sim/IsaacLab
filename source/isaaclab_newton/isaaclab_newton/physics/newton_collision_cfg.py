@@ -7,13 +7,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class HydroelasticSDFCfg:
+@dataclass
+class HydroelasticSDFCfg(ConfigMixin):
     """Configuration for SDF-based hydroelastic collision handling.
 
     Hydroelastic contacts generate distributed contact areas instead of point contacts,
@@ -70,8 +71,8 @@ class HydroelasticSDFCfg:
     """
 
 
-@configclass
-class NewtonCollisionPipelineCfg:
+@dataclass
+class NewtonCollisionPipelineCfg(ConfigMixin):
     """Configuration for Newton collision pipeline.
 
     Full-featured collision pipeline with GJK/MPR narrow phase and pluggable broad phase.

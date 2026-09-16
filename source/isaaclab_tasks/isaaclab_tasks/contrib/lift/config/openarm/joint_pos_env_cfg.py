@@ -5,13 +5,13 @@
 
 
 import math
+from dataclasses import dataclass
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.lift import mdp
@@ -29,7 +29,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 OPENARM_JOINTS = ["openarm_joint.*", "openarm_finger_joint.*"]
 
 
-@configclass
+@dataclass
 class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
     def __post_init__(self):
         # post init of parent

@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import math
+from dataclasses import dataclass
 
 import pytest
 import scipy.spatial.transform as tf
@@ -24,7 +25,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -44,7 +44,7 @@ def euler_rpy_apply(rpy, xyz, degrees=False):
     return tuple(rot.apply(xyz).tolist())
 
 
-@configclass
+@dataclass
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
@@ -647,7 +647,7 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
     """
 
     # Create a custom scene config with two robots
-    @configclass
+    @dataclass
     class MultiRobotSceneCfg(InteractiveSceneCfg):
         """Scene with two robots having bodies with same names."""
 

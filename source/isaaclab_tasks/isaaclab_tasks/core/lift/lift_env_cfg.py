@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -22,7 +22,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -47,7 +47,7 @@ OBJECT_PHYSICS = {
 }
 
 
-@configclass
+@dataclass
 class ObjectCfg(PresetCfg):
     shapes = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
@@ -93,7 +93,7 @@ class ObjectCfg(PresetCfg):
     ovphysx = cube
 
 
-@configclass
+@dataclass
 class SceneCfg(InteractiveSceneCfg):
     """Lift Scene for multi-objects Lifting"""
 
@@ -132,8 +132,8 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Command terms for the MDP."""
 
     object_pose = mdp.ObjectUniformPoseCommandCfg(
@@ -164,11 +164,11 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -181,7 +181,7 @@ class ObservationsCfg:
             self.concatenate_terms = True
             self.history_length = 5
 
-    @configclass
+    @dataclass
     class ProprioObsCfg(ObsGroup):
         """Observations for proprioception group."""
 
@@ -209,7 +209,7 @@ class ObservationsCfg:
             self.concatenate_terms = True
             self.history_length = 5
 
-    @configclass
+    @dataclass
     class PerceptionObsCfg(ObsGroup):
         """Observations for perception group."""
 
@@ -233,8 +233,8 @@ class ObservationsCfg:
     perception: PerceptionObsCfg = PerceptionObsCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Reset-mode events (shared by all physics backends)."""
 
     robot_physics_material = EventTerm(
@@ -415,13 +415,13 @@ class EventCfg:
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     pass
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
@@ -467,8 +467,8 @@ class RewardsCfg:
     early_termination = RewTerm(func=mdp.is_terminated_term, weight=-50, params={"term_keys": ["abnormal_robot"]})
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -484,7 +484,7 @@ class TerminationsCfg:
     abnormal_robot = DoneTerm(func=mdp.joint_vel_out_of_limit)
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
@@ -518,7 +518,7 @@ class PhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     """Lift reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
 

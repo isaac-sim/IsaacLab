@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import enum
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
 class XrAnchorRotationMode(enum.Enum):
@@ -32,8 +33,8 @@ class XrAnchorRotationMode(enum.Enum):
     """Custom rotation mode: user provided function to calculate the rotation."""
 
 
-@configclass
-class XrCfg:
+@dataclass
+class XrCfg(ConfigMixin):
     """Configuration for viewing and interacting with the environment through an XR device."""
 
     anchor_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)

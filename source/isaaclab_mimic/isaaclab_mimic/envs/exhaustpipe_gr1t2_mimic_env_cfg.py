@@ -3,15 +3,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import dataclass
+
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.pick_place.exhaustpipe_gr1t2_pink_ik_env_cfg import (
     ExhaustPipeGR1T2PinkIKEnvCfg,
 )
 
 
-@configclass
+@dataclass
 class ExhaustPipeGR1T2MimicEnvCfg(ExhaustPipeGR1T2PinkIKEnvCfg, MimicEnvCfg):
     """Configuration for GR1T2 Exhaust Pipe Mimic environment."""
 

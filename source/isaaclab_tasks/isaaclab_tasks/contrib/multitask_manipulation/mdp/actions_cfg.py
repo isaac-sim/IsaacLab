@@ -7,17 +7,16 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import ActionTermCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .actions import SelectedBinaryJointPositionAction, SelectedJointPositionAction
 
 
-@configclass
+@dataclass
 class SelectedJointPositionActionCfg(ActionTermCfg):
     """Configuration for a selection-aware joint-position action."""
 
@@ -35,7 +34,7 @@ class SelectedJointPositionActionCfg(ActionTermCfg):
     """
 
 
-@configclass
+@dataclass
 class SelectedBinaryJointPositionActionCfg(ActionTermCfg):
     """Configuration for a selection-aware binary joint-position action."""
 

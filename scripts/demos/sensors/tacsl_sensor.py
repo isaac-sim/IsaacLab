@@ -83,6 +83,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 from isaaclab_physx.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
     PhysxCollisionPropertiesCfg,
@@ -94,7 +96,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
@@ -104,7 +105,7 @@ from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data import Visuo
 from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
 
-@configclass
+@dataclass
 class TactileSensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with tactile sensors on the robot."""
 
@@ -179,7 +180,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class CubeTactileSceneCfg(TactileSensorsSceneCfg):
     """Scene with cube contact object."""
 
@@ -198,7 +199,7 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class NutTactileSceneCfg(TactileSensorsSceneCfg):
     """Scene with nut contact object."""
 

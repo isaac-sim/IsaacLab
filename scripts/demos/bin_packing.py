@@ -50,7 +50,7 @@ parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from random import Random
 
 import torch
@@ -67,7 +67,7 @@ from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -192,7 +192,7 @@ def grocery_cfg(slot: int) -> AssetBaseCfg:
     )
 
 
-@configclass
+@dataclass
 class RandomSubsetSet(InclusionSet):
     """Clone combination that activates a random subset of a pool of assets.
 
@@ -217,7 +217,7 @@ class RandomSubsetSet(InclusionSet):
         self.assets = rng.sample(self.pool, rng.randint(*self.num_active))
 
 
-@configclass
+@dataclass
 class BinPackingSceneCfg(InteractiveSceneCfg):
     """Bin-packing scene with per-environment heterogeneous grocery layouts.
 

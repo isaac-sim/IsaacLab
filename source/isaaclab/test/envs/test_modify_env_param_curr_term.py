@@ -10,6 +10,8 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 
@@ -24,7 +26,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.env_cfgs import EmptyManagerCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -36,18 +38,18 @@ def replace_value(env, env_id, data, value, num_steps):
     return mdp.modify_env_param.NO_CHANGE
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the curriculum test environment."""
 
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the curriculum test environment."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Policy observation group."""
 
@@ -56,8 +58,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Reset event specifications for the curriculum test environment."""
 
     reset_cart_position = EventTerm(
@@ -71,8 +73,8 @@ class EventCfg:
     )
 
 
-@configclass
-class CurriculumsCfg:
+@dataclass
+class CurriculumsCfg(ConfigMixin):
     """Curriculum specifications under test."""
 
     modify_observation_joint_pos = CurrTerm(
@@ -106,7 +108,7 @@ class CurriculumsCfg:
     )
 
 
-@configclass
+@dataclass
 class CurriculumTestEnvCfg(ManagerBasedRLEnvCfg):
     """Minimal cart-pole environment configuration for curriculum tests."""
 

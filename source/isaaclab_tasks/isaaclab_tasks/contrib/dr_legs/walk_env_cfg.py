@@ -10,6 +10,7 @@ contact sensor, and gait / contact / foot-clearance rewards.
 """
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
@@ -17,7 +18,7 @@ from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -41,7 +42,7 @@ _FOOT_ASSET_CFG = SceneEntityCfg("robot", body_names=["foot_l", "foot_r"], prese
 _FOOT_SENSOR_CFG = SceneEntityCfg("contact_forces", body_names=["foot_l", "foot_r"], preserve_order=True)
 
 
-@configclass
+@dataclass
 class DrLegsContactSensorCfg(PresetCfg):
     """Backend-specific foot contact sensor configuration."""
 
@@ -59,13 +60,13 @@ class DrLegsContactSensorCfg(PresetCfg):
     isaacsim_physx = physx
 
 
-@configclass
+@dataclass
 class WalkSceneCfg(HoldPoseSceneCfg):
     contact_forces = DrLegsContactSensorCfg()
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(10.0, 10.0),
@@ -83,9 +84,9 @@ class CommandsCfg:
     )
 
 
-@configclass
+@dataclass
 class WalkObservationsCfg(ObservationsCfg):
-    @configclass
+    @dataclass
     class WalkPolicyCfg(ObservationsCfg.PolicyCfg):
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": _GAIT_PERIOD})
@@ -93,8 +94,8 @@ class WalkObservationsCfg(ObservationsCfg):
     policy: WalkPolicyCfg = WalkPolicyCfg()
 
 
-@configclass
-class WalkRewardsCfg:
+@dataclass
+class WalkRewardsCfg(ConfigMixin):
     """Gait / contact / feet reward suite for velocity-tracking walking."""
 
     # -- positive (task / gait)
@@ -173,7 +174,7 @@ class WalkRewardsCfg:
     )
 
 
-@configclass
+@dataclass
 class DrLegsWalkEnvCfg(DrLegsHoldPoseEnvCfg):
     """DR Legs velocity-tracking walk environment."""
 

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import ClassVar
 
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
@@ -13,11 +14,11 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class NewtonDeformableMaterialCfg:
+@dataclass
+class NewtonDeformableMaterialCfg(ConfigMixin):
     """Newton-specific material properties for a deformable body.
 
     These properties are set with the prefix ``newton:<property_name>``.
@@ -34,7 +35,7 @@ class NewtonDeformableMaterialCfg:
     """Particle radius [m] used by the Newton backend."""
 
 
-@configclass
+@dataclass
 class NewtonDeformableBodyMaterialCfg(DeformableBodyMaterialBaseCfg, NewtonDeformableMaterialCfg):
     """Newton-specific physics material parameters for volume deformable bodies."""
 
@@ -54,7 +55,7 @@ class NewtonDeformableBodyMaterialCfg(DeformableBodyMaterialBaseCfg, NewtonDefor
     """Damping stiffness for tetrahedral elements [Pa*s]. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCfg, NewtonDeformableMaterialCfg):
     """Newton-specific physics material parameters for surface deformable bodies."""
 
@@ -80,7 +81,7 @@ class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCf
     """Bending damping [N*m*s]. Used by Newton backend for cloth meshes."""
 
 
-@configclass
+@dataclass
 class NewtonMaterialCfg(RigidBodyMaterialFragment):
     """``newton:*`` rigid-body material attributes read by Newton's USD material schema resolver.
 

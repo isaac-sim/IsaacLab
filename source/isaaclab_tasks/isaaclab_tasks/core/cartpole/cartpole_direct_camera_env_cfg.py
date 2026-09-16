@@ -6,11 +6,11 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
@@ -18,9 +18,9 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
-@configclass
+@dataclass
 class CartpoleTiledCameraCfg(PresetCfg):
-    @configclass
+    @dataclass
     class BaseCartpoleTiledCameraCfg(CameraCfg):
         prim_path: str = "{ENV_REGEX_NS}/Camera"
         offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
@@ -44,9 +44,9 @@ class CartpoleTiledCameraCfg(PresetCfg):
     rgb = default
 
 
-@configclass
+@dataclass
 class CartpoleCameraEnvCfg(PresetCfg):
-    @configclass
+    @dataclass
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg` — only the fields that differ are overridden."""
 

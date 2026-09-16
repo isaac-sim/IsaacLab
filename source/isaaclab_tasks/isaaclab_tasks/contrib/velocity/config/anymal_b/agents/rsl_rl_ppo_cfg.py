@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
 
 from isaaclab_tasks.core.velocity.mdp.symmetry import anymal
 
 
-@configclass
+@dataclass
 class AnymalBRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 1500
@@ -44,7 +44,7 @@ class AnymalBRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class AnymalBFlatPPORunnerCfg(AnymalBRoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
@@ -55,7 +55,7 @@ class AnymalBFlatPPORunnerCfg(AnymalBRoughPPORunnerCfg):
         self.critic.hidden_dims = [128, 128, 128]
 
 
-@configclass
+@dataclass
 class AnymalBFlatPPORunnerWithSymmetryCfg(AnymalBFlatPPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
@@ -79,7 +79,7 @@ class AnymalBFlatPPORunnerWithSymmetryCfg(AnymalBFlatPPORunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class AnymalBRoughPPORunnerWithSymmetryCfg(AnymalBRoughPPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 

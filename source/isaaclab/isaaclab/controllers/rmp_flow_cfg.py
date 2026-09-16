@@ -7,13 +7,13 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class RmpFlowControllerCfg:
+@dataclass
+class RmpFlowControllerCfg(ConfigMixin):
     """Configuration for RMP-Flow controller (provided through LULA library)."""
 
     name: str = "rmp_flow"

@@ -106,11 +106,13 @@ Understand the new package boundaries first, then make environment configuration
 
       .. code-block:: python
 
-         from isaaclab.utils import configclass
+         from dataclasses import dataclass
+
+         from isaaclab.utils import ConfigMixin
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
-         @configclass
+         @dataclass
          class PhysicsPresets(PresetCfg):
              isaacsim_physx: PhysxCfg = PhysxCfg(...)
              default: PhysxCfg = isaacsim_physx
@@ -420,7 +422,7 @@ is selected at launch via a Hydra CLI override.
 
 **What is PresetCfg?**
 
-:class:`~isaaclab_tasks.utils.PresetCfg` is a base ``@configclass`` whose typed fields
+:class:`~isaaclab_tasks.utils.PresetCfg` is a base ``@dataclass`` whose typed fields
 represent named variants of a configuration section. The field named ``default`` is used
 when no CLI override is given. Other fields are named presets selectable with
 ``presets=<name>`` on the command line:
@@ -428,11 +430,12 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab.physics import PhysxAutoCfg
-   from isaaclab.utils import configclass
+   from dataclasses import dataclass
+   from isaaclab.utils import ConfigMixin
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
-   @configclass
+   @dataclass
    class MyPhysicsCfg(PresetCfg):
        isaacsim_physx: PhysxCfg = PhysxCfg(...)
        ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -490,7 +493,7 @@ subclass that carries both a PhysX and a Newton variant.
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
-   @configclass
+   @dataclass
    class ReachPhysicsCfg(PresetCfg):
        isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
        ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -542,8 +545,8 @@ We can provide a Newton-specific config such as:
 
 .. code-block:: python
 
-   @configclass
-   class EventCfg:
+   @dataclass
+   class EventCfg(ConfigMixin):
        """Full event config (PhysX-compatible)."""
        robot_physics_material = EventTerm(
            func=mdp.randomize_rigid_body_material,
@@ -556,8 +559,8 @@ We can provide a Newton-specific config such as:
        )
 
 
-   @configclass
-   class _EnvNewtonEventCfg:
+   @dataclass
+   class _EnvNewtonEventCfg(ConfigMixin):
        """Newton-compatible events."""
        reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
        reset_robot_joints = EventTerm(
@@ -565,7 +568,7 @@ We can provide a Newton-specific config such as:
        )
 
 
-   @configclass
+   @dataclass
    class EnvEventCfg(PresetCfg):
        default: EventCfg = EventCfg()
        physx:   EventCfg = EventCfg()
@@ -575,7 +578,7 @@ Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEvent
 
 .. code-block:: python
 
-   @configclass
+   @dataclass
    class MyEnvCfg(ManagerBasedRLEnvCfg):
        events: EnvEventCfg = EnvEventCfg()  # was: EventCfg = EventCfg()
 
@@ -3125,7 +3128,7 @@ field with ``IsaacTeleopCfg`` and a pipeline builder callable.
    from isaaclab.devices.openxr import XrCfg
    from isaaclab.devices.openxr.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
 
-   @configclass
+   @dataclass
    class MyEnvCfg(ManagerBasedRLEnvCfg):
 
        xr: XrCfg = XrCfg(anchor_pos=[0.0, 0.0, 0.0])
@@ -3178,7 +3181,7 @@ field with ``IsaacTeleopCfg`` and a pipeline builder callable.
        c_reorder = reorder.connect({"ee": c_se3.output("ee_pose"), "grip": c_grip.output("gripper_command")})
        return OutputCombiner({"action": c_reorder.output("output")})
 
-   @configclass
+   @dataclass
    class MyEnvCfg(ManagerBasedRLEnvCfg):
 
        xr: XrCfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0))

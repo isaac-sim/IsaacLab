@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -17,14 +19,13 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG
 
 
-@configclass
+@dataclass
 class HumanoidPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -44,7 +45,7 @@ class HumanoidPhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class HumanoidEnvCfg(DirectRLEnvCfg):
     """Configuration for the direct-workflow Humanoid walking environment."""
 

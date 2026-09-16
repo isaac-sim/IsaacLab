@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
-@configclass
+@dataclass
 class TaskHeadedGaussianDistributionCfg(RslRlMLPModelCfg.GaussianDistributionCfg):
     """Configuration for independently explored task action heads."""
 
@@ -16,7 +16,7 @@ class TaskHeadedGaussianDistributionCfg(RslRlMLPModelCfg.GaussianDistributionCfg
     """The qualified task-headed distribution class name."""
 
 
-@configclass
+@dataclass
 class TaskHeadedMLPModelCfg(RslRlMLPModelCfg):
     """Configuration for the shared backbone and task-specific action heads."""
 
@@ -30,7 +30,7 @@ class TaskHeadedMLPModelCfg(RslRlMLPModelCfg):
     """Half-open policy observation slice containing the task one-hot."""
 
 
-@configclass
+@dataclass
 class TaskHeadedValueModelCfg(RslRlMLPModelCfg):
     """Configuration for the shared backbone and task-specific value heads."""
 
@@ -44,7 +44,7 @@ class TaskHeadedValueModelCfg(RslRlMLPModelCfg):
     """Half-open policy observation slice containing the task one-hot."""
 
 
-@configclass
+@dataclass
 class TaskBalancedPPOCfg(RslRlPpoAlgorithmCfg):
     """Configuration for task-wise rollout advantage normalization."""
 
@@ -61,7 +61,7 @@ class TaskBalancedPPOCfg(RslRlPpoAlgorithmCfg):
     """Half-open observation slice containing the task one-hot."""
 
 
-@configclass
+@dataclass
 class MultitaskManipulationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL PPO configuration for the heterogeneous manipulation task."""
 

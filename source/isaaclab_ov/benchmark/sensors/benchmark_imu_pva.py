@@ -34,6 +34,8 @@ add_sensor_benchmark_args(
 parser.add_argument("--sensor", choices=("imu", "pva"), required=True, help="Sensor update path to benchmark.")
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import torch
 import warp as wp
 from isaaclab_ov.physics import OvPhysxCfg
@@ -45,12 +47,11 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ImuCfg, PvaCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils import configclass
 
 wp.init()
 
 
-@configclass
+@dataclass
 class ImuPvaBenchmarkSceneCfg(InteractiveSceneCfg):
     """One kinematic rigid body and one selected sensor per environment."""
 

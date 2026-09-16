@@ -28,6 +28,8 @@ args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import torch
 
 import isaaclab.sim as sim_utils
@@ -35,7 +37,6 @@ from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
 
 
-@configclass
+@dataclass
 class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 

@@ -54,6 +54,8 @@ simulation_app = app_launcher.app
 
 """Everything below follows application launch."""
 
+from dataclasses import dataclass
+
 import torch
 import warp as wp
 
@@ -64,7 +66,6 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.seed import configure_seed
 
 _ROUGH_TERRAIN_SEED = 0
@@ -106,7 +107,7 @@ def _rough_terrain_cfg() -> TerrainGeneratorCfg:
     )
 
 
-@configclass
+@dataclass
 class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
     """Matched plane and rough-terrain ray-caster workloads."""
 

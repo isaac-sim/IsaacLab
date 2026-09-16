@@ -7,13 +7,13 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 ##
 
 
-@configclass
-class GelSightRenderCfg:
+@dataclass
+class GelSightRenderCfg(ConfigMixin):
     """Configuration for GelSight sensor rendering parameters.
 
     This configuration defines the rendering parameters for example-based tactile image synthesis
@@ -103,7 +103,7 @@ class GelSightRenderCfg:
 ##
 
 
-@configclass
+@dataclass
 class VisuoTactileSensorCfg(SensorBaseCfg):
     """Configuration for the visuo-tactile sensor.
 

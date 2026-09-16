@@ -5,22 +5,22 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Any, Literal
 
 from isaaclab.sim import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class AssetBaseCfg:
+@dataclass
+class AssetBaseCfg(ConfigMixin):
     """The base configuration class for an asset's parameters.
 
     Please see the :class:`AssetBase` class for more information on the asset class.
     """
 
-    @configclass
-    class InitialStateCfg:
+    @dataclass
+    class InitialStateCfg(ConfigMixin):
         """Initial state of the asset.
 
         This defines the default initial state of the asset when it is spawned into the simulation, as

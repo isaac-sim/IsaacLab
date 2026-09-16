@@ -8,11 +8,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, field
+from dataclasses import MISSING, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg
@@ -39,8 +39,8 @@ if TYPE_CHECKING:
     from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig
 
 
-@configclass
-class XrCameraFeedCfg:
+@dataclass
+class XrCameraFeedCfg(ConfigMixin):
     """Configuration for one camera image panel shown in XR.
 
     Render-product policy authored for a feed remains on the selected camera
@@ -92,8 +92,8 @@ class XrCameraFeedCfg:
     """Optional short label shown above the image."""
 
 
-@configclass
-class XrCameraFeedLayoutCfg:
+@dataclass
+class XrCameraFeedLayoutCfg(ConfigMixin):
     """Declarative placement and packing for enabled XR camera feeds."""
 
     mode: Literal["manual", "horizontal", "vertical", "grid"] = "manual"
@@ -140,8 +140,8 @@ class XrCameraFeedLayoutCfg:
     """
 
 
-@configclass
-class IsaacTeleopCfg:
+@dataclass
+class IsaacTeleopCfg(ConfigMixin):
     """Configuration for IsaacTeleop-based teleoperation.
 
     This configuration class defines the parameters needed to create a IsaacTeleop
@@ -155,7 +155,7 @@ class IsaacTeleopCfg:
     the tuning UI, the env cfg should call the builder, unpack the results, and
     populate both ``pipeline_builder`` and ``retargeters_to_tune`` explicitly.
     Both fields must be callables (lambdas / functions) so they survive the
-    ``deepcopy`` performed by ``@configclass`` on mutable attributes.
+    ``deepcopy`` performed by ``ConfigMixin`` on mutable attributes.
 
     Example:
         .. code-block:: python
@@ -238,7 +238,7 @@ class IsaacTeleopCfg:
     """Optional callable returning retargeters to expose in the tuning UI.
 
     Must be a callable (e.g. ``lambda: [retargeter1, retargeter2]``) rather
-    than a plain list because ``@configclass`` deep-copies mutable attributes
+    than a plain list because ``ConfigMixin`` deep-copies mutable attributes
     and retargeter objects often contain non-picklable C++/SWIG handles.
     Wrapping in a callable makes the value opaque to ``deepcopy``.
 

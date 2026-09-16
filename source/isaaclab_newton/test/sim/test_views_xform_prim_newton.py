@@ -18,6 +18,8 @@ from isaaclab.test.utils import test_devices
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 import warp as wp
@@ -33,7 +35,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
 WORLD_MARKER_POS = (5.0, 3.0, 1.0)
@@ -41,7 +42,7 @@ SITE_PATH = "/World/Robot/SiteFrame"
 VISUAL_PATH = "/World/Robot/VisualFrame"
 
 
-@configclass
+@dataclass
 class _SceneCfg(InteractiveSceneCfg):
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",

@@ -247,19 +247,20 @@ def test_bucket_variants_routes_by_target_match():
     instances route to RENDERER, PhysicsCfg-containing SimulationCfg bundles
     route to PHYSICS, and values matching no target fall into DOMAIN.
     """
+    from dataclasses import dataclass
+
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
     from isaaclab.sim import SimulationCfg
-    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
     from isaaclab_tasks.utils.preset_target import PresetTarget
 
-    @configclass
+    @dataclass
     class _PhysVariant(PhysicsCfg):
         class_type: str = "mock"
 
-    @configclass
+    @dataclass
     class _PhysWrapper(PhysicsCfg):
         # Mirrors NewtonCfg's "wrapper holds an inner solver" shape: still
         # subclasses PhysicsCfg, so the base-class isinstance check still
@@ -267,7 +268,7 @@ def test_bucket_variants_routes_by_target_match():
         class_type: str = "mock_wrapper"
         inner: object = None
 
-    @configclass
+    @dataclass
     class _RendVariant(RendererCfg):
         pass
 
@@ -377,34 +378,36 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
     wrapping is normalized away before substring assertions so wording changes
     are deliberate.
     """
+    from dataclasses import dataclass
+
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils import ConfigMixin
 
     from isaaclab_tasks.utils.hydra import preset
 
-    @configclass
+    @dataclass
     class _HelpPhysCfg(PhysicsCfg):
         class_type: str = "mock"
 
-    @configclass
+    @dataclass
     class _HelpRendCfg(RendererCfg):
         pass
 
-    @configclass
-    class _EmptyCfg:
+    @dataclass
+    class _EmptyCfg(ConfigMixin):
         pass
 
-    @configclass
-    class _PhysOnlyCfg:
+    @dataclass
+    class _PhysOnlyCfg(ConfigMixin):
         physics: object = preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg())
 
-    @configclass
-    class _DomainOnlyCfg:
+    @dataclass
+    class _DomainOnlyCfg(ConfigMixin):
         weight: object = preset(default=1.0, light=0.5, heavy=2.0)
 
-    @configclass
-    class _MixedCfg:
+    @dataclass
+    class _MixedCfg(ConfigMixin):
         physics: object = preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg())
         renderer: object = preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg())
         weight: object = preset(default=1.0, light=0.5, heavy=2.0)

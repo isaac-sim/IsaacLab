@@ -13,11 +13,15 @@
 Use this when the environment has one supported physics setup and no user-selectable variants.
 
 ```python
+from dataclasses import dataclass
+
 from isaaclab.sim import SimulationCfg
+from isaaclab.utils import ConfigMixin
 from isaaclab_physx.physics import PhysxCfg
 
 
-class MySimpleEnvCfg:
+@dataclass
+class MySimpleEnvCfg(ConfigMixin):
     sim: SimulationCfg = SimulationCfg(physics=PhysxCfg())
 ```
 
@@ -30,16 +34,18 @@ The example below applies when the task's established default is PhysX. Preserve
 an explicit Newton or other backend default when adding more variants.
 
 ```python
+from dataclasses import dataclass
+
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     ovphysx = OvPhysxCfg()
@@ -51,8 +57,8 @@ class PhysicsCfg(PresetCfg):
     )
 
 
-@configclass
-class MyMultiBackendEnvCfg:
+@dataclass
+class MyMultiBackendEnvCfg(ConfigMixin):
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 ```
 
@@ -69,14 +75,15 @@ uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4
 Use domain presets for environment-specific variants such as camera output type.
 
 ```python
+from dataclasses import dataclass
+
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.utils import configclass
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class CameraTaskCfg(PresetCfg):
-    @configclass
+    @dataclass
     class BaseCfg(DirectRLEnvCfg):
         observation_space = [100, 100, 3]
 

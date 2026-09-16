@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .sensor_base import SensorBase
 
 
-@configclass
-class SensorBaseCfg:
+@dataclass
+class SensorBaseCfg(ConfigMixin):
     """Configuration parameters for a sensor."""
 
     class_type: type["SensorBase"] = MISSING

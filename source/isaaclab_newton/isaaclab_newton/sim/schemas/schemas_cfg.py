@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -23,10 +24,9 @@ from isaaclab.sim.schemas.schemas_cfg import (
     RigidBodyFragment,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """Newton-targeted rigid body properties.
 
@@ -47,7 +47,7 @@ class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     _usd_field_exceptions: ClassVar[dict] = {}
 
 
-@configclass
+@dataclass
 class NewtonDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     """Newton-specific properties to apply to a deformable body.
 
@@ -65,7 +65,7 @@ class NewtonDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     _usd_field_exceptions: ClassVar[dict] = {}
 
 
-@configclass
+@dataclass
 class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     """MuJoCo-solver-specific rigid body properties.
 
@@ -91,7 +91,7 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     """
 
 
-@configclass
+@dataclass
 class MujocoRigidBodyCfg(RigidBodyFragment):
     """``mjc:*`` rigid-body attributes for Newton's MuJoCo solver.
 
@@ -116,7 +116,7 @@ class MujocoRigidBodyCfg(RigidBodyFragment):
     """
 
 
-@configclass
+@dataclass
 class MujocoJointCfg(JointDriveFragment):
     """``mjc:*`` joint attributes for Newton's MuJoCo solver from ``MjcJointAPI``.
 
@@ -145,7 +145,7 @@ class MujocoJointCfg(JointDriveFragment):
     """
 
 
-@configclass
+@dataclass
 class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
     """Newton-targeted joint drive properties.
 
@@ -166,7 +166,7 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
     _usd_field_exceptions: ClassVar[dict] = {}
 
 
-@configclass
+@dataclass
 class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     """MuJoCo-solver-specific joint drive properties.
 
@@ -192,7 +192,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     """
 
 
-@configclass
+@dataclass
 class MujocoCollisionCfg(CollisionFragment):
     """``mjc:*`` per-collider attributes for Newton's MuJoCo solver.
 
@@ -261,7 +261,7 @@ class MujocoCollisionCfg(CollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class NewtonCollisionCfg(CollisionFragment):
     """``newton:*`` collision attributes for Newton's contact pipeline.
 
@@ -296,7 +296,7 @@ class NewtonCollisionCfg(CollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     """Newton-specific collision properties.
 
@@ -331,7 +331,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisionBaseCfg):
     """Newton-specific mesh collision properties.
 
@@ -356,7 +356,7 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
     """
 
 
-@configclass
+@dataclass
 class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
     """Newton-specific SDF and hydroelastic collision properties.
 
@@ -437,7 +437,7 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
 # -------------------------------------------------------------------------------------
 
 
-@configclass
+@dataclass
 class NewtonMeshCollisionCfg(MeshCollisionFragment):
     """``newton:maxHullVertices`` mesh-cooking attribute from ``NewtonMeshCollisionAPI``.
 
@@ -461,7 +461,7 @@ class NewtonMeshCollisionCfg(MeshCollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class NewtonSDFCollisionCfg(MeshCollisionFragment):
     """``newton:*`` SDF and hydroelastic mesh-cooking attributes from ``NewtonSDFCollisionAPI``.
 
@@ -540,7 +540,7 @@ class NewtonSDFCollisionCfg(MeshCollisionFragment):
     """
 
 
-@configclass
+@dataclass
 class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
     """Newton-specific rigid body material properties.
 
@@ -601,7 +601,7 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class MujocoFixedTendonCfg(FixedTendonFragment):
     """``mjc:*`` fixed-tendon attributes for a ``MjcTendon`` prim.
 
@@ -630,7 +630,7 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     """Damping term acting on the tendon length [N·s/m]."""
 
 
-@configclass
+@dataclass
 class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """Newton-specific articulation root properties.
 
@@ -655,7 +655,7 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class NewtonArticulationCfg(ArticulationRootFragment):
     """``newton:*`` articulation-root attributes for Newton.
 

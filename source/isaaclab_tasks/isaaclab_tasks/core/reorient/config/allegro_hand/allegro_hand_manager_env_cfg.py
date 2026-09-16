@@ -5,10 +5,12 @@
 
 """Manager-based counterpart of the Allegro Hand Direct reorientation task."""
 
+from dataclasses import dataclass
+
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
@@ -23,7 +25,7 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
-@configclass
+@dataclass
 class AllegroHandManagerSceneCfg(ReorientSceneBaseCfg):
     """The shared scene, holding the Allegro hand and its in-hand cube."""
 
@@ -31,8 +33,8 @@ class AllegroHandManagerSceneCfg(ReorientSceneBaseCfg):
     object: RigidObjectCfg = CUBE_CFG
 
 
-@configclass
-class AllegroHandResetEventCfg:
+@dataclass
+class AllegroHandResetEventCfg(ConfigMixin):
     """Only the per-episode state reset, with no domain randomization."""
 
     reset_object = EventTerm(
@@ -55,7 +57,7 @@ class AllegroHandResetEventCfg:
     )
 
 
-@configclass
+@dataclass
 class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
     """Randomization terms plus the Direct task's reset distribution."""
 
@@ -114,7 +116,7 @@ class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
     )
 
 
-@configclass
+@dataclass
 class AllegroHandEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
@@ -123,7 +125,7 @@ class AllegroHandEventPresetCfg(PresetCfg):
     default = reset_only
 
 
-@configclass
+@dataclass
 class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based Allegro Hand task with Direct-compatible semantics."""
 

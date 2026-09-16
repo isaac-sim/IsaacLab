@@ -14,7 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from enum import Enum
 from types import SimpleNamespace
 
@@ -37,7 +37,6 @@ from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
 
 ##
 # Custom helper classes.
@@ -53,7 +52,7 @@ class ContactTestMode(Enum):
     """Enum to test the condition where the test object is not in contact with the ground plane (air time)."""
 
 
-@configclass
+@dataclass
 class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """Configuration for rigid objects used for the contact sensor test.
 
@@ -66,7 +65,7 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """6D pose of the rigid object under test when it is not in contact."""
 
 
-@configclass
+@dataclass
 class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Configuration of the scene used by the contact sensor test."""
 

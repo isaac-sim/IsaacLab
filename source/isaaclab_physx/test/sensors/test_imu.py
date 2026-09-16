@@ -14,6 +14,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import pathlib
+from dataclasses import dataclass
 
 import pytest
 import torch
@@ -27,7 +28,6 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -44,7 +44,7 @@ PEND_POS_OFFSET = (0.4, 0.0, 0.1)
 PEND_ROT_OFFSET = (0.5, 0.5, 0.5, 0.5)
 
 
-@configclass
+@dataclass
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
@@ -492,7 +492,7 @@ def test_env_ids_propagation(setup_sim):
     scene.update(sim.get_physics_dt())
 
 
-@configclass
+@dataclass
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 

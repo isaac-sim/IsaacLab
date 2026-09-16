@@ -6,16 +6,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class OpenCvDistortionCfg:
+@dataclass
+class OpenCvDistortionCfg(ConfigMixin):
     """Base configuration for an OpenCV lens-distortion model carried on a camera cfg.
 
     The distortion model is renderer-agnostic: it is stored on the camera spawn configuration
@@ -59,7 +59,7 @@ class OpenCvDistortionCfg:
     """
 
 
-@configclass
+@dataclass
 class OpenCvPinholeDistortionCfg(OpenCvDistortionCfg):
     """OpenCV pinhole lens-distortion model (radial, tangential and thin-prism terms).
 
@@ -106,7 +106,7 @@ class OpenCvPinholeDistortionCfg(OpenCvDistortionCfg):
     """Fourth thin-prism distortion coefficient. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
     """OpenCV fisheye lens-distortion model.
 
@@ -132,7 +132,7 @@ class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
     """Fourth fisheye distortion coefficient. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class PinholeCameraCfg(SpawnerCfg):
     """Configuration parameters for a USD camera prim with pinhole camera settings.
 
@@ -288,7 +288,7 @@ class PinholeCameraCfg(SpawnerCfg):
         )
 
 
-@configclass
+@dataclass
 class FisheyeCameraCfg(PinholeCameraCfg):
     """Configuration parameters for a USD camera prim with `fish-eye camera`_ settings.
 
@@ -360,7 +360,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     """Sixth component of fisheye polynomial. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class SensorFrameCfg(SpawnerCfg):
     """Spawns a plain USD Xform as a sensor attachment frame.
 

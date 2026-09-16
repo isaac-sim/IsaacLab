@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class MjcfConverterCfg(AssetConverterBaseCfg):
     """The configuration class for MjcfConverter.
 

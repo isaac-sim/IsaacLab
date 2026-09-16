@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
 
@@ -13,11 +12,11 @@ if TYPE_CHECKING:
     from .rigid_object import RigidObject
 
 
-@configclass
+@dataclass
 class RigidObjectCfg(AssetBaseCfg):
     """Configuration parameters for a rigid object."""
 
-    @configclass
+    @dataclass
     class InitialStateCfg(AssetBaseCfg.InitialStateCfg):
         """Initial state of the rigid body."""
 

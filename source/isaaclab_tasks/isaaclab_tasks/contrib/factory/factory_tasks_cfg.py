@@ -3,16 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Factory"
 
 
-@configclass
-class FixedAssetCfg:
+@dataclass
+class FixedAssetCfg(ConfigMixin):
     usd_path: str = ""
     diameter: float = 0.0
     height: float = 0.0
@@ -21,8 +23,8 @@ class FixedAssetCfg:
     mass: float = 0.05
 
 
-@configclass
-class HeldAssetCfg:
+@dataclass
+class HeldAssetCfg(ConfigMixin):
     usd_path: str = ""
     diameter: float = 0.0  # Used for gripper width.
     height: float = 0.0
@@ -30,15 +32,15 @@ class HeldAssetCfg:
     mass: float = 0.05
 
 
-@configclass
-class RobotCfg:
+@dataclass
+class RobotCfg(ConfigMixin):
     robot_usd: str = ""
     franka_fingerpad_length: float = 0.017608
     friction: float = 0.75
 
 
-@configclass
-class FactoryTask:
+@dataclass
+class FactoryTask(ConfigMixin):
     robot_cfg: RobotCfg = RobotCfg()
     name: str = ""
     duration_s = 5.0
@@ -84,7 +86,7 @@ class FactoryTask:
     engage_threshold: float = 0.9
 
 
-@configclass
+@dataclass
 class Peg8mm(HeldAssetCfg):
     usd_path = f"{ASSET_DIR}/factory_peg_8mm.usd"
     diameter = 0.007986
@@ -92,7 +94,7 @@ class Peg8mm(HeldAssetCfg):
     mass = 0.019
 
 
-@configclass
+@dataclass
 class Hole8mm(FixedAssetCfg):
     usd_path = f"{ASSET_DIR}/factory_hole_8mm.usd"
     diameter = 0.0081
@@ -100,7 +102,7 @@ class Hole8mm(FixedAssetCfg):
     base_height = 0.0
 
 
-@configclass
+@dataclass
 class PegInsert(FactoryTask):
     name = "peg_insert"
     fixed_asset_cfg = Hole8mm()
@@ -183,7 +185,7 @@ class PegInsert(FactoryTask):
     )
 
 
-@configclass
+@dataclass
 class GearBase(FixedAssetCfg):
     usd_path = f"{ASSET_DIR}/factory_gear_base.usd"
     height = 0.02
@@ -193,7 +195,7 @@ class GearBase(FixedAssetCfg):
     large_gear_base_offset = [-3.025e-2, 0.0, 0.0]
 
 
-@configclass
+@dataclass
 class MediumGear(HeldAssetCfg):
     usd_path = f"{ASSET_DIR}/factory_gear_medium.usd"
     diameter = 0.03  # Used for gripper width.
@@ -201,7 +203,7 @@ class MediumGear(HeldAssetCfg):
     mass = 0.012
 
 
-@configclass
+@dataclass
 class GearMesh(FactoryTask):
     name = "gear_mesh"
     fixed_asset_cfg = GearBase()
@@ -341,7 +343,7 @@ class GearMesh(FactoryTask):
     )
 
 
-@configclass
+@dataclass
 class NutM16(HeldAssetCfg):
     usd_path = f"{ASSET_DIR}/factory_nut_m16.usd"
     diameter = 0.024
@@ -350,7 +352,7 @@ class NutM16(HeldAssetCfg):
     friction = 0.01  # Additive with the nut means friction is (-0.25 + 0.75)/2 = 0.25
 
 
-@configclass
+@dataclass
 class BoltM16(FixedAssetCfg):
     usd_path = f"{ASSET_DIR}/factory_bolt_m16.usd"
     diameter = 0.024
@@ -359,7 +361,7 @@ class BoltM16(FixedAssetCfg):
     thread_pitch = 0.002
 
 
-@configclass
+@dataclass
 class NutThread(FactoryTask):
     name = "nut_thread"
     fixed_asset_cfg = BoltM16()

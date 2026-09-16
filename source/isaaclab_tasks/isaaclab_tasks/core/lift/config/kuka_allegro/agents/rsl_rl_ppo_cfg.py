@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
+from dataclasses import MISSING, dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -17,7 +15,7 @@ from isaaclab_rl.rsl_rl import (
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class RslRlSpatialSoftmaxCNNModelCfg(RslRlCNNModelCfg):
     """Configuration for the lift spatial-softmax camera actor.
 
@@ -84,7 +82,7 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 CAMERA_ALGO_CFG = ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=7.0e-5)
 
 
-@configclass
+@dataclass
 class KukaAllegroPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
     max_iterations = 15000
@@ -96,7 +94,7 @@ class KukaAllegroPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
     algorithm = MISSING  # type: ignore
 
 
-@configclass
+@dataclass
 class KukaAllegroPPORunnerCfg(PresetCfg):
     default = KukaAllegroPPOBaseRunnerCfg().replace(
         experiment_name="lift_kuka_allegro",

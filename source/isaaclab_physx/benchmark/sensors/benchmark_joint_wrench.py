@@ -42,6 +42,8 @@ simulation_app = app_launcher.app
 
 """Everything below follows application launch."""
 
+from dataclasses import dataclass
+
 import torch
 import warp as wp
 from isaaclab_physx.physics import PhysxCfg
@@ -51,12 +53,11 @@ from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
 from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import configclass
 
 from isaaclab_assets import CARTPOLE_CFG
 
 
-@configclass
+@dataclass
 class JointWrenchBenchmarkSceneCfg(InteractiveSceneCfg):
     """One cartpole articulation and JointWrench sensor per environment."""
 

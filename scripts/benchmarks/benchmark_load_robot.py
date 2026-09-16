@@ -53,6 +53,8 @@ args_cli, _ = parser.parse_known_args()
 # Start the timer for imports
 imports_time_begin = time.perf_counter_ns()
 
+from dataclasses import dataclass
+
 import torch
 
 # Note: only configuration classes are imported at module scope. The ``isaaclab.sim`` package uses lazy
@@ -65,7 +67,6 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
@@ -82,7 +83,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 imports_time_end = time.perf_counter_ns()
 
 
-@configclass
+@dataclass
 class RobotSceneCfg(InteractiveSceneCfg):
     """Configuration for a simple scene with a robot."""
 

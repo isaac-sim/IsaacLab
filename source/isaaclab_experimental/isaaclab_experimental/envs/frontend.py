@@ -680,10 +680,10 @@ class WarpFrontend:
           ``observations.policy``, and anything nested deeper are reached
           transparently.
         * Mapping (a group expressed as a ``{name: term}`` dict rather than a
-          configclass): don't yield; recurse into each value. The warp managers
-          accept both dict and configclass groups, so the walker must reach the
+          configuration dataclass): don't yield; recurse into each value. The warp managers
+          accept both dict and dataclass groups, so the walker must reach the
           terms either way or they would never be swapped.
-        * Anything else (plain Python data, callables, non-configclass objects):
+        * Anything else (plain Python data, callables, non-configuration objects):
           stop. No yield, no recursion.
 
         Iterating the instance ``__dict__`` mirrors how the warp managers
@@ -703,7 +703,7 @@ class WarpFrontend:
             return
         if isinstance(node, Mapping):
             # A manager group can be a dict of {name: term} instead of a
-            # configclass; the warp managers accept both, so descend into dict
+            # configuration dataclass; the warp managers accept both, so descend into dict
             # values too or those terms would never be promoted/swapped.
             for key, value in node.items():
                 if value is not None:

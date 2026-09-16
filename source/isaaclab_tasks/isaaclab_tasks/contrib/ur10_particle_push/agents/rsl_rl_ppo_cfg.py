@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 import torch
 from rsl_rl.modules.distribution import GaussianDistribution
 from torch.distributions import Normal
-
-from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -47,7 +47,7 @@ class UR10ParticlePushGaussianDistribution(GaussianDistribution):
         self._distribution = Normal(mlp_output, std)
 
 
-@configclass
+@dataclass
 class UR10ParticlePushGaussianDistributionCfg(RslRlCNNModelCfg.GaussianDistributionCfg):
     """Smoothly bounded, per-joint exploration used by the push policy."""
 
@@ -58,7 +58,7 @@ class UR10ParticlePushGaussianDistributionCfg(RslRlCNNModelCfg.GaussianDistribut
     std_range: tuple[float, float] = (0.15, 0.65)
 
 
-@configclass
+@dataclass
 class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO defaults for the deployable heightmap-and-proprioception policy."""
 

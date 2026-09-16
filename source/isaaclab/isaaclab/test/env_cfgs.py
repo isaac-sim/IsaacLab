@@ -12,10 +12,12 @@ resulting configurations still requires a running simulator.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 _DEFAULT_DECIMATION = 4
 _DEFAULT_EPISODE_LENGTH_S = 5.0
@@ -111,14 +113,14 @@ def make_empty_direct_marl_env_cfg(
     )
 
 
-@configclass
-class EmptyManagerCfg:
+@dataclass
+class EmptyManagerCfg(ConfigMixin):
     """Empty manager term configuration."""
 
     pass
 
 
-@configclass
+@dataclass
 class EmptySceneCfg(InteractiveSceneCfg):
     """Configuration for a scene without entities."""
 

@@ -214,13 +214,14 @@ def create_sim_cfg():
 
 def create_scene_cfg():
     """Create the declarative snowball, crate, and ground scene."""
+    from dataclasses import dataclass
+
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils import configclass
 
     particle_mass = SNOW_SPACING**3 * SNOW_DENSITY
     particle_radius = 0.5 * SNOW_SPACING
@@ -270,7 +271,7 @@ def create_scene_cfg():
             init_state=MPMObjectCfg.InitialStateCfg(pos=ball.center),
         )
 
-    @configclass
+    @dataclass
     class SnowballSmashSceneCfg(InteractiveSceneCfg):
         """Scene with rigid crates and independently owned rigid/MPM ground collision."""
 

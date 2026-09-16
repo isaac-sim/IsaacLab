@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from .rough_env_cfg import H1RoughEnvCfg
 
 
-@configclass
+@dataclass
 class H1FlatEnvCfg(H1RoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()

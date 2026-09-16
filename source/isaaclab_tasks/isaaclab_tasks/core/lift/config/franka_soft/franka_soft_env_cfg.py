@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -40,7 +42,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -95,7 +97,7 @@ FRANKA_CAMERA_CFG = CameraCfg(
 )
 
 
-@configclass
+@dataclass
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
@@ -139,7 +141,7 @@ class DeformableCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
@@ -196,7 +198,7 @@ class PhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
@@ -300,7 +302,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
         self.robot.actuators["panda_hand"].damping = 100.0
 
 
-@configclass
+@dataclass
 class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
     """Franka soft scene with a base camera."""
 
@@ -312,8 +314,8 @@ class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
 ##
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Commands for the deformable goal pose (xyz + identity quat in robot root frame)."""
 
     deformable_pose = mdp.DeformableUniformPoseCommandCfg(
@@ -345,8 +347,8 @@ class CommandsCfg:
     )
 
 
-@configclass
-class _JointActionsCfg:
+@dataclass
+class _JointActionsCfg(ConfigMixin):
     """7-dim relative joint-position arm targets + 1-dim limit-rescaled gripper."""
 
     arm_action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=["panda_joint.*"], scale=0.03)
@@ -356,8 +358,8 @@ class _JointActionsCfg:
     )
 
 
-@configclass
-class _IkActionsCfg:
+@dataclass
+class _IkActionsCfg(ConfigMixin):
     """7-dim absolute end-effector pose (xyz + quaternion) via differential IK + 1-dim binary gripper."""
 
     arm_action = mdp.DifferentialInverseKinematicsActionCfg(
@@ -381,7 +383,7 @@ class _IkActionsCfg:
     )
 
 
-@configclass
+@dataclass
 class ActionsCfg(PresetCfg):
     """Action-space presets: joint-space for RL, task-space IK for scripted end-effector control."""
 
@@ -392,11 +394,11 @@ class ActionsCfg(PresetCfg):
     default = joint
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Policy observations: relative joint state, sampled deformable points, target command, and last action."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
@@ -414,11 +416,11 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class FrankaCameraObservationsCfg:
+@dataclass
+class FrankaCameraObservationsCfg(ConfigMixin):
     """Observation groups for visual deformable lifting."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
         actions = ObsTerm(func=mdp.last_action)
@@ -427,7 +429,7 @@ class FrankaCameraObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class ProprioCfg(ObsGroup):
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
@@ -436,7 +438,7 @@ class FrankaCameraObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class PerceptionCfg(ObsGroup):
         deformable_sampled_points = ObsTerm(
             func=mdp.DeformableSampledPointsInRobotRootFrame,
@@ -447,7 +449,7 @@ class FrankaCameraObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class BaseImageCfg(ObsGroup):
         image = ObsTerm(
             func=env_mdp.image,
@@ -465,8 +467,8 @@ class FrankaCameraObservationsCfg:
     base_image: BaseImageCfg = BaseImageCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Reset events: robot to default joint config, deformable with small position randomization."""
 
     reset_robot_arm_joints = EventTerm(
@@ -508,8 +510,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Lift-to-target reward for a deformable object."""
 
     reaching_deformable = RewTerm(
@@ -550,8 +552,8 @@ class RewardsCfg:
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
 
     action_rate = CurrTerm(
@@ -571,8 +573,8 @@ class CurriculumCfg:
     )
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Time out + workspace bounds termination."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -603,7 +605,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class FrankaSoftSceneCfg(PresetCfg):
     newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(
         num_envs=2048, env_spacing=2.0, replicate_physics=True
@@ -616,7 +618,7 @@ class FrankaSoftSceneCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
@@ -628,13 +630,13 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class _FrankaSoftVisualizerCfg(VisualizerCfg):
     window_width: int = 1920
     window_height: int = 1080
 
 
-@configclass
+@dataclass
 class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a soft beam to a target pose."""
 
@@ -673,7 +675,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
             self.curriculum.gravity = None
 
 
-@configclass
+@dataclass
 class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
     """Visual Franka volume-deformable lifting environment."""
 

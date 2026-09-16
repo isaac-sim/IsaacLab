@@ -56,7 +56,9 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.utils import Timer, configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -83,7 +85,7 @@ OBJECT_PHYSICS = {
 ##
 
 
-@configclass
+@dataclass
 class MultiObjectSceneCfg(InteractiveSceneCfg):
     """Configuration for a multi-object scene."""
 

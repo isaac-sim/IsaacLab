@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 import torch
@@ -39,7 +41,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass as lab_configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
@@ -1285,7 +1287,7 @@ _G1_ARM_JOINT_NAMES = [
 ]
 
 
-@lab_configclass
+@dataclass
 class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
     """Minimal scene with a floating-base G1 humanoid."""
 
@@ -1298,8 +1300,8 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
         self.robot.spawn.rigid_props.disable_gravity = True
 
 
-@lab_configclass
-class _FloatingBaseOscActionsCfg:
+@dataclass
+class _FloatingBaseOscActionsCfg(ConfigMixin):
     arm_action: OperationalSpaceControllerActionCfg = OperationalSpaceControllerActionCfg(
         asset_name="robot",
         joint_names=_G1_ARM_JOINT_NAMES,
@@ -1318,16 +1320,16 @@ class _FloatingBaseOscActionsCfg:
     )
 
 
-@lab_configclass
-class _FloatingBaseOscObsCfg:
-    @lab_configclass
+@dataclass
+class _FloatingBaseOscObsCfg(ConfigMixin):
+    @dataclass
     class _PolicyCfg(ObsGroup):
         joint_pos = ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot")})
 
     policy: _PolicyCfg = _PolicyCfg()
 
 
-@lab_configclass
+@dataclass
 class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
     scene: _FloatingBaseOscSceneCfg = _FloatingBaseOscSceneCfg(num_envs=4, env_spacing=4.0)
     actions: _FloatingBaseOscActionsCfg = _FloatingBaseOscActionsCfg()

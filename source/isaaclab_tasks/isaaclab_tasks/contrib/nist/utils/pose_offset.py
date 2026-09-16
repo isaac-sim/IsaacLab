@@ -5,7 +5,7 @@
 
 """Cached rigid-body pose offset.
 
-A small configclass that pre-caches a translation+quaternion offset (and its
+A small configuration dataclass that pre-caches a translation+quaternion offset (and its
 inverse) as device tensors and exposes ``apply`` / ``combine`` / ``subtract``
 helpers for composing the offset against an asset's root frame or arbitrary
 parent frames. Pure rigid-body math; no domain semantics. Used by both
@@ -15,19 +15,20 @@ locomotion/terrain code that needs to author static pose transforms.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
 
 
-@configclass
-class Offset:
+@dataclass
+class Offset(ConfigMixin):
     """A position + quaternion offset relative to an asset root frame.
 
     Args:

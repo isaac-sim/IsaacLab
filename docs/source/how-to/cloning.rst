@@ -239,7 +239,7 @@ in an :class:`~isaaclab.scene.InteractiveSceneCfg`:
 
 .. code-block:: python
 
-    @configclass
+    @dataclass
     class MySceneCfg(InteractiveSceneCfg):
         robot = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         light = AssetBaseCfg(

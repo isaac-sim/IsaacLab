@@ -514,13 +514,14 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from isaaclab.utils import configclass
+   from dataclasses import dataclass
 
+   from isaaclab.utils import ConfigMixin
    if typing.TYPE_CHECKING:
        from .sensor import Sensor
 
-   @configclass
-   class SensorCfg:
+   @dataclass
+   class SensorCfg(ConfigMixin):
        class_type: type[Sensor] | str = "{DIR}.sensor:Sensor"
 
 ``sensor.py`` — the implementation; may freely import heavyweight dependencies:

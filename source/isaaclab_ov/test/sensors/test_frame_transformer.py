@@ -37,6 +37,8 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
         allow_module_level=True,
     )
 
+from dataclasses import dataclass
+
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -46,7 +48,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
@@ -128,7 +129,7 @@ def euler_rpy_apply(rpy, xyz, degrees=False):
 # ---------------------------------------------------------------------------
 
 
-@configclass
+@dataclass
 class _SceneCfg(InteractiveSceneCfg):
     """Scene cfg shared across FrameTransformer tests; ``frame_transformer`` is filled per-test."""
 
@@ -786,7 +787,7 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
         sim._app_control_on_stop_handle = None
 
         # Create a custom scene config with two robots
-        @configclass
+        @dataclass
         class MultiRobotSceneCfg(InteractiveSceneCfg):
             """Scene with two robots having bodies with same names."""
 

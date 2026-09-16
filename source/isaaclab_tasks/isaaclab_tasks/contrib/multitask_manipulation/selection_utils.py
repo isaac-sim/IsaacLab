@@ -7,21 +7,20 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.cloner.path import match
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
     from isaaclab.scene import InteractiveScene
 
 
-@configclass
+@dataclass
 class SceneEntitySelectionCfg(SceneEntityCfg):
     """Scene entity resolved across a heterogeneous subset of environments.
 

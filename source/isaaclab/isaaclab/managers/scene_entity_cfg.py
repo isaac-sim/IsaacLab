@@ -7,18 +7,18 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
     from isaaclab.scene import InteractiveScene
 
 
-@configclass
-class SceneEntityCfg:
+@dataclass
+class SceneEntityCfg(ConfigMixin):
     """Configuration for a scene entity that is used by the manager's term.
 
     This class is used to specify the name of the scene entity that is queried from the

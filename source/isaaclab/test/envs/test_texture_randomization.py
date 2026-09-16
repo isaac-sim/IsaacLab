@@ -18,6 +18,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import math
+from dataclasses import dataclass
 
 import pytest
 import torch
@@ -30,24 +31,24 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the environment."""
 
     joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the environment."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -63,8 +64,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     # on prestartup apply a new set of textures
@@ -128,8 +129,8 @@ class EventCfg:
     )
 
 
-@configclass
-class EventCfgFallback:
+@dataclass
+class EventCfgFallback(ConfigMixin):
     """Configuration for events that tests the fallback mechanism."""
 
     # Test fallback when /visuals pattern doesn't match
@@ -158,7 +159,7 @@ class EventCfgFallback:
     )
 
 
-@configclass
+@dataclass
 class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 

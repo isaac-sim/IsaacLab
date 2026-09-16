@@ -45,7 +45,7 @@ from isaaclab_teleop import (
     XrCfg,
 )
 
-@configclass
+@dataclass
 class MyEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         super().__post_init__()
@@ -65,7 +65,7 @@ class MyEnvCfg(ManagerBasedRLEnvCfg):
 ```
 
 > Both `pipeline_builder` and `retargeters_to_tune` must be **callables** (lambdas or functions)
-> because `@configclass` deep-copies mutable attributes and retargeter objects often contain
+> because `@dataclass` deep-copies mutable attributes and retargeter objects often contain
 > non-picklable handles.
 
 ### 2. Define a Pipeline Builder

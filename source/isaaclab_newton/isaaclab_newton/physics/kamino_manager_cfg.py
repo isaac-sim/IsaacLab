@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -26,12 +26,12 @@ def _non_none_kwargs(cfg: Any) -> dict[str, Any]:
 
 
 def _cfg_to_dict(cfg: Any) -> dict[str, Any]:
-    """Return a configclass mapping with a type-checker-friendly interface."""
+    """Return a configuration mapping with a type-checker-friendly interface."""
     return cfg.to_dict()
 
 
-@configclass
-class KaminoPADMMCfg:
+@dataclass
+class KaminoPADMMCfg(ConfigMixin):
     """P-ADMM forward-dynamics solver parameters for Kamino."""
 
     max_iterations: int = 100
@@ -98,8 +98,8 @@ class KaminoPADMMCfg:
     """Contact warm-start method."""
 
 
-@configclass
-class KaminoDVICfg:
+@dataclass
+class KaminoDVICfg(ConfigMixin):
     """DVI forward-dynamics solver parameters for Kamino."""
 
     tolerance: float = 1e-5
@@ -137,8 +137,8 @@ class KaminoDVICfg:
     """Contact warm-start method when ``warmstart_mode`` is ``containers``."""
 
 
-@configclass
-class KaminoDynamicsCfg:
+@dataclass
+class KaminoDynamicsCfg(ConfigMixin):
     """Constrained forward-dynamics problem parameters for Kamino."""
 
     preconditioning: bool = True
@@ -151,8 +151,8 @@ class KaminoDynamicsCfg:
     """Additional keyword arguments for the linear solver."""
 
 
-@configclass
-class KaminoConstraintsCfg:
+@dataclass
+class KaminoConstraintsCfg(ConfigMixin):
     """Global constraint stabilization parameters for Kamino."""
 
     alpha: float = 0.1
@@ -168,8 +168,8 @@ class KaminoConstraintsCfg:
     """Contact penetration margin [m]."""
 
 
-@configclass
-class KaminoFKCfg:
+@dataclass
+class KaminoFKCfg(ConfigMixin):
     """Forward-kinematics reset solver parameters for Kamino."""
 
     use_regularization: bool = True
@@ -182,8 +182,8 @@ class KaminoFKCfg:
     """Convergence tolerance of the FK reset solve."""
 
 
-@configclass
-class KaminoCollisionDetectorCfg:
+@dataclass
+class KaminoCollisionDetectorCfg(ConfigMixin):
     """Internal Kamino collision-detector parameters."""
 
     pipeline: Literal["primitive", "unified"] | None = None
@@ -211,8 +211,8 @@ class KaminoCollisionDetectorCfg:
     """Default detection gap [m] applied as a floor to per-geometry gaps."""
 
 
-@configclass
-class KaminoMaterialsCfg:
+@dataclass
+class KaminoMaterialsCfg(ConfigMixin):
     """Material mixing parameters for Kamino contacts."""
 
     friction_mix_mode: Literal["average", "multiply", "max", "min"] = "average"
@@ -222,7 +222,7 @@ class KaminoMaterialsCfg:
     """How restitution coefficients are mixed for a contact pair."""
 
 
-@configclass
+@dataclass
 class _KaminoSolverCfgBase(NewtonSolverCfg):
     """Common configuration for Kamino solver-related parameters.
 
@@ -392,7 +392,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
         return config
 
 
-@configclass
+@dataclass
 class KaminoPADMMSolverCfg(_KaminoSolverCfgBase):
     """Configuration for Kamino with the P-ADMM forward-dynamics solver."""
 
@@ -404,7 +404,7 @@ class KaminoPADMMSolverCfg(_KaminoSolverCfgBase):
         return "padmm", _cfg_to_dict(self.dynamics_solver_cfg)
 
 
-@configclass
+@dataclass
 class KaminoDVISolverCfg(_KaminoSolverCfgBase):
     """Configuration for Kamino with the DVI forward-dynamics solver."""
 

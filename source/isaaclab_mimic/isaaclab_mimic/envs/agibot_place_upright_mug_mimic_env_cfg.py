@@ -4,15 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from dataclasses import dataclass
+
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.place.config.agibot.place_upright_mug_rmp_rel_env_cfg import (
     RmpFlowAgibotPlaceUprightMugEnvCfg,
 )
 
 
-@configclass
+@dataclass
 class RmpFlowAgibotPlaceUprightMugMimicEnvCfg(RmpFlowAgibotPlaceUprightMugEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Agibot Place Upright Mug env.

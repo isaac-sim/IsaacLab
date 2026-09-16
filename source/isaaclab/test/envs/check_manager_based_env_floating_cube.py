@@ -30,6 +30,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import torch
 
 import isaaclab.envs.mdp as mdp
@@ -43,14 +45,14 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 ##
 # Scene definition
 ##
 
 
-@configclass
+@dataclass
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
@@ -135,7 +137,7 @@ class CubeActionTerm(ActionTerm):
         self._asset.write_root_velocity_to_sim(self._vel_command)
 
 
-@configclass
+@dataclass
 class CubeActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
 
@@ -159,18 +161,18 @@ def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tens
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_pos = CubeActionTermCfg(asset_name="cube")
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -185,8 +187,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_base = EventTerm(
@@ -209,7 +211,7 @@ class EventCfg:
 ##
 
 
-@configclass
+@dataclass
 class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 

@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ ALIGN_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 
-@configclass
+@dataclass
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
@@ -51,8 +51,8 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     If True, the quaternion is made unique by ensuring the real part is positive.
     """
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Uniform distribution ranges for the pose commands."""
 
         pos_x: tuple[float, float] = MISSING
@@ -96,14 +96,14 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """The configuration for the success visualization marker. User needs to add the markers"""
 
 
-@configclass
+@dataclass
 class DeformableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for the deformable uniform pose command generator."""
 
     class_type: type["DeformableUniformPoseCommand"] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
 
 
-@configclass
+@dataclass
 class CableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for a cable segment uniform pose command generator."""
 

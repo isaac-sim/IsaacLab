@@ -17,6 +17,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 
@@ -25,7 +27,7 @@ from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -35,11 +37,11 @@ def dummy_observation(env: ManagerBasedEnv) -> torch.Tensor:
     return torch.randn((env.num_envs, 1), device=env.device)
 
 
-@configclass
-class EmptyObservationWithHistoryCfg:
+@dataclass
+class EmptyObservationWithHistoryCfg(ConfigMixin):
     """Empty observation with history specifications for the environment."""
 
-    @configclass
+    @dataclass
     class EmptyObservationGroupWithHistoryCfg(ObsGroup):
         """Empty observation with history specifications for the environment."""
 

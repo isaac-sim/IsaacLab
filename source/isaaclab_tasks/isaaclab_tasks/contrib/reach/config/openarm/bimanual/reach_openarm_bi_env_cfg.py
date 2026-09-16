@@ -8,7 +8,7 @@ We modified parts of the environment—such as the target’s position and orien
 """
 
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -23,7 +23,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
@@ -32,7 +32,7 @@ from isaaclab.visualizers import VisualizerCfg
 ##
 
 
-@configclass
+@dataclass
 class ReachSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
@@ -58,8 +58,8 @@ class ReachSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Command terms for the MDP."""
 
     left_ee_pose = mdp.UniformPoseCommandCfg(
@@ -93,19 +93,19 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     left_arm_action: ActionTerm = MISSING
     right_arm_action: ActionTerm = MISSING
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -173,8 +173,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_robot_joints = EventTerm(
@@ -187,8 +187,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # task terms
@@ -276,15 +276,15 @@ class RewardsCfg:
     )
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     """Curriculum terms for the MDP."""
 
     action_rate = CurrTerm(
@@ -308,7 +308,7 @@ class CurriculumCfg:
 ##
 
 
-@configclass
+@dataclass
 class ReachEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the reach end-effector pose tracking environment."""
 

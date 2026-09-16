@@ -35,6 +35,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from pxr import Gf
@@ -43,14 +44,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.ui.xr_widgets import DataCollector, TriggerType, VisualizationManager, XRVisualization, update_instruction
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
 
 
-@configclass
+@dataclass
 class SimpleSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 

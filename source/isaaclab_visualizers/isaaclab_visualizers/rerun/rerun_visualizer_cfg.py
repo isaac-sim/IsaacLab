@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
     from .rerun_visualizer import RerunVisualizer
 
 
-@configclass
+@dataclass
 class RerunVisualizerCfg(VisualizerCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
 

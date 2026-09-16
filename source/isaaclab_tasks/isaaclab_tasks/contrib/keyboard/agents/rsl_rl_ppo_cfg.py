@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -18,15 +18,15 @@ from isaaclab_rl.rsl_rl import (
 ##
 
 
-@configclass
+@dataclass
 class SharedEncoderMLPModelCfg(RslRlMLPModelCfg):
     """Configuration for the shared-encoder MLP model."""
 
     class_name: str = "isaaclab_tasks.contrib.keyboard.agents.models:SharedEncoderMLPModel"
     """The model class name. Defaults to :class:`~.models.SharedEncoderMLPModel`."""
 
-    @configclass
-    class EncoderCfg:
+    @dataclass
+    class EncoderCfg(ConfigMixin):
         """Configuration for the MLP encoder of a single observation group."""
 
         hidden_dims: list[int] = MISSING
@@ -53,7 +53,7 @@ class SharedEncoderMLPModelCfg(RslRlMLPModelCfg):
 ##
 
 
-@configclass
+@dataclass
 class SO101PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL configuration for SO-101 keyboard typing with shared observation encoders."""
 

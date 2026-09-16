@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
@@ -19,11 +21,11 @@ from . import stack_joint_pos_env_cfg
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -41,7 +43,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
@@ -49,7 +51,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
@@ -96,7 +98,7 @@ class ObservationsCfg:
     subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
-@configclass
+@dataclass
 class FrankaCubeStackSkillgenEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent

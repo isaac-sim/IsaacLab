@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
@@ -21,7 +23,7 @@ THUMB_SENSOR = "thumb_link_3_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
 
 
-@configclass
+@dataclass
 class KukaAllegroSceneCfg(lift.SceneCfg):
     """KukaAllegro scene for the Lift and Reorient tasks.
 
@@ -46,12 +48,12 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
             )
 
 
-@configclass
-class KukaAllegroRelJointPosActionCfg:
+@dataclass
+class KukaAllegroRelJointPosActionCfg(ConfigMixin):
     action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
 
 
-@configclass
+@dataclass
 class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
     good_finger_contact = RewTerm(
         func=mdp.contacts,
@@ -79,8 +81,8 @@ class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
         self.success.params["finger_names"] = FINGER_SENSORS
 
 
-@configclass
-class KukaAllegroMixinCfg:
+@dataclass
+class KukaAllegroMixinCfg(ConfigMixin):
     scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
@@ -119,11 +121,11 @@ class KukaAllegroMixinCfg:
         )
 
 
-@configclass
+@dataclass
 class KukaAllegroReorientEnvCfg(KukaAllegroMixinCfg, lift.ReorientEnvCfg):
     pass
 
 
-@configclass
+@dataclass
 class KukaAllegroLiftEnvCfg(KukaAllegroMixinCfg, lift.LiftEnvCfg):
     pass

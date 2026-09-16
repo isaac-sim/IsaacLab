@@ -19,18 +19,20 @@ from isaaclab.devices.device_base import DevicesCfg
 
 if TYPE_CHECKING:
     from isaaclab.devices.openxr import XrCfg
+from dataclasses import dataclass
+
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
-@configclass
-class DefaultEventManagerCfg:
+@dataclass
+class DefaultEventManagerCfg(ConfigMixin):
     """Configuration of the default event manager.
 
     This manager is used to reset the scene to a default state. The default state is specified
@@ -40,8 +42,8 @@ class DefaultEventManagerCfg:
     reset_scene_to_default = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
 
-@configclass
-class ManagerBasedEnvCfg:
+@dataclass
+class ManagerBasedEnvCfg(ConfigMixin):
     """Base configuration of the environment."""
 
     # simulation settings

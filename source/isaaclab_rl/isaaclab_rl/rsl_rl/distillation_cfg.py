@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .rl_cfg import RslRlBaseRunnerCfg, RslRlMLPModelCfg
 
@@ -17,8 +17,8 @@ from .rl_cfg import RslRlBaseRunnerCfg, RslRlMLPModelCfg
 ############################
 
 
-@configclass
-class RslRlDistillationAlgorithmCfg:
+@dataclass
+class RslRlDistillationAlgorithmCfg(ConfigMixin):
     """Configuration for the distillation algorithm."""
 
     class_name: str = "Distillation"
@@ -48,7 +48,7 @@ class RslRlDistillationAlgorithmCfg:
 #########################
 
 
-@configclass
+@dataclass
 class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
     """Configuration of the runner for distillation algorithms."""
 
@@ -77,8 +77,8 @@ class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
 #############################
 
 
-@configclass
-class RslRlDistillationStudentTeacherCfg:
+@dataclass
+class RslRlDistillationStudentTeacherCfg(ConfigMixin):
     """Configuration for the distillation student-teacher networks.
 
     For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.
@@ -109,7 +109,7 @@ class RslRlDistillationStudentTeacherCfg:
     """The activation function for the student and teacher networks."""
 
 
-@configclass
+@dataclass
 class RslRlDistillationStudentTeacherRecurrentCfg(RslRlDistillationStudentTeacherCfg):
     """Configuration for the distillation student-teacher recurrent networks.
 

@@ -11,7 +11,9 @@ Positions are in meters relative to the asset's root frame.
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import ConfigMixin
 
 # ``Offset`` lives in the shared util layer — pure rigid-body math, no
 # assembly semantics. Re-exported here for backwards compatibility with
@@ -21,8 +23,8 @@ from isaaclab_tasks.contrib.nist.utils.pose_offset import Offset
 __all__ = ["Offset"]
 
 
-@configclass
-class NistBoardKeyPointsCfg:
+@dataclass
+class NistBoardKeyPointsCfg(ConfigMixin):
     """Target placement offsets for each asset on the NIST task board, relative to the board root.
 
     Used by reset functions to position assets at their correct board locations.
@@ -63,8 +65,8 @@ class NistBoardKeyPointsCfg:
 # =============================================================================
 
 
-@configclass
-class BoltM16KeyPointsCfg:
+@dataclass
+class BoltM16KeyPointsCfg(ConfigMixin):
     """Keypoints along the M16 bolt shaft, from head to tip.
 
     Thread offsets are measured from the bolt head (z=0) upward along the shaft axis.
@@ -85,8 +87,8 @@ class BoltM16KeyPointsCfg:
 # =============================================================================
 
 
-@configclass
-class NutM16KeyPointsCfg:
+@dataclass
+class NutM16KeyPointsCfg(ConfigMixin):
     """Keypoints for the M16 nut.
 
     ``grasp_point`` includes a 90-degree rotation around z so the gripper approaches
@@ -107,8 +109,8 @@ class NutM16KeyPointsCfg:
 # =============================================================================
 
 
-@configclass
-class GearBaseKeyPointsCfg:
+@dataclass
+class GearBaseKeyPointsCfg(ConfigMixin):
     """Keypoints for the three gear shafts on the gear base fixture.
 
     Each shaft has a tip (top) and bottom offset. The x-coordinate distinguishes
@@ -123,24 +125,24 @@ class GearBaseKeyPointsCfg:
     large_gear_assembled_bottom_offset: Offset = Offset(pos=(-0.0303, 0.0, 0.005))
 
 
-@configclass
-class SmallGearKeyPointsCfg:
+@dataclass
+class SmallGearKeyPointsCfg(ConfigMixin):
     center_axis_bottom: Offset = Offset(pos=(0.05075, 0.0, 0.005))
     center_axis_top: Offset = Offset(pos=(0.05075, 0.0, 0.03))
     grasp_point: Offset = Offset(pos=(0.05075, 0.0, 0.022))
     grasp_diameter: float = 0.0175
 
 
-@configclass
-class MediumGearKeyPointsCfg:
+@dataclass
+class MediumGearKeyPointsCfg(ConfigMixin):
     center_axis_bottom: Offset = Offset(pos=(0.02025, 0.0, 0.005))
     center_axis_top: Offset = Offset(pos=(0.02025, 0.0, 0.03))
     grasp_point: Offset = Offset(pos=(0.02025, 0.0, 0.022))
     grasp_diameter: float = 0.03
 
 
-@configclass
-class LargeGearKeyPointsCfg:
+@dataclass
+class LargeGearKeyPointsCfg(ConfigMixin):
     center_axis_bottom: Offset = Offset(pos=(-0.0303, 0.0, 0.005))
     center_axis_top: Offset = Offset(pos=(-0.0303, 0.0, 0.03))
     grasp_point: Offset = Offset(pos=(-0.0303, 0.0, 0.022))
@@ -152,56 +154,56 @@ class LargeGearKeyPointsCfg:
 # =============================================================================
 
 
-@configclass
-class Hole16MMKeyPointsCfg:
+@dataclass
+class Hole16MMKeyPointsCfg(ConfigMixin):
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class Rod16MMKeyPointsCfg:
+@dataclass
+class Rod16MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_diameter: float = 0.016
 
 
-@configclass
-class Hole12MMKeyPointsCfg:
+@dataclass
+class Hole12MMKeyPointsCfg(ConfigMixin):
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class Rod12MMKeyPointsCfg:
+@dataclass
+class Rod12MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_diameter: float = 0.012
 
 
-@configclass
-class Hole8MMKeyPointsCfg:
+@dataclass
+class Hole8MMKeyPointsCfg(ConfigMixin):
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class Rod8MMKeyPointsCfg:
+@dataclass
+class Rod8MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_diameter: float = 0.008
 
 
-@configclass
-class Hole4MMKeyPointsCfg:
+@dataclass
+class Hole4MMKeyPointsCfg(ConfigMixin):
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class Rod4MMKeyPointsCfg:
+@dataclass
+class Rod4MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0))
@@ -213,64 +215,64 @@ class Rod4MMKeyPointsCfg:
 # =============================================================================
 
 
-@configclass
-class RectangularPeg16MMKeyPointsCfg:
+@dataclass
+class RectangularPeg16MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     peg_tip: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     grasp_diameter: float = 0.01
 
 
-@configclass
-class RectangularHole16MMKeyPointsCfg:
+@dataclass
+class RectangularHole16MMKeyPointsCfg(ConfigMixin):
     above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.015))
     one_mm_above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.01))
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class RectangularPeg12MMKeyPointsCfg:
+@dataclass
+class RectangularPeg12MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     peg_tip: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     grasp_diameter: float = 0.008
 
 
-@configclass
-class RectangularHole12MMKeyPointsCfg:
+@dataclass
+class RectangularHole12MMKeyPointsCfg(ConfigMixin):
     above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.015))
     one_mm_above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.01))
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class RectangularPeg8MMKeyPointsCfg:
+@dataclass
+class RectangularPeg8MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     peg_tip: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     grasp_diameter: float = 0.008
 
 
-@configclass
-class RectangularHole8MMKeyPointsCfg:
+@dataclass
+class RectangularHole8MMKeyPointsCfg(ConfigMixin):
     above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.015))
     one_mm_above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.01))
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
     inserted_peg_base_offset: Offset = Offset(pos=(0.0, 0.0, 0.0))
 
 
-@configclass
-class RectangularPeg4MMKeyPointsCfg:
+@dataclass
+class RectangularPeg4MMKeyPointsCfg(ConfigMixin):
     geometry_origin: Offset = Offset(pos=(0.0, 0.0, 0.025))
     peg_tip: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.035))
     grasp_diameter: float = 0.004
 
 
-@configclass
-class RectangularHole4MMKeyPointsCfg:
+@dataclass
+class RectangularHole4MMKeyPointsCfg(ConfigMixin):
     above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.015))
     one_mm_above_hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.01))
     hole_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.009))
@@ -282,8 +284,8 @@ class RectangularHole4MMKeyPointsCfg:
 # =============================================================================
 
 
-@configclass
-class PandaHandKeyPointsCfg:
+@dataclass
+class PandaHandKeyPointsCfg(ConfigMixin):
     """Grasp keypoints on the Franka Panda hand, relative to the ``panda_hand`` link.
 
     The 180-degree rotation around y flips the gripper so it faces downward
@@ -294,8 +296,8 @@ class PandaHandKeyPointsCfg:
     gripper_tip_grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.112), quat=(0.0, 1.0, 0.0, 0.0))
 
 
-@configclass
-class RobotRootKeyPointsCfg:
+@dataclass
+class RobotRootKeyPointsCfg(ConfigMixin):
     base: Offset = Offset(pos=(0.0, 0.0, 0.0), quat=(0.0, 1.0, 0.0, 0.0))
 
 

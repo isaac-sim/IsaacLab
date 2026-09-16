@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .ovrtx_renderer import OVRTXRenderer
 
 
-@configclass
+@dataclass
 class OVRTXRendererCfg(RendererCfg):
     """Configuration for OVRTX Renderer.
 

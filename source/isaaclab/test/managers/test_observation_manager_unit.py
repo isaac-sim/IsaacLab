@@ -10,13 +10,14 @@ from __future__ import annotations
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 import inspect
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 import pytest
 import torch
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import ConfigMixin, modifiers
 
 pytestmark = pytest.mark.unit
 
@@ -69,11 +70,11 @@ class InvalidModifier:
         pass
 
 
-@configclass
-class HistoryObservationsCfg:
+@dataclass
+class HistoryObservationsCfg(ConfigMixin):
     """Observation configuration with group-level history."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObservationGroupCfg):
         """Policy observation group configuration."""
 

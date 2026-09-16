@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class JointImpedanceControllerCfg:
+@dataclass
+class JointImpedanceControllerCfg(ConfigMixin):
     """Configuration for joint impedance regulation controller."""
 
     class_type: type | str = "isaaclab.controllers.joint_impedance:JointImpedanceController"

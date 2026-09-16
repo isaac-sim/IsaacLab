@@ -35,9 +35,8 @@ behavior does not match Isaac Gym.
 .. rubric:: Task Config Setup
 
 In IsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified using
-a specialized Python class :class:`~isaaclab.utils.configclass`. The :class:`~isaaclab.utils.configclass`
-module provides a wrapper on top of Python's ``dataclasses`` module. Each environment should specify its own config
-class annotated by ``@configclass`` that inherits from :class:`~envs.DirectRLEnvCfg`, which can include simulation
+standard Python dataclasses. Each environment should specify its own config class annotated by ``@dataclass`` that
+inherits from :class:`~envs.DirectRLEnvCfg`, which can include simulation
 parameters, environment scene parameters, robot parameters, and task-specific parameters.
 
 Below is an example skeleton of a task config class:
@@ -48,10 +47,11 @@ Below is an example skeleton of a task config class:
    from isaaclab.envs import DirectRLEnvCfg
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sim import SimulationCfg
-   from isaaclab.utils import configclass
+   from dataclasses import dataclass
+   from isaaclab.utils import ConfigMixin
    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
-   @configclass
+   @dataclass
    class MyEnvCfg(DirectRLEnvCfg):
       # simulation
       sim: SimulationCfg = SimulationCfg()
@@ -71,7 +71,7 @@ Below is an example skeleton of a task config class:
 **Simulation Config**
 
 Simulation related parameters are defined as part of the :class:`~isaaclab.sim.SimulationCfg` class,
-which is a :class:`~isaaclab.utils.configclass` module that holds simulation parameters such as ``dt``,
+which is a dataclass that holds simulation parameters such as ``dt``,
 ``device``, and ``gravity``. Each task config must have a variable named ``sim`` defined that holds the type
 :class:`~isaaclab.sim.SimulationCfg`.
 
@@ -136,7 +136,7 @@ has been validated for those solvers:
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
-   @configclass
+   @dataclass
    class CartpolePhysicsCfg(PresetCfg):
        isaacsim_physx: PhysxCfg = PhysxCfg()
        ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -563,7 +563,7 @@ and :isaaclab-source:`Cartpole environment <source/isaaclab_tasks/isaaclab_tasks
 +--------------------------------------------------------+---------------------------------------------------------------------+
 |.. code-block:: yaml                                    |.. code-block:: python                                               |
 |                                                        |                                                                     |
-| # used to create the object                            | @configclass                                                        |
+| # used to create the object                            | @dataclass                                                          |
 | name: Cartpole                                         | class CartpoleEnvCfg(DirectRLEnvCfg):                               |
 |                                                        |                                                                     |
 | physics_engine: ${..physics_engine}                    |     # simulation                                                    |

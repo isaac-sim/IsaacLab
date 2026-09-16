@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .physx_manager import PhysxManager
 
 
-@configclass
+@dataclass
 class PhysxCfg(PhysicsCfg):
     """Configuration for PhysX physics manager.
 

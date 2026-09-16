@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
@@ -13,7 +13,7 @@ from isaaclab_rl.rsl_rl import (
 )
 
 
-@configclass
+@dataclass
 class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
     num_steps_per_env = 120
     max_iterations = 300
@@ -39,7 +39,7 @@ class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class AnymalDFlatDistillationRunnerRecurrentCfg(AnymalDFlatDistillationRunnerCfg):
     student = RslRlRNNModelCfg(
         hidden_dims=[128, 128, 128],

@@ -9,18 +9,18 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import field
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
 import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class DeviceCfg:
+@dataclass
+class DeviceCfg(ConfigMixin):
     """Configuration for teleoperation devices."""
 
     # Whether teleoperation should start active by default
@@ -33,8 +33,8 @@ class DeviceCfg:
     class_type: type[DeviceBase] | None = None
 
 
-@configclass
-class DevicesCfg:
+@dataclass
+class DevicesCfg(ConfigMixin):
     """Configuration for all supported teleoperation devices."""
 
     devices: dict[str, DeviceCfg] = field(default_factory=dict)

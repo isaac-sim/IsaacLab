@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.rigid_object import RigidObjectCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .rigid_object_collection import RigidObjectCollection
 
 
-@configclass
-class RigidObjectCollectionCfg:
+@dataclass
+class RigidObjectCollectionCfg(ConfigMixin):
     """Configuration parameters for a rigid object collection."""
 
     class_type: type["RigidObjectCollection"] | str = "{DIR}.rigid_object_collection:RigidObjectCollection"

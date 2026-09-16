@@ -7,13 +7,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class SuccessMonitorCfg:
+@dataclass
+class SuccessMonitorCfg(ConfigMixin):
     """Configuration for :class:`SuccessMonitor`."""
 
     class_type: type[SuccessMonitor] | str = "{DIR}.success_monitor:SuccessMonitor"

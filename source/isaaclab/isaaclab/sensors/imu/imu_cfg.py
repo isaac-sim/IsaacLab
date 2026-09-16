@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from .imu import Imu
 
 
-@configclass
+@dataclass
 class ImuCfg(SensorBaseCfg):
     """Configuration for an Inertial Measurement Unit (IMU) sensor.
 
@@ -27,8 +28,8 @@ class ImuCfg(SensorBaseCfg):
 
     class_type: type[Imu] | str = "{DIR}.imu:Imu"
 
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)

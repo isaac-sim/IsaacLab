@@ -41,6 +41,8 @@ if args_cli.grid_size <= 0.0:
 if args_cli.grid_resolution <= 0.0:
     parser.error("--grid_resolution must be greater than zero")
 
+from dataclasses import dataclass
+
 import torch
 import warp as wp
 from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
@@ -52,7 +54,6 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.seed import configure_seed
 
 _ROUGH_TERRAIN_SEED = 0
@@ -95,7 +96,7 @@ def _rough_terrain_cfg() -> TerrainGeneratorCfg:
     )
 
 
-@configclass
+@dataclass
 class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
     """Matched plane and rough-terrain ray-caster workloads."""
 

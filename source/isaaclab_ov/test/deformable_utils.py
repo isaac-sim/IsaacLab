@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from isaaclab_physx.sim.spawners.materials import (
     PhysxDeformableBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
@@ -15,7 +17,6 @@ from isaaclab_physx.sim.spawners.materials import (
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
 
 _VOLUME_MATERIAL_CFG = PhysxDeformableBodyMaterialCfg(
     dynamic_friction=0.5,
@@ -38,7 +39,7 @@ _SURFACE_MATERIAL_CFG = PhysxSurfaceDeformableBodyMaterialCfg(
 )
 
 
-@configclass
+@dataclass
 class _PreauthoredDeformableSpawnerCfg(sim_utils.SpawnerCfg):
     """Configuration for a pre-authored deformable test fixture."""
 

@@ -4,11 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
     from .thrust_actions import NavigationAction, ThrustAction
 
 
-@configclass
+@dataclass
 class ThrustActionCfg(ActionTermCfg):
     """Configuration for the thrust action term.
 
@@ -173,7 +172,7 @@ class ThrustActionCfg(ActionTermCfg):
     """
 
 
-@configclass
+@dataclass
 class NavigationActionCfg(ThrustActionCfg):
     """Configuration for the navigation action term.
 

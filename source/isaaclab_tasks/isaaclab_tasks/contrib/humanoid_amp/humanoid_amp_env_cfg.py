@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -15,14 +15,13 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 
 from isaaclab_assets import HUMANOID_28_CFG
 
 MOTIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "motions")
 
 
-@configclass
+@dataclass
 class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     """Humanoid AMP environment config (base class)."""
 
@@ -75,16 +74,16 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     )
 
 
-@configclass
+@dataclass
 class HumanoidAmpDanceEnvCfg(HumanoidAmpEnvCfg):
     motion_file = os.path.join(MOTIONS_DIR, "humanoid_dance.npz")
 
 
-@configclass
+@dataclass
 class HumanoidAmpRunEnvCfg(HumanoidAmpEnvCfg):
     motion_file = os.path.join(MOTIONS_DIR, "humanoid_run.npz")
 
 
-@configclass
+@dataclass
 class HumanoidAmpWalkEnvCfg(HumanoidAmpEnvCfg):
     motion_file = os.path.join(MOTIONS_DIR, "humanoid_walk.npz")

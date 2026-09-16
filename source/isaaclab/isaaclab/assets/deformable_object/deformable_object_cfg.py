@@ -5,18 +5,18 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import DEFORMABLE_TARGET_MARKER_CFG
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .deformable_object import DeformableObject
 
 
-@configclass
+@dataclass
 class DeformableObjectCfg(AssetBaseCfg):
     """Configuration parameters for a deformable object."""
 

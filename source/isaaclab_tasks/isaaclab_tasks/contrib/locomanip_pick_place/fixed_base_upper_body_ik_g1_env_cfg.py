@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_teleop import ControllerHapticFeedbackCfg, IsaacTeleopCfg, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -16,7 +18,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
@@ -229,7 +231,7 @@ def _build_g1_upper_body_pipeline():
 ##
 # Scene definition
 ##
-@configclass
+@dataclass
 class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     """Scene configuration for fixed base upper body IK environment with G1 robot.
 
@@ -293,20 +295,20 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         self.robot.spawn.articulation_props.fix_root_link = True
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     upper_body_ik = G1_UPPER_BODY_IK_ACTION_CFG
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP.
     This class is required by the environment configuration but not used in this implementation
     """
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -342,8 +344,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=locomanip_mdp.time_out, time_out=True)
@@ -363,7 +365,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the G1 fixed base upper body IK environment.
 

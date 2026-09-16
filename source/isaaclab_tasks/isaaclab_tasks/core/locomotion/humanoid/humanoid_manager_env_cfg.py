@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -20,7 +22,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -44,7 +46,7 @@ JOINT_EFFORT_LIMITS = {name: (-gear, gear) for name, gear in JOINT_GEARS.items()
 """Effort clip per joint [N·m], i.e. the effort produced by a unit action."""
 
 
-@configclass
+@dataclass
 class HumanoidPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -69,7 +71,7 @@ class HumanoidPhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class HumanoidSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a humanoid robot."""
 
@@ -100,8 +102,8 @@ class HumanoidSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
@@ -111,11 +113,11 @@ class ActionsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for the policy."""
 
@@ -143,7 +145,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
+@dataclass
 class HumanoidObservationsCfg(PresetCfg):
     physx: ObservationsCfg = ObservationsCfg()
     isaacsim_physx: ObservationsCfg = physx
@@ -151,8 +153,8 @@ class HumanoidObservationsCfg(PresetCfg):
     default: ObservationsCfg = newton_mjwarp
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_base = EventTerm(
@@ -171,8 +173,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # (1) Reward for moving forward
@@ -201,8 +203,8 @@ class RewardsCfg:
     success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     # (1) Terminate if the episode length is exceeded
@@ -211,7 +213,7 @@ class TerminationsCfg:
     torso_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.8})
 
 
-@configclass
+@dataclass
 class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the Humanoid walking environment."""
 

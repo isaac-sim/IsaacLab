@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
+from dataclasses import MISSING, dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -45,7 +43,7 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 )
 
 
-@configclass
+@dataclass
 class FrankaPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
     max_iterations = 15000
@@ -57,7 +55,7 @@ class FrankaPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
     algorithm = MISSING  # type: ignore
 
 
-@configclass
+@dataclass
 class FrankaPPORunnerCfg(PresetCfg):
     default = FrankaPPOBaseRunnerCfg().replace(
         experiment_name="lift_franka",

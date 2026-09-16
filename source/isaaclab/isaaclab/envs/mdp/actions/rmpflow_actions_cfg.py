@@ -5,21 +5,21 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .rmpflow_task_space_actions import RMPFlowAction
 
 
-@configclass
+@dataclass
 class RMPFlowActionCfg(ActionTermCfg):
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose from parent frame to child frame.
 
         On many robots, end-effector frames are fictitious frames that do not have a corresponding

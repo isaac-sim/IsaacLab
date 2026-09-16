@@ -24,14 +24,15 @@ serves orientation. See :attr:`SO101PoseIKControllerCfg.orientation_joint_names`
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class SO101PoseIKControllerCfg(DifferentialIKControllerCfg):
     """Core differential-IK config plus the SO-101 wrist-only orientation joint mask.
 

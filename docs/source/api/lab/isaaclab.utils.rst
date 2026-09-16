@@ -27,14 +27,20 @@
       version
       warp
 
-   .. Rubric:: Functions
+   .. Rubric:: Classes
+
+   .. autosummary::
+
+      ConfigMixin
+
+   .. Rubric:: Deprecated functions
 
    .. autosummary::
 
       configclass
 
-Configuration class
-~~~~~~~~~~~~~~~~~~~
+Configuration dataclasses
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: isaaclab.utils.configclass
    :members:

@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 import warp as wp
@@ -21,10 +23,9 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class ImuTestSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and an IMU sensor."""
 
@@ -174,7 +175,7 @@ def test_reset(sim):
     torch.testing.assert_close(lin_acc_after, torch.zeros_like(lin_acc_after))
 
 
-@configclass
+@dataclass
 class FreefallSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and IMU but no ground plane (freefall)."""
 

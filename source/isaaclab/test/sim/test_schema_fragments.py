@@ -239,12 +239,12 @@ def test_apply_rigid_body_properties_aggregates_fragment_results():
 
 
 def test_apply_namespaced_raises_without_namespace():
+    from dataclasses import dataclass
     from typing import ClassVar
 
     from isaaclab.sim.schemas import RigidBodyFragment, apply_namespaced
-    from isaaclab.utils import configclass
 
-    @configclass
+    @dataclass
     class _NoNamespaceFragment(RigidBodyFragment):
         # deliberately leaves ``_usd_namespace`` as None, violating the fragment invariant that
         # every field is authored as a namespaced USD attribute

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -12,7 +14,6 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
 )
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.stack_env_cfg import mdp
 
@@ -26,7 +27,7 @@ from isaaclab_assets.robots.franka import (  # isort: skip
 )
 
 
-@configclass
+@dataclass
 class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -67,7 +68,7 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -83,7 +84,7 @@ class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -99,7 +100,7 @@ class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -115,7 +116,7 @@ class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent

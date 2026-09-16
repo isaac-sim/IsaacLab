@@ -5,7 +5,7 @@
 
 import copy
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_newton.physics import (
     KaminoPADMMCfg,
@@ -23,7 +23,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.fourbar_pole.mdp as mdp
@@ -40,7 +40,7 @@ from isaaclab_assets.robots.fourbar_pole import FOURBAR_POLE_CFG  # isort:skip
 ##
 
 
-@configclass
+@dataclass
 class FourbarPolePhysicsCfg(PresetCfg):
     """Physics backends for the fourbar-pole task.
 
@@ -73,7 +73,7 @@ class FourbarPolePhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class FourbarPoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a fourbar-pole scene."""
 
@@ -98,18 +98,18 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["ground_to_crank"], scale=50.0)
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -145,8 +145,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     # reset crank around its default (0) so the cart starts at varied positions
@@ -172,8 +172,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # (1) Primary task + success tracking: swing the pole up and keep it upright (cos is maximal upright)
@@ -205,8 +205,8 @@ class RewardsCfg:
     )
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     # Time out only -- the pole must be free to hang and the parallelogram is geometrically bounded.
@@ -218,7 +218,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the fourbar-pole swing-up environment."""
 

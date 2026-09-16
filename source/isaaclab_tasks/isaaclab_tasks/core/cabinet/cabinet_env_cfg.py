@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -26,7 +26,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -84,7 +84,7 @@ LIGHT_CFG = AssetBaseCfg(
 """Shared dome-light configuration."""
 
 
-@configclass
+@dataclass
 class CabinetSimCfg(PresetCfg):
     """Simulation configuration presets for the cabinet environment.
 
@@ -121,7 +121,7 @@ class CabinetSimCfg(PresetCfg):
     default: SimulationCfg = newton_mjwarp
 
 
-@configclass
+@dataclass
 class CabinetDecimationCfg(PresetCfg):
     """Physics steps per policy action.
 
@@ -141,7 +141,7 @@ class CabinetDecimationCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class CabinetSceneCfg(InteractiveSceneCfg):
     """Configuration for the cabinet scene with a robot and a cabinet.
 
@@ -184,19 +184,19 @@ class CabinetSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     arm_action: mdp.JointPositionActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -224,8 +224,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     robot_physics_material = EventTerm(
@@ -264,8 +264,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # 1. Approach the handle
@@ -305,8 +305,8 @@ class RewardsCfg:
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.0001)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -317,7 +317,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 

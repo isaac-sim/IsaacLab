@@ -26,7 +26,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 __all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
@@ -58,7 +57,7 @@ class RigidObjectRenderingBackend:
 def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg:
     """Create the scene whose rendered behavior is shared by every backend."""
 
-    @configclass
+    @dataclass
     class _SceneCfg(InteractiveSceneCfg):
         rigid_object: RigidObjectCfg = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",

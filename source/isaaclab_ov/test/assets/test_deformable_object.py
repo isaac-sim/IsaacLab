@@ -14,6 +14,7 @@ import multiprocessing
 import queue
 import sys
 import traceback
+from dataclasses import dataclass
 from typing import Any
 
 import ovphysx.types  # noqa: F401
@@ -33,7 +34,6 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
 
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
@@ -43,7 +43,7 @@ from ..deformable_utils import (  # noqa: E402
 wp.init()
 
 
-@configclass
+@dataclass
 class DeformableSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration for cloned volume deformables."""
 
@@ -54,7 +54,7 @@ class DeformableSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration for cloned deformable and rigid assets."""
 
@@ -74,7 +74,7 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration with two rigid variants and a deformable."""
 

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 import numpy
@@ -14,7 +14,7 @@ import numpy
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
 from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot
@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@configclass
-class ManagerLiveVisualizerCfg:
+@dataclass
+class ManagerLiveVisualizerCfg(ConfigMixin):
     """Configuration for the :class:`ManagerLiveVisualizer` class."""
 
     debug_vis: bool = False
@@ -270,15 +270,15 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         self._debug_vis = debug_vis
 
 
-@configclass
-class DefaultManagerBasedEnvLiveVisCfg:
+@dataclass
+class DefaultManagerBasedEnvLiveVisCfg(ConfigMixin):
     """Default configuration to use for the ManagerBasedEnv. Each chosen manager assumes all terms will be plotted."""
 
     action_live_vis = ManagerLiveVisualizerCfg(manager_name="action_manager")
     observation_live_vis = ManagerLiveVisualizerCfg(manager_name="observation_manager")
 
 
-@configclass
+@dataclass
 class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
     """Default configuration to use for the ManagerBasedRLEnv. Each chosen manager assumes all terms will be plotted."""
 

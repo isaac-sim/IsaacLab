@@ -4,17 +4,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from dataclasses import dataclass
+
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
 
 from . import stack_joint_pos_env_cfg
 
 
-@configclass
+@dataclass
 class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCubeStackEnvCfg):
     """Configuration for the UR10 Long Suction Cube Stack Environment."""
 
@@ -48,7 +49,7 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
         )
 
 
-@configclass
+@dataclass
 class UR10ShortSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ShortSuctionCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent

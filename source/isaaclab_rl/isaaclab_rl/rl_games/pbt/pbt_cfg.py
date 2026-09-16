@@ -3,11 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class PbtCfg:
+@dataclass
+class PbtCfg(ConfigMixin):
     """
     Population-Based Training (PBT) configuration.
 

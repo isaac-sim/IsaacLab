@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
@@ -37,14 +39,13 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
 RAY_START_HEIGHT = SENSOR_HEIGHT - RAY_OFFSET
 
 
-@configclass
+@dataclass
 class RaycastTestSceneCfg(InteractiveSceneCfg):
     """Scene with a ground plane, a floating sensor body, and a dynamic box."""
 
@@ -82,7 +83,7 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class GenericRaycastTestSceneCfg(RaycastTestSceneCfg):
     """Scene using the backend-dispatching ray-caster configuration.
 
@@ -257,7 +258,7 @@ def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
     torch.testing.assert_close(positions, expected_positions, atol=1e-3, rtol=0)
 
 
-@configclass
+@dataclass
 class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     """Adds a downward-looking Newton tiled camera next to the ray-cast sensor."""
 

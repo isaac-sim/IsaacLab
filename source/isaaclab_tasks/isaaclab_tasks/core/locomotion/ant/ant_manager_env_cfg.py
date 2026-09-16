@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
@@ -24,7 +26,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -32,7 +34,7 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_assets.robots.ant import ANT_CFG
 
 
-@configclass
+@dataclass
 class AntPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -56,7 +58,7 @@ class AntPhysicsCfg(PresetCfg):
     default: NewtonCfg = newton_mjwarp
 
 
-@configclass
+@dataclass
 class AntSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with an ant robot."""
 
@@ -93,8 +95,8 @@ class AntSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
@@ -102,11 +104,11 @@ class ActionsCfg:
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5, clip={".*": (-7.5, 7.5)})
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for the policy."""
 
@@ -139,7 +141,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
+@dataclass
 class AntObservationsCfg(PresetCfg):
     physx: ObservationsCfg = ObservationsCfg()
     isaacsim_physx: ObservationsCfg = physx
@@ -147,8 +149,8 @@ class AntObservationsCfg(PresetCfg):
     default: ObservationsCfg = newton_mjwarp
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_base = EventTerm(
@@ -167,8 +169,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms for the MDP."""
 
     # (1) Reward for moving forward
@@ -195,8 +197,8 @@ class RewardsCfg:
     success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     # (1) Terminate if the episode length is exceeded
@@ -205,7 +207,7 @@ class TerminationsCfg:
     torso_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.31})
 
 
-@configclass
+@dataclass
 class AntEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the Ant walking environment."""
 

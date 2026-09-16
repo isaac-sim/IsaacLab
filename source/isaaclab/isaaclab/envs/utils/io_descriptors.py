@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     import torch
@@ -21,8 +22,8 @@ import functools
 import inspect
 
 
-@configclass
-class GenericActionIODescriptor:
+@dataclass
+class GenericActionIODescriptor(ConfigMixin):
     """Generic action IO descriptor.
 
     This descriptor is used to describe the action space of a policy.
@@ -78,8 +79,8 @@ class GenericActionIODescriptor:
     """
 
 
-@configclass
-class GenericObservationIODescriptor:
+@dataclass
+class GenericObservationIODescriptor(ConfigMixin):
     """Generic observation IO descriptor.
 
     This descriptor is used to describe the observation space of a policy.

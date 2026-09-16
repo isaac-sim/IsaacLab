@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from gymnasium import spaces
 
@@ -15,7 +16,6 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -36,7 +36,7 @@ def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) ->
     )
 
 
-@configclass
+@dataclass
 class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     """Base cartpole camera cfg for the observation/action-space showcase.
 
@@ -93,7 +93,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class BoxBoxEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (height, width, 3))
@@ -123,7 +123,7 @@ class BoxBoxEnvCfg(CartpoleCameraEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class BoxDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (height, width, 3))
@@ -155,7 +155,7 @@ class BoxDiscreteEnvCfg(CartpoleCameraEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class BoxMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (height, width, 3))
@@ -199,7 +199,7 @@ class BoxMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class DictBoxEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
@@ -235,7 +235,7 @@ class DictBoxEnvCfg(CartpoleCameraEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class DictDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
@@ -273,7 +273,7 @@ class DictDiscreteEnvCfg(CartpoleCameraEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class DictMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
@@ -323,7 +323,7 @@ class DictMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class TupleBoxEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
@@ -357,7 +357,7 @@ class TupleBoxEnvCfg(CartpoleCameraEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class TupleDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
@@ -393,7 +393,7 @@ class TupleDiscreteEnvCfg(CartpoleCameraEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class TupleMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
@@ -441,7 +441,7 @@ class TupleMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
 ##
 
 
-@configclass
+@dataclass
 class CartpoleCameraShowcasePresetsEnvCfg(PresetCfg):
     """Camera-based cartpole showcase with selectable observation container and action space.
 

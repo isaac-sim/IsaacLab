@@ -34,7 +34,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -316,7 +316,7 @@ def _configure_media_fill(cfg: FrankaPourResetDatasetEnvCfg) -> None:
     )
 
 
-@configclass
+@dataclass
 class PourSceneCfg(InteractiveSceneCfg):
     """Lift-table scene with resolved source cup, receiver, and MPM media."""
 
@@ -370,8 +370,8 @@ class PourSceneCfg(InteractiveSceneCfg):
     media: MPMObjectCfg = _media_asset_cfg()
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Filtered arm deltas and a binary gripper command."""
 
     arm_action = mdp.EMARelativeJointPositionActionCfg(
@@ -393,11 +393,11 @@ class ActionsCfg:
     )
 
 
-@configclass
-class ResetDatasetObservationsCfg:
+@dataclass
+class ResetDatasetObservationsCfg(ConfigMixin):
     """Current robot and task state with compact MPM summaries."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Robot, cup, and target state available to the actor."""
 
@@ -430,7 +430,7 @@ class ResetDatasetObservationsCfg:
             self.concatenate_terms = True
             self.history_length = 0
 
-    @configclass
+    @dataclass
     class MediaCfg(ObsGroup):
         """Permutation-invariant particle and cup-motion state."""
 
@@ -448,7 +448,7 @@ class ResetDatasetObservationsCfg:
             self.concatenate_terms = True
             self.history_length = 0
 
-    @configclass
+    @dataclass
     class PrivilegedCfg(ObsGroup):
         """Exact simulation state available only to the asymmetric critic."""
 
@@ -464,8 +464,8 @@ class ResetDatasetObservationsCfg:
     privileged: PrivilegedCfg = PrivilegedCfg()
 
 
-@configclass
-class ResetDatasetRewardsCfg:
+@dataclass
+class ResetDatasetRewardsCfg(ConfigMixin):
     """Terminal-sparse pouring reward with small action regularizers."""
 
     success = RewTerm(func=mdp.pour_success_bonus, weight=5.0)
@@ -474,8 +474,8 @@ class ResetDatasetRewardsCfg:
     failure = RewTerm(func=mdp.terminal_failure, weight=-1.0, params={"include_time_out": False})
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Safety failures, immediate particle-transfer success, and neutral timeout."""
 
     failure = DoneTerm(func=mdp.nonfinite_failure)
@@ -519,21 +519,21 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.unsuccessful_time_out, time_out=True)
 
 
-@configclass
-class EventsCfg:
+@dataclass
+class EventsCfg(ConfigMixin):
     """Reset the scene from the row selected by the curriculum term."""
 
     reset_scene = EventTerm(func=mdp.reset_pour_scene, mode="reset")
 
 
-@configclass
-class ResetDatasetCurriculumCfg:
+@dataclass
+class ResetDatasetCurriculumCfg(ConfigMixin):
     """Adaptive replay over the validated external reset dataset."""
 
     reset_dataset = CurrTerm(func=mdp.PourResetDatasetCurriculum)
 
 
-@configclass
+@dataclass
 class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     """Registered Franka Pour task using an externally generated reset dataset."""
 

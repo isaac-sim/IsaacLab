@@ -49,6 +49,8 @@ from flaky import flaky
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from dataclasses import dataclass
+
 from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
@@ -64,7 +66,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
 
 wp.init()
 
@@ -138,7 +139,7 @@ class ContactTestMode(Enum):
     """Enum to test the condition where the test object is not in contact with the ground plane (air time)."""
 
 
-@configclass
+@dataclass
 class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """Configuration for rigid objects used for the contact sensor test.
 
@@ -151,7 +152,7 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """6D pose of the rigid object under test when it is not in contact."""
 
 
-@configclass
+@dataclass
 class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Configuration of the scene used by the contact sensor test."""
 

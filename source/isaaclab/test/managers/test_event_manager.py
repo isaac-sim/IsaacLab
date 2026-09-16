@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 
 
 from collections import namedtuple
+from dataclasses import dataclass
 
 import pytest
 import torch
@@ -26,7 +27,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -123,8 +124,8 @@ def test_config_equivalence(env):
     event_man_from_dict = EventManager(cfg, env)
 
     # create from config class
-    @configclass
-    class MyEventManagerCfg:
+    @dataclass
+    class MyEventManagerCfg(ConfigMixin):
         """Event manager config with no type annotations."""
 
         term_1 = EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))
@@ -135,8 +136,8 @@ def test_config_equivalence(env):
     event_man_from_cfg = EventManager(cfg, env)
 
     # create from config class
-    @configclass
-    class MyEventManagerAnnotatedCfg:
+    @dataclass
+    class MyEventManagerAnnotatedCfg(ConfigMixin):
         """Event manager config with type annotations."""
 
         term_1: EventTermCfg = EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))

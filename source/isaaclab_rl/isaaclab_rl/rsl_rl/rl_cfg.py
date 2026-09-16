@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
@@ -18,8 +18,8 @@ from .symmetry_cfg import RslRlSymmetryCfg
 #########################
 
 
-@configclass
-class RslRlMLPModelCfg:
+@dataclass
+class RslRlMLPModelCfg(ConfigMixin):
     """Configuration for the MLP model."""
 
     class_name: str = "MLPModel"
@@ -37,14 +37,14 @@ class RslRlMLPModelCfg:
     distribution_cfg: DistributionCfg | None = None
     """The configuration for the output distribution. Defaults to None, in which case no distribution is used."""
 
-    @configclass
-    class DistributionCfg:
+    @dataclass
+    class DistributionCfg(ConfigMixin):
         """Configuration for the output distribution."""
 
         class_name: str = MISSING
         """The distribution class name."""
 
-    @configclass
+    @dataclass
     class GaussianDistributionCfg(DistributionCfg):
         """Configuration for the Gaussian output distribution."""
 
@@ -57,7 +57,7 @@ class RslRlMLPModelCfg:
         std_type: Literal["scalar", "log"] = "scalar"
         """The parameterization type of the output distribution's standard deviation. Default is scalar."""
 
-    @configclass
+    @dataclass
     class HeteroscedasticGaussianDistributionCfg(GaussianDistributionCfg):
         """Configuration for the heteroscedastic Gaussian output distribution."""
 
@@ -93,7 +93,7 @@ class RslRlMLPModelCfg:
     """
 
 
-@configclass
+@dataclass
 class RslRlRNNModelCfg(RslRlMLPModelCfg):
     """Configuration for RNN model."""
 
@@ -110,15 +110,15 @@ class RslRlRNNModelCfg(RslRlMLPModelCfg):
     """The number of RNN layers."""
 
 
-@configclass
+@dataclass
 class RslRlCNNModelCfg(RslRlMLPModelCfg):
     """Configuration for CNN model."""
 
     class_name: str = "CNNModel"
     """The model class name. Defaults to CNNModel."""
 
-    @configclass
-    class CNNCfg:
+    @dataclass
+    class CNNCfg(ConfigMixin):
         output_channels: tuple[int] | list[int] = MISSING
         """The number of output channels for each convolutional layer for the CNN."""
 
@@ -158,8 +158,8 @@ class RslRlCNNModelCfg(RslRlMLPModelCfg):
 ############################
 
 
-@configclass
-class RslRlPpoAlgorithmCfg:
+@dataclass
+class RslRlPpoAlgorithmCfg(ConfigMixin):
     """Configuration for the PPO algorithm."""
 
     class_name: str = "PPO"
@@ -226,8 +226,8 @@ class RslRlPpoAlgorithmCfg:
 #########################
 
 
-@configclass
-class RslRlBaseRunnerCfg:
+@dataclass
+class RslRlBaseRunnerCfg(ConfigMixin):
     """Base configuration of the runner."""
 
     seed: int = 42
@@ -330,7 +330,7 @@ class RslRlBaseRunnerCfg:
     """
 
 
-@configclass
+@dataclass
 class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     """Configuration of the runner for on-policy algorithms."""
 
@@ -359,8 +359,8 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
 #############################
 
 
-@configclass
-class RslRlPpoActorCriticCfg:
+@dataclass
+class RslRlPpoActorCriticCfg(ConfigMixin):
     """Configuration for the PPO actor-critic networks.
 
     For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.
@@ -394,7 +394,7 @@ class RslRlPpoActorCriticCfg:
     """The activation function for the actor and critic networks."""
 
 
-@configclass
+@dataclass
 class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
     """Configuration for the PPO actor-critic networks with recurrent layers.
 

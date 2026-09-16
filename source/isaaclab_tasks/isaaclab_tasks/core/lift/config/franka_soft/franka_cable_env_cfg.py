@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
@@ -20,7 +22,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -54,7 +56,7 @@ _PARTITION_BOUNDS_MARKER_SPAWN_CFG = sim_utils.CuboidCfg(
 )
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     """Newton proxy physics for rigid-cable coupling."""
 
@@ -101,7 +103,7 @@ class PhysicsCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
-@configclass
+@dataclass
 class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka cable lifting environment."""
 
@@ -149,15 +151,15 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class FrankaCableCameraSceneCfg(FrankaCableSceneCfg):
     """Franka cable scene with a base camera."""
 
     base_camera: CameraCfg = FRANKA_CAMERA_CFG
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Goal position for cable segment 6 in the robot root frame."""
 
     cable_pose = mdp.CableUniformPoseCommandCfg(
@@ -189,11 +191,11 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Policy observations for cable lifting."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
@@ -211,15 +213,15 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
+@dataclass
 class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
     """Observation groups for visual cable lifting."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(FrankaCameraObservationsCfg.PolicyCfg):
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
 
-    @configclass
+    @dataclass
     class PerceptionCfg(ObsGroup):
         cable_segment_positions = ObsTerm(
             func=mdp.cable_segment_positions_in_robot_root_frame,
@@ -234,7 +236,7 @@ class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
     perception: PerceptionCfg = PerceptionCfg()
 
 
-@configclass
+@dataclass
 class EventCfg(FrankaSoftEventCfg):
     """Reset events for the Franka cable environment."""
 
@@ -250,8 +252,8 @@ class EventCfg(FrankaSoftEventCfg):
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Cable lifting rewards."""
 
     reaching_cable = RewTerm(
@@ -299,8 +301,8 @@ class RewardsCfg:
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Time out and workspace bounds terminations."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -326,7 +328,7 @@ class TerminationsCfg:
     )
 
 
-@configclass
+@dataclass
 class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment for lifting a 12-segment cable."""
 
@@ -350,7 +352,7 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
             self.scene.partition_bounds_marker_max = None
 
 
-@configclass
+@dataclass
 class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
     """Visual Franka cable lifting environment."""
 

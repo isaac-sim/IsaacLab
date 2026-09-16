@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -28,7 +28,7 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 )
 
 
-@configclass
+@dataclass
 class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 3000
@@ -52,17 +52,17 @@ class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     algorithm = ALGO_CFG.replace(learning_rate=1.0e-3)
 
 
-@configclass
+@dataclass
 class FrankaClothPPORunnerCfg(FrankaDeformablePPORunnerCfg):
     experiment_name = "lift_cloth"
 
 
-@configclass
+@dataclass
 class FrankaCablePPORunnerCfg(FrankaDeformablePPORunnerCfg):
     experiment_name = "lift_cable"
 
 
-@configclass
+@dataclass
 class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
@@ -92,6 +92,6 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     algorithm = ALGO_CFG.replace(num_mini_batches=8)
 
 
-@configclass
+@dataclass
 class FrankaCableCameraPPORunnerCfg(FrankaDeformableCameraPPORunnerCfg):
     experiment_name = "lift_cable_camera"

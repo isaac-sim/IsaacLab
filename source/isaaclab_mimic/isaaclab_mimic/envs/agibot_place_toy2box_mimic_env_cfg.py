@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from dataclasses import dataclass
+
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.place.config.agibot.place_toy2box_rmp_rel_env_cfg import (
     RmpFlowAgibotPlaceToy2BoxEnvCfg,
@@ -15,7 +16,7 @@ OBJECT_A_NAME = "toy_truck"
 OBJECT_B_NAME = "box"
 
 
-@configclass
+@dataclass
 class RmpFlowAgibotPlaceToy2BoxMimicEnvCfg(RmpFlowAgibotPlaceToy2BoxEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Agibot Place Toy2Box env.

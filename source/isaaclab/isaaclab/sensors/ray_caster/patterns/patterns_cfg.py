@@ -8,18 +8,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from . import patterns
 
 
-@configclass
-class PatternBaseCfg:
+@dataclass
+class PatternBaseCfg(ConfigMixin):
     """Base configuration for a pattern."""
 
     func: Callable[[PatternBaseCfg, str], tuple[torch.Tensor, torch.Tensor]] = MISSING
@@ -30,7 +30,7 @@ class PatternBaseCfg:
     """
 
 
-@configclass
+@dataclass
 class GridPatternCfg(PatternBaseCfg):
     """Configuration for the grid pattern for ray-casting.
 
@@ -69,7 +69,7 @@ class GridPatternCfg(PatternBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class PinholeCameraPatternCfg(PatternBaseCfg):
     """Configuration for a pinhole camera depth image pattern for ray-casting.
 
@@ -173,7 +173,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
         )
 
 
-@configclass
+@dataclass
 class BpearlPatternCfg(PatternBaseCfg):
     """Configuration for the Bpearl pattern for ray-casting."""
 
@@ -200,7 +200,7 @@ class BpearlPatternCfg(PatternBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class LidarPatternCfg(PatternBaseCfg):
     """Configuration for the LiDAR pattern for ray-casting."""
 

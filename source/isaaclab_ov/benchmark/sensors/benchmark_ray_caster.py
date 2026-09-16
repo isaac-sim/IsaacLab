@@ -42,6 +42,8 @@ if args_cli.grid_size <= 0:
 if args_cli.grid_resolution <= 0:
     parser.error("--grid_resolution must be greater than zero")
 
+from dataclasses import dataclass
+
 import torch
 import warp as wp
 from isaaclab_ov.physics import OvPhysxCfg
@@ -54,7 +56,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.seed import configure_seed
 
 wp.init()
@@ -98,7 +99,7 @@ def _rough_terrain_cfg() -> TerrainGeneratorCfg:
     )
 
 
-@configclass
+@dataclass
 class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
     """Matched plane and rough-terrain ray-caster workloads."""
 

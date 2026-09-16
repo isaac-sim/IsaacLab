@@ -18,6 +18,7 @@ app_launcher = AppLauncher(headless=HEADLESS)
 simulation_app = app_launcher.app
 
 import importlib
+from dataclasses import dataclass
 
 import numpy as np
 import pytest
@@ -30,7 +31,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
 class NoOpRetargeter(RetargeterBase):
@@ -51,21 +52,21 @@ class NoOpRetargeter(RetargeterBase):
         return torch.tensor([], device=self._sim_device)
 
 
-@configclass
-class EmptyManagerCfg:
+@dataclass
+class EmptyManagerCfg(ConfigMixin):
     """Empty manager."""
 
     pass
 
 
-@configclass
+@dataclass
 class EmptySceneCfg(InteractiveSceneCfg):
     """Configuration for an empty scene."""
 
     pass
 
 
-@configclass
+@dataclass
 class EmptyEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the empty test environment."""
 

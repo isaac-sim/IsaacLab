@@ -49,6 +49,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import gymnasium as gym
@@ -64,7 +65,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -708,7 +708,7 @@ _HERO_VISUALIZER_BUILDERS = {
 _HERO_COMBINED_VISUALIZERS = ("newton_gl", "rerun", "viser")
 
 
-@configclass
+@dataclass
 class AnymalDTileCaptureCfg(AnymalDFlatEnvCfg):
     """AnymalD flat-terrain configuration with a tile-capture visualizer and recorder."""
 
@@ -1616,7 +1616,7 @@ def _showcase_configure_capture(env_cfg: object, visualizer: str) -> None:
         ]
 
 
-@configclass
+@dataclass
 class AllegroReorientShowcaseCfg(AllegroHandManagerEnvCfg):
     """Allegro cube reorientation configuration with the Newton GL showcase visualizer."""
 
@@ -1629,7 +1629,7 @@ class AllegroReorientShowcaseCfg(AllegroHandManagerEnvCfg):
         _add_floor_overlay(self)
 
 
-@configclass
+@dataclass
 class FrankaReachShowcaseCfg(FrankaReachEnvCfg):
     """Franka reach configuration with the Kit showcase visualizer."""
 
@@ -1641,7 +1641,7 @@ class FrankaReachShowcaseCfg(FrankaReachEnvCfg):
         self.scene.env_spacing = 2.0
 
 
-@configclass
+@dataclass
 class H1RoughShowcaseCfg(H1RoughEnvCfg):
     """H1 stairs-only rough-terrain locomotion configuration with the Newton RTX showcase visualizer."""
 
@@ -1652,7 +1652,7 @@ class H1RoughShowcaseCfg(H1RoughEnvCfg):
         self.events.frame_wide_camera = EventTermCfg(func=_showcase_frame_wide_camera_from_env_origins, mode="reset")
 
 
-@configclass
+@dataclass
 class ShadowHandReorientShowcaseCfg(ShadowHandEnvCfg):
     """Shadow Hand cube reorientation configuration with the Rerun showcase visualizer."""
 
@@ -1663,7 +1663,7 @@ class ShadowHandReorientShowcaseCfg(ShadowHandEnvCfg):
         _add_floor_overlay(self)
 
 
-@configclass
+@dataclass
 class KukaAllegroLiftShowcaseCfg(KukaAllegroLiftEnvCfg):
     """Kuka Allegro cube lift configuration with the Viser showcase visualizer."""
 
@@ -2263,7 +2263,7 @@ def _focus_streaming_tab(env, env_ids) -> None:
             window.focus()
 
 
-@configclass
+@dataclass
 class AnymalDStreamingShowcaseCfg(AnymalDRoughEnvCfg):
     """AnymalD rough-terrain locomotion configuration with the Kit streaming-view demo visualizer."""
 

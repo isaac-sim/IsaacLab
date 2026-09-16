@@ -4,16 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
 
 
-@configclass
+@dataclass
 class ContactSensorCfg(BaseContactSensorCfg):
     """Configuration that pins the contact sensor to the Newton backend.
 

@@ -14,10 +14,10 @@ inherit from ``isaaclab.terrains.terrains_cfg.TerrainConfig`` and define the fol
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .sub_terrain_cfg import SubTerrainBaseCfg
 
@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from .terrain_generator import TerrainGenerator
 
 
-@configclass
-class TerrainGeneratorCfg:
+@dataclass
+class TerrainGeneratorCfg(ConfigMixin):
     """Configuration for the terrain generator."""
 
     class_type: type[TerrainGenerator] | str = "{DIR}.terrain_generator:TerrainGenerator"

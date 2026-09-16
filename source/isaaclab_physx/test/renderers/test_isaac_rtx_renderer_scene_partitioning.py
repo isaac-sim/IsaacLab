@@ -32,6 +32,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import os
+from dataclasses import dataclass
 
 import pytest
 import torch
@@ -45,7 +46,6 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
@@ -107,7 +107,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
     as visibly different per-env tiles when RTX honors ``primvars:omni:scenePartition``."""
     monkeypatch.delenv(_ENV_VAR, raising=False)
 
-    @configclass
+    @dataclass
     class _Scene(InteractiveSceneCfg):
         ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
         light = AssetBaseCfg(
@@ -242,7 +242,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
     poses render as visibly different per-env tiles when RTX honors top-level scene partitions."""
     monkeypatch.delenv(_ENV_VAR, raising=False)
 
-    @configclass
+    @dataclass
     class _Scene(InteractiveSceneCfg):
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import torch
 
@@ -12,7 +13,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events
@@ -100,8 +101,8 @@ def set_finger_joint_pos_robotiq_2f85(
 ##
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     robot_joint_stiffness_and_damping = EventTerm(
@@ -228,7 +229,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     """Base configuration for UR10e Gear Assembly Environment.
 
@@ -305,7 +306,7 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
     """Configuration for UR10e with Robotiq 2F-140 gripper."""
 
@@ -394,7 +395,7 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
 
 
-@configclass
+@dataclass
 class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
     """Configuration for UR10e with Robotiq 2F-85 gripper."""
 

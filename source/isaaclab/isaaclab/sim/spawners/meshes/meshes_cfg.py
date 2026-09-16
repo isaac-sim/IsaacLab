@@ -6,15 +6,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Configuration parameters for a USD Geometry or Geom prim.
 
@@ -85,7 +84,7 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """
 
 
-@configclass
+@dataclass
 class MeshSphereCfg(MeshCfg):
     """Configuration parameters for a sphere mesh prim with deformable properties.
 
@@ -98,7 +97,7 @@ class MeshSphereCfg(MeshCfg):
     """Radius of the sphere (in m)."""
 
 
-@configclass
+@dataclass
 class MeshCuboidCfg(MeshCfg):
     """Configuration parameters for a cuboid mesh prim with deformable properties.
 
@@ -111,7 +110,7 @@ class MeshCuboidCfg(MeshCfg):
     """Size of the cuboid [m]."""
 
 
-@configclass
+@dataclass
 class MeshCylinderCfg(MeshCfg):
     """Configuration parameters for a cylinder mesh prim with deformable properties.
 
@@ -128,7 +127,7 @@ class MeshCylinderCfg(MeshCfg):
     """Axis of the cylinder. Defaults to "Z"."""
 
 
-@configclass
+@dataclass
 class MeshCapsuleCfg(MeshCfg):
     """Configuration parameters for a capsule mesh prim.
 
@@ -145,7 +144,7 @@ class MeshCapsuleCfg(MeshCfg):
     """Axis of the capsule. Defaults to "Z"."""
 
 
-@configclass
+@dataclass
 class MeshConeCfg(MeshCfg):
     """Configuration parameters for a cone mesh prim.
 
@@ -162,7 +161,7 @@ class MeshConeCfg(MeshCfg):
     """Axis of the cone. Defaults to "Z"."""
 
 
-@configclass
+@dataclass
 class MeshRectangleCfg(MeshCfg):
     """Configuration parameters for a 2D rectangle mesh prim.
 

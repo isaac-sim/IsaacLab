@@ -76,7 +76,7 @@ The policy receives only proprioceptive observations, which are reliably availab
 
 .. code-block:: python
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
@@ -380,8 +380,8 @@ The policy is trained using a keypoint-based reward that captures both position 
 
 .. code-block:: python
 
-    @configclass
-    class RewardsCfg:
+    @dataclass
+    class RewardsCfg(ConfigMixin):
         """Reward terms for the MDP."""
 
         # Linear penalty for keypoint tracking error

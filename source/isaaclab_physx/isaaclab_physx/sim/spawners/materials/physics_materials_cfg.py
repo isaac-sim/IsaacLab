@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import ClassVar, Literal
 
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
@@ -15,11 +16,11 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class OmniPhysicsDeformableMaterialCfg:
+@dataclass
+class OmniPhysicsDeformableMaterialCfg(ConfigMixin):
     """OmniPhysics material properties for a deformable body.
 
     These properties are set with the prefix ``omniphysics:<property_name>``.
@@ -45,7 +46,7 @@ class OmniPhysicsDeformableMaterialCfg:
     """The Poisson's ratio which defines the body's volume preservation."""
 
 
-@configclass
+@dataclass
 class OmniPhysicsSurfaceDeformableMaterialCfg(OmniPhysicsDeformableMaterialCfg):
     """OmniPhysics material properties for a surface deformable body."""
 
@@ -66,8 +67,8 @@ class OmniPhysicsSurfaceDeformableMaterialCfg(OmniPhysicsDeformableMaterialCfg):
     """The bend stiffness of the deformable body's surface. Defaults to 0.0."""
 
 
-@configclass
-class PhysXDeformableMaterialCfg:
+@dataclass
+class PhysXDeformableMaterialCfg(ConfigMixin):
     """PhysX-specific material properties for a deformable body.
 
     These properties are set with the prefix ``physxDeformableMaterial:<property_name>``.
@@ -81,7 +82,7 @@ class PhysXDeformableMaterialCfg:
     """The elasticity damping for the deformable material. Defaults to 0.005."""
 
 
-@configclass
+@dataclass
 class PhysxDeformableBodyMaterialCfg(
     DeformableBodyMaterialBaseCfg,
     OmniPhysicsDeformableMaterialCfg,
@@ -92,7 +93,7 @@ class PhysxDeformableBodyMaterialCfg(
     func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
 
-@configclass
+@dataclass
 class PhysxSurfaceDeformableBodyMaterialCfg(
     SurfaceDeformableBodyMaterialBaseCfg,
     OmniPhysicsSurfaceDeformableMaterialCfg,
@@ -109,7 +110,7 @@ class PhysxSurfaceDeformableBodyMaterialCfg(
     """Damping acting against bend-resistance forces [1/s]. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
     """Deprecated: use :class:`PhysxDeformableBodyMaterialCfg`.
 
@@ -129,7 +130,7 @@ class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
     """Deprecated: use :class:`PhysxSurfaceDeformableBodyMaterialCfg`.
 
@@ -149,7 +150,7 @@ class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
         super().__post_init__()
 
 
-@configclass
+@dataclass
 class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     """PhysX-specific physics-material parameters for rigid bodies.
 
@@ -224,7 +225,7 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class PhysxMaterialCfg(RigidBodyMaterialFragment):
     """``physxMaterial:*`` rigid-body material attributes from `PhysxMaterialAPI`_.
 
@@ -281,7 +282,7 @@ class PhysxMaterialCfg(RigidBodyMaterialFragment):
     """
 
 
-@configclass
+@dataclass
 class RigidBodyMaterialCfg(PhysxRigidBodyMaterialCfg):
     """Deprecated: use :class:`PhysxRigidBodyMaterialCfg` or
     :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`.

@@ -7,15 +7,15 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.nist.utils.sampling.sampler import Sampler
 
 
-@configclass
-class SamplerCfg:
+@dataclass
+class SamplerCfg(ConfigMixin):
     """Blueprint for a :class:`Sampler`.
 
     Attributes:

@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
@@ -44,8 +44,8 @@ def __getattr__(name):
     raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")
 
 
-@configclass
-class PhysicsMaterialCfg:
+@dataclass
+class PhysicsMaterialCfg(ConfigMixin):
     """Configuration parameters for creating a physics material.
 
     Physics materials are USD schemas applied to a material prim to define the physical properties
@@ -58,7 +58,7 @@ class PhysicsMaterialCfg:
     """Function to use for creating the material."""
 
 
-@configclass
+@dataclass
 class CableMaterialCfg(PhysicsMaterialCfg):
     """Physics material parameters for deformable curves."""
 
@@ -107,7 +107,7 @@ class CableMaterialCfg(PhysicsMaterialCfg):
                 raise ValueError(f"CableMaterialCfg {field} must be finite and nonnegative.")
 
 
-@configclass
+@dataclass
 class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Solver-common physics-material parameters for rigid bodies.
 
@@ -148,7 +148,7 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """
 
 
-@configclass
+@dataclass
 class RigidBodyMaterialFragment(SchemaFragment):
     """Marker base for rigid-body physics-material fragments; types the ``physics_material`` slot.
 
@@ -164,7 +164,7 @@ class RigidBodyMaterialFragment(SchemaFragment):
     pass
 
 
-@configclass
+@dataclass
 class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
     """``physics:*`` rigid-body material attributes from `UsdPhysics.MaterialAPI`_.
 
@@ -195,7 +195,7 @@ class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
     """
 
 
-@configclass
+@dataclass
 class DeformableBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Base physics material parameters for volume deformable bodies.
 
@@ -206,6 +206,6 @@ class DeformableBodyMaterialBaseCfg(PhysicsMaterialCfg):
     func: Callable | str | None = None
 
 
-@configclass
+@dataclass
 class SurfaceDeformableBodyMaterialBaseCfg(DeformableBodyMaterialBaseCfg):
     """Base physics material parameters for surface deformable bodies."""

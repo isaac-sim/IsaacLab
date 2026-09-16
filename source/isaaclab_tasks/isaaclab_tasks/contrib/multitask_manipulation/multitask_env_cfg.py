@@ -6,6 +6,7 @@
 """Heterogeneous OpenArm-lift, Franka-cabinet, and UR10-reach environment configuration."""
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -21,7 +22,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import FRAME_MARKER_CFG, SPHERE_MARKER_CFG, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as add_scene
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.lift.config.openarm.joint_pos_env_cfg import OpenArmCubeLiftEnvCfg
@@ -120,8 +121,8 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     return scene
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Task-headed action specification with a fixed global dimension of 22."""
 
     lift_arm_action = mdp.SelectedJointPositionActionCfg(
@@ -154,8 +155,8 @@ class ActionsCfg:
     )
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Goal commands for lift and reach environments."""
 
     lift_pose = mdp.SelectedUniformPoseCommandCfg(
@@ -190,11 +191,11 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Fixed-width observations with zero-filled inactive task blocks."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Policy observations."""
 
@@ -247,8 +248,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Selection-aware reset events."""
 
     reset_scene = EventTerm(
@@ -267,8 +268,8 @@ class EventCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Task rewards adapted from the three homogeneous tasks."""
 
     lift_approach = RewTerm(
@@ -408,8 +409,8 @@ class RewardsCfg:
     )
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Task-specific success, failure, and timeout conditions."""
 
     reach_success = DoneTerm(
@@ -440,8 +441,8 @@ class TerminationsCfg:
     )
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     """OpenArm lift penalty curriculum."""
 
     lift_action_rate = CurrTerm(
@@ -462,7 +463,7 @@ class CurriculumCfg:
     )
 
 
-@configclass
+@dataclass
 class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based heterogeneous manipulation training environment."""
 

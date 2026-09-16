@@ -2,10 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg, RecorderTermCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .recorders import (
@@ -21,28 +21,28 @@ if TYPE_CHECKING:
 ##
 
 
-@configclass
+@dataclass
 class InitialStateRecorderCfg(RecorderTermCfg):
     """Configuration for the initial state recorder term."""
 
     class_type: type["InitialStateRecorder"] | str = "{DIR}.recorders:InitialStateRecorder"
 
 
-@configclass
+@dataclass
 class PostStepStatesRecorderCfg(RecorderTermCfg):
     """Configuration for the step state recorder term."""
 
     class_type: type["PostStepStatesRecorder"] | str = "{DIR}.recorders:PostStepStatesRecorder"
 
 
-@configclass
+@dataclass
 class PreStepActionsRecorderCfg(RecorderTermCfg):
     """Configuration for the step action recorder term."""
 
     class_type: type["PreStepActionsRecorder"] | str = "{DIR}.recorders:PreStepActionsRecorder"
 
 
-@configclass
+@dataclass
 class PreStepFlatPolicyObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the step policy observation recorder term."""
 
@@ -51,7 +51,7 @@ class PreStepFlatPolicyObservationsRecorderCfg(RecorderTermCfg):
     )
 
 
-@configclass
+@dataclass
 class PostStepProcessedActionsRecorderCfg(RecorderTermCfg):
     """Configuration for the post step processed actions recorder term."""
 
@@ -63,7 +63,7 @@ class PostStepProcessedActionsRecorderCfg(RecorderTermCfg):
 ##
 
 
-@configclass
+@dataclass
 class ActionStateRecorderManagerCfg(RecorderManagerBaseCfg):
     """Recorder configurations for recording actions and states."""
 

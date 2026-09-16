@@ -7,18 +7,18 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from isaaclab.markers import VisualizationMarkers
 
 
-@configclass
-class VisualizationMarkersCfg:
+@dataclass
+class VisualizationMarkersCfg(ConfigMixin):
     """A class to configure a :class:`VisualizationMarkers`."""
 
     prim_path: str = MISSING

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import isaaclab_newton.ik.newton_ik_objectives as objectives_module
 import isaaclab_newton.ik.newton_ik_solver as ik_solver_module
 import torch
@@ -17,8 +19,6 @@ from isaaclab_newton.ik.newton_ik_objectives_cfg import (
 )
 from isaaclab_newton.ik.newton_ik_solver import NewtonIKSolver
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
-
-from isaaclab.utils import configclass
 
 # Maps the stub body names used across these tests to Newton link indices.
 _LINKS = {"ee": 0, "torso": 1, "custom": 0}
@@ -177,7 +177,7 @@ class _CustomObjective(NewtonIKObjective):
 def test_custom_objective_cfg_is_built_and_wired(monkeypatch):
     _patch_newton_ik(monkeypatch)
 
-    @configclass
+    @dataclass
     class _CustomObjectiveCfg(NewtonIKObjectiveCfg):
         class_type: type | str = _CustomObjective
 

@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .null_command import NullCommand
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
 
-@configclass
+@dataclass
 class NullCommandCfg(CommandTermCfg):
     """Configuration for the null command generator."""
 
@@ -31,7 +31,7 @@ class NullCommandCfg(CommandTermCfg):
         self.resampling_time_range = (math.inf, math.inf)
 
 
-@configclass
+@dataclass
 class UniformVelocityCommandCfg(CommandTermCfg):
     """Configuration for the uniform velocity command generator."""
 
@@ -61,8 +61,8 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     This parameter is only used if :attr:`heading_command` is True.
     """
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Uniform distribution ranges for the velocity commands."""
 
         lin_vel_x: tuple[float, float] = MISSING
@@ -112,15 +112,15 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     current_vel_visualizer_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
 
 
-@configclass
+@dataclass
 class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
     """Configuration for the normal velocity command generator."""
 
     class_type: type["NormalVelocityCommand"] | str = "{DIR}.velocity_command:NormalVelocityCommand"
     heading_command: bool = False  # --> we don't use heading command for normal velocity command.
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Normal distribution ranges for the velocity commands."""
 
         mean_vel: tuple[float, float, float] = MISSING
@@ -145,7 +145,7 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
     """Distribution ranges for the velocity commands."""
 
 
-@configclass
+@dataclass
 class UniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
@@ -163,8 +163,8 @@ class UniformPoseCommandCfg(CommandTermCfg):
     If True, the quaternion is made unique by ensuring the real part is positive.
     """
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Uniform distribution ranges for the pose commands."""
 
         pos_x: tuple[float, float] = MISSING
@@ -215,7 +215,7 @@ class UniformPoseCommandCfg(CommandTermCfg):
     current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
 
-@configclass
+@dataclass
 class UniformPose2dCommandCfg(CommandTermCfg):
     """Configuration for the uniform 2D-pose command generator."""
 
@@ -230,8 +230,8 @@ class UniformPose2dCommandCfg(CommandTermCfg):
     If True, the heading is in the direction of the target position.
     """
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Uniform distribution ranges for the position commands."""
 
         pos_x: tuple[float, float] = MISSING
@@ -264,14 +264,14 @@ class UniformPose2dCommandCfg(CommandTermCfg):
     goal_pose_visualizer_cfg.markers["arrow"].scale = (0.2, 0.2, 0.8)
 
 
-@configclass
+@dataclass
 class TerrainBasedPose2dCommandCfg(UniformPose2dCommandCfg):
     """Configuration for the terrain-based position command generator."""
 
     class_type: type["TerrainBasedPose2dCommand"] | str = "{DIR}.pose_2d_command:TerrainBasedPose2dCommand"
 
-    @configclass
-    class Ranges:
+    @dataclass
+    class Ranges(ConfigMixin):
         """Uniform distribution ranges for the position commands."""
 
         heading: tuple[float, float] = MISSING

@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
     from .viser_visualizer import ViserVisualizer
 
 
-@configclass
+@dataclass
 class ViserVisualizerCfg(VisualizerCfg):
     """Configuration for Viser visualizer (web-based visualization)."""
 

@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from dataclasses import dataclass
+
 from isaaclab_physx.assets import SurfaceGripperCfg
 from isaaclab_teleop import IsaacTeleopCfg
 
@@ -17,7 +19,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -117,8 +119,8 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
     return pipeline
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
@@ -139,11 +141,11 @@ class EventCfg:
     )
 
 
-@configclass
-class ObservationGalbotLeftArmGripperCfg:
+@dataclass
+class ObservationGalbotLeftArmGripperCfg(ConfigMixin):
     """Observations for the Galbot Left Arm Gripper."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -188,7 +190,7 @@ class ObservationGalbotLeftArmGripperCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
+    @dataclass
     class SubtaskCfg(ObservationsCfg.SubtaskCfg):
         """Observations for subtask group."""
 
@@ -220,7 +222,7 @@ class ObservationGalbotLeftArmGripperCfg:
         def __post_init__(self):
             super().__post_init__()
 
-    @configclass
+    @dataclass
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
@@ -240,7 +242,7 @@ class ObservationGalbotLeftArmGripperCfg:
     rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
 
 
-@configclass
+@dataclass
 class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
@@ -344,7 +346,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
 
-@configclass
+@dataclass
 class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
     def validate_config(self):
         # The right-arm suction cup uses a PhysX-only surface gripper.

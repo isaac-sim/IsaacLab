@@ -53,7 +53,7 @@ config should define the number of actions and observations for the environment.
 
 .. code-block:: python
 
-   @configclass
+   @dataclass
    class CartpoleEnvCfg(DirectRLEnvCfg):
       ...
       action_space = 1
@@ -65,7 +65,7 @@ and thresholds for reset conditions.
 
 .. code-block:: python
 
-   @configclass
+   @dataclass
    class CartpoleEnvCfg(DirectRLEnvCfg):
       ...
       # reset
@@ -236,15 +236,15 @@ All direct workflow tasks have the suffix ``-Direct`` added to the task name to 
 Domain Randomization
 ~~~~~~~~~~~~~~~~~~~~
 
-In the direct workflow, domain randomization configuration uses the :class:`~isaaclab.utils.configclass` module
-to specify a configuration class consisting of :class:`~managers.EventTermCfg` variables.
+In the direct workflow, domain randomization configuration uses standard dataclasses to specify a configuration
+class consisting of :class:`~managers.EventTermCfg` variables.
 
 Below is an example of a configuration class for domain randomization:
 
 .. code-block:: python
 
-  @configclass
-  class EventCfg:
+  @dataclass
+  class EventCfg(ConfigMixin):
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
@@ -289,27 +289,27 @@ Note that as part of the ``"asset_cfg": SceneEntityCfg("robot", body_names=".*")
 the actor ``"robot"`` is provided, along with the body or joint names specified as a regex expression,
 which will be the actors and bodies/joints that will have randomization applied.
 
-Once the ``configclass`` for the randomization terms have been set up, the class must be added
+Once the dataclass for the randomization terms has been set up, the class must be added
 to the base config class for the task and be assigned to the variable ``events``.
 
 .. code-block:: python
 
-  @configclass
-  class MyTaskConfig:
+  @dataclass
+  class MyTaskConfig(ConfigMixin):
     events: EventCfg = EventCfg()
 
 
 Action and Observation Noise
 ----------------------------
 
-Actions and observation noise can also be added using the :class:`~utils.configclass` module.
+Actions and observation noise can also be added using dataclass configuration classes.
 Action and observation noise configs must be added to the main task config using the
 ``action_noise_model`` and ``observation_noise_model`` variables:
 
 .. code-block:: python
 
-  @configclass
-  class MyTaskConfig:
+  @dataclass
+  class MyTaskConfig(ConfigMixin):
 
       # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
       action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
@@ -341,8 +341,8 @@ to specify an additive Gaussian distribution that adds the sampled noise to the 
 
 .. code-block:: python
 
-  @configclass
-  class MyTaskConfig:
+  @dataclass
+  class MyTaskConfig(ConfigMixin):
     action_noise_model: GaussianNoiseCfg = GaussianNoiseCfg(mean=0.0, std=0.05, operation="add")
 
 

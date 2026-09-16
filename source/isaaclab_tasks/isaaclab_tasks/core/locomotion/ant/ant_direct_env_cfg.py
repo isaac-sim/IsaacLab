@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
@@ -21,14 +23,13 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
 
-@configclass
+@dataclass
 class AntPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -52,7 +53,7 @@ class AntPhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class AntEnvCfg(DirectRLEnvCfg):
     """Configuration for the direct-workflow Ant walking environment."""
 

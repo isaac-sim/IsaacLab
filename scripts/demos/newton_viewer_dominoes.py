@@ -24,6 +24,8 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import torch
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, XPBDSolverCfg
 
@@ -32,7 +34,6 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils import configclass
 
 DOMINO_SIZE = (0.12, 0.032, 0.36)
 DOMINO_SPACING = 0.12
@@ -89,7 +90,7 @@ def _trigger_cfg() -> RigidObjectCfg:
     )
 
 
-@configclass
+@dataclass
 class DominoSceneCfg(InteractiveSceneCfg):
     """White floor, saved domino poses, and the trigger slab."""
 

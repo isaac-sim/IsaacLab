@@ -49,9 +49,11 @@ From the Isaac Lab checkout, use `uv run python scripts/environments/list_envs.p
 Import paths:
 
 ```python
+from dataclasses import dataclass
+
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -61,7 +63,7 @@ from isaaclab_tasks.utils import PresetCfg
 Pattern:
 
 ```python
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg()
     ovphysx = OvPhysxCfg()
@@ -70,8 +72,8 @@ class PhysicsCfg(PresetCfg):
     newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg())
 
 
-@configclass
-class MyEnvCfg:
+@dataclass
+class MyEnvCfg(ConfigMixin):
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 ```
 

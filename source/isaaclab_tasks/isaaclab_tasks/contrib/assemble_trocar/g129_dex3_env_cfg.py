@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -16,7 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
@@ -81,7 +83,7 @@ HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com
 USD_ROOT = f"{HEALTHCARE_S3}/Props/LightWheel"
 
 
-@configclass
+@dataclass
 class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     """Scene configuration for the assemble_trocar task (robot + objects + lights)."""
 
@@ -156,8 +158,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """defines the action configuration related to robot control, using direct joint angle control"""
 
     joint_pos = mdp.JointPositionActionCfg(
@@ -170,11 +172,11 @@ class ActionsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """defines all available observation information"""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """policy group observation configuration class
         defines all state observation values for policy decision
@@ -193,7 +195,7 @@ class ObservationsCfg:
             self.enable_corruption = False  # disable observation value corruption
             self.concatenate_terms = False  # disable observation item connection
 
-    @configclass
+    @dataclass
     class CameraImagesCfg(ObsGroup):
         """Observations from the robot's cameras."""
 
@@ -219,8 +221,8 @@ class ObservationsCfg:
     camera_images: CameraImagesCfg = CameraImagesCfg()
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination conditions for the environment."""
 
     # Time out termination
@@ -246,8 +248,8 @@ class TerminationsCfg:
     )
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward configuration for sparse reward mode.
 
     Each stage gives 1.0 reward on completion -> Total reward for full task = 4.0
@@ -336,8 +338,8 @@ class RewardsCfg:
     )
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Event configuration for scene reset."""
 
     # Reset scene when episode terminates (timeout or success)
@@ -359,7 +361,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     """Unitree G1 robot assemble trocar environment configuration class
     inherits from ManagerBasedRLEnvCfg, defines all configuration parameters for the entire environment
@@ -406,7 +408,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
             )
 
 
-@configclass
+@dataclass
 class EventCfgFixTrayRotation(EventCfg):
     """Event configuration with a deterministic-but-different yaw per env index.
 
@@ -434,7 +436,7 @@ class EventCfgFixTrayRotation(EventCfg):
     )
 
 
-@configclass
+@dataclass
 class G1AssembleTrocarEvalEnvCfg(G1AssembleTrocarEnvCfg):
     """Eval-friendly env cfg.
 

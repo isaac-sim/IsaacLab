@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -17,8 +17,8 @@ if TYPE_CHECKING:
     from .frame_transformer import FrameTransformer
 
 
-@configclass
-class OffsetCfg:
+@dataclass
+class OffsetCfg(ConfigMixin):
     """The offset pose of one frame relative to another frame."""
 
     pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -27,12 +27,12 @@ class OffsetCfg:
     """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
 
-@configclass
+@dataclass
 class FrameTransformerCfg(SensorBaseCfg):
     """Configuration for the frame transformer sensor."""
 
-    @configclass
-    class FrameCfg:
+    @dataclass
+    class FrameCfg(ConfigMixin):
         """Information specific to a coordinate frame."""
 
         prim_path: str = MISSING

@@ -32,14 +32,15 @@ def create_contact_sensor_scene_cfg(
     Returns:
         Scene configuration with one contact-sensed cube per environment.
     """
+    from dataclasses import dataclass
+
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sensors import ContactSensorCfg
     from isaaclab.terrains import TerrainImporterCfg
-    from isaaclab.utils import configclass
 
-    @configclass
+    @dataclass
     class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
         """Scene with one cube and one contact sensor per environment."""
 

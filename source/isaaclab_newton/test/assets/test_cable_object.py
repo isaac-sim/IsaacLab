@@ -13,6 +13,8 @@ import warp as wp
 
 pytest.importorskip("newton")
 
+from dataclasses import dataclass
+
 from isaaclab_newton.assets import CableObject as NewtonCableObject
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -25,12 +27,11 @@ from isaaclab.sim import GroundPlaneCfg, SimulationCfg, UsdPhysicsCollisionCfg, 
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 
-@configclass
+@dataclass
 class _CableSceneCfg(InteractiveSceneCfg):
     cable = CableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cable",
@@ -46,7 +47,7 @@ class _CableSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class _ProxyCableSceneCfg(_CableSceneCfg):
     rigid = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Rigid",

@@ -25,7 +25,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
-from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -79,7 +78,7 @@ class DummySensor(SensorBase):
         self._data.count[env_ids] = 0
 
 
-@configclass
+@dataclass
 class DummySensorCfg(SensorBaseCfg):
     class_type = DummySensor
 

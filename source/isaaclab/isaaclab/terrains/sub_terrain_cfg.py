@@ -7,18 +7,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     import numpy as np
     import trimesh
 
 
-@configclass
-class FlatPatchSamplingCfg:
+@dataclass
+class FlatPatchSamplingCfg(ConfigMixin):
     """Configuration for sampling flat patches on the sub-terrain.
 
     For a given sub-terrain, this configuration specifies how to sample flat patches on the terrain.
@@ -56,8 +56,8 @@ class FlatPatchSamplingCfg:
     """Maximum allowed height difference between the highest and lowest points on the patch."""
 
 
-@configclass
-class SubTerrainBaseCfg:
+@dataclass
+class SubTerrainBaseCfg(ConfigMixin):
     """Base class for terrain configurations.
 
     All the sub-terrain configurations must inherit from this class.

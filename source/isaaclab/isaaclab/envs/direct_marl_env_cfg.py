@@ -11,17 +11,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.devices.openxr import XrCfg
 
+from dataclasses import dataclass
+
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import AgentID, SpaceType, ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
-@configclass
-class DirectMARLEnvCfg:
+@dataclass
+class DirectMARLEnvCfg(ConfigMixin):
     """Configuration for a MARL environment defined with the direct workflow.
 
     Please refer to the :class:`isaaclab.envs.direct_marl_env.DirectMARLEnv` class for more details.

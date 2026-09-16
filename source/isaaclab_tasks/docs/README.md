@@ -8,7 +8,7 @@ Each environment's name is composed of `Isaac-<Task>-<Robot>-v<X>`, where `<Task
 in the environment, `<Robot>` indicates the embodiment of the acting agent, and `<X>` represents the version of
 the environment (which can be used to suggest different observation or action spaces).
 
-The environments are configured using either Python classes (wrapped using `configclass` decorator) or through
+The environments are configured using either standard Python dataclasses or through
 YAML files. The template structure of the environment is always put at the same level as the environment file
 itself. However, its various instances are included in directories within the environment directory itself.
 This looks like as follows:

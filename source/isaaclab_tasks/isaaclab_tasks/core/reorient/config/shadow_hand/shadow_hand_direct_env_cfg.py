@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     CUBE_CFG,
@@ -26,7 +27,7 @@ from isaaclab_assets.robots.shadow_hand import (
 )
 
 
-@configclass
+@dataclass
 class ShadowHandSceneCfg(InteractiveSceneCfg):
     """Shadow Direct scene defaults."""
 
@@ -35,7 +36,7 @@ class ShadowHandSceneCfg(InteractiveSceneCfg):
     replicate_physics = True
 
 
-@configclass
+@dataclass
 class ShadowHandEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2

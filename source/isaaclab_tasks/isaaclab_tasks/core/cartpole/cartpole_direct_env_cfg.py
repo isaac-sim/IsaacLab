@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
@@ -20,7 +21,6 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -28,7 +28,7 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 
-@configclass
+@dataclass
 class CartpolePhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -53,7 +53,7 @@ class CartpolePhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class CartpoleEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2

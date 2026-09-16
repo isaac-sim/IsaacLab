@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .pink_task_cfg import PinkIKTaskCfg
 
@@ -18,8 +18,8 @@ if TYPE_CHECKING:
     from pink.tasks import Task
 
 
-@configclass
-class PinkIKControllerCfg:
+@dataclass
+class PinkIKControllerCfg(ConfigMixin):
     """Configuration settings for the Pink IK Controller.
 
     The Pink IK controller can be found at: https://github.com/stephane-caron/pink

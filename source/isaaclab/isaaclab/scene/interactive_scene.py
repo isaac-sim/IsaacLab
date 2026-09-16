@@ -83,13 +83,14 @@ class InteractiveScene:
 
     .. code-block:: python
 
+        from dataclasses import dataclass
+
         from isaaclab.scene import InteractiveSceneCfg
-        from isaaclab.utils import configclass
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
 
-        @configclass
+        @dataclass
         class MySceneCfg(InteractiveSceneCfg):
             # ANYmal-C robot spawned in each environment
             robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

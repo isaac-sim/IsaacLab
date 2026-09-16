@@ -4,11 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from collections.abc import Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils import configclass
 
 from isaaclab_contrib.actuators import ThrusterCfg
 
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
     from .multirotor import Multirotor
 
 
-@configclass
+@dataclass
 class MultirotorCfg(ArticulationCfg):
     """Configuration parameters for a multirotor articulation.
 
@@ -82,7 +81,7 @@ class MultirotorCfg(ArticulationCfg):
 
     class_type: type["Multirotor"] | str = "{DIR}.multirotor:Multirotor"
 
-    @configclass
+    @dataclass
     class InitialStateCfg(ArticulationCfg.InitialStateCfg):
         """Initial state of the multirotor articulation.
 

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -17,7 +18,7 @@ from isaaclab.managers import (
 )
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -30,7 +31,7 @@ _ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
 """Bound once so ``DigitPhysicsCfg`` does not construct ``RoughPhysicsCfg`` twice."""
 
 
-@configclass
+@dataclass
 class DigitPhysicsCfg(PresetCfg):
     """Physics configuration for the Digit velocity environments."""
 
@@ -50,8 +51,8 @@ class DigitPhysicsCfg(PresetCfg):
     default = isaacsim_physx
 
 
-@configclass
-class DigitRewards:
+@dataclass
+class DigitRewards(ConfigMixin):
     termination_penalty = RewardTermCfg(
         func=mdp.is_terminated,
         weight=-100.0,
@@ -167,9 +168,9 @@ class DigitRewards:
     )
 
 
-@configclass
-class DigitObservations:
-    @configclass
+@dataclass
+class DigitObservations(ConfigMixin):
+    @dataclass
     class PolicyCfg(ObservationGroupCfg):
         base_lin_vel = ObservationTermCfg(
             func=mdp.base_lin_vel,
@@ -213,8 +214,8 @@ class DigitObservations:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class DigitTerminationsCfg:
+@dataclass
+class DigitTerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = TerminationTermCfg(func=mdp.time_out, time_out=True)
@@ -231,8 +232,8 @@ class DigitTerminationsCfg:
     )
 
 
-@configclass
-class DigitActionsCfg:
+@dataclass
+class DigitActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     joint_pos = mdp.JointPositionActionCfg(
@@ -243,7 +244,7 @@ class DigitActionsCfg:
     )
 
 
-@configclass
+@dataclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(physics=DigitPhysicsCfg())
     rewards: DigitRewards = DigitRewards()

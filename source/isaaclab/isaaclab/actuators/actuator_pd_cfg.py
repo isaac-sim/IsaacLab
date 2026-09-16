@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
 
@@ -18,7 +16,7 @@ Implicit Actuator Models.
 """
 
 
-@configclass
+@dataclass
 class ImplicitActuatorCfg(ActuatorBaseCfg):
     """Configuration for an implicit actuator.
 
@@ -34,14 +32,14 @@ Explicit Actuator Models.
 """
 
 
-@configclass
+@dataclass
 class IdealPDActuatorCfg(ActuatorBaseCfg):
     """Configuration for an ideal PD actuator."""
 
     class_type: type["IdealPDActuator"] | str = "{DIR}.actuator_pd:IdealPDActuator"
 
 
-@configclass
+@dataclass
 class DCMotorCfg(IdealPDActuatorCfg):
     """Configuration for direct control (DC) motor actuator model."""
 
@@ -56,7 +54,7 @@ class DCMotorCfg(IdealPDActuatorCfg):
     """
 
 
-@configclass
+@dataclass
 class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     """Configuration for a delayed PD actuator."""
 
@@ -69,7 +67,7 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
 
-@configclass
+@dataclass
 class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
     """Configuration for a remotized PD actuator.
 

@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from isaaclab_ov.physics import OvPhysxCfg
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
 
 
-@configclass
-class PhysicsCfg:
+@dataclass
+class PhysicsCfg(ConfigMixin):
     """Abstract base configuration for physics managers.
 
     This base class contains physics backend-specific parameters.
@@ -48,7 +48,7 @@ class PhysicsCfg:
     """
 
 
-@configclass
+@dataclass
 class PhysxAutoCfg(PhysicsCfg):
     """PhysX configuration resolved to a concrete backend at launch."""
 

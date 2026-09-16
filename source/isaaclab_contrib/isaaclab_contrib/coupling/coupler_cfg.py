@@ -13,12 +13,12 @@ couple them. A coupler turns each entry's ownership selectors into a Newton
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, field
+from dataclasses import MISSING, dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -26,8 +26,8 @@ if TYPE_CHECKING:
     from newton.solvers.experimental.coupled import ModelView
 
 
-@configclass
-class CouplerEntryCfg:
+@dataclass
+class CouplerEntryCfg(ConfigMixin):
     """Configuration for one named sub-solver and its model ownership.
 
     Bodies are selected by full Newton body-label regex.
@@ -82,8 +82,8 @@ class CouplerEntryCfg:
     """
 
 
-@configclass
-class CouplerProxyMappingCfg:
+@dataclass
+class CouplerProxyMappingCfg(ConfigMixin):
     """Configuration for one directed virtual-proxy mapping."""
 
     source: str = MISSING
@@ -127,7 +127,7 @@ class CouplerProxyMappingCfg:
     """
 
 
-@configclass
+@dataclass
 class CouplerCfg(NewtonSolverCfg):
     """Base configuration for a Newton experimental coupled solver.
 
@@ -143,7 +143,7 @@ class CouplerCfg(NewtonSolverCfg):
     """Ordered named sub-solver entries and their ownership selectors."""
 
 
-@configclass
+@dataclass
 class CouplerProxyCfg(CouplerCfg):
     """Configuration for Newton's lagged-impulse virtual-proxy coupling.
 
@@ -157,7 +157,7 @@ class CouplerProxyCfg(CouplerCfg):
     """Number of proxy relaxation passes per coupled step."""
 
 
-@configclass
+@dataclass
 class CouplerAdmmCfg(CouplerCfg):
     """Configuration for Newton's linearized ADMM coupling."""
 

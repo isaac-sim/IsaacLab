@@ -198,12 +198,13 @@ sync:
 .. code:: python
 
     from isaaclab.physics import PhysxAutoCfg
-    from isaaclab.utils import configclass
+    from dataclasses import dataclass
+    from isaaclab.utils import ConfigMixin
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
-    @configclass
+    @dataclass
     class MyPhysicsCfg(PresetCfg):
         isaacsim_physx = PhysxCfg(gpu_found_lost_pairs_capacity=2**22)
         ovphysx = OvPhysxCfg(gpu_found_lost_pairs_capacity=2**22)

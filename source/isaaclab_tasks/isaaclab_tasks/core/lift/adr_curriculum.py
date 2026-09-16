@@ -3,14 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from . import mdp
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     """Curriculum terms for the MDP."""
 
     # adr stands for automatic/adaptive domain randomization

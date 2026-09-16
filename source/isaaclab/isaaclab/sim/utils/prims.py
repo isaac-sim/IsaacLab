@@ -1021,8 +1021,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
 
     .. code-block:: python
 
-        @configclass
-        class TableVariants:
+        from dataclasses import dataclass
+        from typing import Literal
+
+        from isaaclab.utils import ConfigMixin
+
+
+        @dataclass
+        class TableVariants(ConfigMixin):
             color: Literal["blue", "red"] = "red"
             size: Literal["small", "large"] = "large"
 
@@ -1056,7 +1062,7 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # Convert to dict if we have a configclass object.
+    # Convert to dict if we have a configuration dataclass.
     if not isinstance(variants, dict):
         variants = variants.to_dict()  # type: ignore
 

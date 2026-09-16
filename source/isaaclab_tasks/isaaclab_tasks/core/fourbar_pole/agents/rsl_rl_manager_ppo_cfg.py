@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -12,7 +12,7 @@ from isaaclab_rl.rsl_rl import (
 )
 
 
-@configclass
+@dataclass
 class FourbarPolePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
     max_iterations = 300

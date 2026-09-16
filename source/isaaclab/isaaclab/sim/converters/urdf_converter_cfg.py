@@ -5,14 +5,14 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
+@dataclass
 class UrdfConverterCfg(AssetConverterBaseCfg):
     """The configuration class for UrdfConverter.
 
@@ -22,12 +22,12 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     ``override_joint_stiffness`` / ``override_joint_damping`` fields at conversion time.
     """
 
-    @configclass
-    class JointDriveCfg:
+    @dataclass
+    class JointDriveCfg(ConfigMixin):
         """Configuration for the joint drive."""
 
-        @configclass
-        class PDGainsCfg:
+        @dataclass
+        class PDGainsCfg(ConfigMixin):
             """Configuration for the PD gains of the drive."""
 
             stiffness: dict[str, float] | float | None = None
@@ -46,8 +46,8 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
             0.0 and :attr:`stiffness` serves as the drive's strength in joint velocity space.
             """
 
-        @configclass
-        class NaturalFrequencyGainsCfg:
+        @dataclass
+        class NaturalFrequencyGainsCfg(ConfigMixin):
             r"""Configuration for the natural frequency gains of the drive.
 
             Computes the joint drive stiffness and damping based on the desired natural frequency using the formula:

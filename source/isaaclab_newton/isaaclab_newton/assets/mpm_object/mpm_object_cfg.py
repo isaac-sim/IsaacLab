@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.deformable_object.deformable_object_cfg import DeformableObjectCfg
-from isaaclab.utils import configclass
 
 from isaaclab_newton.sim.spawners.mpm import MPMParticleSpawnerCfg
 
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
     from .mpm_object import MPMObject
 
 
-@configclass
+@dataclass
 class MPMObjectCfg(DeformableObjectCfg):
     """Configuration parameters for a Newton MPM particle object."""
 

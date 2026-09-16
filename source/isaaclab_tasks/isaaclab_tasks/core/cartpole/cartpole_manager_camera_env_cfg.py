@@ -4,13 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
@@ -23,7 +24,7 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 ##
 
 
-@configclass
+@dataclass
 class CartpoleTiledCameraCfg(PresetCfg):
     """Tiled-camera presets, one per rendered data type.
 
@@ -32,7 +33,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
     can pick both the data type and the backend.
     """
 
-    @configclass
+    @dataclass
     class BaseCartpoleTiledCameraCfg(CameraCfg):
         prim_path: str = "{ENV_REGEX_NS}/Camera"
         offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
@@ -61,7 +62,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class CartpoleCameraSceneCfg(CartpoleSceneCfg):
     """Cartpole scene with a selectable tiled camera."""
 
@@ -83,9 +84,9 @@ def image_observations_cfg(data_type: str):
         An observations config with camera policy observations and privileged state critic observations.
     """
 
-    @configclass
-    class ImageObservationsCfg:
-        @configclass
+    @dataclass
+    class ImageObservationsCfg(ConfigMixin):
+        @dataclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
                 func=mdp.CameraImageStack,
@@ -102,11 +103,11 @@ def image_observations_cfg(data_type: str):
     return ImageObservationsCfg()
 
 
-@configclass
-class ResNet18ObservationCfg:
+@dataclass
+class ResNet18ObservationCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class ResNet18FeaturesCameraPolicyCfg(ObsGroup):
         """Observations for policy group with features extracted from RGB images with a frozen ResNet18."""
 
@@ -118,11 +119,11 @@ class ResNet18ObservationCfg:
     policy: ObsGroup = ResNet18FeaturesCameraPolicyCfg()
 
 
-@configclass
-class TheiaTinyObservationCfg:
+@dataclass
+class TheiaTinyObservationCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class TheiaTinyFeaturesCameraPolicyCfg(ObsGroup):
         """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny Transformer"""
 
@@ -144,7 +145,7 @@ class TheiaTinyObservationCfg:
 ##
 
 
-@configclass
+@dataclass
 class CartpoleCameraEnvCfg(PresetCfg):
     """Cartpole environment with a selectable camera observation pipeline.
 
@@ -154,7 +155,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
     images, so they fall back to the default camera.
     """
 
-    @configclass
+    @dataclass
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg` -- only the fields that differ are overridden."""
 

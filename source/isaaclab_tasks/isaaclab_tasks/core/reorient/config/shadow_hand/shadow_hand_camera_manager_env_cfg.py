@@ -5,10 +5,12 @@
 
 """Manager-based counterpart of the Shadow Hand camera reorientation task."""
 
+from dataclasses import dataclass
+
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as mdp
@@ -36,7 +38,7 @@ _MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
 )
 
 
-@configclass
+@dataclass
 class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
     """State Manager scene augmented with camera and fingertip-wrench sensors."""
 
@@ -49,11 +51,11 @@ class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
-class ShadowHandCameraObservationsCfg:
+@dataclass
+class ShadowHandCameraObservationsCfg(ConfigMixin):
     """Camera actor and asymmetric critic observation groups."""
 
-    @configclass
+    @dataclass
     class CameraPolicyCfg(ReorientRobotObsCfg):
         """Direct-compatible camera actor observation.
 
@@ -80,7 +82,7 @@ class ShadowHandCameraObservationsCfg:
         def __post_init__(self):
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class CameraCriticCfg(ReorientFullStateObsCfg):
         """Direct-compatible 214-dimensional asymmetric camera critic state."""
 
@@ -97,7 +99,7 @@ class ShadowHandCameraObservationsCfg:
     critic: CameraCriticCfg = CameraCriticCfg()
 
 
-@configclass
+@dataclass
 class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
     """Manager-based camera task with exact Direct dynamics and observations."""
 

@@ -142,15 +142,16 @@ multirotor_cfg = MultirotorCfg(
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+from isaaclab.utils import ConfigMixin
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
-@configclass
+@dataclass
 class QuadcopterEnvCfg(ManagerBasedRLEnvCfg):
     # ... scene, observations, rewards, etc. ...
 
-    @configclass
-    class ActionsCfg:
+    @dataclass
+    class ActionsCfg(ConfigMixin):
         # Normalized thrust control around hover
         thrust = ThrustActionCfg(
             asset_name="robot",

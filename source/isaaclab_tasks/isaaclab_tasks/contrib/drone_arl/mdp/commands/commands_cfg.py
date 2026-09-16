@@ -3,16 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .drone_pose_command import DroneUniformPoseCommand
 
 
-@configclass
+@dataclass
 class DroneUniformPoseCommandCfg(UniformPoseCommandCfg):
     """Configuration for uniform drone pose command generator."""
 

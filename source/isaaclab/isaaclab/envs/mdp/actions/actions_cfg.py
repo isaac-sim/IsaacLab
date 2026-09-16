@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 ##
 
 
-@configclass
+@dataclass
 class JointActionCfg(ActionTermCfg):
     """Configuration for the base joint action term.
 
@@ -43,7 +43,7 @@ class JointActionCfg(ActionTermCfg):
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
 
-@configclass
+@dataclass
 class FixedTendonPositionActionCfg(ActionTermCfg):
     """Configuration for a position action over an articulation's fixed tendons.
 
@@ -70,7 +70,7 @@ class FixedTendonPositionActionCfg(ActionTermCfg):
     """
 
 
-@configclass
+@dataclass
 class JointPositionActionCfg(JointActionCfg):
     """Configuration for the joint position action term.
 
@@ -88,7 +88,7 @@ class JointPositionActionCfg(JointActionCfg):
     """
 
 
-@configclass
+@dataclass
 class RelativeJointPositionActionCfg(JointActionCfg):
     """Configuration for the relative joint position action term.
 
@@ -104,7 +104,7 @@ class RelativeJointPositionActionCfg(JointActionCfg):
     """
 
 
-@configclass
+@dataclass
 class JointVelocityActionCfg(JointActionCfg):
     """Configuration for the joint velocity action term.
 
@@ -121,7 +121,7 @@ class JointVelocityActionCfg(JointActionCfg):
     """
 
 
-@configclass
+@dataclass
 class JointEffortActionCfg(JointActionCfg):
     """Configuration for the joint effort action term.
 
@@ -136,7 +136,7 @@ class JointEffortActionCfg(JointActionCfg):
 ##
 
 
-@configclass
+@dataclass
 class JointPositionToLimitsActionCfg(ActionTermCfg):
     """Configuration for the bounded joint position action term.
 
@@ -165,7 +165,7 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
 
-@configclass
+@dataclass
 class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
     """Configuration for the exponential moving average (EMA) joint position action term.
 
@@ -188,7 +188,7 @@ class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
 ##
 
 
-@configclass
+@dataclass
 class BinaryJointActionCfg(ActionTermCfg):
     """Configuration for the base binary joint action term.
 
@@ -203,7 +203,7 @@ class BinaryJointActionCfg(ActionTermCfg):
     """The joint command to move to *close* configuration."""
 
 
-@configclass
+@dataclass
 class BinaryJointPositionActionCfg(BinaryJointActionCfg):
     """Configuration for the binary joint position action term.
 
@@ -213,7 +213,7 @@ class BinaryJointPositionActionCfg(BinaryJointActionCfg):
     class_type: type[BinaryJointPositionAction] | str = "{DIR}.binary_joint_actions:BinaryJointPositionAction"
 
 
-@configclass
+@dataclass
 class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     """Configuration for the binary joint velocity action term.
 
@@ -223,7 +223,7 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     class_type: type[BinaryJointVelocityAction] | str = "{DIR}.binary_joint_actions:BinaryJointVelocityAction"
 
 
-@configclass
+@dataclass
 class AbsBinaryJointPositionActionCfg(ActionTermCfg):
     """Configuration for the absolute binary joint position action term.
 
@@ -263,7 +263,7 @@ class AbsBinaryJointPositionActionCfg(ActionTermCfg):
 ##
 
 
-@configclass
+@dataclass
 class NonHolonomicActionCfg(ActionTermCfg):
     """Configuration for the non-holonomic action term with dummy joints at the base.
 
@@ -291,15 +291,15 @@ class NonHolonomicActionCfg(ActionTermCfg):
 ##
 
 
-@configclass
+@dataclass
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for inverse differential kinematics action term.
 
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
 
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose from parent frame to child frame.
 
         On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -329,15 +329,15 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """The configuration for the differential IK controller."""
 
 
-@configclass
+@dataclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """Configuration for operational space controller action term.
 
     See :class:`OperationalSpaceControllerAction` for more details.
     """
 
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose from parent frame to child frame.
 
         On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -398,7 +398,7 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 ##
 
 
-@configclass
+@dataclass
 class SurfaceGripperBinaryActionCfg(ActionTermCfg):
     """Configuration for the binary surface gripper action term.
 

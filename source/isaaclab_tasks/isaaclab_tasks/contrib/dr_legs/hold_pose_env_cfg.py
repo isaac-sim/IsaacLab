@@ -8,6 +8,8 @@
 The robot must keep its pelvis upright at a target height.
 """
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -23,7 +25,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
@@ -67,7 +69,7 @@ def _kamino_newton_cfg() -> NewtonCfg:
     )
 
 
-@configclass
+@dataclass
 class DrLegsPhysicsCfg(PresetCfg):
     """Physics backend presets for DR Legs."""
 
@@ -82,7 +84,7 @@ class DrLegsPhysicsCfg(PresetCfg):
 ##
 
 
-@configclass
+@dataclass
 class HoldPoseSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(
         prim_path="/World/ground",
@@ -102,8 +104,8 @@ class HoldPoseSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     joint_pos = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=DR_LEGS_ACTUATED_JOINTS,
@@ -120,7 +122,7 @@ def _physx_actions_cfg() -> ActionsCfg:
     return cfg
 
 
-@configclass
+@dataclass
 class DrLegsActionsCfg(PresetCfg):
     """Backend-specific DR Legs action presets."""
 
@@ -130,9 +132,9 @@ class DrLegsActionsCfg(PresetCfg):
     isaacsim_physx: ActionsCfg = physx
 
 
-@configclass
-class ObservationsCfg:
-    @configclass
+@dataclass
+class ObservationsCfg(ConfigMixin):
+    @dataclass
     class PolicyCfg(ObsGroup):
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
@@ -148,7 +150,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class CriticCfg(ObsGroup):
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2)
@@ -161,8 +163,8 @@ class ObservationsCfg:
     critic: CriticCfg = CriticCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     randomize_joint_params = EventTerm(
         func=mdp.randomize_joint_parameters,
         mode="startup",
@@ -241,7 +243,7 @@ def _physx_event_cfg() -> EventCfg:
     return cfg
 
 
-@configclass
+@dataclass
 class DrLegsEventCfg(PresetCfg):
     """Backend-specific DR Legs event presets."""
 
@@ -251,8 +253,8 @@ class DrLegsEventCfg(PresetCfg):
     isaacsim_physx: EventCfg = physx
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     alive = RewTerm(func=mdp.is_alive, weight=5.0)
     flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
     height = RewTerm(func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.265})
@@ -274,8 +276,8 @@ class RewardsCfg:
     success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     root_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.12})
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
@@ -286,7 +288,7 @@ class TerminationsCfg:
 ##
 
 
-@configclass
+@dataclass
 class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     """DR Legs hold-pose environment."""
 

@@ -80,34 +80,34 @@ def double(x):
     return 2 * x
 
 
-@configclass
-class ModifierCfg:
+@dataclass
+class ModifierCfg(ConfigMixin):
     params: dict[str, Any] = {"A": 1, "B": 2}
 
 
-@configclass
-class ViewerCfg:
+@dataclass
+class ViewerCfg(ConfigMixin):
     eye: list = [7.5, 7.5, 7.5]  # field missing on purpose
     lookat: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
-@configclass
-class EnvCfg:
+@dataclass
+class EnvCfg(ConfigMixin):
     num_envs: int = double(28)  # uses function for assignment
     episode_length: int = 2000
     viewer: ViewerCfg = ViewerCfg()
 
 
-@configclass
-class RobotDefaultStateCfg:
+@dataclass
+class RobotDefaultStateCfg(ConfigMixin):
     pos = (0.0, 0.0, 0.0)  # type annotation missing on purpose (immutable)
     rot: tuple = (0.0, 0.0, 0.0, 1.0)  # xyzw format
     dof_pos: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     dof_vel = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]  # type annotation missing on purpose (mutable)
 
 
-@configclass
-class BasicDemoCfg:
+@dataclass
+class BasicDemoCfg(ConfigMixin):
     """Dummy configuration class."""
 
     device_id: int = 0
@@ -116,8 +116,8 @@ class BasicDemoCfg:
     list_config = [ModifierCfg(), ModifierCfg(params={"A": 3, "B": 4})]
 
 
-@configclass
-class BasicDemoPostInitCfg:
+@dataclass
+class BasicDemoPostInitCfg(ConfigMixin):
     """Dummy configuration class."""
 
     device_id: int = 0
@@ -129,16 +129,16 @@ class BasicDemoPostInitCfg:
         self.add_variable = 3
 
 
-@configclass
-class BasicDemoTorchCfg:
+@dataclass
+class BasicDemoTorchCfg(ConfigMixin):
     """Dummy configuration class with a torch tensor ."""
 
     some_number: int = 0
     some_tensor: torch.Tensor = torch.Tensor([1, 2, 3])
 
 
-@configclass
-class BasicActuatorCfg:
+@dataclass
+class BasicActuatorCfg(ConfigMixin):
     """Dummy configuration class for ActuatorBase config."""
 
     joint_names_expr: list[str] = ["some_string"]
@@ -152,8 +152,8 @@ Dummy configuration to check type annotations ordering.
 """
 
 
-@configclass
-class TypeAnnotationOrderingDemoCfg:
+@dataclass
+class TypeAnnotationOrderingDemoCfg(ConfigMixin):
     """Config class with type annotations."""
 
     anymal: RobotDefaultStateCfg = RobotDefaultStateCfg()
@@ -161,8 +161,8 @@ class TypeAnnotationOrderingDemoCfg:
     franka: RobotDefaultStateCfg = RobotDefaultStateCfg()
 
 
-@configclass
-class NonTypeAnnotationOrderingDemoCfg:
+@dataclass
+class NonTypeAnnotationOrderingDemoCfg(ConfigMixin):
     """Config class without type annotations."""
 
     anymal = RobotDefaultStateCfg()
@@ -170,15 +170,15 @@ class NonTypeAnnotationOrderingDemoCfg:
     franka = RobotDefaultStateCfg()
 
 
-@configclass
+@dataclass
 class InheritedNonTypeAnnotationOrderingDemoCfg(NonTypeAnnotationOrderingDemoCfg):
     """Inherited config class without type annotations."""
 
     pass
 
 
-@configclass
-class MixedAnnotationOrderingDemoCfg:
+@dataclass
+class MixedAnnotationOrderingDemoCfg(ConfigMixin):
     """Config class with type annotations on only some attributes."""
 
     plane = RobotDefaultStateCfg()
@@ -189,7 +189,7 @@ class MixedAnnotationOrderingDemoCfg:
     light = RobotDefaultStateCfg()
 
 
-@configclass
+@dataclass
 class InheritedMixedAnnotationOrderingDemoCfg(MixedAnnotationOrderingDemoCfg):
     """Inherited config class with type annotations on only some attributes."""
 
@@ -203,8 +203,8 @@ Dummy configuration: Inheritance
 """
 
 
-@configclass
-class ParentDemoCfg:
+@dataclass
+class ParentDemoCfg(ConfigMixin):
     """Dummy parent configuration with missing fields."""
 
     a: int = MISSING  # add new missing field
@@ -216,7 +216,7 @@ class ParentDemoCfg:
     func: Callable = MISSING  # add new missing field
 
 
-@configclass
+@dataclass
 class ChildADemoCfg(ParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
@@ -236,7 +236,7 @@ class ChildADemoCfg(ParentDemoCfg):
         self.i = ["a", "b"]  # change value of existing field
 
 
-@configclass
+@dataclass
 class ChildBDemoCfg(ParentDemoCfg):
     """Dummy child configuration to test inheritance across instances."""
 
@@ -248,7 +248,7 @@ class ChildBDemoCfg(ParentDemoCfg):
         self.i = ["1", "2"]  # change value of existing field
 
 
-@configclass
+@dataclass
 class ChildChildDemoCfg(ChildADemoCfg):
     """Dummy child configuration with missing fields."""
 
@@ -267,8 +267,8 @@ Configuration with class inside.
 """
 
 
-@configclass
-class DummyClassCfg:
+@dataclass
+class DummyClassCfg(ConfigMixin):
     """Dummy class configuration with class type."""
 
     class_name_1: type = DummyClass
@@ -284,16 +284,16 @@ Configuration with nested classes.
 """
 
 
-@configclass
-class OutsideClassCfg:
+@dataclass
+class OutsideClassCfg(ConfigMixin):
     """Outermost dummy configuration."""
 
-    @configclass
-    class InsideClassCfg:
+    @dataclass
+    class InsideClassCfg(ConfigMixin):
         """Inner dummy configuration."""
 
-        @configclass
-        class InsideInsideClassCfg:
+        @dataclass
+        class InsideInsideClassCfg(ConfigMixin):
             """Dummy configuration with class type."""
 
             u: list[int] = [1, 2, 3]
@@ -313,8 +313,8 @@ Dummy configuration: Functions
 """
 
 
-@configclass
-class FunctionsDemoCfg:
+@dataclass
+class FunctionsDemoCfg(ConfigMixin):
     """Dummy configuration class with functions as attributes."""
 
     func = dummy_function1
@@ -322,8 +322,8 @@ class FunctionsDemoCfg:
     func_in_dict = {"func": dummy_function1}
 
 
-@configclass
-class FunctionImplementedDemoCfg:
+@dataclass
+class FunctionImplementedDemoCfg(ConfigMixin):
     """Dummy configuration class with functions as attributes."""
 
     func = dummy_function1
@@ -334,8 +334,8 @@ class FunctionImplementedDemoCfg:
         self.a = a
 
 
-@configclass
-class ClassFunctionImplementedDemoCfg:
+@dataclass
+class ClassFunctionImplementedDemoCfg(ConfigMixin):
     """Dummy configuration class with function members defined in the class."""
 
     a: int = 5
@@ -361,8 +361,8 @@ Dummy configuration: Nested dictionaries
 """
 
 
-@configclass
-class NestedDictAndListCfg:
+@dataclass
+class NestedDictAndListCfg(ConfigMixin):
     """Dummy configuration class with nested dictionaries and lists."""
 
     dict_1: dict = {"dict_2": {"func": dummy_function1}}
@@ -374,18 +374,18 @@ Dummy configuration: Missing attributes
 """
 
 
-@configclass
-class MissingParentDemoCfg:
+@dataclass
+class MissingParentDemoCfg(ConfigMixin):
     """Dummy parent configuration with missing fields."""
 
     a: int = MISSING
 
-    @configclass
-    class InsideClassCfg:
+    @dataclass
+    class InsideClassCfg(ConfigMixin):
         """Inner dummy configuration."""
 
-        @configclass
-        class InsideInsideClassCfg:
+        @dataclass
+        class InsideInsideClassCfg(ConfigMixin):
             """Inner inner dummy configuration."""
 
             a: str = MISSING
@@ -399,7 +399,7 @@ class MissingParentDemoCfg:
     b: InsideClassCfg = InsideClassCfg()
 
 
-@configclass
+@dataclass
 class MissingChildDemoCfg(MissingParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
@@ -661,8 +661,8 @@ def test_config_update_nested_dict():
 def test_wrap_resolvable_strings_handles_cyclic_containers():
     """Cyclic container graphs in config values should not recurse forever."""
 
-    @configclass
-    class CyclicContainerCfg:
+    @dataclass
+    class CyclicContainerCfg(ConfigMixin):
         payload: dict[str, Any] = field(default_factory=dict)
 
         def __post_init__(self):
@@ -681,11 +681,11 @@ def test_wrap_resolvable_strings_handles_cyclic_containers():
 def test_dir_resolution_uses_declaring_class_for_inherited_field():
     """{DIR} expansion should use the field declaring class, not subclass module."""
 
-    @configclass
-    class _BaseCfg:
+    @dataclass
+    class _BaseCfg(ConfigMixin):
         class_type: type | str = "{DIR}.base_mod:BaseSymbol"
 
-    @configclass
+    @dataclass
     class _ChildCfg(_BaseCfg):
         pass
 
@@ -717,6 +717,36 @@ def test_dataclass_mixin_dir_resolution_uses_declaring_class_for_inherited_field
 
     assert isinstance(cfg.class_type, ResolvableString)
     assert str(cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
+
+
+def test_dataclass_mixin_supports_frozen_configs():
+    """Configuration post-initialization should preserve frozen dataclass semantics."""
+
+    @dataclass(frozen=True)
+    class FrozenCfg(ConfigMixin):
+        values: list[int] = [1, 2]
+
+    first = FrozenCfg()
+    second = first.copy()
+
+    assert first.values == second.values
+    assert first.values is not second.values
+
+
+def test_dataclass_mixin_supports_undecorated_subclasses():
+    """Plain subclasses should not expose temporary dataclass field descriptors as values."""
+
+    @dataclass
+    class ParentCfg(ConfigMixin):
+        values: list[int] = [1, 2]
+
+    class ChildCfg(ParentCfg):
+        runtime_cache: list[int] | None = None
+
+    cfg = ChildCfg()
+
+    assert cfg.values == [1, 2]
+    assert cfg.runtime_cache is None
 
 
 def test_config_update_different_iterable_lengths():
@@ -972,8 +1002,8 @@ def test_missing_type_in_config():
     """
     with pytest.raises(TypeError):
 
-        @configclass
-        class MissingTypeDemoCfg:
+        @dataclass
+        class MissingTypeDemoCfg(ConfigMixin):
             a: int = 1
             b = 2
             c = MISSING
@@ -987,8 +1017,8 @@ def test_missing_default_value_in_config():
     """
     with pytest.raises(ValueError):
 
-        @configclass
-        class MissingTypeDemoCfg:
+        @dataclass
+        class MissingTypeDemoCfg(ConfigMixin):
             a: int
             b = 2
 
@@ -996,8 +1026,8 @@ def test_missing_default_value_in_config():
 def test_required_argument_for_missing_type_in_config():
     """Tests required positional argument for missing type annotation in config creation."""
 
-    @configclass
-    class MissingTypeDemoCfg:
+    @dataclass
+    class MissingTypeDemoCfg(ConfigMixin):
         a: int = 1
         b = 2
         c: int = MISSING
@@ -1178,12 +1208,12 @@ def test_validity():
 def test_dir_resolution_in_subclass():
     """Test that {DIR} in inherited fields resolves relative to the declaring class's module."""
 
-    @configclass
-    class ParentCfg:
+    @dataclass
+    class ParentCfg(ConfigMixin):
         class_type: str = "{DIR}.my_module:MyClass"
         name: str = "default"
 
-    @configclass
+    @dataclass
     class ChildCfg(ParentCfg):
         extra: int = 42
 
@@ -1212,8 +1242,8 @@ def test_checked_apply_forwards_all_fields():
 
     from isaaclab.utils import checked_apply
 
-    @configclass
-    class WrapperCfg:
+    @dataclass
+    class WrapperCfg(ConfigMixin):
         gap: float = 0.01
         margin: float = 0.0
 
@@ -1239,8 +1269,8 @@ def test_checked_apply_raises_on_missing_target_field():
 
     from isaaclab.utils import checked_apply
 
-    @configclass
-    class WrapperCfg:
+    @dataclass
+    class WrapperCfg(ConfigMixin):
         margin: float = 0.01
         renamed_in_upstream: float = 0.0
 
@@ -1262,6 +1292,17 @@ def test_checked_apply_rejects_non_dataclass_src():
 
     with pytest.raises(TypeError, match="must be a dataclass"):
         checked_apply(NotADataclass(), object())
+
+
+def test_configclass_emits_deprecation_warning():
+    """The compatibility decorator should direct users to standard dataclasses."""
+    with pytest.deprecated_call(match="Use dataclasses.dataclass with ConfigMixin"):
+
+        @configclass
+        class LegacyCfg:
+            value: int = 1
+
+    assert LegacyCfg().value == 1
 
 
 @pytest.mark.parametrize("import_first", ["sub-module", "decorator"])

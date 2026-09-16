@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -17,8 +17,8 @@ if TYPE_CHECKING:
     from isaaclab.sim import schemas
 
 
-@configclass
-class SpawnerCfg:
+@dataclass
+class SpawnerCfg(ConfigMixin):
     """Configuration parameters for spawning an asset.
 
     Spawning an asset is done by calling the :attr:`func` function. The function takes in the
@@ -73,7 +73,7 @@ class SpawnerCfg:
     """Path where the prototype is spawned. Defaults to None."""
 
 
-@configclass
+@dataclass
 class RigidObjectSpawnerCfg(SpawnerCfg):
     """Configuration parameters for spawning a rigid asset.
 
@@ -169,7 +169,7 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     """
 
 
-@configclass
+@dataclass
 class DeformableObjectSpawnerCfg(SpawnerCfg):
     """Configuration parameters for spawning a deformable asset.
 

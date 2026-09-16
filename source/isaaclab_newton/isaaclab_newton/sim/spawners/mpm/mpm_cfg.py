@@ -6,16 +6,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
 from isaaclab.sim.spawners.materials.visual_materials_cfg import VisualMaterialCfg
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class MPMParticleMaterialCfg:
+@dataclass
+class MPMParticleMaterialCfg(ConfigMixin):
     """Per-particle material values consumed by Newton's implicit MPM solver.
 
     This lightweight value configuration does not create or bind a USD material.
@@ -60,7 +60,7 @@ class MPMParticleMaterialCfg:
     """Dimensionless granular dilatancy factor."""
 
 
-@configclass
+@dataclass
 class MPMParticleSpawnerCfg(SpawnerCfg):
     """Base configuration for declarative Newton MPM particle generation.
 
@@ -84,7 +84,7 @@ class MPMParticleSpawnerCfg(SpawnerCfg):
     """USD-stage particle visualization update frequency in render frames."""
 
 
-@configclass
+@dataclass
 class MPMGridCfg(MPMParticleSpawnerCfg):
     """Generate a regular MPM particle lattice in an axis-aligned local box."""
 
@@ -135,7 +135,7 @@ class MPMGridCfg(MPMParticleSpawnerCfg):
     """
 
 
-@configclass
+@dataclass
 class MPMPointsCfg(MPMParticleSpawnerCfg):
     """Generate MPM particles from explicit local-space positions."""
 

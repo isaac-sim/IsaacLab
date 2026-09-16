@@ -34,7 +34,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -601,7 +600,7 @@ SYNTHETIC_GAUSSIAN_CAMERA_REGEX = (
 """Regex camera prim path that resolves to one camera per env (single or tiled)."""
 
 
-@configclass
+@dataclass
 class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
     """Minimal :class:`~isaaclab.scene.InteractiveScene` cfg wrapping the synthesised gaussian asset.
 

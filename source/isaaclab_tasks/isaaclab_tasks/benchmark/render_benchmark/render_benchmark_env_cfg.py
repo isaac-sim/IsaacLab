@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -20,7 +21,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -28,7 +28,7 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 
 
-@configclass
+@dataclass
 class RenderBenchmarkPhysicsCfg(PresetCfg):
     """Physics backend presets.
 
@@ -51,11 +51,11 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class RenderBenchmarkTiledCameraCfg(PresetCfg):
     """Render-target presets — pick via ``presets=rgb`` (default), ``presets=depth``, and so on."""
 
-    @configclass
+    @dataclass
     class BaseRenderBenchmarkCameraCfg(CameraCfg):
         """Front view of the workspace, pitch-only (no yaw, no roll).
 
@@ -88,7 +88,7 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
     simple_shading_full_mdl = BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_full_mdl"])
 
 
-@configclass
+@dataclass
 class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     """Franka Panda and Sektion cabinet, animated for renderer benchmarking.
 

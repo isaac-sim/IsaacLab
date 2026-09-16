@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import torch
 
@@ -13,7 +14,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
@@ -80,8 +81,8 @@ def set_finger_joint_pos_grav(
 ##
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     small_gear_physics_material = EventTerm(
@@ -183,7 +184,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     """Configuration for Flexiv Rizon 4s with Grav Gripper Gear Assembly Environment.
 

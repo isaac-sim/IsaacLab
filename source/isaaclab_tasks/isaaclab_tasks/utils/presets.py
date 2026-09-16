@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import Any
 
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -10,17 +11,16 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class _AutoRtxRendererCfg(RendererCfg):
     renderer_type: str = "auto_rtx"
 
 
-@configclass
+@dataclass
 class MultiBackendRendererCfg(PresetCfg):
     rtx: _AutoRtxRendererCfg = _AutoRtxRendererCfg()
     ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()

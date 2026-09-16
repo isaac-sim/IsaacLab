@@ -4,13 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import isaaclab.envs.mdp as manipulation_mdp
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -20,7 +21,7 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES
 
 
-@configclass
+@dataclass
 class DigitLocoManipRewards(DigitRewards):
     joint_deviation_arms = None
 
@@ -87,11 +88,11 @@ class DigitLocoManipRewards(DigitRewards):
     )
 
 
-@configclass
-class DigitLocoManipObservations:
+@dataclass
+class DigitLocoManipObservations(ConfigMixin):
     """Configuration for the Digit Locomanipulation environment."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         base_lin_vel = ObsTerm(
             func=mdp.base_lin_vel,
@@ -136,8 +137,8 @@ class DigitLocoManipObservations:
     policy = PolicyCfg()
 
 
-@configclass
-class DigitLocoManipCommands:
+@dataclass
+class DigitLocoManipCommands(ConfigMixin):
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(10.0, 10.0),
@@ -184,7 +185,7 @@ class DigitLocoManipCommands:
     )
 
 
-@configclass
+@dataclass
 class DigitEvents(EventsCfg):
     # Add an external force to simulate a payload being carried.
     left_hand_force = EventTermCfg(
@@ -210,7 +211,7 @@ class DigitEvents(EventsCfg):
     )
 
 
-@configclass
+@dataclass
 class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
     rewards: DigitLocoManipRewards = DigitLocoManipRewards()
     observations: DigitLocoManipObservations = DigitLocoManipObservations()

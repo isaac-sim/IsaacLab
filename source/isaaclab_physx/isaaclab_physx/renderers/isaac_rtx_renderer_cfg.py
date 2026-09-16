@@ -7,19 +7,19 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
     from .isaac_rtx_renderer import IsaacRtxRenderer
 
 
-@configclass
-class IsaacRtxRendererGlobalSettingsCfg:
+@dataclass
+class IsaacRtxRendererGlobalSettingsCfg(ConfigMixin):
     """Global Isaac RTX renderer settings.
 
     These settings are applied to Kit/RTX carb settings. They are carried by
@@ -106,7 +106,7 @@ class IsaacRtxRendererGlobalSettingsCfg:
     """Raw carb settings applied after named fields."""
 
 
-@configclass
+@dataclass
 class IsaacRtxRendererCfg(RendererCfg):
     """Configuration for Isaac RTX renderer using Omniverse Replicator.
 

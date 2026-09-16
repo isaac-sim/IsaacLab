@@ -5,6 +5,7 @@
 
 import os
 import tempfile
+from dataclasses import dataclass
 
 import yaml
 
@@ -12,12 +13,12 @@ from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
-@configclass
-class CuroboPlannerCfg:
+@dataclass
+class CuroboPlannerCfg(ConfigMixin):
     """Configuration for CuRobo motion planner.
 
     This dataclass provides a flexible configuration system for the CuRobo motion planner.

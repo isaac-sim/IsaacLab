@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import dataclass
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
 
 # POSIX temp roots are shared between users; Windows already gives each user a private one.
 _CACHE_DIR_NAME = f"ovphysx_derived_data_cache_{os.getuid()}" if hasattr(os, "getuid") else "ovphysx_derived_data_cache"
@@ -20,7 +20,7 @@ DEFAULT_COOKED_COLLIDER_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), _CA
 """Fallback cache directory used when the runtime is constructed without an :class:`OvPhysxCfg`."""
 
 
-@configclass
+@dataclass
 class OvPhysxCfg(PhysicsCfg):
     """Configuration for the ovphysx physics manager.
 

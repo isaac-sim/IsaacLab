@@ -7,16 +7,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .base_renderer import BaseRenderer
 
 
-@configclass
-class RendererCfg:
+@dataclass
+class RendererCfg(ConfigMixin):
     """Configuration for a renderer."""
 
     class_type: type[BaseRenderer] | str | None = None

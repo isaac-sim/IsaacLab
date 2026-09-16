@@ -5,14 +5,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
+from dataclasses import MISSING, dataclass
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 
 
-@configclass
+@dataclass
 class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """Configuration for a reinforcement learning environment with the manager-based workflow."""
 

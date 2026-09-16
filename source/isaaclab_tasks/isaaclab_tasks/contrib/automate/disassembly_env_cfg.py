@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from dataclasses import dataclass
+
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -13,7 +15,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .disassembly_tasks_cfg import ASSET_DIR, Extraction
 
@@ -41,13 +43,13 @@ STATE_DIM_CFG = {
 }
 
 
-@configclass
-class ObsRandCfg:
+@dataclass
+class ObsRandCfg(ConfigMixin):
     fixed_asset_pos = [0.001, 0.001, 0.001]
 
 
-@configclass
-class CtrlCfg:
+@dataclass
+class CtrlCfg(ConfigMixin):
     ema_factor = 0.2
 
     pos_action_bounds = [0.1, 0.1, 0.1]
@@ -70,7 +72,7 @@ class CtrlCfg:
     kd_null = 6.3246
 
 
-@configclass
+@dataclass
 class DisassemblyEnvCfg(DirectRLEnvCfg):
     decimation = 8
     action_space = 6

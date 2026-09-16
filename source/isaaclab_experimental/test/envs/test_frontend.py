@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import types
+from dataclasses import dataclass
 from typing import Any
 from unittest.mock import patch
 
@@ -44,10 +45,10 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 # ======================================================================
-# Fixtures: fake stable/warp symbols and configclass trees.
+# Fixtures: fake stable/warp symbols and configuration dataclass trees.
 #
 # These mirror the real cfg shape so :func:`_walk_terms` descends into them
 # (it only descends into objects with ``__dataclass_fields__``). Term cfgs
@@ -80,45 +81,45 @@ _warp_twin_func.__module__ = "isaaclab_experimental.envs.mdp"
 _WarpActionCls.__module__ = "isaaclab_experimental.envs.mdp"
 
 
-@configclass
-class _PolicyObsGroup:
+@dataclass
+class _PolicyObsGroup(ConfigMixin):
     """Stand-in for a per-task ObservationsCfg sub-group (e.g. PolicyCfg)."""
 
     o1: ObservationTermCfg | None = None
     o2: ObservationTermCfg | None = None
 
 
-@configclass
-class _ExtraObsGroup:
+@dataclass
+class _ExtraObsGroup(ConfigMixin):
     """A second obs group (named arbitrarily) to exercise multi-group walks."""
 
     o3: ObservationTermCfg | None = None
 
 
-@configclass
-class _ObservationsCfg:
+@dataclass
+class _ObservationsCfg(ConfigMixin):
     policy: _PolicyObsGroup | None = None
     perception: _ExtraObsGroup | None = None
 
 
-@configclass
-class _RewardsCfg:
+@dataclass
+class _RewardsCfg(ConfigMixin):
     r1: RewardTermCfg | None = None
     r2: RewardTermCfg | None = None
 
 
-@configclass
-class _EventsCfg:
+@dataclass
+class _EventsCfg(ConfigMixin):
     e1: EventTermCfg | None = None
 
 
-@configclass
-class _CurriculumCfg:
+@dataclass
+class _CurriculumCfg(ConfigMixin):
     c1: EventTermCfg | None = None
 
 
-@configclass
-class _CfgFixture:
+@dataclass
+class _CfgFixture(ConfigMixin):
     observations: _ObservationsCfg | None = None
     rewards: _RewardsCfg | None = None
     events: _EventsCfg | None = None
@@ -287,7 +288,7 @@ def test_walk_terms_skips_none_subtrees():
 
 
 def test_walk_terms_descends_into_dict_groups():
-    # A manager group expressed as a dict of {name: term} (rather than a configclass)
+    # A manager group expressed as a dict of {name: term} (rather than a configuration dataclass)
     # must still have its terms discovered — the warp managers accept both forms.
     cfg = _CfgFixture()
     cfg.rewards = {"r1": _term(), "r2": _term()}
@@ -295,12 +296,12 @@ def test_walk_terms_descends_into_dict_groups():
     assert paths == {"rewards.r1", "rewards.r2"}
 
 
-@configclass
-class _GroupWithNestedClass:
+@dataclass
+class _GroupWithNestedClass(ConfigMixin):
     """Mirrors the real ``ObservationsCfg.PolicyCfg`` nested-class pattern."""
 
-    @configclass
-    class TemplateCfg:
+    @dataclass
+    class TemplateCfg(ConfigMixin):
         t1: ObservationTermCfg | None = None
 
     o1: ObservationTermCfg | None = None
@@ -442,7 +443,7 @@ def test_promote_scene_entity_cfgs_promotes_in_params():
 
 
 def test_promote_scene_entity_cfgs_skips_already_warp():
-    # configclass init deep-copies params, so identity won't hold across
+    # Configuration initialization deep-copies params, so identity won't hold across
     # construction; what we actually want to assert is "no re-promotion":
     # the asset_cfg remains a WarpSceneEntityCfg (i.e., wasn't passed
     # back through `from_stable`).

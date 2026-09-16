@@ -8,10 +8,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -21,8 +22,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@configclass
-class NewtonSolverCfg:
+@dataclass
+class NewtonSolverCfg(ConfigMixin):
     """Configuration for Newton solver-related parameters.
 
     These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
@@ -53,8 +54,8 @@ class NewtonSolverCfg:
     """
 
 
-@configclass
-class NewtonSoftContactCfg:
+@dataclass
+class NewtonSoftContactCfg(ConfigMixin):
     """Global soft-contact parameters applied to the finalized Newton model."""
 
     soft_contact_ke: float = 1.0e3
@@ -75,8 +76,8 @@ class NewtonSoftContactCfg:
     """
 
 
-@configclass
-class NewtonShapeCfg:
+@dataclass
+class NewtonShapeCfg(ConfigMixin):
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
     Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Fields that Isaac
@@ -120,7 +121,7 @@ class NewtonShapeCfg:
     """
 
 
-@configclass
+@dataclass
 class NewtonCfg(PhysicsCfg):
     """Configuration for Newton physics manager.
 

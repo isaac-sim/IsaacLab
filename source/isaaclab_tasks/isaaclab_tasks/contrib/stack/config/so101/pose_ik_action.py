@@ -24,11 +24,10 @@ eager ``from pxr import UsdPhysics`` import.  We therefore reference the term la
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
 
 from .pose_ik_controller import SO101PoseIKControllerCfg
 
@@ -36,7 +35,7 @@ if TYPE_CHECKING:
     from .pose_ik_action_term import SO101PoseIKAction
 
 
-@configclass
+@dataclass
 class SO101PoseIKActionCfg(DifferentialInverseKinematicsActionCfg):
     """Configuration for :class:`~.pose_ik_action_term.SO101PoseIKAction`."""
 

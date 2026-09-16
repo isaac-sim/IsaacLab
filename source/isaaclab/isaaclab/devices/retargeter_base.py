@@ -16,14 +16,15 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class RetargeterCfg:
+@dataclass
+class RetargeterCfg(ConfigMixin):
     """Base configuration for hand tracking retargeters.
 
     .. deprecated::

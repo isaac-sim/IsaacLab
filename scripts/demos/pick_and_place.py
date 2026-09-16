@@ -30,6 +30,7 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import torch
 import warp as wp
@@ -51,13 +52,12 @@ from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
 
-@configclass
+@dataclass
 class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     """Example configuration for a PickAndPlace robot using suction-cups.
 

@@ -1556,7 +1556,7 @@ def rendering_test_shadow_hand(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils import configclass
+    from dataclasses import dataclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
@@ -1565,7 +1565,7 @@ def rendering_test_shadow_hand(
         _ShadowHandBaseTiledCameraCfg,
     )
 
-    @configclass
+    @dataclass
     class _ShadowHandTiledCameraTestCfg(ShadowHandTiledCameraCfg):
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
@@ -1574,7 +1574,7 @@ def rendering_test_shadow_hand(
         instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
         motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
-    @configclass
+    @dataclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
         tiled_camera = _ShadowHandTiledCameraTestCfg()
 
@@ -1650,7 +1650,7 @@ def rendering_test_shadow_hand_yellow_bg(
     comparison_scores: list[dict],
 ) -> None:
     """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
-    from isaaclab.utils import configclass
+    from dataclasses import dataclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
@@ -1661,17 +1661,17 @@ def rendering_test_shadow_hand_yellow_bg(
 
     _YELLOW = (1.0, 1.0, 0.0)
 
-    @configclass
+    @dataclass
     class _YellowBgCameraCfg(_ShadowHandBaseTiledCameraCfg):
         data_types: list[str] = ["rgb"]
         background_color: tuple[float, float, float] | None = _YELLOW
 
-    @configclass
+    @dataclass
     class _YellowBgTiledCameraCfg(ShadowHandTiledCameraCfg):
         default: _YellowBgCameraCfg = _YellowBgCameraCfg()
         rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
 
-    @configclass
+    @dataclass
     class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
         tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
 
@@ -1708,13 +1708,13 @@ def rendering_test_cartpole(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils import configclass
+    from dataclasses import dataclass
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
 
     from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
-    @configclass
+    @dataclass
     class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
         distance_to_camera = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
@@ -1727,14 +1727,14 @@ def rendering_test_cartpole(
         )
         motion_vectors = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
 
-    @configclass
+    @dataclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
         robot_cfg = CARTPOLE_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
 
-    @configclass
+    @dataclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
@@ -1855,9 +1855,10 @@ def rendering_test_lift_kuka(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
+    from dataclasses import dataclass
+
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
         BASE_CAMERA_CFG,
@@ -1873,7 +1874,7 @@ def rendering_test_lift_kuka(
         KukaAllegroLiftEnvCfg,
     )
 
-    @configclass
+    @dataclass
     class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
         distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
         distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
@@ -1904,11 +1905,11 @@ def rendering_test_lift_kuka(
         motion_vectors128 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=128, height=128)
         motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
 
-    @configclass
+    @dataclass
     class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
         base_camera: CameraCfg = _LiftBaseTiledCameraTestCfg()
 
-    @configclass
+    @dataclass
     class _KukaAllegroLiftCameraTestEnvCfg(KukaAllegroLiftCameraEnvCfg):
         single_camera = KukaAllegroLiftEnvCfg(
             scene=_LiftSingleCameraTestSceneCfg(**_SCENE_KWARGS),
@@ -2116,17 +2117,19 @@ def rendering_test_kuka_visual_material_randomization(
 
 def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[str]) -> None:
     """Shrink the scene and force image-only observations for Franka golden AOV tests."""
+    from dataclasses import dataclass
+
     from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils import ConfigMixin
 
-    @configclass
-    class TestFrankaCameraObservationsCfg:
+    @dataclass
+    class TestFrankaCameraObservationsCfg(ConfigMixin):
         """Image-only observations for Franka golden rendering tests."""
 
-        @configclass
+        @dataclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
                 func=env_mdp.image,
@@ -2355,9 +2358,10 @@ def rendering_test_mpm_particles(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
+    from dataclasses import dataclass
+
     import isaaclab.sim as sim_utils
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils import configclass
 
     # The reset event calls back into UR10ParticlePushEnv.randomize_push_scene, which places the
     # pile, so the task's own env class is required here rather than a plain ManagerBasedRLEnv.
@@ -2384,13 +2388,13 @@ def rendering_test_mpm_particles(
         renderer_cfg=MultiBackendRendererCfg(),
     )
 
-    @configclass
+    @dataclass
     class TestMPMParticleCameraSceneCfg(UR10ParticlePushSceneCfg):
         """UR10 particle-push scene with a test-local camera on the pile."""
 
         base_camera: CameraCfg = particle_camera_cfg
 
-    @configclass
+    @dataclass
     class TestMPMParticleCameraEnvCfg(UR10ParticlePushEnvCfg):
         """Particle-push env pinned to a single deterministic reset for golden capture.
 

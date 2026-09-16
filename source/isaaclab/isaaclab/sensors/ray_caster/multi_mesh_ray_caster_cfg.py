@@ -6,10 +6,10 @@
 
 """Configuration for the ray-cast sensor."""
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .ray_caster_cfg import RayCasterCfg
 
@@ -17,12 +17,12 @@ if TYPE_CHECKING:
     from .multi_mesh_ray_caster import MultiMeshRayCaster
 
 
-@configclass
+@dataclass
 class MultiMeshRayCasterCfg(RayCasterCfg):
     """Configuration for the multi-mesh ray-cast sensor."""
 
-    @configclass
-    class RaycastTargetCfg:
+    @dataclass
+    class RaycastTargetCfg(ConfigMixin):
         """Configuration for different ray-cast targets."""
 
         prim_expr: str = MISSING

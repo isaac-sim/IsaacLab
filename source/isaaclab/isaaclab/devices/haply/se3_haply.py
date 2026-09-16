@@ -12,11 +12,10 @@ import json
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 import torch
-
-from isaaclab.utils import configclass
 
 try:
     import websockets
@@ -378,7 +377,7 @@ class HaplyDevice(DeviceBase):
                     break
 
 
-@configclass
+@dataclass
 class HaplyDeviceCfg(DeviceCfg):
     """Configuration for Haply device.
 

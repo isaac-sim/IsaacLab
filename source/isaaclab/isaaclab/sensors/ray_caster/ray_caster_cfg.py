@@ -7,13 +7,13 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.sim.spawners.sensors.sensors_cfg import SensorFrameCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
@@ -22,12 +22,12 @@ if TYPE_CHECKING:
     from .ray_caster import RayCaster
 
 
-@configclass
+@dataclass
 class RayCasterCfg(SensorBaseCfg):
     """Configuration for the ray-cast sensor."""
 
-    @configclass
-    class OffsetCfg:
+    @dataclass
+    class OffsetCfg(ConfigMixin):
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)

@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class VideoRecorderCfg:
+@dataclass
+class VideoRecorderCfg(ConfigMixin):
     """Configuration for one video recording stream.
 
     A recording stream captures frames from a *source* — either an active visualizer

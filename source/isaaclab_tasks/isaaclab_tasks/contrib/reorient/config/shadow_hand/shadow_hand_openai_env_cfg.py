@@ -5,9 +5,10 @@
 
 """Direct configuration for the OpenAI Shadow Hand variant, moved unchanged from the core task."""
 
+from dataclasses import dataclass
+
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
@@ -17,7 +18,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
 
-@configclass
+@dataclass
 class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     # env
     decimation = 3

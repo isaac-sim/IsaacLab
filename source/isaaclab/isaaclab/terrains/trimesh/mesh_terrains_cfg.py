@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
@@ -16,14 +16,14 @@ Different trimesh terrain configurations.
 """
 
 
-@configclass
+@dataclass
 class MeshPlaneTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a plane mesh terrain."""
 
     function: str = "{DIR}.mesh_terrains:flat_terrain"
 
 
-@configclass
+@dataclass
 class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a pyramid stair mesh terrain."""
 
@@ -53,7 +53,7 @@ class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class MeshInvertedPyramidStairsTerrainCfg(MeshPyramidStairsTerrainCfg):
     """Configuration for an inverted pyramid stair mesh terrain.
 
@@ -64,7 +64,7 @@ class MeshInvertedPyramidStairsTerrainCfg(MeshPyramidStairsTerrainCfg):
     function: str = "{DIR}.mesh_terrains:inverted_pyramid_stairs_terrain"
 
 
-@configclass
+@dataclass
 class MeshRandomGridTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a random grid mesh terrain."""
 
@@ -87,7 +87,7 @@ class MeshRandomGridTerrainCfg(SubTerrainBaseCfg):
     """
 
 
-@configclass
+@dataclass
 class MeshRailsTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with box rails as extrusions."""
 
@@ -103,7 +103,7 @@ class MeshRailsTerrainCfg(SubTerrainBaseCfg):
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class MeshPitTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a pit that leads out of the pit."""
 
@@ -119,7 +119,7 @@ class MeshPitTerrainCfg(SubTerrainBaseCfg):
     """If True, the pit contains two levels of stairs. Defaults to False."""
 
 
-@configclass
+@dataclass
 class MeshBoxTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with boxes (similar to a pyramid)."""
 
@@ -135,7 +135,7 @@ class MeshBoxTerrainCfg(SubTerrainBaseCfg):
     """If True, the pit contains two levels of stairs/boxes. Defaults to False."""
 
 
-@configclass
+@dataclass
 class MeshGapTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a gap around the platform."""
 
@@ -148,7 +148,7 @@ class MeshGapTerrainCfg(SubTerrainBaseCfg):
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class MeshFloatingRingTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a floating ring around the center."""
 
@@ -167,7 +167,7 @@ class MeshFloatingRingTerrainCfg(SubTerrainBaseCfg):
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class MeshStarTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a star pattern."""
 
@@ -186,12 +186,12 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """Base configuration for a terrain with repeated objects."""
 
-    @configclass
-    class ObjectCfg:
+    @dataclass
+    class ObjectCfg(ConfigMixin):
         """Configuration of repeated objects."""
 
         num_objects: int = MISSING
@@ -246,11 +246,11 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
             self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 
 
-@configclass
+@dataclass
 class MeshRepeatedPyramidsTerrainCfg(MeshRepeatedObjectsTerrainCfg):
     """Configuration for a terrain with repeated pyramids."""
 
-    @configclass
+    @dataclass
     class ObjectCfg(MeshRepeatedObjectsTerrainCfg.ObjectCfg):
         """Configuration for a curriculum of repeated pyramids."""
 
@@ -270,11 +270,11 @@ class MeshRepeatedPyramidsTerrainCfg(MeshRepeatedObjectsTerrainCfg):
     """The object curriculum parameters at the end of the curriculum."""
 
 
-@configclass
+@dataclass
 class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
     """Configuration for a terrain with repeated boxes."""
 
-    @configclass
+    @dataclass
     class ObjectCfg(MeshRepeatedObjectsTerrainCfg.ObjectCfg):
         """Configuration for repeated boxes."""
 
@@ -294,11 +294,11 @@ class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
     """The box curriculum parameters at the end of the curriculum."""
 
 
-@configclass
+@dataclass
 class MeshRepeatedCylindersTerrainCfg(MeshRepeatedObjectsTerrainCfg):
     """Configuration for a terrain with repeated cylinders."""
 
-    @configclass
+    @dataclass
     class ObjectCfg(MeshRepeatedObjectsTerrainCfg.ObjectCfg):
         """Configuration for repeated cylinder."""
 

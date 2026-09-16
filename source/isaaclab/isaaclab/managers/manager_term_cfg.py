@@ -8,12 +8,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 
@@ -26,8 +26,8 @@ if TYPE_CHECKING:
     from .recorder_manager import RecorderTerm
 
 
-@configclass
-class ManagerTermBaseCfg:
+@dataclass
+class ManagerTermBaseCfg(ConfigMixin):
     """Configuration for a manager term."""
 
     func: Callable | ManagerTermBase = MISSING
@@ -58,8 +58,8 @@ class ManagerTermBaseCfg:
 ##
 
 
-@configclass
-class RecorderTermCfg:
+@dataclass
+class RecorderTermCfg(ConfigMixin):
     """Configuration for an recorder term."""
 
     class_type: type[RecorderTerm] = MISSING
@@ -74,8 +74,8 @@ class RecorderTermCfg:
 ##
 
 
-@configclass
-class ActionTermCfg:
+@dataclass
+class ActionTermCfg(ConfigMixin):
     """Configuration for an action term."""
 
     class_type: type[ActionTerm] = MISSING
@@ -103,8 +103,8 @@ class ActionTermCfg:
 ##
 
 
-@configclass
-class CommandTermCfg:
+@dataclass
+class CommandTermCfg(ConfigMixin):
     """Configuration for a command generator term."""
 
     class_type: type[CommandTerm] = MISSING
@@ -129,7 +129,7 @@ class CommandTermCfg:
 ##
 
 
-@configclass
+@dataclass
 class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
@@ -148,7 +148,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 ##
 
 
-@configclass
+@dataclass
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
@@ -200,8 +200,8 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     Defaults to True."""
 
 
-@configclass
-class ObservationGroupCfg:
+@dataclass
+class ObservationGroupCfg(ConfigMixin):
     """Configuration for an observation group."""
 
     concatenate_terms: bool = True
@@ -252,7 +252,7 @@ class ObservationGroupCfg:
 ##
 
 
-@configclass
+@dataclass
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
 
@@ -331,7 +331,7 @@ class EventTermCfg(ManagerTermBaseCfg):
 ##
 
 
-@configclass
+@dataclass
 class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
@@ -359,7 +359,7 @@ class RewardTermCfg(ManagerTermBaseCfg):
 ##
 
 
-@configclass
+@dataclass
 class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 

@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class ObstaclesSceneCfg:
+@dataclass
+class ObstaclesSceneCfg(ConfigMixin):
     """Configuration for a terrain with floating obstacles."""
 
     min_num_obstacles: int = 1
@@ -18,8 +18,8 @@ class ObstaclesSceneCfg:
 
     env_size: tuple[float, float, float] = MISSING
 
-    @configclass
-    class BoxCfg:
+    @dataclass
+    class BoxCfg(ConfigMixin):
         """Configuration for a box-shaped obstacle or wall.
 
         Defines the size and placement constraints for rectangular obstacles within

@@ -6,12 +6,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _DEFAULT_GROUND_PLANE_USD = (
@@ -20,7 +19,7 @@ _DEFAULT_GROUND_PLANE_USD = (
 _DEFAULT_GROUND_PLANE_TILE_SIZE = 2.0
 
 
-@configclass
+@dataclass
 class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Configuration parameters for spawning an asset from a file.
 
@@ -226,7 +225,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """
 
 
-@configclass
+@dataclass
 class UsdFileCfg(FileCfg):
     """USD file to spawn asset from.
 
@@ -260,7 +259,7 @@ class UsdFileCfg(FileCfg):
     variants: object | dict[str, str] | None = None
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
-    This can either be a configclass object, in which case each attribute is used as a variant set name and
+    This can either be a configuration dataclass, in which case each attribute is used as a variant set name and
     its specified value, or a dictionary mapping between the two. Please check the
     :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
     """
@@ -277,7 +276,7 @@ class UsdFileCfg(FileCfg):
     """
 
 
-@configclass
+@dataclass
 class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
     """URDF file to spawn asset from.
 
@@ -299,7 +298,7 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
     func: Callable | str = "{DIR}.from_files:spawn_from_urdf"
 
 
-@configclass
+@dataclass
 class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
     """MJCF file to spawn asset from.
 
@@ -326,7 +325,7 @@ Spawning ground plane.
 """
 
 
-@configclass
+@dataclass
 class UsdFileWithCompliantContactCfg(UsdFileCfg):
     """Configuration for spawning a USD asset with compliant contact physics material.
 
@@ -361,7 +360,7 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
     """
 
 
-@configclass
+@dataclass
 class GroundPlaneCfg(SpawnerCfg):
     """Create a ground plane prim.
 

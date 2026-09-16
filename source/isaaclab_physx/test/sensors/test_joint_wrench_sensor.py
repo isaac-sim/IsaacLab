@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
@@ -33,7 +34,6 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
@@ -85,7 +85,7 @@ def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCf
     )
 
 
-@configclass
+@dataclass
 class _SingleJointSceneCfg(InteractiveSceneCfg):
     """Scene with a single-joint articulation and the joint-wrench sensor."""
 
@@ -95,7 +95,7 @@ class _SingleJointSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class _CartpoleSceneCfg(InteractiveSceneCfg):
     """Scene with a cartpole (2-joint) articulation and the joint-wrench sensor."""
 
@@ -105,7 +105,7 @@ class _CartpoleSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
     """Cartpole with pole damping for steady-state physics validation tests."""
 
@@ -115,7 +115,7 @@ class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class _NestedRootAntSceneCfg(InteractiveSceneCfg):
     """Ant USD asset whose articulation root is nested under the configured asset prim."""
 

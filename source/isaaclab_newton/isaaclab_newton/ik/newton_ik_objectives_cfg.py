@@ -27,13 +27,13 @@ before Kit has launched. Matching runtime implementations live in
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class NewtonIKObjectiveCfg:
+@dataclass
+class NewtonIKObjectiveCfg(ConfigMixin):
     """Base configuration for a Newton IK objective.
 
     Subclasses set :attr:`class_type` to the runtime implementation, which the
@@ -48,7 +48,7 @@ class NewtonIKObjectiveCfg:
     """Runtime objective implementation, as a type or a ``"module:Class"`` string."""
 
 
-@configclass
+@dataclass
 class NewtonIKPoseObjectiveCfg(NewtonIKObjectiveCfg):
     """A pose objective tracking one end-effector body.
 
@@ -89,7 +89,7 @@ class NewtonIKPoseObjectiveCfg(NewtonIKObjectiveCfg):
     """Residual weight [unitless] for the rotation component."""
 
 
-@configclass
+@dataclass
 class NewtonIKJointLimitObjectiveCfg(NewtonIKObjectiveCfg):
     """Soft joint-limit constraint penalizing coordinates outside the model limits.
 

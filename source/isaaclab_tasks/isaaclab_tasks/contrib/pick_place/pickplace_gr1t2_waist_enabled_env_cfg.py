@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import tempfile
+from dataclasses import dataclass
 
 from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import configclass
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
@@ -22,7 +22,7 @@ from .pickplace_gr1t2_env_cfg import (
 )
 
 
-@configclass
+@dataclass
 class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 

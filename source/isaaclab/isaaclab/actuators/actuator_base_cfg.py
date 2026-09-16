@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
 def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
@@ -19,8 +19,8 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
     return bool(getattr(cfg.class_type, "is_implicit_model", False))
 
 
-@configclass
-class ActuatorBaseCfg:
+@dataclass
+class ActuatorBaseCfg(ConfigMixin):
     """Configuration for default actuators in an articulation."""
 
     class_type: type = MISSING

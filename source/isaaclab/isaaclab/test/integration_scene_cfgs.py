@@ -5,11 +5,12 @@
 
 """Shared core-only scene configurations for Isaac Lab integration tests."""
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
@@ -38,7 +39,7 @@ _CARTPOLE_TEST_CFG = ArticulationCfg(
 )
 
 
-@configclass
+@dataclass
 class CartpoleTestSceneCfg(InteractiveSceneCfg):
     """Configuration for a minimal cart-pole articulation scene.
 
@@ -49,7 +50,7 @@ class CartpoleTestSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = _CARTPOLE_TEST_CFG.copy()
 
 
-@configclass
+@dataclass
 class ArticulationRigidObjectSceneCfg(CartpoleTestSceneCfg):
     """Configuration for a minimal scene with articulation and rigid-object state."""
 

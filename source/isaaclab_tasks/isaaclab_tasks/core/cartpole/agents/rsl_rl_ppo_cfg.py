@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -17,7 +17,7 @@ import isaaclab_tasks.core.cartpole.mdp.symmetry as symmetry
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class CartpolePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
     max_iterations = 150
@@ -50,12 +50,12 @@ class CartpolePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class CartpoleDirectPPORunnerCfg(CartpolePPORunnerCfg):
     experiment_name = "cartpole_direct"
 
 
-@configclass
+@dataclass
 class CartpolePPORunnerWithSymmetryCfg(CartpolePPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
@@ -79,7 +79,7 @@ class CartpolePPORunnerWithSymmetryCfg(CartpolePPORunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class CartpoleCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """CNN policy for the raw RGB/depth camera observation pipelines."""
 
@@ -123,12 +123,12 @@ class CartpoleCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class CartpoleCameraDirectPPORunnerCfg(CartpoleCameraPPORunnerCfg):
     experiment_name = "cartpole_camera_direct"
 
 
-@configclass
+@dataclass
 class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """MLP policy for the pretrained-feature pipelines (ResNet18, Theia-Tiny)."""
 
@@ -164,7 +164,7 @@ class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class CartpoleCameraPPORunnerPresetsCfg(PresetCfg):
     """RSL-RL configuration family keyed by camera pipeline presets."""
 

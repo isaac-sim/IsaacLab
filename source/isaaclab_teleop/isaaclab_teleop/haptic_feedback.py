@@ -32,12 +32,13 @@ teleop script.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import numpy as np
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -183,8 +184,8 @@ def per_finger_object_grip(
 # ----------------------------------------------------------------------------
 
 
-@configclass
-class HapticFeedbackCfg:
+@dataclass
+class HapticFeedbackCfg(ConfigMixin):
     """Base configuration for teleop haptic feedback.
 
     Device-agnostic. Attach a concrete subclass
@@ -242,7 +243,7 @@ class HapticFeedbackCfg:
         raise NotImplementedError
 
 
-@configclass
+@dataclass
 class ControllerHapticFeedbackCfg(HapticFeedbackCfg):
     """Haptic feedback rendered as XR motion-controller vibration.
 
@@ -285,7 +286,7 @@ class ControllerHapticFeedbackCfg(HapticFeedbackCfg):
         return HapticSink("_haptic_sink", device).connect(sink_inputs), device.get_tracker()
 
 
-@configclass
+@dataclass
 class GloveHapticFeedbackCfg(HapticFeedbackCfg):
     """Haptic feedback rendered as per-finger power on a haptic glove.
 

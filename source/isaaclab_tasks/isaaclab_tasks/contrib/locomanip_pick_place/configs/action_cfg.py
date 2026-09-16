@@ -3,17 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from ..mdp.actions import AgileBasedLowerBodyAction
 
 
-@configclass
+@dataclass
 class AgileBasedLowerBodyActionCfg(ActionTermCfg):
     """Configuration for the lower body action term that is based on Agile lower body RL policy."""
 

@@ -5,9 +5,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
-
-from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -15,7 +14,7 @@ if TYPE_CHECKING:
     from .joint_wrench_sensor import JointWrenchSensor
 
 
-@configclass
+@dataclass
 class JointWrenchSensorCfg(SensorBaseCfg):
     """Configuration for a joint reaction wrench sensor."""
 

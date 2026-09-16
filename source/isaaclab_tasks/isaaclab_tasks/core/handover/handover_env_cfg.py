@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -17,7 +19,6 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.visualizers import VisualizerCfg
 
@@ -78,7 +79,7 @@ _RIGHT_POSE = ("{ENV_REGEX_NS}/RightRobot", (0.0, 0.0, 0.5), (0.0, 0.0, 0.0, 1.0
 _LEFT_POSE = ("{ENV_REGEX_NS}/LeftRobot", (0.0, -1.0, 0.5), (0.0, 0.0, 1.0, 0.0))
 
 
-@configclass
+@dataclass
 class RightHandCfg(PresetCfg):
     """The right hand on every engine; only the asset's physics variant differs."""
 
@@ -89,7 +90,7 @@ class RightHandCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class LeftHandCfg(PresetCfg):
     """The left hand on every engine; only the asset's physics variant differs."""
 
@@ -124,7 +125,7 @@ BALL_CFG = RigidObjectCfg(
 """Hand-over ball, thrown from one Shadow hand to the other."""
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     """Physics-backend preset (PhysX vs Newton/MJWarp).
 
@@ -159,7 +160,7 @@ class PhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class HandoverEnvCfg(DirectMARLEnvCfg):
     # env
     decimation = 2

@@ -6,11 +6,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import numpy as np
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from .cloner_strategies import sequential
 
@@ -37,8 +37,8 @@ def expand_env_regex_ns(path_expr: str, env_template: str = DEFAULT_ENV_TEMPLATE
     return path_expr.replace("{ENV_REGEX_NS}", env_template.format("[^/]+"))
 
 
-@configclass
-class InclusionSet:
+@dataclass
+class InclusionSet(ConfigMixin):
     """Legal clone combination defined by explicitly listing active assets."""
 
     assets: list[str] = MISSING
@@ -48,8 +48,8 @@ class InclusionSet:
     """Relative sampling weight for this clone combination."""
 
 
-@configclass
-class CloneCfg:
+@dataclass
+class CloneCfg(ConfigMixin):
     """Configuration for environment replication.
 
     Holds the knobs :class:`~isaaclab.scene.InteractiveScene` forwards to

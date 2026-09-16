@@ -21,6 +21,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from collections import namedtuple
+from dataclasses import dataclass
 from unittest import mock
 
 import pytest
@@ -29,7 +30,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.envs.mdp.observations import stacked_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -69,9 +70,9 @@ def env_with_sim():
 
 
 def _make_cfg(frame_stack: int):
-    @configclass
-    class ObsCfg:
-        @configclass
+    @dataclass
+    class ObsCfg(ConfigMixin):
+        @dataclass
         class PolicyCfg(ObservationGroupCfg):
             img: ObservationTermCfg = ObservationTermCfg(
                 func=stacked_image,

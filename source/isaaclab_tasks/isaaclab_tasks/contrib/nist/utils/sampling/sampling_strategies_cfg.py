@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
+
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import (
     BetaSamplingStrategy,
@@ -15,8 +17,8 @@ from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import (
 )
 
 
-@configclass
-class BetaSamplingStrategyCfg:
+@dataclass
+class BetaSamplingStrategyCfg(ConfigMixin):
     """Blueprint for a :class:`BetaSamplingStrategy`.
 
     Score shape:
@@ -42,8 +44,8 @@ class BetaSamplingStrategyCfg:
     """Peak sharpness around :attr:`target`; larger values concentrate more mass near the target."""
 
 
-@configclass
-class UniformSamplingStrategyCfg:
+@dataclass
+class UniformSamplingStrategyCfg(ConfigMixin):
     """Blueprint for a :class:`UniformSamplingStrategy`.
 
     Score shape:

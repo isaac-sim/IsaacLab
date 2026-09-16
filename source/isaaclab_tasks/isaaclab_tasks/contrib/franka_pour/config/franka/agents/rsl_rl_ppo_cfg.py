@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -12,11 +12,11 @@ from isaaclab_rl.rsl_rl import (
 )
 
 
-@configclass
+@dataclass
 class FrankaPourResetDatasetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO runner calibrated for competence-adaptive reset-dataset training."""
 
-    @configclass
+    @dataclass
     class ExplorationDistributionCfg(RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg):
         """Bounded state-dependent exploration for contact-rich manipulation."""
 

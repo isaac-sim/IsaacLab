@@ -6,6 +6,7 @@
 """Franka Reach environment configuration."""
 
 import math
+from dataclasses import dataclass
 
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
@@ -21,7 +22,6 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -37,7 +37,7 @@ from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isor
 ##
 
 
-@configclass
+@dataclass
 class FrankaArmActionCfg(PresetCfg):
     """Arm-controller presets for Franka Reach."""
 
@@ -84,7 +84,7 @@ class FrankaArmActionCfg(PresetCfg):
     default: mdp.JointPositionActionCfg = joint_pos
 
 
-@configclass
+@dataclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
 

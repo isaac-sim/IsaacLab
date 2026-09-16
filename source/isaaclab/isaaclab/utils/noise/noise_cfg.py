@@ -6,19 +6,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .noise_model import NoiseModel, NoiseModelWithAdditiveBias
 
 
-@configclass
-class NoiseCfg:
+@dataclass
+class NoiseCfg(ConfigMixin):
     """Base configuration for a noise term."""
 
     func: Callable[[torch.Tensor, NoiseCfg], torch.Tensor] = MISSING
@@ -31,7 +31,7 @@ class NoiseCfg:
     """The operation to apply the noise on the data. Defaults to "add"."""
 
 
-@configclass
+@dataclass
 class ConstantNoiseCfg(NoiseCfg):
     """Configuration for an additive constant noise term."""
 
@@ -41,7 +41,7 @@ class ConstantNoiseCfg(NoiseCfg):
     """The bias to add. Defaults to 0.0."""
 
 
-@configclass
+@dataclass
 class UniformNoiseCfg(NoiseCfg):
     """Configuration for a additive uniform noise term."""
 
@@ -53,7 +53,7 @@ class UniformNoiseCfg(NoiseCfg):
     """The maximum value of the noise. Defaults to 1.0."""
 
 
-@configclass
+@dataclass
 class GaussianNoiseCfg(NoiseCfg):
     """Configuration for an additive gaussian noise term."""
 
@@ -70,8 +70,8 @@ class GaussianNoiseCfg(NoiseCfg):
 ##
 
 
-@configclass
-class NoiseModelCfg:
+@dataclass
+class NoiseModelCfg(ConfigMixin):
     """Configuration for a noise model."""
 
     class_type: type[NoiseModel] | str = "{DIR}.noise_model:NoiseModel"
@@ -94,7 +94,7 @@ class NoiseModelCfg:
     """
 
 
-@configclass
+@dataclass
 class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
     """Configuration for an additive gaussian noise with bias model."""
 

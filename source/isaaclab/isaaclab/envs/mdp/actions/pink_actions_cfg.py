@@ -3,18 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.controllers.pink_ik import PinkIKControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .pink_task_space_actions import PinkInverseKinematicsAction
 
 
-@configclass
+@dataclass
 class PinkInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for Pink inverse kinematics action term.
 

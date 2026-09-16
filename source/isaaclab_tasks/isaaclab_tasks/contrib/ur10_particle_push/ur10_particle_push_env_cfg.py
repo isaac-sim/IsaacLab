@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pxr import Usd
 
+from dataclasses import dataclass
+
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionPropertiesCfg
@@ -33,7 +35,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -327,7 +329,7 @@ def _static_collision_box(
     )
 
 
-@configclass
+@dataclass
 class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     """Official workcell plus aligned MPM and rigid work-surface/bin collision."""
 
@@ -499,8 +501,8 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """One bounded relative-position command for the six UR10 arm joints."""
 
     # Snapshot one relative joint target per policy step.
@@ -520,11 +522,11 @@ class ActionsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Actor image/vector groups and privileged critic state."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         state = ObsTerm(func=mdp.policy_observation)
 
@@ -532,7 +534,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class HeightmapCfg(ObsGroup):
         image = ObsTerm(func=mdp.heightmap_observation)
 
@@ -540,7 +542,7 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
+    @dataclass
     class CriticCfg(ObsGroup):
         state = ObsTerm(func=mdp.critic_observation)
 
@@ -553,8 +555,8 @@ class ObservationsCfg:
     critic: CriticCfg = CriticCfg()
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Signed potential progress, terminal outcomes, and small continuous-time costs."""
 
     # Delivery and transport are signed potential differences, so holding a partial solution does
@@ -569,8 +571,8 @@ class RewardsCfg:
     action_rate = RewTerm(func=mdp.action_rate, weight=-0.01)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Numerical safety, irrecoverable particle loss, success, and neutral timeout."""
 
     invalid_state = DoneTerm(func=mdp.invalid_state)
@@ -580,21 +582,21 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
-@configclass
-class EventsCfg:
+@dataclass
+class EventsCfg(ConfigMixin):
     """Domain randomization events."""
 
     randomize_robot_and_pile = EventTerm(func=mdp.randomize_push_scene, mode="reset")
 
 
-@configclass
-class CurriculumCfg:
+@dataclass
+class CurriculumCfg(ConfigMixin):
     """Persistent coverage of the single-push reset distributions."""
 
     reset_randomization = CurrTerm(func=mdp.SinglePushCurriculum)
 
 
-@configclass
+@dataclass
 class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
 

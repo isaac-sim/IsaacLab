@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
     max_iterations = 3000
@@ -43,7 +43,7 @@ class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-@configclass
+@dataclass
 class ShadowHandManagerPPORunnerCfg(PresetCfg):
     """``presets=asymmetric`` feeds the critic the privileged observation group."""
 
@@ -51,7 +51,7 @@ class ShadowHandManagerPPORunnerCfg(PresetCfg):
     asymmetric = ShadowHandPPORunnerCfg().replace(obs_groups={"actor": ["policy"], "critic": ["critic"]})
 
 
-@configclass
+@dataclass
 class ShadowHandCameraFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
     max_iterations = 5000

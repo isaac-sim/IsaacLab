@@ -584,6 +584,8 @@ def create_sim_cfg():
 
 def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str | None):
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
+    from dataclasses import dataclass
+
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 
@@ -591,14 +593,13 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.utils import clone
-    from isaaclab.utils import configclass
 
     container_pos, container_rot, _ = container_pose_at_time(0.0)
     container_vertices, container_faces = load_asset_mesh(container_usd)
     fluid_points, particle_radius, particle_mass = create_fluid_particles(container_vertices, container_faces)
     bowl_vertices, bowl_faces = create_bowl_collider_mesh()
 
-    @configclass
+    @dataclass
     class DemoMeshCfg(sim_utils.MeshCfg):
         """Demo-local exact triangle-mesh asset config."""
 
@@ -636,7 +637,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
             init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
         )
 
-    @configclass
+    @dataclass
     class TeapotFillSceneCfg(InteractiveSceneCfg):
         """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
 

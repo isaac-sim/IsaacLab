@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -51,7 +52,7 @@ _SO101_BASE_SEAT_POS = (0.0, 0.0, _SO101_MOUNT_Z)
 _SO101_BASE_SEAT_ROT = (0.0, 0.0, 0.70710678, 0.70710678)
 
 
-@configclass
+@dataclass
 class SO101CubeStackEnvCfg(StackEnvCfg):
     """Configuration for the SO-101 Cube Stack Environment (joint-position control).
 

@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.actuators import ActuatorBaseCfg
-from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
 from .ordering import ArticulationOrderingConvention
@@ -18,11 +17,11 @@ if TYPE_CHECKING:
     from .articulation import Articulation
 
 
-@configclass
+@dataclass
 class ArticulationCfg(AssetBaseCfg):
     """Configuration parameters for an articulation."""
 
-    @configclass
+    @dataclass
     class InitialStateCfg(AssetBaseCfg.InitialStateCfg):
         """Initial state of the articulation."""
 

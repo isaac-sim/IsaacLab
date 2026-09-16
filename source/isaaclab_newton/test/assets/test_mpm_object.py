@@ -13,6 +13,8 @@ import torch
 
 newton = pytest.importorskip("newton")
 
+from dataclasses import dataclass
+
 from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
 from isaaclab_newton.assets.mpm_object.mpm_object import MPMObjectRegistryEntry, add_mpm_entry_to_builder
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
@@ -21,7 +23,6 @@ from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg,
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils import configclass
 
 
 def test_mpm_particle_material_emits_custom_attributes():
@@ -94,7 +95,7 @@ def test_mpm_points_emission_records_constant_offsets_per_env():
 
 
 def test_mpm_object_initializes_from_interactive_scene():
-    @configclass
+    @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Sand",
@@ -141,7 +142,7 @@ def test_mpm_object_initializes_from_interactive_scene():
 def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
     import isaaclab.sim as sim_utils  # noqa: PLC0415
 
-    @configclass
+    @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
         collider = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/KinematicBox",
@@ -190,7 +191,7 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
 
 
 def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
-    @configclass
+    @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Sand",
@@ -240,7 +241,7 @@ def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
 
 
 def test_mpm_usd_points_follow_particle_state(monkeypatch):
-    @configclass
+    @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Sand",

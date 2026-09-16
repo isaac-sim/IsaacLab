@@ -5,21 +5,21 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 
-@configclass
+@dataclass
 class FrankaCabinetDirectSceneCfg(CabinetDirectSceneCfg):
     """Direct-workflow cabinet scene configured for the Franka robot."""
 
     robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 
-@configclass
+@dataclass
 class FrankaCabinetDirectEnvCfg(CabinetDirectEnvCfg):
     """Direct-workflow cabinet task with a Franka Panda arm."""
 

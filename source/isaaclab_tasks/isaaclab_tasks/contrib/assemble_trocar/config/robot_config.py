@@ -14,9 +14,10 @@ The only public entry point expected by the task is
 """
 
 import math
+from dataclasses import dataclass
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_assets.robots.unitree import G129_CFG_WITH_DEX3_BASE_FIX
 
@@ -133,8 +134,8 @@ def make_g1_29dof_dex3_cfg(
     )
 
 
-@configclass
-class G1RobotPresets:
+@dataclass
+class G1RobotPresets(ConfigMixin):
     """G1 robot preset configuration collection"""
 
     @classmethod

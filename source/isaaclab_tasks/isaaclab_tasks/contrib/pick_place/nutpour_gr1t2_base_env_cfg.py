@@ -12,6 +12,8 @@ from isaaclab_teleop import XrCfg
 # environments in the test suite.
 _TELEOP_AVAILABLE = True
 
+from dataclasses import dataclass
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -26,7 +28,7 @@ from isaaclab.sensors import CameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
@@ -39,7 +41,7 @@ from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
 ##
 # Scene definition
 ##
-@configclass
+@dataclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Nut Pour Base Scene."""
 
@@ -190,18 +192,18 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     gr1_action: ActionTermCfg = MISSING
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -235,8 +237,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -255,8 +257,8 @@ class TerminationsCfg:
     success = DoneTerm(func=mdp.task_done_nut_pour)
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
@@ -283,7 +285,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 

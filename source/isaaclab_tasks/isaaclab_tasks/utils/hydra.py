@@ -32,13 +32,14 @@ import sys
 import warnings
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 
 import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils import ConfigMixin, replace_slices_with_strings, replace_strings_with_slices
 
 from .preset_target import PresetTarget
 
@@ -97,8 +98,8 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
     return replacement
 
 
-@configclass
-class PresetCfg:
+@dataclass
+class PresetCfg(ConfigMixin):
     """Base class for declarative preset definitions.
 
     Subclass this and define fields as preset options.
@@ -108,7 +109,7 @@ class PresetCfg:
 
     Example::
 
-        @configclass
+        @dataclass
         class PhysicsCfg(PresetCfg):
             default: PhysxCfg = PhysxCfg()
             newton_mjwarp: NewtonCfg = NewtonCfg()
@@ -123,7 +124,7 @@ class PresetCfg:
     helpers adjacent to the variants that need them, without polluting the
     module namespace::
 
-        @configclass
+        @dataclass
         class MultiBackendCameraCfg(PresetCfg):
             # Class-local helper -- not a variant.
             _ROTATED_OFFSET = CameraCfg.OffsetCfg(rot=(1, 0, 0, 0), ...)
@@ -165,7 +166,7 @@ def preset(**options) -> PresetCfg:
 
         armature = preset(default=0.0, newton_mjwarp=0.01)
         # Equivalent to:
-        # @configclass
+        # @dataclass
         # class _Preset(PresetCfg):
         #     default: float = 0.0
         #     newton_mjwarp: float = 0.01
@@ -184,7 +185,7 @@ def preset(**options) -> PresetCfg:
         raise ValueError("preset() requires a 'default' keyword argument.")
     annotations = {k: type(v) if v is not None else object for k, v in options.items()}
     ns = {"__annotations__": annotations, **options}
-    cls = configclass(type("_Preset", (PresetCfg,), ns))
+    cls = dataclass(type("_Preset", (PresetCfg,), ns))
     return cls()
 
 
@@ -237,7 +238,7 @@ def collect_presets(cfg, path: str = "") -> dict:
     Walks dataclass fields and dict values at any nesting depth.
 
     Args:
-        cfg: A configclass instance to walk.
+        cfg: A configuration dataclass instance to walk.
         path: Current path prefix (used during recursion).
 
     Returns:
@@ -421,7 +422,7 @@ def resolve_presets(cfg, selected=()):
     3. Continue walking the replacement (which may contain more presets).
 
     Args:
-        cfg: A configclass, dict, or PresetCfg to resolve in-place.
+        cfg: A configuration dataclass, dict, or PresetCfg to resolve in-place.
         selected: Set of preset names chosen by the user (e.g. from CLI
             ``presets=peg_insert_4mm,eval``).
 

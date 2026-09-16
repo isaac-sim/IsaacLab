@@ -187,7 +187,7 @@ configuration connects one scene configuration and one configuration for each MD
 .. code-block:: python
    :caption: src/isaaclab_tutorial/tasks/place_vial/config/so101/env_cfg.py
 
-   @configclass
+   @dataclass
    class SO101VialEnvCfg(ManagerBasedRLEnvCfg):
        scene = SO101SceneCfg(num_envs=4096, env_spacing=0.9, replicate_physics=True)
        actions = ActionsCfg()

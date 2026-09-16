@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 from isaaclab_tasks.contrib.factory.factory_env_cfg import (
     OBS_DIM_CFG,
@@ -24,7 +26,7 @@ OBS_DIM_CFG.update({"force_threshold": 1, "ft_force": 3})
 STATE_DIM_CFG.update({"force_threshold": 1, "ft_force": 3})
 
 
-@configclass
+@dataclass
 class ForgeCtrlCfg(CtrlCfg):
     """Controller and action-space configuration for the FORGE environments.
 
@@ -54,15 +56,15 @@ class ForgeCtrlCfg(CtrlCfg):
     default_dead_zone = [5.0, 5.0, 5.0, 1.0, 1.0, 1.0]
 
 
-@configclass
+@dataclass
 class ForgeObsRandCfg(ObsRandCfg):
     fingertip_pos = 0.00025
     fingertip_rot_deg = 0.1
     ft_force = 1.0
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     object_scale_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="reset",
@@ -117,7 +119,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class ForgeEnvCfg(FactoryEnvCfg):
     action_space: int = 7
     obs_rand: ForgeObsRandCfg = ForgeObsRandCfg()
@@ -155,21 +157,21 @@ class ForgeEnvCfg(FactoryEnvCfg):
     ]
 
 
-@configclass
+@dataclass
 class ForgeTaskPegInsertCfg(ForgeEnvCfg):
     task_name = "peg_insert"
     task = ForgePegInsert()
     episode_length_s = 10.0
 
 
-@configclass
+@dataclass
 class ForgeTaskGearMeshCfg(ForgeEnvCfg):
     task_name = "gear_mesh"
     task = ForgeGearMesh()
     episode_length_s = 20.0
 
 
-@configclass
+@dataclass
 class ForgeTaskNutThreadCfg(ForgeEnvCfg):
     task_name = "nut_thread"
     task = ForgeNutThread()

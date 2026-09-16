@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from dataclasses import dataclass
 
 import isaaclab.envs.mdp as mdp
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 
@@ -21,7 +21,7 @@ from isaaclab_assets import UR10_CFG  # isort: skip
 ##
 
 
-@configclass
+@dataclass
 class UR10ReachEnvCfg(ReachEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent

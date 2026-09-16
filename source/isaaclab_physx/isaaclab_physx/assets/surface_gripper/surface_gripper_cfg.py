@@ -3,17 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .surface_gripper import SurfaceGripper
 
 
-@configclass
+@dataclass
 class SurfaceGripperCfg(AssetBaseCfg):
     """Configuration parameters for a surface gripper actuator."""
 

@@ -5,13 +5,14 @@
 
 import glob
 import os
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import retrieve_file_path
 
 # Number of output channels for each supported camera data type.
@@ -119,8 +120,8 @@ class FeatureExtractorNetwork(nn.Module):
         return out
 
 
-@configclass
-class FeatureExtractorCfg:
+@dataclass
+class FeatureExtractorCfg(ConfigMixin):
     """Configuration for the feature extractor model."""
 
     train: bool = True

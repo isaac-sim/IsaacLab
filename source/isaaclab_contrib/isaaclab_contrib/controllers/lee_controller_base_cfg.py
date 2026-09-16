@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 
-@configclass
-class LeeControllerBaseCfg:
+@dataclass
+class LeeControllerBaseCfg(ConfigMixin):
     """Base configuration for Lee-style geometric quadrotor controllers.
 
     Unless otherwise noted, vectors are ordered as (x, y, z) in the simulation world/body frames.

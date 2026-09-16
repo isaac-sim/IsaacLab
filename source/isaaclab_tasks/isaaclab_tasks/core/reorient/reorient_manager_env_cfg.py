@@ -10,7 +10,7 @@ fingertip bodies, its actuated joints, its scene, and its control rate; the term
 lists, scales and weights are common.
 """
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -24,14 +24,14 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class ReorientSceneBaseCfg(InteractiveSceneCfg):
     """Shared reorientation scene. A hand supplies its robot and its object."""
 
@@ -47,8 +47,8 @@ class ReorientSceneBaseCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """In-hand goal pose, re-drawn on success."""
 
     object_pose = mdp.ReorientCommandCfg(
@@ -62,8 +62,8 @@ class CommandsCfg:
     )
 
 
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Position targets for the hand's joint-driven motors.
 
     A hand whose motors also pull tendons declares those in its own subclass; a tendon is not a
@@ -78,7 +78,7 @@ class ActionsCfg:
     )
 
 
-@configclass
+@dataclass
 class ReorientRobotObsCfg(ObsGroup):
     """What the hand can measure about itself.
 
@@ -95,7 +95,7 @@ class ReorientRobotObsCfg(ObsGroup):
         self.concatenate_terms = True
 
 
-@configclass
+@dataclass
 class ReorientObjectObsCfg(ObsGroup):
     """The object's state and its goal.
 
@@ -120,16 +120,16 @@ class ReorientObjectObsCfg(ObsGroup):
         self.concatenate_terms = True
 
 
-@configclass
+@dataclass
 class ReorientFullStateObsCfg(ReorientRobotObsCfg, ReorientObjectObsCfg):
     """The full state, before the action terms."""
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Full-state observation in Direct order."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ReorientFullStateObsCfg):
         # No action_name: the observation covers every motor, and a tendon-driven hand splits its
         # motors across two action terms.
@@ -138,8 +138,8 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class RewardsCfg:
+@dataclass
+class RewardsCfg(ConfigMixin):
     """Reward terms tuned to the Direct task's scales."""
 
     track_orientation_inv_l2 = RewTerm(
@@ -160,8 +160,8 @@ class RewardsCfg:
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.0002)
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Episode budget, and the Direct task's fall condition."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -171,7 +171,7 @@ class TerminationsCfg:
     )
 
 
-@configclass
+@dataclass
 class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     """Manager-based reorientation with Direct-compatible semantics.
 

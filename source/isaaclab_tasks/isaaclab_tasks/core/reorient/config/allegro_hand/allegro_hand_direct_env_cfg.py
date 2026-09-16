@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
@@ -21,7 +22,7 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
-@configclass
+@dataclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 4

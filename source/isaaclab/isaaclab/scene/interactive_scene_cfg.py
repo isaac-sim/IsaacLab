@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner import add as clone_add
-from isaaclab.utils import configclass, find_unique_string_name
+from isaaclab.utils import ConfigMixin, find_unique_string_name
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBaseCfg
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
     from .interactive_scene import InteractiveScene
 
 
-@configclass
-class InteractiveSceneCfg:
+@dataclass
+class InteractiveSceneCfg(ConfigMixin):
     """Configuration for the interactive scene.
 
     The users can inherit from this class to add entities to their scene. This is then parsed by the
@@ -36,16 +36,17 @@ class InteractiveSceneCfg:
 
     .. code-block:: python
 
+        from dataclasses import dataclass
+
         import isaaclab.sim as sim_utils
         from isaaclab.assets import AssetBaseCfg
         from isaaclab.scene import InteractiveSceneCfg
         from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
-        from isaaclab.utils import configclass
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
 
-        @configclass
+        @dataclass
         class MySceneCfg(InteractiveSceneCfg):
             # terrain - flat terrain plane
             terrain = TerrainImporterCfg(

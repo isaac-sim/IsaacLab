@@ -9,13 +9,14 @@ from __future__ import annotations
 import enum
 import os
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -34,8 +35,8 @@ class DatasetExportMode(enum.IntEnum):
     EXPORT_SUCCEEDED_ONLY = 3  # Export only succeeded episodes to a single dataset file
 
 
-@configclass
-class RecorderManagerBaseCfg:
+@dataclass
+class RecorderManagerBaseCfg(ConfigMixin):
     """Base class for configuring recorder manager terms."""
 
     dataset_file_handler_class_type: type = HDF5DatasetFileHandler

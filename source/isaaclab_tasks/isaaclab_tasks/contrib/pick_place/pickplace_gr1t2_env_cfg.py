@@ -5,6 +5,7 @@
 
 import os
 import tempfile
+from dataclasses import dataclass
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -20,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
@@ -274,7 +275,7 @@ def _build_gr1t2_pickplace_pipeline():
 _STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
 
 
-@configclass
+@dataclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Pick Place Base Scene."""
 
@@ -365,7 +366,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
     """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
 
@@ -379,8 +380,8 @@ class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
 ##
 # MDP settings
 ##
-@configclass
-class ActionsCfg:
+@dataclass
+class ActionsCfg(ConfigMixin):
     """Action specifications for the MDP."""
 
     upper_body_ik = PinkInverseKinematicsActionCfg(
@@ -485,11 +486,11 @@ class ActionsCfg:
     )
 
 
-@configclass
-class ObservationsCfg:
+@dataclass
+class ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
@@ -528,11 +529,11 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
+@dataclass
 class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
     """GR1T2 pick-place observations including the camera shown in XR PiP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
         robot_pov_cam = ObsTerm(
             func=base_mdp.image,
@@ -547,8 +548,8 @@ class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -560,8 +561,8 @@ class TerminationsCfg:
     success = DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_hand_roll_link"})
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
@@ -580,7 +581,7 @@ class EventCfg:
     )
 
 
-@configclass
+@dataclass
 class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 

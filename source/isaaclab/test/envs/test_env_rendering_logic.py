@@ -13,6 +13,8 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
@@ -29,13 +31,13 @@ from isaaclab.envs import (
 )
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
 
-@configclass
-class EmptyManagerCfg:
+@dataclass
+class EmptyManagerCfg(ConfigMixin):
     """Empty specifications for the environment."""
 
     pass
@@ -44,7 +46,7 @@ class EmptyManagerCfg:
 def create_manager_based_env(render_interval: int):
     """Create a manager based environment."""
 
-    @configclass
+    @dataclass
     class EnvCfg(ManagerBasedEnvCfg):
         """Configuration for the test environment."""
 
@@ -63,7 +65,7 @@ def create_manager_based_env(render_interval: int):
 def create_manager_based_rl_env(render_interval: int):
     """Create a manager based RL environment."""
 
-    @configclass
+    @dataclass
     class EnvCfg(ManagerBasedRLEnvCfg):
         """Configuration for the test environment."""
 
@@ -95,7 +97,7 @@ def create_direct_rl_env(render_interval: int, episode_length_steps: int | None 
     _step_dt = _dt * _decimation
     _episode_length_s = (episode_length_steps * _step_dt) if episode_length_steps is not None else 100.0
 
-    @configclass
+    @dataclass
     class EnvCfg(DirectRLEnvCfg):
         """Configuration for the test environment."""
 
@@ -444,7 +446,7 @@ def test_env_render_flag_mixed_steps(env_type, physics_callback, render_callback
 def create_manager_based_env_no_visualizer(render_interval: int):
     """Create a manager based env with no visualizer (offscreen render only)."""
 
-    @configclass
+    @dataclass
     class EnvCfg(ManagerBasedEnvCfg):
         """Configuration for the test environment."""
 

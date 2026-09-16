@@ -76,6 +76,7 @@ import contextlib
 import os
 import random
 import time
+from dataclasses import dataclass
 
 import gymnasium as gym
 import numpy as np
@@ -85,7 +86,6 @@ from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3Spac
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
@@ -118,7 +118,7 @@ class PreStepDatagenInfoRecorder(RecorderTerm):
         return "obs/datagen_info", datagen_info
 
 
-@configclass
+@dataclass
 class PreStepDatagenInfoRecorderCfg(RecorderTermCfg):
     """Configuration for the datagen info recorder term."""
 
@@ -132,14 +132,14 @@ class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
         return "obs/datagen_info/subtask_term_signals", self._env.get_subtask_term_signals()
 
 
-@configclass
+@dataclass
 class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the step subtask terms observation recorder term."""
 
     class_type: type[RecorderTerm] = PreStepSubtaskTermsObservationsRecorder
 
 
-@configclass
+@dataclass
 class MimicRecorderManagerCfg(ActionStateRecorderManagerCfg):
     """Mimic specific recorder terms."""
 

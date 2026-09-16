@@ -21,13 +21,14 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
+from dataclasses import dataclass
+
 import newton
 import newton.utils
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
 
 MECHANICAL_ADVANTAGE = 4
 LOAD_MASS = 5.0
@@ -49,7 +50,7 @@ LOAD_CENTER = wp.vec3(BLOCK_X, 0.0, 0.49)
 HANDLE_HALF_EXTENTS = (0.025, 0.025, 0.03)
 
 
-@configclass
+@dataclass
 class _BlockAndTackleVBDSolverCfg(VBDSolverCfg):
     """VBD contact settings for this cable and pulley scene."""
 

@@ -12,6 +12,8 @@ from isaaclab.app import AppLauncher
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 import warp as wp
@@ -27,11 +29,10 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
-from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 
 
-@configclass
+@dataclass
 class _RenderSceneCfg(InteractiveSceneCfg):
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
@@ -45,7 +46,7 @@ class _RenderSceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class _CableRenderSceneCfg(InteractiveSceneCfg):
     cable: CableObjectCfg = CableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cable",

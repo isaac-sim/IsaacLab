@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
-from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
@@ -13,7 +14,7 @@ from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 
-@configclass
+@dataclass
 class FrankaCabinetSceneCfg(CabinetSceneCfg):
     """Cabinet scene configured for the Franka robot."""
 
@@ -48,7 +49,7 @@ class FrankaCabinetSceneCfg(CabinetSceneCfg):
     )
 
 
-@configclass
+@dataclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
     scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
 

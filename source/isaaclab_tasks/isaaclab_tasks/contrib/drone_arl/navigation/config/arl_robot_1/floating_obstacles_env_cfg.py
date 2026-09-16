@@ -6,7 +6,7 @@
 ##
 # Pre-defined configs
 ##
-from isaaclab.utils import configclass
+from dataclasses import dataclass
 
 from isaaclab_tasks.contrib.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import (
     NavigationVelocityFloatingObstacleEnvCfg,
@@ -15,7 +15,7 @@ from isaaclab_tasks.contrib.drone_arl.navigation.config.arl_robot_1.navigation_e
 from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 
-@configclass
+@dataclass
 class FloatingObstacleEnvCfg(NavigationVelocityFloatingObstacleEnvCfg):
     def __post_init__(self):
         # post init of parent

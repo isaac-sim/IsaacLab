@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
-from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
 
 
-@configclass
+@dataclass
 class ContactSensorCfg(SensorBaseCfg):
     """Configuration for the contact sensor.
 

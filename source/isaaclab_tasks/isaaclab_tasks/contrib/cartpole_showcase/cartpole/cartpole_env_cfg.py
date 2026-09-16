@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
-from gymnasium import spaces
+from dataclasses import dataclass
 
-from isaaclab.utils import configclass
+from gymnasium import spaces
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -17,7 +17,7 @@ from isaaclab_tasks.utils import PresetCfg
 ###
 
 
-@configclass
+@dataclass
 class BoxBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (4,))
@@ -44,7 +44,7 @@ class BoxBoxEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class BoxDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (4,))
@@ -73,7 +73,7 @@ class BoxDiscreteEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class BoxMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Box`` with shape (4,))
@@ -114,7 +114,7 @@ class BoxMultiDiscreteEnvCfg(CartpoleEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class DiscreteBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Discrete`` with 16 elements)
@@ -153,7 +153,7 @@ class DiscreteBoxEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class DiscreteDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Discrete`` with 16 elements)
@@ -194,7 +194,7 @@ class DiscreteDiscreteEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class DiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Discrete`` with 16 elements)
@@ -247,7 +247,7 @@ class DiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class MultiDiscreteBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.MultiDiscrete`` with 4 discrete spaces)
@@ -293,7 +293,7 @@ class MultiDiscreteBoxEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class MultiDiscreteDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.MultiDiscrete`` with 4 discrete spaces)
@@ -341,7 +341,7 @@ class MultiDiscreteDiscreteEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class MultiDiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.MultiDiscrete`` with 4 discrete spaces)
@@ -401,7 +401,7 @@ class MultiDiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class DictBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
@@ -431,7 +431,7 @@ class DictBoxEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class DictDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
@@ -463,7 +463,7 @@ class DictDiscreteEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class DictMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Dict`` with 2 constituent spaces)
@@ -507,7 +507,7 @@ class DictMultiDiscreteEnvCfg(CartpoleEnvCfg):
 ###
 
 
-@configclass
+@dataclass
 class TupleBoxEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
@@ -537,7 +537,7 @@ class TupleBoxEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))  # or for simplicity: 1 or [1]
 
 
-@configclass
+@dataclass
 class TupleDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
@@ -569,7 +569,7 @@ class TupleDiscreteEnvCfg(CartpoleEnvCfg):
     action_space = spaces.Discrete(3)  # or for simplicity: {3}
 
 
-@configclass
+@dataclass
 class TupleMultiDiscreteEnvCfg(CartpoleEnvCfg):
     """
     * Observation space (``~gymnasium.spaces.Tuple`` with 2 constituent spaces)
@@ -613,7 +613,7 @@ class TupleMultiDiscreteEnvCfg(CartpoleEnvCfg):
 ##
 
 
-@configclass
+@dataclass
 class CartpoleShowcasePresetsEnvCfg(PresetCfg):
     """Proprioceptive cartpole showcase with selectable observation/action space.
 

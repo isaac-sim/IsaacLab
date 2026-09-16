@@ -30,6 +30,7 @@ parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -44,7 +45,6 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
 
 WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
     size=(12.0, 12.0),
@@ -58,7 +58,7 @@ WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
 )
 
 
-@configclass
+@dataclass
 class HeightfieldSceneCfg(InteractiveSceneCfg):
     """Wave heightfield with a floating sensor body."""
 

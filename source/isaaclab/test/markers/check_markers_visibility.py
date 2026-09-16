@@ -38,11 +38,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
-from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -50,7 +51,7 @@ from isaaclab.utils import configclass
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
-@configclass
+@dataclass
 class SensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 

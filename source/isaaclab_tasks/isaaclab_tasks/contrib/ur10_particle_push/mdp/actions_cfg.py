@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions import RelativeJointPositionActionCfg
-from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .actions import ClampedRelativeJointPositionAction
 
 
-@configclass
+@dataclass
 class ClampedRelativeJointPositionActionCfg(RelativeJointPositionActionCfg):
     """Configuration for one bounded joint-delta target per policy step."""
 

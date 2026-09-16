@@ -7,8 +7,9 @@
 # Pre-defined configs
 ##
 
+from dataclasses import dataclass
+
 import isaaclab.envs.mdp as mdp
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.reach.config.openarm.bimanual.reach_openarm_bi_env_cfg import ReachEnvCfg
 
@@ -19,7 +20,7 @@ from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG
 ##
 
 
-@configclass
+@dataclass
 class OpenArmReachEnvCfg(ReachEnvCfg):
     """Configuration for the Bimanual OpenArm Reach Environment."""
 

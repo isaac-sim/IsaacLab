@@ -39,6 +39,7 @@ simulation_app = app_launcher.app
 
 import cProfile
 import time
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
@@ -54,10 +55,9 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.views import UsdFrameView
-from isaaclab.utils import configclass
 
 
-@configclass
+@dataclass
 class _NewtonSceneCfg(InteractiveSceneCfg):
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",

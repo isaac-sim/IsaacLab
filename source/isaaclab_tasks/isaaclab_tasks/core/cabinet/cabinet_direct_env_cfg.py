@@ -5,12 +5,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
     CABINET_CFG,
@@ -22,7 +21,7 @@ from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
 )
 
 
-@configclass
+@dataclass
 class CabinetDirectSceneCfg(InteractiveSceneCfg):
     """Scene configuration shared by direct-workflow cabinet tasks."""
 
@@ -32,7 +31,7 @@ class CabinetDirectSceneCfg(InteractiveSceneCfg):
     light: AssetBaseCfg = LIGHT_CFG
 
 
-@configclass
+@dataclass
 class CabinetDirectEnvCfg(DirectRLEnvCfg):
     """Base configuration for the direct-workflow cabinet task."""
 

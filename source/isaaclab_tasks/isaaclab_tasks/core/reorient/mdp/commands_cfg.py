@@ -7,18 +7,17 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from .commands import ReorientCommand
 
 
-@configclass
+@dataclass
 class ReorientCommandCfg(CommandTermCfg):
     """Configuration for the uniform 3D orientation command term.
 

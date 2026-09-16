@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
 
 # Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
 # environments in the test suite.
@@ -106,7 +107,7 @@ def _build_franka_stack_pipeline():
     return OutputCombiner({"action": connected_reorderer.output("output")})
 
 
-@configclass
+@dataclass
 class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent

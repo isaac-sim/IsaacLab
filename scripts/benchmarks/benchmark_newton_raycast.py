@@ -34,6 +34,7 @@ args_cli = parser.parse_args()
 
 import math
 import time
+from dataclasses import dataclass
 
 import torch
 import warp as wp
@@ -47,7 +48,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
 
 
 def _make_terrain_cfg(num_envs: int, env_spacing: float) -> TerrainGeneratorCfg:
@@ -70,7 +70,7 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
     pattern = GridPatternCfg(resolution=args_cli.grid_resolution, size=tuple(args_cli.grid_size))
     offset = RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 1.0))
 
-    @configclass
+    @dataclass
     class RaycastBenchSceneCfg(InteractiveSceneCfg):
         terrain = TerrainImporterCfg(
             prim_path="/World/ground",

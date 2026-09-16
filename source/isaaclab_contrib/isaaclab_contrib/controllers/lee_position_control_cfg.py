@@ -3,15 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
+from dataclasses import MISSING, dataclass
 
 from .lee_controller_base_cfg import LeeControllerBaseCfg
 from .lee_position_control import LeePosController
 
 
-@configclass
+@dataclass
 class LeePosControllerCfg(LeeControllerBaseCfg):
     """Configuration for a Lee-style geometric quadrotor position controller.
 

@@ -6,9 +6,9 @@
 """Assembly-variant presets for the Factory task."""
 
 import math
+from dataclasses import dataclass
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist import assembly_keypoints as kpts
 from isaaclab_tasks.contrib.nist.assembly_profile_cfg import (
@@ -21,7 +21,7 @@ from isaaclab_tasks.contrib.nist.assembly_profile_cfg import (
 from isaaclab_tasks.utils import PresetCfg
 
 
-@configclass
+@dataclass
 class FixedAssetMapCfg(PresetCfg):
     """Mapping from scene entity key to :class:`NistBoardKeyPointsCfg` attribute name."""
 
@@ -47,7 +47,7 @@ class FixedAssetMapCfg(PresetCfg):
     default: dict = nut_thread_m16
 
 
-@configclass
+@dataclass
 class AssemblyTipCfg(PresetCfg):
     nut_thread_m16: kpts.Offset = kpts.BOLT_M16.bolt_tip_offset
 
@@ -76,7 +76,7 @@ def _dist(a: kpts.Offset, b: kpts.Offset) -> tuple[float, float, float]:
     return (b.pos[0] - a.pos[0], b.pos[1] - a.pos[1], b.pos[2] - a.pos[2])
 
 
-@configclass
+@dataclass
 class FactoryAssemblyProfileCfg(PresetCfg):
     """Assembly profile per task variant.
 
@@ -263,7 +263,7 @@ class FactoryAssemblyProfileCfg(PresetCfg):
     default: AssemblyProfileCfg = nut_thread_m16
 
 
-@configclass
+@dataclass
 class HeldAssetAlignOffsetCfg(PresetCfg):
     nut_thread_m16: kpts.Offset = kpts.NUT_M16.center_axis_bottom
 
@@ -287,7 +287,7 @@ class HeldAssetAlignOffsetCfg(PresetCfg):
     default: kpts.Offset = nut_thread_m16
 
 
-@configclass
+@dataclass
 class HeldAssetGraspPointCfg(PresetCfg):
     nut_thread_m16: kpts.Offset = kpts.NUT_M16.grasp_point
 
@@ -311,7 +311,7 @@ class HeldAssetGraspPointCfg(PresetCfg):
     default: kpts.Offset = nut_thread_m16
 
 
-@configclass
+@dataclass
 class HeldAssetGraspDiameterCfg(PresetCfg):
     nut_thread_m16: float = kpts.NUT_M16.grasp_diameter
 
@@ -335,7 +335,7 @@ class HeldAssetGraspDiameterCfg(PresetCfg):
     default: float = nut_thread_m16
 
 
-@configclass
+@dataclass
 class HeldAssetGraspMiddleCfg(PresetCfg):
     """Offset used for positioning the EE around the held asset.
 
@@ -392,7 +392,7 @@ _INSERT_GRASPED_RANGE = dict(
 )
 
 
-@configclass
+@dataclass
 class GraspedPoseRangeCfg(PresetCfg):
     """Pose range for the ``start_grasped_then_assembled`` reset strategy."""
 
@@ -418,7 +418,7 @@ class GraspedPoseRangeCfg(PresetCfg):
     default: dict = nut_thread_m16
 
 
-@configclass
+@dataclass
 class ResetAssetsCfg(PresetCfg):
     """Scene entities the accumulator banks and restores for each assembly.
 
@@ -433,7 +433,7 @@ class ResetAssetsCfg(PresetCfg):
     gear_mesh_large: list = ["nistboard", "fixed_asset", "held_asset", "robot", "small_gear", "medium_gear"]
 
 
-@configclass
+@dataclass
 class HeldAssetObstaclesCfg(PresetCfg):
     """Entities the held asset is checked against before a reset state is accepted.
 

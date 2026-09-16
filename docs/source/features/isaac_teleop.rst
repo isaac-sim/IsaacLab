@@ -1078,7 +1078,7 @@ Register the pipeline in your environment configuration using :class:`~isaaclab_
 
    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
 
-   @configclass
+   @dataclass
    class MyTeleopEnvCfg(ManagerBasedRLEnvCfg):
 
        xr: XrCfg = XrCfg(anchor_pos=(0.5, 0.0, 0.5))
@@ -1115,7 +1115,7 @@ Key ``IsaacTeleopCfg`` fields:
 .. warning::
 
    ``pipeline_builder`` and ``retargeters_to_tune`` must be **callables** (functions or lambdas),
-   not pre-built objects. The ``@configclass`` decorator deep-copies mutable attributes, which
+   not pre-built objects. The ``@dataclass`` decorator deep-copies mutable attributes, which
    would break pre-built pipeline graphs.
 
 
@@ -1552,7 +1552,7 @@ for the pulse).
    from isaaclab.sensors import ContactSensorCfg
    from isaaclab_teleop import ControllerHapticFeedbackCfg
 
-   @configclass
+   @dataclass
    class MySceneCfg(InteractiveSceneCfg):
        left_hand_contact = ContactSensorCfg(
            prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link", update_period=0.0, history_length=3
@@ -1587,7 +1587,7 @@ Thumb..Pinky (matched from the sensor's body names via ``finger_order``) into a
    from isaaclab.sensors import ContactSensorCfg
    from isaaclab_teleop import GloveHapticFeedbackCfg
 
-   @configclass
+   @dataclass
    class MySceneCfg(InteractiveSceneCfg):
        object = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Object", ...)
        left_hand_contact = ContactSensorCfg(
@@ -1795,7 +1795,7 @@ Optimize XR Performance
 
    .. code-block:: python
 
-      @configclass
+      @dataclass
       class XrTeleopEnvCfg(ManagerBasedRLEnvCfg):
 
           def __post_init__(self):

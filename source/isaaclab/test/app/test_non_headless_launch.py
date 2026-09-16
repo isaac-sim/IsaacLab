@@ -21,15 +21,16 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+from dataclasses import dataclass
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
 
-@configclass
+@dataclass
 class SensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 

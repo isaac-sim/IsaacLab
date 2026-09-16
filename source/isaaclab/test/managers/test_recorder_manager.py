@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 import h5py
@@ -17,7 +18,7 @@ import torch
 
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.unit
 
@@ -47,17 +48,17 @@ class DummyStepRecorderTerm(RecorderTerm):
         return "record_post_step", torch.ones(self._env.num_envs, 5, device=self._env.device)
 
 
-@configclass
+@dataclass
 class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     """Dummy recorder configurations."""
 
-    @configclass
+    @dataclass
     class DummyResetRecorderTermCfg(RecorderTermCfg):
         """Configuration for the dummy reset recorder term."""
 
         class_type: type[RecorderTerm] = DummyResetRecorderTerm
 
-    @configclass
+    @dataclass
     class DummyStepRecorderTermCfg(RecorderTermCfg):
         """Configuration for the dummy step recorder term."""
 
@@ -94,19 +95,19 @@ def get_file_contents(file_name: str, num_steps: int) -> dict[str, np.ndarray]:
     return data
 
 
-@configclass
-class DummyEnvCfg:
+@dataclass
+class DummyEnvCfg(ConfigMixin):
     """Dummy environment configuration."""
 
-    @configclass
-    class DummySimCfg:
+    @dataclass
+    class DummySimCfg(ConfigMixin):
         """Configuration for the dummy sim."""
 
         dt: float = 0.01
         render_interval: int = 1
 
-    @configclass
-    class DummySceneCfg:
+    @dataclass
+    class DummySceneCfg(ConfigMixin):
         """Configuration for the dummy scene."""
 
         num_envs: int = 1

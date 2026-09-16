@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -20,7 +22,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MultiAssetSpawnerCfg, SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -36,7 +38,7 @@ from .keyboards import TYPING_KEYBOARD_POOL
 from isaaclab_assets.robots.so101 import SO101_CFG  # isort: skip
 
 
-@configclass
+@dataclass
 class KeyboardAssetCfg(PresetCfg):
     """Backend-dependent keyboard articulation, selected by the ``physics=`` preset.
 
@@ -71,7 +73,7 @@ class KeyboardAssetCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class SO101SceneCfg(InteractiveSceneCfg):
     """SO-101 keyboard-typing scene."""
 
@@ -120,8 +122,8 @@ class SO101SceneCfg(InteractiveSceneCfg):
     )
 
 
-@configclass
-class CommandsCfg:
+@dataclass
+class CommandsCfg(ConfigMixin):
     """Command terms for the MDP."""
 
     typing = mdp.LetterTypingCommandCfg(
@@ -173,23 +175,23 @@ class CommandsCfg:
     )
 
 
-@configclass
-class SO101RelJointPosActionCfg:
+@dataclass
+class SO101RelJointPosActionCfg(ConfigMixin):
     action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.02)
 
 
-@configclass
-class SO101ObservationsCfg:
+@dataclass
+class SO101ObservationsCfg(ConfigMixin):
     """Observation specifications for the MDP."""
 
-    @configclass
+    @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
         target_keys_onehot = ObsTerm(func=mdp.target_keys_onehot, params={"command_name": "typing"})
         typed_keys_onehot = ObsTerm(func=mdp.typed_keys_onehot, params={"command_name": "typing"})
 
-    @configclass
+    @dataclass
     class ProprioObsCfg(ObsGroup):
         """Observations for proprioception group."""
 
@@ -197,7 +199,7 @@ class SO101ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
         joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
 
-    @configclass
+    @dataclass
     class PerceptionObsCfg(ObsGroup):
         """Observations for perception group."""
 
@@ -221,8 +223,8 @@ class SO101ObservationsCfg:
     perception: PerceptionObsCfg = PerceptionObsCfg()
 
 
-@configclass
-class EventCfg:
+@dataclass
+class EventCfg(ConfigMixin):
     """Reset-mode events (shared by all physics backends)."""
 
     reset_keyboard = EventTerm(
@@ -242,8 +244,8 @@ class EventCfg:
     )
 
 
-@configclass
-class SO101ReorientRewardCfg:
+@dataclass
+class SO101ReorientRewardCfg(ConfigMixin):
     typing_progress = RewTerm(func=mdp.letter_typing_progress, weight=2.0, params={"command_name": "typing"})
 
     success = RewTerm(func=mdp.typing_success, weight=50.0, params={"command_name": "typing"})
@@ -253,8 +255,8 @@ class SO101ReorientRewardCfg:
     early_termination = RewTerm(func=mdp.is_terminated_term, weight=-10, params={"term_keys": ["abnormal_robot"]})
 
 
-@configclass
-class TerminationsCfg:
+@dataclass
+class TerminationsCfg(ConfigMixin):
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -269,7 +271,7 @@ class TerminationsCfg:
     success = DoneTerm(func=mdp.typing_complete, params={"command_name": "typing"})
 
 
-@configclass
+@dataclass
 class PhysicsCfg(PresetCfg):
     # Octi: note
     # physx is usable but extremely slow for this task and is only for evaluation purposes
@@ -302,7 +304,7 @@ class PhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
-@configclass
+@dataclass
 class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
     scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=True)
     observations: SO101ObservationsCfg = SO101ObservationsCfg()

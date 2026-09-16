@@ -6,17 +6,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import ConfigMixin
 
 if TYPE_CHECKING:
     from .operational_space import OperationalSpaceController
 
 
-@configclass
-class OperationalSpaceControllerCfg:
+@dataclass
+class OperationalSpaceControllerCfg(ConfigMixin):
     """Configuration for operational-space controller."""
 
     class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"

@@ -8,9 +8,8 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
 
-@configclass
+@dataclass
 class MJWarpSolverCfg(NewtonSolverCfg):
     """Configuration for MuJoCo Warp solver-related parameters.
 

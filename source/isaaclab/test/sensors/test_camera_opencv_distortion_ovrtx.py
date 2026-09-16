@@ -37,6 +37,8 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 )
 
 if not _MISSING_MODULES:
+    from dataclasses import dataclass
+
     import torch
     from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
@@ -53,7 +55,6 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
-    from isaaclab.utils import configclass
     from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 SIM_DT = 1.0 / 60.0
@@ -74,7 +75,7 @@ _CAM_TARGET = (1.75, 0.0, 0.0)
 
 if not _MISSING_MODULES:
 
-    @configclass
+    @dataclass
     class _DistortionSceneCfg(InteractiveSceneCfg):
         """The grid-textured ground plane, a dome light and an off-screen anchor body for Newton."""
 
