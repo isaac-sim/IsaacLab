@@ -186,6 +186,14 @@ class Articulation(BaseArticulation):
         from isaaclab.sim.usd_export import AssetPaths
 
         view = self.root_view
+        axes = {}
+        for path, name in zip(view.dof_paths[env_index], self.backend_joint_names):
+            if self.stage.GetPrimAtPath(str(path)).GetTypeName() == "PhysicsJoint":
+                _, _, suffix = name.rpartition(":")
+                if suffix not in {"0", "1", "2"}:
+                    raise NotImplementedError(f"Unknown PhysX joint axis for {path}: {name}.")
+                # PhysX exposes spherical DOFs in twist, swing1, swing2 order.
+                axes[self.joint_names.index(name)] = ("rotX", "rotY", "rotZ")[int(suffix)]
         return AssetPaths(
             [
                 (str(path), self.body_names.index(name))
@@ -195,6 +203,7 @@ class Articulation(BaseArticulation):
                 (str(path), self.joint_names.index(name))
                 for path, name in zip(view.dof_paths[env_index], self.backend_joint_names)
             ],
+            axes,
         )
 
     @property

@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 from newton import JointType
@@ -33,6 +34,7 @@ from .kernels import (
 
 if TYPE_CHECKING:
     from isaaclab.assets.cable_object.cable_object_cfg import CableObjectCfg
+    from isaaclab.sim.usd_export import UsdWriter
 
 
 class CableObject(BaseCableObject):
@@ -43,6 +45,109 @@ class CableObject(BaseCableObject):
 
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
+
+    _export_fields = {
+        "body": ("body_mass", "body_inertia", "body_com", "body_flags"),
+        "joint": ("joint_X_p", "joint_X_c", "joint_enabled"),
+        "dof": (
+            "joint_target_ke",
+            "joint_target_kd",
+            "joint_limit_ke",
+            "joint_limit_kd",
+            "joint_armature",
+            "joint_friction",
+        ),
+        "shape": (
+            "shape_margin",
+            "shape_gap",
+            "shape_material_mu",
+            "shape_material_restitution",
+            "shape_material_ke",
+            "shape_material_kd",
+            "shape_material_kf",
+            "shape_material_ka",
+            "shape_material_mu_torsional",
+            "shape_material_mu_rolling",
+        ),
+    }
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Keep the curve schema and supplement native segment properties it cannot express."""
+        from pxr import Sdf, Usd, Vt
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        model = SimulationManager.get_model()
+        from isaaclab.sim.utils.queries import find_first_matching_prim
+
+        root = str(find_first_matching_prim(self.cfg.prim_path, stage=writer.stage).GetPath())
+        root = str(
+            next(p for p in Usd.PrimRange(writer.stage.GetPrimAtPath(root)) if p.IsA(UsdGeom.BasisCurves)).GetPath()
+        )
+        path = writer.resolve_paths(AssetPaths([(root, 0)], [])).bodies[0][0]
+        prim = writer.stage.GetPrimAtPath(path)
+        if not prim or not prim.IsA(UsdGeom.BasisCurves):
+            raise RuntimeError(f"Missing cable curve {path}.")
+        selected_joints = {
+            writer.resolve_paths(AssetPaths([], [(label, 0)])).joints[0][0] for label in self.root_view.joint_labels
+        }
+        joints = [
+            i
+            for i, label in enumerate(model.joint_label)
+            if label in selected_joints and int(model.joint_world.numpy()[i]) in (-1, writer.env_id)
+        ]
+        bodies = sorted(
+            {int(model.joint_parent.numpy()[i]) for i in joints} | {int(model.joint_child.numpy()[i]) for i in joints}
+        )
+        rows = self._export_rows(model, bodies, joints)
+        for kind, fields in self._export_fields.items():
+            for name in fields:
+                values = getattr(model, name).numpy()[rows[kind]]
+                integer = values.dtype.kind in "biu"
+                type_name = Sdf.ValueTypeNames.IntArray if integer else Sdf.ValueTypeNames.FloatArray
+                array = (
+                    Vt.IntArray.FromNumpy(values.astype(np.int32).ravel())
+                    if integer
+                    else Vt.FloatArray.FromNumpy(values.astype(np.float32).ravel())
+                )
+                prim.CreateAttribute("newton:export:" + name, type_name).Set(array)
+        writer.represented_collider_paths.update(model.shape_label[i] for i in rows["shape"])
+
+    @staticmethod
+    def _export_rows(model, bodies, joints) -> dict:
+        """Resolve curve-local physical rows before copying or restoring properties."""
+
+        def array(name):
+            value = getattr(model, name)
+            return value.numpy() if hasattr(value, "numpy") else np.asarray(value)
+
+        starts = array("joint_qd_start")
+        # Builders append the terminal offset only when finalized.
+        if len(starts) == model.joint_count:
+            starts = np.append(starts, model.joint_dof_count)
+        return {
+            "body": bodies,
+            "joint": joints,
+            "dof": [i for j in joints for i in range(starts[j], starts[j + 1])],
+            "shape": np.flatnonzero(np.isin(array("shape_body"), bodies)).tolist(),
+        }
+
+    @classmethod
+    def restore_fixed_configuration(cls, stage, builder, cable_map) -> None:
+        """Restore curve-local overrides after the standard Newton cable importer."""
+        for path, (bodies, joints) in cable_map.items():
+            prim = stage.GetPrimAtPath(path)
+            rows = cls._export_rows(builder, bodies, joints)
+            for kind, fields in cls._export_fields.items():
+                for name in fields:
+                    value = prim.GetAttribute("newton:export:" + name).Get()
+                    if value is None:
+                        continue
+                    target = getattr(builder, name)
+                    shape = np.asarray([target[i] for i in rows[kind]]).shape
+                    values = np.asarray(value).reshape(shape)
+                    for index, value in zip(rows[kind], values):
+                        target[index] = value.tolist()
 
     def __init__(self, cfg: CableObjectCfg) -> None:
         """Initialize the cable object.

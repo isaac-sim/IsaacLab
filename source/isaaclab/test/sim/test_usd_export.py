@@ -452,6 +452,10 @@ def test_fixed_properties_write_placement_and_zero_initial_velocities(scene):
     joint.CreateAttribute("state:angular:physics:position", Sdf.ValueTypeNames.Float).Set(12)
     joint.CreateAttribute("state:angular:physics:velocity", Sdf.ValueTypeNames.Float).Set(34)
     joint.CreateAttribute("newton:angular:velocity", Sdf.ValueTypeNames.Float).Set(56)
+    points = UsdGeom.Mesh.Define(scene.sim.stage, "/Cloth")
+    points.CreatePointsAttr().Set([(0, 0, 0), (1, 0, 0)])
+    points.CreateVelocitiesAttr().Set([(1, 2, 3), (4, 5, 6)])
+    points.GetVelocitiesAttr().Set([(2, 3, 4), (5, 6, 7)], 1)
     before = scene.sim.stage.GetRootLayer().ExportToString()
     data = SimpleNamespace(
         body_link_pose_w=SimpleNamespace(torch=torch.tensor([[[3.0, 2, 1, 0, 0, 0, 1]]])),
@@ -463,6 +467,9 @@ def test_fixed_properties_write_placement_and_zero_initial_velocities(scene):
     writer.write_bodies(data, [(path, 0)])
     writer.clear_initial_velocities()
     actual = writer.stage.GetPrimAtPath(path)
+    velocities = UsdGeom.PointBased(writer.stage.GetPrimAtPath("/Cloth")).GetVelocitiesAttr()
+    np.testing.assert_array_equal(np.asarray(velocities.Get()), np.zeros((2, 3)))
+    assert velocities.GetTimeSamples() == []
     assert UsdGeom.XformCache().GetLocalToWorldTransform(actual).ExtractTranslation() == Gf.Vec3d(3, 2, 1)
     for name in ("physics:velocity", "physics:angularVelocity"):
         assert actual.GetAttribute(name).Get() == Gf.Vec3f(0)

@@ -517,8 +517,8 @@ class InteractiveScene:
             raise ValueError(f"Environment {env_id} is outside [0, {self.num_envs}).")
         if self.sim.get_physics_step_count() != 0:
             raise ValueError("Deployment export must precede the first physics step.")
-        if self.deformable_objects or self.cable_objects or self.surface_grippers:
-            raise NotImplementedError("Deployment export does not support deformables, cables or surface grippers.")
+        if self.surface_grippers:
+            raise NotImplementedError("Deployment export does not support surface grippers.")
         phases = {name: Timer() for name in ("selection", "configuration", "validate", "save")}
         with phases["selection"]:
             writer = UsdWriter.from_stage(self.sim.stage)
@@ -527,7 +527,11 @@ class InteractiveScene:
         with phases["configuration"]:
             # Layout queries select the public instance row; effective values come from objects.
             for asset in chain(
-                self.articulations.values(), self.rigid_objects.values(), self.rigid_object_collections.values()
+                self.articulations.values(),
+                self.rigid_objects.values(),
+                self.rigid_object_collections.values(),
+                self.deformable_objects.values(),
+                self.cable_objects.values(),
             ):
                 cfgs = asset.cfg.rigid_objects.values() if hasattr(asset.cfg, "rigid_objects") else (asset.cfg,)
                 memberships = []

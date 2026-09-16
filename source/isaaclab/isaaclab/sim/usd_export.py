@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils, Vt
 
 from isaaclab.assets.physics_properties import (
     UsdAttribute,
@@ -60,6 +60,8 @@ class UsdWriter:
         self.env_id = 0
         self.clone_plan: ClonePlan | None = None
         self.body_paths: set[str] = set()
+        self.deformable_paths: set[str] = set()
+        self.represented_collider_paths: set[str] = set()
         self._material_paths: set[str] = set()
         self._joint_shared_values: dict[tuple[str, str], float] = {}
         # Retain owners with their arrays, so ids cannot be reused during an export.
@@ -394,7 +396,32 @@ class UsdWriter:
                 f"Incomplete body export: missing={sorted(authored - self.body_paths)}, "
                 f"extra={sorted(self.body_paths - authored)}"
             )
+        deformables = {
+            str(prim.GetPath())
+            for prim in self.stage.Traverse()
+            if any(
+                api in {"PhysicsDeformableBodyAPI", "OmniPhysicsDeformableBodyAPI"}
+                for api in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+            )
+        }
+        if deformables != self.deformable_paths:
+            raise RuntimeError(f"Incomplete deformable export: {deformables ^ self.deformable_paths}.")
         self.validate_dependencies()
+
+    def write_deformable_points(self, path: str, positions: np.ndarray) -> Usd.Prim:
+        """Retain rest geometry and place simulation nodes from world positions [m]."""
+        from isaaclab.scene_data.deformable_discovery import _classify_deformable_meshes
+
+        root = self.stage.GetPrimAtPath(path)
+        _, mesh, _, count, *_ = _classify_deformable_meshes(root)
+        positions = np.asarray(positions)[:count]
+        if positions.shape != (count, 3):
+            raise ValueError(f"Incomplete simulation nodes for {path}: {positions.shape}.")
+        transform = np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(mesh).GetInverse())
+        points = positions @ transform[:3, :3] + transform[3, :3]
+        UsdGeom.PointBased(mesh).GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points.astype(np.float32)))
+        self.deformable_paths.add(path)
+        return mesh
 
     def write_gravity(self, scene_path: str, gravity) -> None:
         """Author effective gravity [m/s²] from a backend's selected world."""
@@ -564,6 +591,11 @@ class UsdWriter:
         """Start deployment at rest, including velocities inherited from source layers."""
         axes = {"angular", "linear", "rotX", "rotY", "rotZ", "transX", "transY", "transZ"}
         for prim in self.stage.Traverse():
+            if prim.IsA(UsdGeom.PointBased):
+                points = UsdGeom.PointBased(prim)
+                if points.GetVelocitiesAttr().HasAuthoredValue():
+                    points.GetVelocitiesAttr().Clear()
+                    points.CreateVelocitiesAttr().Set(Vt.Vec3fArray(len(points.GetPointsAttr().Get() or [])))
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 body = UsdPhysics.RigidBodyAPI(prim)
                 for attr in (body.CreateVelocityAttr(), body.CreateAngularVelocityAttr()):

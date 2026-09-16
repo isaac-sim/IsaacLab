@@ -42,6 +42,14 @@ class NewtonMJWarpManager(NewtonManager):
     @classmethod
     def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
         """Export MuJoCo options and native contact properties from the selected solver world."""
+        super().author_fixed_configuration(writer, scene)
+        cls.author_solver_configuration(writer, scene, cls._solver, scene.sim.cfg.physics.solver_cfg)
+
+    @classmethod
+    def author_solver_configuration(
+        cls, writer: UsdWriter, scene: InteractiveScene, solver: SolverMuJoCo, solver_cfg: MJWarpSolverCfg
+    ) -> None:
+        """Write a standalone or coupled MuJoCo solver's native configuration."""
         import json
 
         from pxr import Gf, Sdf, UsdPhysics, UsdShade
@@ -52,9 +60,7 @@ class NewtonMJWarpManager(NewtonManager):
         from isaaclab_newton.sim.schemas import apply_mujoco_collision
         from isaaclab_newton.sim.schemas.schemas_cfg import MujocoCollisionCfg
 
-        super().author_fixed_configuration(writer, scene)
-        solver = cls._solver
-        model = cls.get_model()
+        model = solver.model
         world = writer.env_id if solver.mjc_body_to_newton.shape[0] > 1 else 0
         native = solver.mj_model if solver.use_mujoco_cpu else solver.mjw_model
 
@@ -67,7 +73,7 @@ class NewtonMJWarpManager(NewtonManager):
                     data = data[world if data.shape[0] > 1 else 0]
             return np.asarray(data)
 
-        options = cls._filter_solver_kwargs(SolverMuJoCo, scene.sim.cfg.physics.solver_cfg)
+        options = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
         options.pop("save_to_mjcf", None)
         options.pop("ls_parallel", None)
         for name in tuple(options):
@@ -143,6 +149,14 @@ class NewtonMJWarpManager(NewtonManager):
                 target = {"solref": "solreffriction", "solimp": "solimpfriction"}.get(name, name)
                 write_joint_value(path, "mjc:" + target, data[dof])
         joint_values = {name: value(native, "jnt_" + name) for name in ("stiffness", "margin", "solref", "solimp")}
+        regenerated_limits = cls._regenerated_limit_joints(
+            model,
+            solver.mjc_jnt_to_newton_jnt.numpy()[world],
+            solver.mjc_jnt_to_newton_dof.numpy()[world],
+            joint_values,
+            value(native, "dof_invweight0"),
+            value(native, "jnt_dofadr"),
+        )
         for joint, index in enumerate(solver.mjc_jnt_to_newton_jnt.numpy()[world]):
             if (
                 index < 0
@@ -154,6 +168,11 @@ class NewtonMJWarpManager(NewtonManager):
             if not writer.stage.GetPrimAtPath(path):
                 continue
             for name, data in joint_values.items():
+                if name == "solref" and regenerated_limits.get(index, False):
+                    # Force-space gains are exported per axis. MuJoCo regenerates solref
+                    # from those gains and axis inertia; writing it as a raw override changes intent.
+                    writer.stage.GetPrimAtPath(path).RemoveProperty("mjc:solreflimit")
+                    continue
                 target = {"solref": "solreflimit", "solimp": "solimplimit"}.get(name, name)
                 write_joint_value(path, "mjc:" + target, data[joint])
 
@@ -178,6 +197,7 @@ class NewtonMJWarpManager(NewtonManager):
             fields,
             value(native, "geom_bodyid"),
             set(map(int, np.asarray(solver.mj_model.exclude_signature))),
+            model,
         )
 
         for geom, shape in enumerate(mapping):
@@ -215,6 +235,36 @@ class NewtonMJWarpManager(NewtonManager):
                 prim.CreateAttribute("mjc:" + name, Sdf.ValueTypeNames.Int64).Set(int(fields[name][geom]))
 
     @classmethod
+    def _regenerated_limit_joints(
+        cls, model, joint_map, dof_map, joint_values, invweights, addresses
+    ) -> dict[int, bool]:
+        """Check every axis before replacing joint-wide native solref with force-space gains."""
+        limit_modes = model.mujoco.solreflimit_mode.numpy()
+        # Preserve direct native overrides; omit only values reproduced by the exported gains.
+        regenerated_limits = {}
+        limit_ke, limit_kd = model.joint_limit_ke.numpy(), model.joint_limit_kd.numpy()
+        for joint, (index, dof) in enumerate(zip(joint_map, dof_map)):
+            if index < 0 or dof < 0:
+                continue
+            ke, kd = float(limit_ke[dof]), float(limit_kd[dof])
+            invw, dmax = float(invweights[addresses[joint]]), float(joint_values["solimp"][joint, 1])
+            expected = cls._force_space_solref(ke, kd, invw, dmax)
+            matches = limit_modes[dof] == 0 and np.allclose(
+                joint_values["solref"][joint], expected, rtol=3e-5, atol=1e-7
+            )
+            regenerated_limits[index] = regenerated_limits.get(index, True) and matches
+        return regenerated_limits
+
+    @staticmethod
+    def _force_space_solref(ke: float, kd: float, invweight: float, dmax: float) -> tuple[float, float]:
+        """Recognize Newton's force-space conversion without overwriting native buffer overrides."""
+        if ke <= 0 or kd <= 0:
+            return (0.02, 1.0)
+        factor = invweight * (1 - dmax) if invweight > 0 and dmax < 1 else 1.0
+        stiffness, damping = max(ke * factor, 1e-15), max(kd * factor, 1e-15)
+        return (2 / damping, damping / (2 * np.sqrt(stiffness)))
+
+    @classmethod
     def _author_collision_filters(
         cls,
         writer: UsdWriter,
@@ -222,13 +272,14 @@ class NewtonMJWarpManager(NewtonManager):
         fields: dict[str, np.ndarray],
         bodies: np.ndarray,
         excluded: set[int],
+        model: Model | None = None,
     ) -> None:
         """Preserve effective native collision relationships independently of mask bit allocation."""
         from pxr import UsdPhysics
 
         from isaaclab.sim.usd_export import AssetPaths
 
-        model = cls.get_model()
+        model = cls.get_model() if model is None else model
         # Native masks can have runtime overrides absent from the Newton model and source USD.
         # Encode disabled pairs as standard relationships because USD imports regenerate mask bits.
         for first, shape in enumerate(mapping):

@@ -135,8 +135,9 @@ Explicit controller gains never become implicit solver gains.
 
 Missing required objects, unsupported driven joint types and
 unresolved dependencies fail before replacing the destination. The implementation currently
-requires SI stage units, representable timestep and supported rigid assets. Deformables, cables
-and surface grippers are rejected. Native schemas unsupported by a deployment consumer still
+requires SI stage units and a representable timestep. Newton cloth, soft bodies and cables,
+and Isaac Sim surface/volume deformables retain their authored geometry and effective physical
+properties. Surface grippers are rejected. Native schemas unsupported by a deployment consumer still
 need separate validation. Flattening is not packaging: referenced textures, MDL modules and other
 external assets must remain accessible.
 
@@ -147,34 +148,34 @@ Newton preserves the original geometry and adds its fixed contact/joint properti
 independent physics-material bindings when native values are authored, preserving differences even
 when the source material was shared. Missing bindings receive explicit native material values.
 
-XPBD, MJWarp and Kamino managers own their respective driver exports. MJWarp additionally
-reads native body, joint and contact buffers; Kamino stores its resolved nested driver
-configuration. Unrepresentable per-joint actuation modes fail explicitly. The
-loader must consume the exported import options and driver metadata, rather than silently using
-its own defaults::
+XPBD, MJWarp, Kamino and VBD managers own their driver exports. The proxy coupler delegates
+to its MJWarp/VBD children and preserves solver ownership, proxy relationships and substeps.
+MJWarp additionally reads native body, joint and contact buffers; Kamino stores its resolved
+nested driver configuration. Unrepresentable per-joint actuation modes fail explicitly.
+Load with the deployment entry points to consume the physical extensions and driver settings::
 
     from pxr import Usd
-    from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
+    from isaaclab_newton.physics import NewtonManager
 
-    stage = Usd.Stage.Open("deployment.usda")
-    metadata = stage.GetRootLayer().customLayerData
-    builder.add_usd(stage, schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()],
-                    **metadata["isaaclab:newtonImportOptions"])
-    model = builder.finalize()
-    driver = dict(metadata["isaaclab:newtonDriver"])
-    assert driver.pop("solver") == "xpbd"
-    solver = newton.solvers.SolverXPBD(model, **driver)
+    path = "deployment.usda"
+    metadata = Usd.Stage.Open(path).GetRootLayer().customLayerData
+    model, mappings = NewtonManager.create_deployment_model(path, device="cuda:0")
+    solver = NewtonManager.create_deployment_solver(
+        model, metadata["isaaclab:newtonDriver"], particle_paths=mappings["particle_paths"]
+    )
     timing = metadata["isaaclab:newtonSimulation"]
     dt = timing["dt"]
 
-For MJWarp, register ``SolverMuJoCo`` custom attributes on the builder and put
-``SchemaResolverMjc`` before the Newton/PhysX resolvers. Its driver metadata uses
-``solver="mujoco"`` and JSON ``options`` passed to ``SolverMuJoCo`` (convert the
-``deterministic`` integer to ``warp.DeterministicMode``). Kamino uses ``solver="kamino"``;
-register ``SolverKamino`` attributes, reconstruct its ``Config`` and nested dataclasses
-from JSON ``options``, then construct the solver. The fresh-load tests contain executable
-examples for all three drivers. The deployment stepping loop must honor ``dt``,
-``num_substeps`` and ``collision_decimation`` in ``isaaclab:newtonSimulation``.
+The loader registers the selected solver schemas and restores physical configuration without
+constructing a task or replaying its events. Cloth and volume meshes retain connectivity and
+stress-free geometry separately from nodal placement. Named ``newton:export:*`` attributes
+preserve effective particle/element properties and cable segment properties that the standard
+schemas cannot express. These extensions require this loader; a generic USD importer does not
+provide equivalent physical semantics. Proxy coupling supports MJWarp/VBD children; ADMM and
+custom collision-pipeline factories are rejected.
+
+The deployment stepping loop must honor ``dt``, ``num_substeps`` and ``collision_decimation``
+in ``isaaclab:newtonSimulation``.
 
 The metadata consumers are the deployment loader (illustrated above) and the independent
 fresh-load tests. Isaac Sim/OVPhysX do not consume these Newton driver options. The descriptive
@@ -214,10 +215,11 @@ including static colliders. These support boundaries are separate from task/pres
 Additional support boundaries
 -----------------------------
 
-Newton and OVPhysX Cartesian multi-axis joints retain axis-specific limits and drives.
-Isaac Sim PhysX currently exports scalar driven joints only. Non-Cartesian Newton
-axes, distinct per-axis values where the native USD importer accepts only one joint-wide
-value, and OVPhysX spherical-joint drive reconstruction are rejected.
+Newton, OVPhysX and Isaac Sim PhysX Cartesian multi-axis joints retain axis-specific limits
+and drives. MJWarp force-based joint limits are exported as per-axis stiffness/damping;
+the fresh solver derives its inertia-dependent ``solreflimit`` values. Explicit native
+joint-wide limit settings are retained when representable. Non-Cartesian Newton axes,
+unrepresentable joint-wide native overrides, and OVPhysX spherical-joint drives are rejected.
 
 OVPhysX cannot export different contact/material values for individual cooked convex pieces
 until its tensor API exposes stable piece-to-USD identity and cooked geometry. Body identity
@@ -225,9 +227,10 @@ alone is insufficient. Native warmup can generate motion even before a task take
 step; this transient state is excluded from deployment export. OVPhysX scene frequency is
 authored from the simulation timestep so native contact-default calculation uses the configured rate.
 
-Native Newton colliders without an authored USD collision identity, including generated
-heightfields, are rejected. Their source meshes can remain in USD, but that alone does not
-preserve the native collision representation.
+Newton terrain heightfields retain the source mesh, conversion resolution and effective
+contact properties. The deployment loader repeats the same mesh-to-heightfield conversion.
+Other native colliders without an authored USD identity or a supported curve representation
+are rejected.
 
 The exporter does not reconstruct arbitrary edits to private solver topology or geometry
 buffers, Kamino-only body/material buffer mutations, solver warm-start caches, active contacts,

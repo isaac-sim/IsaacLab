@@ -16,11 +16,58 @@ from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
     from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim.usd_export import UsdWriter
 
 
 class NewtonVBDManager(NewtonManager):
     """Newton manager specialization for the VBD solver."""
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Preserve effective VBD constructor settings alongside deformable schemas."""
+        import json
+
+        super().author_fixed_configuration(writer, scene)
+        options = cls.export_solver_options(cls._solver)
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "vbd", "options": json.dumps(options)},
+        }
+
+    @staticmethod
+    def export_solver_options(solver: SolverVBD) -> dict:
+        """Read VBD settings from the initialized solver, including effective defaults."""
+        import inspect
+
+        options = {}
+        for name, parameter in inspect.signature(SolverVBD).parameters.items():
+            if name == "model":
+                continue
+            value = getattr(solver, name, parameter.default)
+            if value is None:
+                continue
+            if name in {"collision_frequency", "collision_frequency_type"}:
+                options[name] = {str(int(slot)): int(value) for slot, value in value.items()}
+                continue
+            if not isinstance(value, (bool, int, float, str)):
+                raise NotImplementedError(f"No VBD export representation for {name}: {value!r}.")
+            options[name] = value
+        # The canonical slot schedules supersede the deprecated self-contact interval.
+        options.pop("particle_collision_detection_interval", None)
+        return options
+
+    @staticmethod
+    def load_exported_solver(model: Model, options: dict) -> SolverVBD:
+        """Restore typed collision scheduling before constructing VBD."""
+        from newton.solvers import SolverBase
+
+        options = dict(options)
+        for name in ("collision_frequency", "collision_frequency_type"):
+            if name in options:
+                options[name] = {SolverBase.CollisionSlot(int(slot)): value for slot, value in options[name].items()}
+        return SolverVBD(model, **options)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:

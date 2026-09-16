@@ -11,57 +11,19 @@ import pytest
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-
 
 def _load(path: str, device="cpu") -> tuple[newton.Model, dict]:
-    """Import ``path`` the way Isaac Lab does, returning the model and the importer's result maps.
+    """Load through the production deployment reader, without task configuration."""
+    from isaaclab_newton.physics import NewtonManager
 
-    Newton's importer colours a shape only from a bound visual material; Isaac Lab then aligns the
-    builder's colours with the stage's preserved ``primvars:displayColor``.
-    """
-    builder = newton.ModelBuilder()
-    stage = Usd.Stage.Open(str(path))
-    options = stage.GetRootLayer().customLayerData.get("isaaclab:newtonImportOptions", {})
-    from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
-
-    driver = stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"]["solver"]
-    solver_type = {
-        "xpbd": newton.solvers.SolverXPBD,
-        "mujoco": newton.solvers.SolverMuJoCo,
-        "kamino": newton.solvers.SolverKamino,
-    }[driver]
-    solver_type.register_custom_attributes(builder)
-    resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-    if driver == "mujoco":
-        resolvers.insert(0, SchemaResolverMjc())
-    stage_info = builder.add_usd(str(path), schema_resolvers=resolvers, **options)
-    replace_newton_builder_shape_colors(builder, stage)
-    return builder.finalize(device=device), stage_info
+    return NewtonManager.create_deployment_model(path, device)
 
 
-def _make_driver(model, name, driver):
-    """Construct a native driver from exported settings, without a task configuration."""
-    import dataclasses
-    import json
+def _make_driver(model, name, driver, *, particle_paths=None):
+    """Construct a native driver using only the artifact's settings."""
+    from isaaclab_newton.physics import NewtonManager
 
-    if name == "xpbd":
-        return newton.solvers.SolverXPBD(model, **driver)
-    options = json.loads(driver["options"])
-    if name == "mujoco":
-        import warp as wp
-
-        if "deterministic" in options:
-            options["deterministic"] = wp.DeterministicMode(options["deterministic"])
-        return newton.solvers.SolverMuJoCo(model, **options)
-    config = newton.solvers.SolverKamino.Config.from_model(model, dynamics_solver=options["dynamics_solver"])
-    for field in dataclasses.fields(config):
-        value = options[field.name]
-        default = getattr(config, field.name)
-        if dataclasses.is_dataclass(default) and value is not None:
-            value = type(default)(**value)
-        setattr(config, field.name, value)
-    return newton.solvers.SolverKamino(model, config)
+    return NewtonManager.create_deployment_solver(model, {"solver": name, **driver}, particle_paths=particle_paths)
 
 
 def _capture_mujoco_physics(solver, world):
@@ -130,6 +92,10 @@ def _capture_mujoco_physics(solver, world):
                 else:
                     labels = getattr(model, {"body": "body_label", "geom": "shape_label", "jnt": "joint_label"}[kind])
                     identity = joint_identity(source) if kind == "jnt" else labels[source]
+                    if kind == "jnt":
+                        # A D6 USD joint becomes several native joints; never overwrite another axis's reference.
+                        dof = int(solver.mjc_jnt_to_newton_dof.numpy()[world, index])
+                        identity = (identity, dof - int(starts[source]))
                 result[kind, identity, field] = array[index].copy()
     # Principal axes are non-unique for repeated moments; compare link-frame inertia.
     from scipy.spatial.transform import Rotation
@@ -322,6 +288,9 @@ def _capture_environment_physics(model, world, contact_pairs=None):
                 if source is not None and hasattr(source, "vertices"):
                     result[kind, path, "vertices"] = np.asarray(source.vertices).copy()
                     result[kind, path, "indices"] = np.asarray(source.indices).copy()
+                elif isinstance(source, newton.Heightfield):
+                    for field in ("nrow", "ncol", "hx", "hy", "min_z", "max_z", "_data"):
+                        result[kind, path, "heightfield", field] = np.asarray(getattr(source, field)).copy()
     included = {
         i for i in indices["shape"] if int(model.shape_flags.numpy()[i]) & int(newton.ShapeFlags.COLLIDE_SHAPES)
     }
@@ -338,6 +307,92 @@ def _capture_environment_physics(model, world, contact_pairs=None):
                 pairs.add(tuple(sorted((names["shape"][first], names["shape"][second]))))
     result["filters"] = pairs
     result["gravity"] = model.gravity.numpy()[world if model.world_count else -1].copy()
+    return result
+
+
+def _capture_coupled_physics(solver, world, particle_paths):
+    """Capture native ownership, proxy relationships and solver settings by stable identity."""
+    import dataclasses
+    import inspect
+
+    from newton.solvers import SolverMuJoCo, SolverVBD
+
+    model = solver.model
+    particles = {index: identity for identity, index in particle_paths.items()}
+    result = {}
+
+    def identities(kind, rows):
+        worlds = getattr(model, kind + "_world").numpy()
+        values = []
+        for row in map(int, rows):
+            if worlds[row] not in (-1, world):
+                continue
+            if kind == "shape" and int(model.shape_flags.numpy()[row]) & int(newton.ShapeFlags.SITE):
+                continue
+            values.append(particles[row] if kind == "particle" else getattr(model, kind + "_label")[row])
+        return tuple(values)
+
+    for name in solver.entry_names():
+        entry = solver._entries[name]
+        child = solver.solver(name)
+        result[name, "substeps"] = entry.substeps
+        result[name, "in_place"] = entry.in_place
+        for kind in ("body", "joint", "shape", "particle"):
+            result[name, "ownership", kind] = tuple(sorted(identities(kind, getattr(entry, kind + "_indices").numpy())))
+        if isinstance(child, SolverMuJoCo):
+            result.update({(name, *key): value for key, value in _capture_mujoco_physics(child, world).items()})
+        elif isinstance(child, SolverVBD):
+            for field in inspect.signature(SolverVBD).parameters:
+                if field in {"model", "particle_collision_detection_interval"} or not hasattr(child, field):
+                    continue
+                value = getattr(child, field)
+                if isinstance(value, dict):
+                    value = tuple(sorted((int(k), int(v)) for k, v in value.items()))
+                result[name, "settings", field] = value
+    for field in dataclasses.fields(solver._coupling):
+        if field.name != "proxies":
+            result["coupling", field.name] = getattr(solver._coupling, field.name)
+    for index, proxy in enumerate(solver._coupling.proxies):
+        for field in dataclasses.fields(proxy):
+            value = getattr(proxy, field.name)
+            kind = {"bodies": "body", "joints": "joint", "particles": "particle"}.get(field.name.removeprefix("proxy_"))
+            if kind and value is not None:
+                value = identities(kind, value)
+            elif field.name == "collision_pipeline" and value is not None:
+                value = value.keywords
+            result["proxy", index, field.name] = value
+    for name in ("soft_contact_ke", "soft_contact_kd", "soft_contact_kf", "soft_contact_mu"):
+        result["contacts", name] = getattr(model, name)
+    return result
+
+
+def _capture_deformable_physics(model, particle_paths):
+    """Compare node identities, connectivity, rest geometry and materials independently of export fields."""
+    result = {}
+    paths = {}
+    for (path, local), index in particle_paths.items():
+        paths.setdefault(path, []).append((local, index))
+    for path, nodes in paths.items():
+        selected = [index for _, index in sorted(nodes)]
+        local = {index: i for i, index in enumerate(selected)}
+        for field in ("particle_mass", "particle_inv_mass", "particle_radius", "particle_flags"):
+            result[path, field] = getattr(model, field).numpy()[selected].copy()
+        for kind, fields in {
+            "tri": ("tri_poses", "tri_areas", "tri_materials"),
+            "edge": ("edge_rest_angle", "edge_rest_length", "edge_bending_properties"),
+            "tet": ("tet_poses", "tet_materials"),
+        }.items():
+            buffer = getattr(model, kind + "_indices")
+            if buffer is None:
+                continue
+            indices = buffer.numpy()
+            mask = np.all((indices < 0) | np.isin(indices, selected), axis=1)
+            result[path, kind + "_indices"] = np.asarray(
+                [[local.get(int(i), -1) for i in row] for row in indices[mask]], dtype=np.int32
+            )
+            for field in fields:
+                if hasattr(model, field):
+                    result[path, field] = getattr(model, field).numpy()[mask].copy()
     return result
 
 
@@ -375,18 +430,43 @@ def _assert_physical_value_equal(key, actual, expected):
 @pytest.mark.parametrize(
     "env_id,num_envs,solver_name",
     [(env_id, num_envs, solver) for solver in ("xpbd", "mujoco", "kamino") for env_id, num_envs in ((0, 1), (1, 2))]
-    + [(0, 1, "xpbd_passive")],
+    + [(0, 1, "xpbd_passive"), (1, 2, "vbd")],
 )
 def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs, solver_name):
     """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
     import warp as wp
-    from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, XPBDSolverCfg
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import make_fixed_scene_cfg
 
     cfg = make_fixed_scene_cfg(tmp_path)
+    if solver_name == "vbd":
+        from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
+        from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+
+        import isaaclab.sim as sim_utils
+        from isaaclab.assets import CableObjectCfg, DeformableObjectCfg
+
+        cfg.cloth = DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cloth",
+            spawn=sim_utils.MeshRectangleCfg(
+                size=(0.2, 0.2),
+                edge_refinement=1,
+                deformable_props=NewtonDeformableBodyPropertiesCfg(),
+                physics_material=NewtonSurfaceDeformableBodyMaterialCfg(density=0.02, particle_radius=0.005),
+            ),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
+        cfg.cable = CableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cable",
+            spawn=sim_utils.CableCfg(
+                positions=[(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.1, 0.0)],
+                physics_material=sim_utils.CableMaterialCfg(thickness=0.02, density=1000.0),
+            ),
+            init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.5)),
+        )
     passive = solver_name == "xpbd_passive"
     if passive or solver_name == "mujoco":
         source = Usd.Stage.Open(cfg.robot.spawn.usd_path)
@@ -406,6 +486,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         "xpbd": XPBDSolverCfg(iterations=13),
         "mujoco": MJWarpSolverCfg(iterations=13, ls_iterations=7),
         "kamino": KaminoPADMMSolverCfg(),
+        "vbd": VBDSolverCfg(iterations=13),
     }[solver_name]
     simulation_cfg = SimulationCfg(
         device=device, dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=solver_cfg)
@@ -413,6 +494,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
     output = tmp_path / "fixed_scene.usda"
     expected = {}
     expected_native = {}
+    expected_deformable = {}
 
     with build_simulation_context(sim_cfg=simulation_cfg) as sim:
         scene = InteractiveScene(cfg)
@@ -437,6 +519,12 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
             for world in range(len(mixing)):
                 mixing[world] = 0.7 + 0.1 * world
             native.geom_solmix.assign(mixing)
+            limits = native.jnt_solref.numpy()
+            for world, mappings in enumerate(manager._solver.mjc_jnt_to_newton_jnt.numpy()):
+                for joint, index in enumerate(mappings):
+                    if index >= 0 and manager.get_model().joint_type.numpy()[index] != int(newton.JointType.FREE):
+                        limits[world, joint] = (-31.0 - world, -7.0)
+            native.jnt_solref.assign(limits)
             mapping = manager._solver.mjc_geom_to_newton_shape.numpy()[0]
             for field in (native.geom_contype, native.geom_conaffinity):
                 masks = field.numpy()
@@ -444,6 +532,24 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
                     if shape >= 0 and "/Box/" in manager.get_model().shape_label[shape]:
                         masks[..., geom] = 0
                 field.assign(masks)
+
+        if solver_name == "vbd":
+            model = manager.get_model()
+            entry = scene.deformable_objects["cloth"]._registry_entry
+            masses = model.particle_mass.numpy()
+            radii = model.particle_radius.numpy()
+            for world, start in enumerate(entry.particle_offsets):
+                masses[start : start + entry.particles_per_body] *= 1 + world
+                radii[start : start + entry.particles_per_body] *= 1 + world
+            model.particle_mass.assign(masses)
+            model.particle_inv_mass.assign(1 / masses)
+            model.particle_radius.assign(radii)
+            particle_paths = {
+                (f"/World/envs/env_{env_id}/Cloth" + entry.sim_mesh_prim_path[len(entry.prim_path) :], i): start + i
+                for i in range(entry.particles_per_body)
+                for start in [entry.particle_offsets[env_id]]
+            }
+            expected_deformable = _capture_deformable_physics(model, particle_paths)
 
         pairs = (
             manager._collision_pipeline.shape_pairs_filtered.numpy()
@@ -489,6 +595,12 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
     solver = _make_driver(fresh, solver_name, driver)
     if solver_name == "xpbd":
         assert solver.iterations == 13
+    elif solver_name == "vbd":
+        assert solver.iterations == 13
+        actual_deformable = _capture_deformable_physics(fresh, info["particle_paths"])
+        assert actual_deformable.keys() == expected_deformable.keys()
+        for key, value in expected_deformable.items():
+            _assert_physical_value_equal(key, actual_deformable[key], value)
     elif solver_name == "mujoco":
         assert solver.mj_model.opt.iterations == 13
         assert solver.mj_model.opt.ls_iterations == 7
@@ -506,9 +618,9 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
     for key, value in expected.items():
         _assert_physical_value_equal(key, actual[key], value)
     state = fresh.state()
-    if solver_name != "kamino":
+    if solver_name not in {"kamino", "vbd"}:
         newton.eval_fk(fresh, fresh.joint_q, fresh.joint_qd, state)
-    assert set(fresh.body_label) == bodies
+    assert {path for path in fresh.body_label if "/Cable/" not in path} == bodies
     np.testing.assert_array_equal(state.body_qd.numpy(), 0)
     np.testing.assert_array_equal(fresh.joint_qd.numpy(), 0)
 
@@ -568,6 +680,9 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkey
         ):
             shared.GetPrim().CreateAttribute("newton:" + name, Sdf.ValueTypeNames.Float).Set(value)
     model = SimpleNamespace(**{name: wp.array(value, dtype=wp.float32, device="cpu") for name, value in values.items()})
+    defaults = newton.ModelBuilder().finalize(device="cpu")
+    for name in ("soft_contact_ke", "soft_contact_kd", "soft_contact_kf", "soft_contact_mu"):
+        setattr(model, name, getattr(defaults, name))
     model.shape_label = [str(prim.GetPath()) for prim in shapes]
     model.shape_flags = wp.array([int(newton.ShapeFlags.COLLIDE_SHAPES)] * 2, dtype=wp.int32, device="cpu")
     if bound == "unmapped":
