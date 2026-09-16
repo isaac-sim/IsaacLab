@@ -21,6 +21,13 @@ class DifferentialIKControllerCfg:
     class_type: type[DifferentialIKController] | str = "{DIR}.differential_ik:DifferentialIKController"
     """The associated controller class."""
 
+    num_joints: int | None = None
+    """Fixed number of controlled joints.
+
+    Action terms fill this from their resolved joint selection. Standalone callers must set it
+    before constructing the controller; task-space dimensions do not determine the joint count.
+    """
+
     command_type: Literal["position", "pose"] = MISSING
     """Type of task-space command to control the articulation's body.
 

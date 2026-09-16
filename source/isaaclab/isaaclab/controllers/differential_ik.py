@@ -55,20 +55,24 @@ class DifferentialIKController:
 
     """
 
-    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str, *, num_joints: int):
+    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str):
         """Initialize the controller.
 
         Args:
             cfg: The configuration for the controller.
             num_envs: The number of environments.
             device: The device to use for computations.
-            num_joints: Fixed number of controlled joints.
+
+        Raises:
+            ValueError: If ``cfg.num_joints`` is unset.
         """
         # store inputs
         self.cfg = cfg
         self.num_envs = num_envs
         self._device = device
-        self._num_joints = num_joints
+        if cfg.num_joints is None:
+            raise ValueError("cfg.num_joints must be set before constructing DifferentialIKController.")
+        self._num_joints = cfg.num_joints
         self._use_joint_limits = False
         self._joint_pos_lower = None
         self._joint_pos_upper = None

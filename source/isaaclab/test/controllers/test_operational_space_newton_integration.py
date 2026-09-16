@@ -194,8 +194,9 @@ def _build(scenario: dict) -> tuple[OperationalSpaceController, bool]:
         motion_stiffness_task=(120.0, 130.0, 140.0, 15.0, 16.0, 17.0),
         motion_damping_ratio_task=(1.0, 1.1, 0.9, 1.0, 1.2, 0.8),
         **scenario,
+        num_joints=_NUM_DOF,
     )
-    return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE, num_joints=_NUM_DOF), task_frame
+    return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE), task_frame
 
 
 @pytest.mark.parametrize("scenario_name", list(_SCENARIOS))
@@ -314,17 +315,19 @@ def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> 
     if num_joints < 6:
         with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
             controller = OperationalSpaceController(
-                OperationalSpaceControllerCfg(target_types=["pose_abs"], inertial_dynamics_decoupling=True),
+                OperationalSpaceControllerCfg(
+                    target_types=["pose_abs"], inertial_dynamics_decoupling=True, num_joints=num_joints
+                ),
                 1,
                 "cpu",
-                num_joints=num_joints,
             )
         return
     controller = OperationalSpaceController(
-        OperationalSpaceControllerCfg(target_types=["pose_abs"], inertial_dynamics_decoupling=True),
+        OperationalSpaceControllerCfg(
+            target_types=["pose_abs"], inertial_dynamics_decoupling=True, num_joints=num_joints
+        ),
         1,
         "cpu",
-        num_joints=num_joints,
     )
     pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
     controller.set_command(pose)
@@ -345,10 +348,9 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
         controller = OperationalSpaceController(
-            OperationalSpaceControllerCfg(target_types=["pose_abs"], impedance_mode="variable_kp"),
+            OperationalSpaceControllerCfg(target_types=["pose_abs"], impedance_mode="variable_kp", num_joints=7),
             1,
             device,
-            num_joints=7,
         )
         pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], device=device)
         jacobian = torch.eye(6, 7, device=device).unsqueeze(0)
@@ -373,3 +375,10 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
             torch.testing.assert_close(efforts, expected)
             controller.reset()
             torch.testing.assert_close(compute(), torch.zeros_like(expected))
+
+
+def test_requires_joint_count_in_config():
+    """Standalone construction requires a resolved joint count."""
+    cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"])
+    with pytest.raises(ValueError, match="cfg.num_joints must be set"):
+        OperationalSpaceController(cfg, num_envs=1, device="cpu")

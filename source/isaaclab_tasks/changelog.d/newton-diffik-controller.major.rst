@@ -6,5 +6,5 @@ Fixed
 Changed
 ^^^^^^^
 
-* **Breaking:** SO-101 pose IK required ``num_joints=`` at construction. Updated task callers;
-  standalone callers must supply the selected joint count.
+* **Breaking:** SO-101 pose IK required ``cfg.num_joints`` before construction. Action terms populated it
+  from resolved joints; standalone callers must set this field.

@@ -41,22 +41,24 @@ class OperationalSpaceController:
        by Marco Hutter (ETH Zurich)
     """
 
-    def __init__(self, cfg: OperationalSpaceControllerCfg, num_envs: int, device: str, *, num_joints: int):
+    def __init__(self, cfg: OperationalSpaceControllerCfg, num_envs: int, device: str):
         """Initialize operational-space controller.
 
         Args:
             cfg: The configuration for operational-space controller.
             num_envs: The number of environments.
             device: The device to use for computations.
-            num_joints: Fixed number of controlled joints.
 
         Raises:
+            ValueError: If ``cfg.num_joints`` is unset.
             ValueError: When invalid control command is provided.
         """
         # store inputs
         self.cfg = cfg
         self.num_envs = num_envs
-        self._num_dof = num_joints
+        if cfg.num_joints is None:
+            raise ValueError("cfg.num_joints must be set before constructing OperationalSpaceController.")
+        self._num_dof = cfg.num_joints
         self._device = device
 
         # resolve tasks-pace target dimensions

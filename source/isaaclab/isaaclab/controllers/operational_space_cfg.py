@@ -22,6 +22,13 @@ class OperationalSpaceControllerCfg:
     class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
     """The associated controller class."""
 
+    num_joints: int | None = None
+    """Fixed number of controlled joints.
+
+    Action terms fill this from their resolved joint selection. Standalone callers must set it
+    before constructing the controller; task-space dimensions do not determine the joint count.
+    """
+
     target_types: Sequence[str] = MISSING
     """Type of task-space targets.
 

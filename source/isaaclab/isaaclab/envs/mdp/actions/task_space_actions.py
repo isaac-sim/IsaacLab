@@ -88,7 +88,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # create the differential IK controller
         self._ik_controller = self.cfg.controller.class_type(
-            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device, num_joints=self._num_joints
+            cfg=self.cfg.controller.replace(num_joints=self._num_joints), num_envs=self.num_envs, device=self.device
         )
         # ``out`` is additive to the public controller API. Keep action terms compatible with custom controllers
         # that override the historical four-argument ``compute`` method, while selecting the allocation-free path
@@ -406,7 +406,7 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         # create the operational space controller
         self._osc = OperationalSpaceController(
-            cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device, num_joints=self._num_DoF
+            cfg=self.cfg.controller_cfg.replace(num_joints=self._num_DoF), num_envs=self.num_envs, device=self.device
         )
 
         # create tensors for raw and processed actions

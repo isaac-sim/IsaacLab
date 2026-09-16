@@ -135,8 +135,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         motion_control_axes_task=[1, 1, 0, 1, 1, 1],
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
         nullspace_control="position",
+        num_joints=len(arm_joint_ids),
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device, num_joints=len(arm_joint_ids))
+    osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
     frame_marker_cfg = FRAME_MARKER_CFG.copy()

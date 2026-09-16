@@ -35,8 +35,9 @@ def _make_controller(
         ik_method=ik_method,
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
+        num_joints=_NUM_JOINTS,
     )
-    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device, num_joints=_NUM_JOINTS)
+    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
 
 
 def _well_conditioned_jacobian(device: str) -> torch.Tensor:
@@ -334,3 +335,10 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
         wp.capture_launch(capture.graph)
     wp.synchronize_device(device)
     torch.testing.assert_close(out, joint_pos)
+
+
+def test_requires_joint_count_in_config():
+    """Standalone construction requires a resolved joint count."""
+    cfg = DifferentialIKControllerCfg(command_type="pose", ik_method="dls")
+    with pytest.raises(ValueError, match="cfg.num_joints must be set"):
+        DifferentialIKController(cfg, num_envs=1, device="cpu")

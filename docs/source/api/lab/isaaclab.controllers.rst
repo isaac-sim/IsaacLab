@@ -24,9 +24,10 @@ backend. Isaac Lab resolves commands and gain schedules, copies inputs into pers
 buffers, and invokes Newton's ``step()`` method. Returned tensors are independent snapshots;
 ``DifferentialIKController.compute(out=...)`` can instead fill a caller-owned buffer.
 
-DiffIK and OSC require ``num_joints=`` at construction, fixing the selected joint count for
-that controller's lifetime. Update direct callers and custom subclasses to supply this count;
-action terms supply it automatically. Newton and its ports are initialized in the constructor.
+DiffIK and OSC require ``cfg.num_joints`` before construction, fixing the selected joint count
+for that controller's lifetime. Standalone callers must set this field. Action terms fill a copy
+of the controller config from their resolved joint selection. Task-space dimensions and gains do
+not determine the joint count. Newton and its ports are initialized in the constructor.
 Use a separate controller for a different joint count.
 
 DiffIK retains ``set_joint_pos_limits()``. When avoidance is configured, the first supplied

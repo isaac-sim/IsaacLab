@@ -48,8 +48,9 @@ def _make_controller(
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
         joint_limit_avoidance_margin=joint_limit_avoidance_margin,
+        num_joints=_NUM_JOINTS,
     )
-    return DifferentialIKController(cfg, num_envs=num_envs, device="cpu", num_joints=_NUM_JOINTS)
+    return DifferentialIKController(cfg, num_envs=num_envs, device="cpu")
 
 
 def test_adaptive_dls_default_params():

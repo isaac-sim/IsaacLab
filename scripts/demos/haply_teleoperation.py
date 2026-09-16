@@ -236,13 +236,6 @@ def run_simulator(
     robot_initial_pos = robot.data.body_pos_w.torch[0, ee_body_idx].cpu().numpy()
     haply_initial_pos = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
-    ik_controller_cfg = DifferentialIKControllerCfg(
-        command_type="position",
-        use_relative_mode=False,
-        ik_method="dls",
-        ik_params={"lambda_val": 0.05},
-    )
-
     # IK joints control arms, buttons control ee rotation and gripper open/close
     arm_joint_names = [
         "panda_joint1",
@@ -254,10 +247,16 @@ def run_simulator(
     ]
     arm_joint_indices = [robot.joint_names.index(name) for name in arm_joint_names]
 
-    # Initialize IK controller
-    ik_controller = DifferentialIKController(
-        cfg=ik_controller_cfg, num_envs=scene.num_envs, device=sim.device, num_joints=len(arm_joint_indices)
+    ik_controller_cfg = DifferentialIKControllerCfg(
+        command_type="position",
+        use_relative_mode=False,
+        ik_method="dls",
+        ik_params={"lambda_val": 0.05},
+        num_joints=len(arm_joint_indices),
     )
+
+    # Initialize IK controller
+    ik_controller = DifferentialIKController(cfg=ik_controller_cfg, num_envs=scene.num_envs, device=sim.device)
     initial_ee_quat = robot.data.body_quat_w.torch[:, ee_body_idx]
     ik_controller.set_command(command=torch.zeros(scene.num_envs, 3, device=sim.device), ee_quat=initial_ee_quat)
 

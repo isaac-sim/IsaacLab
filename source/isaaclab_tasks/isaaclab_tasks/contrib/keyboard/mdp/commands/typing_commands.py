@@ -264,7 +264,9 @@ class LetterTypingCommand(CommandTerm):
             it = cfg.reset.ik_iters
             self._ik_iters = (int(it), int(it)) if isinstance(it, int) else (int(it[0]), int(it[1]))
             self._reset_ik = DifferentialIKController(
-                ik_cfg.controller, num_envs=self.num_envs, device=self.device, num_joints=len(self._ik_joint_ids)
+                ik_cfg.controller.replace(num_joints=len(self._ik_joint_ids)),
+                num_envs=self.num_envs,
+                device=self.device,
             )
 
         # Success-conditioned reset curriculum (buffer built lazily on the first reset; see _build_buffer).

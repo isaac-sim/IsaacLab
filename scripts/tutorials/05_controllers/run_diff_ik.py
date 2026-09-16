@@ -106,10 +106,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     robot_entity_cfg.resolve(scene)
 
     # Create controller
-    diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
-    diff_ik_controller = DifferentialIKController(
-        diff_ik_cfg, num_envs=scene.num_envs, device=sim.device, num_joints=len(robot_entity_cfg.joint_ids)
+    diff_ik_cfg = DifferentialIKControllerCfg(
+        command_type="pose", use_relative_mode=False, ik_method="dls", num_joints=len(robot_entity_cfg.joint_ids)
     )
+    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
     frame_marker_cfg = FRAME_MARKER_CFG.copy()
