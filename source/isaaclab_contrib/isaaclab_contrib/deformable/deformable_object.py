@@ -544,10 +544,7 @@ class DeformableObject(BaseDeformableObject):
     """
 
     def author_fixed_configuration(self, writer: UsdWriter) -> None:
-        """Preserve source rest geometry and effective per-node and per-element physics."""
-        from pxr import Sdf
-
-        entry = self._registry_entry
+        """Preserve source geometry/materials and supplement fixed initialization overrides."""
         from isaaclab.cloner.query import iter_sources, path_to_clone
 
         if writer.clone_plan is not None:
@@ -558,17 +555,10 @@ class DeformableObject(BaseDeformableObject):
         from isaaclab.scene_data.deformable_discovery import _classify_deformable_meshes
 
         _, mesh, *_ = _classify_deformable_meshes(writer.stage.GetPrimAtPath(path))
-        # Nodal placement can change without changing the material's stress-free configuration.
-        mesh.CreateAttribute("physics:restShapePoints", Sdf.ValueTypeNames.Point3fArray, custom=False).Set(
-            mesh.GetAttribute("points").Get()
-        )
-        writer.write_deformable_points(
-            mesh, self.data.nodal_pos_w.torch[writer.env_index, : entry.particles_per_body].cpu().numpy()
-        )
         writer.deformable_paths.add(path)
-        writer.write_array_properties(str(mesh.GetPath()), self.data, env_index=writer.env_index)
-        # A point mass array must state its native USD element association explicitly.
-        mesh.CreateAttribute("physics:masses:elementType", Sdf.ValueTypeNames.Token, custom=False).Set("point")
+        writer.write_array_properties(
+            str(mesh.GetPath()), self.data, env_index=writer.env_index, fields=self._usd_override_fields
+        )
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the deformable object.
@@ -1042,9 +1032,12 @@ class DeformableObject(BaseDeformableObject):
 
         # Set up the model parameters
         model = SimulationManager.get_model()
+        self._usd_override_fields: set[str] = set()
         if model is not None:
             if hasattr(model, "edge_rest_angle"):
                 model.edge_rest_angle.zero_()
+                # This initialization override is absent from the authored rest geometry.
+                self._usd_override_fields.add("edge_rest_angle")
 
     """
     Internal simulation callbacks.

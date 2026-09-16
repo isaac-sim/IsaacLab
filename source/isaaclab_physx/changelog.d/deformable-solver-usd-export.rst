@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added deformable USD export preserving cooked topology and effective material properties.
+* Added deformable USD export preserving cooked topology, source geometry and authored materials.

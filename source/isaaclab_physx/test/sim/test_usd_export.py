@@ -180,7 +180,6 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
 def test_deformable_configuration_round_trip(tmp_path, deformable_type):
     """Retain two selected deformables and their effective materials, omitting the other world."""
     import numpy as np
-    import warp as wp
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
     from isaaclab_physx.sim.spawners.materials import (
@@ -213,6 +212,9 @@ def test_deformable_configuration_round_trip(tmp_path, deformable_type):
     )
     cfg.other_soft = cfg.soft.replace(
         prim_path="{ENV_REGEX_NS}/OtherSoft",
+        spawn=cfg.soft.spawn.replace(
+            physics_material=material_type(youngs_modulus=1.2e5, poissons_ratio=0.35, dynamic_friction=0.6)
+        ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
     )
     output = tmp_path / "deformables.usda"
@@ -230,15 +232,8 @@ def test_deformable_configuration_round_trip(tmp_path, deformable_type):
         scene.reset_to_default()
         sim.forward()
         scene.update(0.0)
-        for asset_index, asset in enumerate(scene.deformable_objects.values()):
+        for asset in scene.deformable_objects.values():
             material = asset.material_physx_view
-            for name in materials:
-                values = getattr(material, "get_" + name)().numpy()
-                values *= np.asarray([1.0, 1.1 + asset_index / 10]).reshape(values.shape)
-                getattr(material, "set_" + name)(
-                    wp.array(values, dtype=wp.float32, device="cpu"),
-                    wp.array([0, 1], dtype=wp.uint32, device="cpu"),
-                )
             expected[asset.root_view.prim_paths[1]] = (
                 {name: getattr(asset.root_view, name)().numpy()[1].copy() for name in fields},
                 {name: getattr(material, "get_" + name)().numpy()[1].copy() for name in materials},

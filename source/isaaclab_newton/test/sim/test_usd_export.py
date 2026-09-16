@@ -406,7 +406,11 @@ def _capture_coupled_physics(solver, world, particle_paths):
                 continue
             if kind == "shape" and int(model.shape_flags.numpy()[row]) & int(newton.ShapeFlags.SITE):
                 continue
-            values.append(particles[row] if kind == "particle" else getattr(model, kind + "_label")[row])
+            if kind == "joint" and int(model.joint_type.numpy()[row]) == int(newton.JointType.FREE):
+                # Importer-generated labels can retain prototype names; the child body is stable.
+                values.append(model.body_label[int(model.joint_child.numpy()[row])] + "/__free")
+            else:
+                values.append(particles[row] if kind == "particle" else getattr(model, kind + "_label")[row])
         return tuple(values)
 
     for name in solver.entry_names():
@@ -487,31 +491,15 @@ def _capture_deformable_physics(model, particle_paths):
     return result
 
 
-def _set_deformable_test_overrides(scene, env_id):
-    """Give each object and world distinct physical values absent from source USD."""
-    model = scene.sim.physics_manager.get_model()
-    masses = model.particle_mass.numpy()
-    radii = model.particle_radius.numpy()
-    angles = model.edge_rest_angle.numpy()
-    edges = model.edge_indices.numpy()
+def _deformable_particle_paths(scene, env_id):
+    """Align initialized particles without adding post-initialization property mutations."""
     particle_paths = {}
-    for asset_index, asset in enumerate(scene.deformable_objects.values()):
+    for asset in scene.deformable_objects.values():
         entry = asset._registry_entry
-        for world, start in enumerate(entry.particle_offsets):
-            stop = start + entry.particles_per_body
-            masses[start:stop] *= 1 + world
-            radii[start:stop] *= 1 + world
-            owned = np.all((edges < 0) | ((edges >= start) & (edges < stop)), axis=1)
-            # Distinct rest angles cannot be reconstructed from these flat source meshes.
-            angles[owned] = 0.2 * (1 + asset_index + 2 * world)
         root = f"/World/envs/env_{env_id}/{entry.prim_path.rsplit('/', 1)[-1]}"
         mesh = root + entry.sim_mesh_prim_path[len(entry.prim_path) :]
         particle_paths.update({(mesh, i): entry.particle_offsets[env_id] + i for i in range(entry.particles_per_body)})
-    model.particle_mass.assign(masses)
-    model.particle_inv_mass.assign(1 / masses)
-    model.particle_radius.assign(radii)
-    model.edge_rest_angle.assign(angles)
-    return particle_paths, angles
+    return particle_paths
 
 
 def _assert_physical_value_equal(key, actual, expected):
@@ -602,6 +590,21 @@ def _make_test_solver_cfg(solver_name):
     return solver_cfg
 
 
+def _spawn_bent_test_cloth(*args, **kwargs):
+    """Give the source a nonzero rest angle before the asset reads its USD geometry."""
+    from pxr import Vt
+
+    from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_rectangle
+
+    root = spawn_mesh_rectangle(*args, **kwargs)
+    for prim in Usd.PrimRange(root):
+        if prim.IsA(UsdGeom.Mesh):
+            points = np.array(prim.GetAttribute("points").Get())
+            points[:, 2] += 4 * points[:, 0] * points[:, 1]
+            prim.GetAttribute("points").Set(Vt.Vec3fArray.FromNumpy(points.astype(np.float32)))
+    return root
+
+
 def _add_test_deformables(cfg, volume):
     """Add two separately identified soft objects and a cable to the rigid scene fixture."""
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
@@ -613,6 +616,7 @@ def _add_test_deformables(cfg, volume):
     cfg.cloth = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cloth",
         spawn=sim_utils.MeshRectangleCfg(
+            func=_spawn_bent_test_cloth,
             size=(0.2, 0.2),
             edge_refinement=1,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -720,8 +724,16 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         expected_settings = _capture_scalar_solver_settings(manager._solver)
         if solver_name in {"vbd", "coupled_proxy"}:
             model = manager.get_model()
-            particle_paths, angles = _set_deformable_test_overrides(scene, env_id)
+            particle_paths = _deformable_particle_paths(scene, env_id)
+            angles = model.edge_rest_angle.numpy().copy()
             expected_deformable = _capture_deformable_physics(model, particle_paths)
+            if not volume:
+                from isaaclab_contrib.deformable.deformable_object import add_exported_deformables_to_builder
+
+                source_builder = newton.ModelBuilder()
+                add_exported_deformables_to_builder(scene.stage, source_builder)
+                assert np.any(np.abs(source_builder.edge_rest_angle) > 1e-3)
+                np.testing.assert_array_equal(angles, 0)
             if solver_name == "coupled_proxy":
                 expected_coupled = _capture_coupled_physics(manager._solver, env_id, particle_paths)
         pairs = (

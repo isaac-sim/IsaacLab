@@ -571,12 +571,12 @@ class NewtonManager(PhysicsManager):
         super().author_fixed_configuration(writer, scene)
         stage = writer.stage
         model = cls.get_model()
-        if model.particle_count:
+        if model.particle_count and scene.sim.cfg.physics.soft_contact_cfg is not None:
             stage.GetRootLayer().customLayerData = {
                 **stage.GetRootLayer().customLayerData,
                 "isaaclab:newtonSoftContacts": {
                     name: float(getattr(model, name))
-                    for name in ("soft_contact_ke", "soft_contact_kd", "soft_contact_kf", "soft_contact_mu")
+                    for name in ("soft_contact_ke", "soft_contact_kd", "soft_contact_mu")
                 },
             }
 

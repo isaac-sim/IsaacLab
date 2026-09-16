@@ -84,8 +84,18 @@ class NewtonCouplerManager(NewtonVBDManager):
                 return [particle_paths[i] for i in selected]
             worlds = getattr(model, kind + "_world").numpy()
             labels = getattr(model, kind + "_label")
+
+            def resolve(index):
+                path = labels[index]
+                if kind == "joint" and path.endswith("_free_joint"):
+                    # Generated root joints are not USD prims; route their owning body instead.
+                    body = model.body_label[int(model.joint_child.numpy()[index])]
+                    if path == body + "_free_joint" or not scene.stage.GetPrimAtPath(path):
+                        return writer.resolve_paths(AssetPaths([(body, 0)], [])).bodies[0][0] + "_free_joint"
+                return writer.resolve_paths(AssetPaths([(path, 0)], [])).bodies[0][0]
+
             return [
-                writer.resolve_paths(AssetPaths([(labels[i], 0)], [])).bodies[0][0]
+                resolve(i)
                 for i in map(int, indices)
                 if worlds[i] in (-1, writer.env_id)
                 # Sensor sites are runtime observation resources, not physical shapes.

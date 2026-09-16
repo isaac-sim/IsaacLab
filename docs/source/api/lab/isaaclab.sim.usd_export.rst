@@ -185,10 +185,12 @@ training-state checkpoint.
 Deformable loading
 ------------------
 
-Deformable source topology, rest geometry and materials remain in USD. Newton writes
-selected particle masses, pinning, radii, flags and effective rest angles through the
-same data-bound array writer used by cables. Existing initialization is unchanged.
-PhysX preserves its cooked schemas and supplements effective material values.
+Deformable source points, topology, rest geometry and materials remain in USD. Newton
+records its fixed initialization override of edge rest angles through the same selected
+array writer used by cables. Derived particle masses/radii and unmodified defaults are
+not written back. PhysX preserves its cooked schemas and authored materials. Later
+particle mutations, pinning and runtime material randomization are outside this boundary.
+Existing initialization is unchanged.
 
 Newton consumers can reuse ``add_exported_deformables_to_builder(stage, builder)`` from
 ``isaaclab_contrib.deformable.deformable_object`` before native ``add_usd``. Pass the
