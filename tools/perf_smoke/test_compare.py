@@ -8,15 +8,12 @@
 import contextlib
 import io
 import json
-import statistics
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from asv.results import iter_results
-
-from . import cli, compare, report
+from . import cli, compare
 from .contract import Contract
 from .metrics import PerfSmokeError
 from .store import BaselineRow
@@ -27,7 +24,7 @@ def _measurement(fps: float, startup: float = 10.0) -> dict[str, float]:
 
 
 class TestAsvComparison(unittest.TestCase):
-    """Check the ASV adapter and the policies retained around it."""
+    """Check the pinned ASV comparison and the policies retained around it."""
 
     def setUp(self):
         self.contract = Contract(
@@ -36,21 +33,18 @@ class TestAsvComparison(unittest.TestCase):
         )
         self.policy = {"defaults": {"warn_regression_pct": 5, "fail_regression_pct": 10}}
 
-    def evaluate(self, baseline, candidate, **kwargs):
+    def evaluate(self, baseline, candidate):
         measurements = [_measurement(value) for value in candidate]
-        measured = _measurement(statistics.median(candidate))
         return compare.compare(
             self.contract,
-            measured,
+            measurements,
             [_measurement(value) for value in baseline],
             self.policy,
-            measurements=measurements,
-            **kwargs,
         )
 
     def test_relative_regressions_and_improvement(self):
         # Three baseline samples exercise the CI fallback; twenty permit ASV's
-        # Mann–Whitney test. FPS equality also checks the reciprocal factor.
+        # Mann–Whitney test. FPS equality also checks the threshold factor.
         for count in (3, 20):
             for fps, expected in (
                 (100, compare.PASS),
@@ -63,12 +57,16 @@ class TestAsvComparison(unittest.TestCase):
                 with self.subTest(count=count, fps=fps):
                     result = self.evaluate([100] * count, [fps] * 3)
                     self.assertEqual(result.verdict, expected)
-                    self.assertIn("total_fps", result.metrics[0].asv_table)
 
     def test_noise_is_decided_by_asv(self):
         result = self.evaluate([60, 100, 140], [50, 80, 110])
         self.assertEqual(result.verdict, compare.PASS)
-        self.assertIn("~", result.metrics[0].asv_table)
+
+    def test_even_sample_median_matches_report(self):
+        result = self.evaluate([99] * 10 + [101] * 10, [89.995] * 3)
+        self.assertEqual(result.metrics[0].reference, 100)
+        self.assertGreater(result.metrics[0].regression_pct, 10)
+        self.assertEqual(result.verdict, compare.FAIL)
 
     def test_insufficient_independent_samples_skip(self):
         for baseline, candidate in (([], [80] * 3), ([100] * 2, [80] * 3), ([100] * 3, [80])):
@@ -97,27 +95,16 @@ class TestAsvComparison(unittest.TestCase):
         measurements = [_measurement(100, startup=20)] * 3
         result = compare.compare(
             self.contract,
-            measurements[0],
+            measurements,
             [_measurement(100)] * 3,
             self.policy,
-            measurements=measurements,
         )
         self.assertEqual(result.verdict, compare.PASS)
         self.assertEqual(result.metrics[1].verdict, compare.FAIL)
 
-    def test_zero_throughput_is_not_silently_a_pass(self):
-        for baseline, candidate in (([100] * 3, [0, 100, 100]), ([0, 100, 100], [100] * 3)):
-            with self.subTest(baseline=baseline, candidate=candidate):
-                self.assertEqual(self.evaluate(baseline, candidate).verdict, compare.SKIP)
-
-    def test_native_asv_artifacts_retain_samples(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result = self.evaluate([100] * 3, [80] * 3, asv_dir=Path(directory))
-            saved = {item.commit_hash: item for item in iter_results(directory)}
-            self.assertEqual(set(saved), {"baseline", "candidate"})
-            self.assertEqual(saved["candidate"].get_result_samples("total_fps", []), [[1 / 80] * 3])
-            self.assertTrue((Path(directory) / "benchmarks.json").exists())
-            self.assertIn("ASV comparisons", report.render(result))
+    def test_zero_throughput_is_a_regression(self):
+        self.assertEqual(self.evaluate([100] * 3, [0] * 3).verdict, compare.FAIL)
+        self.assertEqual(self.evaluate([0] * 3, [100] * 3).verdict, compare.SKIP)
 
     def test_invalid_policy_is_rejected(self):
         self.policy["defaults"]["fail_regression_pct"] = 100

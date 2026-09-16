@@ -13,16 +13,11 @@ from __future__ import annotations
 
 import statistics
 import sys
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any
+from dataclasses import asdict, dataclass, field, replace
+from typing import Any
 
 from .contract import Contract, backend_key, valid_backend_keys
 from .metrics import METRICS, Metric, PerfSmokeError, mapping, number
-
-if TYPE_CHECKING:
-    from .asv_adapter import AsvComparison
 
 PASS = "PASS"
 WARN = "WARN"
@@ -65,7 +60,6 @@ class MetricResult:
     verdict: str = SKIP
     gating: bool = False
     note: str | None = None
-    asv_table: str = ""
 
 
 @dataclass(frozen=True)
@@ -154,84 +148,63 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     return resolved
 
 
-def _floor_note(measured: float, hard_floor: float | None) -> str | None:
-    """Return the breach note when ``measured`` is below ``hard_floor``, else ``None``."""
-    if hard_floor is None or measured >= hard_floor:
-        return None
-    return f"below hard floor {hard_floor:g}"
-
-
 def _evaluate(
     metric: Metric,
-    measured: float,
+    candidates: list[float],
     history: list[float],
     thresholds: Thresholds,
     min_samples: int,
-    candidates: list[float],
-    engine: AsvComparison,
 ) -> MetricResult:
-    """Compare one metric against its history and resolved policy.
-
-    A history too short or too degenerate to compare against yields :data:`SKIP` rather
-    than a verdict, except where the measurement breaches its hard floor.
-    """
-    note = _floor_note(min(candidates), thresholds.hard_floor)
-    # A hard-floor breach still gates even for an advisory-only task
-    floor_breach = note is not None
-
-    if len(history) < min_samples or len(candidates) < 2:
-        return MetricResult(
-            name=metric.name,
-            label=metric.label,
-            measured=measured,
-            hard_floor=thresholds.hard_floor,
-            sample_count=len(history),
-            verdict=FAIL if note else SKIP,
-            gating=thresholds.gating or floor_breach,
-            note=note or "insufficient independent runs for ASV significance testing",
-        )
-
-    reference = statistics.median(history)
-    if reference == 0 or not metric.higher_is_worse and min(*candidates, *history) <= 0:
-        return MetricResult(
-            name=metric.name,
-            label=metric.label,
-            measured=measured,
-            reference=reference,
-            hard_floor=thresholds.hard_floor,
-            sample_count=len(history),
-            verdict=FAIL if note else SKIP,
-            gating=thresholds.gating or floor_breach,
-            note=note or "non-positive throughput or zero baseline cannot be compared",
-        )
-
-    change_pct = (measured - reference) / reference * 100.0
-    # Normalize such that positive regression means worse
-    regression_pct = change_pct if metric.higher_is_worse else -change_pct
-
-    failed, table = engine.compare(metric.name, thresholds.fail_pct, metric.higher_is_worse)
-    warned, _ = engine.compare(metric.name, thresholds.warn_pct, metric.higher_is_worse)
-    if note is not None or failed:
-        verdict = FAIL
-    elif warned:
-        verdict = WARN
-    else:
-        verdict = PASS
-
-    return MetricResult(
+    """Apply absolute floors, then ASV's significance and strict relative thresholds."""
+    result = MetricResult(
         name=metric.name,
         label=metric.label,
-        measured=measured,
-        reference=reference,
-        regression_pct=regression_pct,
+        measured=statistics.median(candidates),
         warn_pct=thresholds.warn_pct,
         fail_pct=thresholds.fail_pct,
         hard_floor=thresholds.hard_floor,
         sample_count=len(history),
-        verdict=verdict,
-        gating=thresholds.gating or floor_breach,
-        note=note,
-        asv_table=table,
+        gating=thresholds.gating,
+    )
+    if thresholds.hard_floor is not None and min(candidates) < thresholds.hard_floor:
+        return replace(result, verdict=FAIL, gating=True, note=f"below hard floor {thresholds.hard_floor:g}")
+
+    if len(history) < min_samples or len(candidates) < 2:
+        return replace(result, note="insufficient independent runs for ASV significance testing")
+
+    reference = statistics.median(history)
+    if reference == 0:
+        return replace(result, reference=reference, note="baseline median is zero")
+
+    # Lazy loading keeps aggregation dependency-free. The internal ASV helper is
+    # version-pinned and covered by the comparison tests.
+    try:
+        from asv.commands.compare import _is_result_better
+        from asv_runner.statistics import compute_stats
+    except ImportError as exc:
+        raise PerfSmokeError("ASV is unavailable; install tools/perf_smoke/requirements.txt") from exc
+
+    # ASV assumes lower is better. Reversing FPS comparisons preserves the
+    # original samples and medians, including zero throughput and even counts.
+    before, after = (history, candidates) if metric.higher_is_worse else (candidates, history)
+    before_value, before_stats = compute_stats(before, 1)
+    after_value, after_stats = compute_stats(after, 1)
+    warned, failed = (
+        _is_result_better(
+            before_value,
+            after_value,
+            (before_stats, before),
+            (after_stats, after),
+            factor=1 + pct / 100 if metric.higher_is_worse else 1 / (1 - pct / 100),
+        )
+        for pct in (thresholds.warn_pct, thresholds.fail_pct)
+    )
+    change_pct = (result.measured - reference) / reference * 100.0
+    return replace(
+        result,
+        reference=reference,
+        regression_pct=change_pct if metric.higher_is_worse else -change_pct,
+        verdict=FAIL if failed else WARN if warned else PASS,
     )
 
 
@@ -291,40 +264,30 @@ def errored(reason: str, label: str = "") -> Report:
 
 def compare(
     contract: Contract,
-    measured: dict[str, float],
+    measurements: list[dict[str, float]],
     history: list[dict[str, float]],
     threshold_config: Any,
     *,
     min_samples: int = MIN_BASELINE_SAMPLES,
     label: str = "",
-    measurements: list[dict[str, float]] | None = None,
-    asv_dir: Path | None = None,
 ) -> Report:
-    """Compare a measurement against the history of comparable runs.
+    """Compare independent candidate runs against comparable baseline history.
 
     Args:
         contract: Comparability contract for this run.
-        measured: Metric values from :func:`~tools.perf_smoke.metrics.extract`.
+        measurements: Metric mappings from independent candidate runs.
         history: Metric mappings from prior comparable runs, oldest first.
         threshold_config: Parsed ``perf_smoke_thresholds.json``.
         min_samples: Comparable runs required before a verdict is rendered.
         label: Matrix combination name.
-        measurements: Independent candidate runs. A singleton cannot establish significance.
-        asv_dir: Optional directory for native ASV comparison artifacts.
 
     Returns:
         The comparison report: FAIL if any gating metric failed, WARN if any warned,
         SKIP only if every gating metric was skipped, otherwise PASS. Non-gating
         metrics are evaluated and reported, but never change the verdict.
     """
-    # Lazy import keeps aggregate reports and missing-credential handling usable
-    # even if installing the host-only comparison dependencies failed.
-    try:
-        from .asv_adapter import AsvComparison
-    except ImportError as exc:
-        raise PerfSmokeError("ASV is unavailable; install tools/perf_smoke/requirements.txt") from exc
-
-    measurements = measurements if measurements is not None else [measured]
+    if not measurements:
+        raise PerfSmokeError("at least one candidate run is required")
     if min_samples < 2:
         raise PerfSmokeError("min_samples must be at least 2 for ASV significance testing")
     thresholds = resolve_thresholds(
@@ -334,20 +297,16 @@ def compare(
         backend_key(contract),
     )
 
-    with TemporaryDirectory(prefix="perf-smoke-asv-") as temporary:
-        engine = AsvComparison(asv_dir or Path(temporary), contract.hash, history, measurements)
-        results = tuple(
-            _evaluate(
-                metric,
-                measured[metric.name],
-                [row[metric.name] for row in history if metric.name in row],
-                thresholds[metric.name],
-                min_samples,
-                [row[metric.name] for row in measurements],
-                engine,
-            )
-            for metric in METRICS
+    results = tuple(
+        _evaluate(
+            metric,
+            [row[metric.name] for row in measurements],
+            [row[metric.name] for row in history if metric.name in row],
+            thresholds[metric.name],
+            min_samples,
         )
+        for metric in METRICS
+    )
 
     gating = [result for result in results if result.gating]
     if any(result.verdict == FAIL for result in gating):

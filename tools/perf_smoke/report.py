@@ -67,14 +67,6 @@ def render(report: Report) -> str:
         "",
         f"Only {gating} gates. The other metrics are recorded and compared so their noise can be "
         "characterised before any of them is trusted to fail a pull request.",
-        "",
-        "<details><summary>ASV comparisons at the failure threshold</summary>",
-        "",
-        "ASV reports inverse FPS (seconds per frame) so smaller is always better. "
-        "A `~` ratio denotes a change ASV did not establish as significant.",
-        "",
-        *(metric.asv_table for metric in report.metrics if metric.asv_table),
-        "</details>",
     ]
     return "\n".join(lines) + "\n"
 

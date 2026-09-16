@@ -11,7 +11,7 @@ Wiring only; every decision lives in :mod:`compare`, :mod:`contract` or
 The container SAS URL is read from ``$ISAACLAB_BLOB_URL``.
 
 Subcommands:
-    ``compare``    compare one benchmark bundle against the baseline store
+    ``compare``    compare independent benchmark runs against the baseline store
     ``write``      record one measurement in the store (develop only)
     ``aggregate``  roll several comparison JSONs into one summary
 """
@@ -76,15 +76,13 @@ def _cmd_compare(args: argparse.Namespace) -> int:
                 history = [row.metrics for row in rows if contract_mod.from_dict(row.contract).matches(key)]
                 report = compare_mod.compare(
                     key,
-                    measured,
+                    measurements,
                     history,
                     thresholds,
                     min_samples=args.min_samples,
                     label=args.label,
-                    measurements=measurements,
-                    asv_dir=args.output_json.parent / "asv",
                 )
-        except (metrics_mod.PerfSmokeError, OSError) as exc:
+        except metrics_mod.PerfSmokeError as exc:
             report = compare_mod.unresolved(key, measured, compare_mod.ERROR, str(exc), label=args.label)
             print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
 
