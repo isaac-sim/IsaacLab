@@ -84,9 +84,8 @@ dependencies = [
     "packaging",
     "rich",
     "tqdm>=4.67.1",
-    "rsl-rl-lib==5.4.1",  # default RL framework
+    "rsl-rl-lib==5.5.1",  # default RL framework
     "gitpython>=3.1.59",  # used by RL training and experiment logging
-    "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
     # Pin the Newton release used by both workspace and wheel installs until 1.6.0 final.
     # [tool.uv].override-dependencies only reaches uv sync, so a wheel built from this
@@ -165,7 +164,7 @@ rl-games = [
 
 wandb = ["wandb>=0.13.11"]
 
-rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
+rsl-rl = ["rsl-rl-lib==5.5.1"]
 
 viser = ["viser>=1.0.16"]
 
