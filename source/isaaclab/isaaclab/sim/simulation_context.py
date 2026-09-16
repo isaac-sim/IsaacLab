@@ -216,6 +216,9 @@ class SimulationContext:
         # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
         # cameras created for this instance re-set it to True before it is read.
         self.set_setting("/isaaclab/render/rtx_sensors", False)
+        # Preserve rendering initialization, then avoid continuous Fabric synchronization when
+        # the only visualizer is used for on-demand headless capture.
+        self.set_setting("/physics/fabricUpdateTransformations", self.is_rendering)
         # Set by camera sensors, which draw visual-only geometry regardless of renderer backend.
         self._visual_shapes_required = False
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -347,7 +350,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.resolve_visualizer_types())
+            or self._has_continuous_visualizers()
             or self._xr_enabled
         )
 
@@ -520,6 +523,31 @@ class SimulationContext:
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
+
+    def _has_continuous_visualizers(self) -> bool:
+        """Return whether the resolved visualizers require per-step updates."""
+        visualizer_types = self.resolve_visualizer_types()
+        if not visualizer_types:
+            return False
+
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            visualizer_cfgs = []
+        elif not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
+
+        if self._is_cli_visualizer_explicit():
+            for visualizer_type in visualizer_types:
+                matching_cfgs = [
+                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) == visualizer_type
+                ]
+                if not matching_cfgs or any(not getattr(cfg, "headless", False) for cfg in matching_cfgs):
+                    return True
+            return False
+
+        return any(
+            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False) for cfg in visualizer_cfgs
+        )
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Resolve final visualizer configs from cfg and optional CLI override.

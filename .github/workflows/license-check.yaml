@@ -50,7 +50,7 @@ jobs:
 
 
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         python-version: '3.12'
         enable-cache: true
@@ -198,6 +198,8 @@ jobs:
 
     - name: Log in to NGC for the base image
       uses: ./.github/actions/_lib/setup-docker-config
+      with:
+        base-image-ref: ${{ steps.config.outputs.base_image }}
 
     - name: Ensure Isaac Lab image is available locally
       shell: bash
@@ -226,7 +228,7 @@ jobs:
       run: docker pull "${{ steps.config.outputs.base_image }}"
 
     - name: Scan Isaac Sim base dependency licenses
-      uses: aquasecurity/trivy-action@v0.36.0
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
       env:
         TRIVY_PKG_TYPES: os,library
         TRIVY_SKIP_VERSION_CHECK: true
@@ -241,7 +243,7 @@ jobs:
         timeout: 30m
 
     - name: Scan Isaac Lab dependency licenses
-      uses: aquasecurity/trivy-action@v0.36.0
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
       env:
         TRIVY_PKG_TYPES: os,library
         TRIVY_SKIP_VERSION_CHECK: true

@@ -145,7 +145,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
         ),
     },
 )
-"""Shadow Hand, with the asset's own ``Physics`` variant left selected.
+"""Shadow Hand, with the asset's own ``Physics`` and ``Colliders`` variants left selected.
 
 One asset serves both engines; per-engine values are authored in the asset rather than restated
 here. Prefer :data:`SHADOW_HAND_PHYSX_CFG` or :data:`SHADOW_HAND_NEWTON_CFG`, which name the
@@ -153,9 +153,9 @@ engine at the call site instead of relying on the asset's default.
 """
 
 SHADOW_HAND_PHYSX_CFG = SHADOW_HAND_CFG.copy()
-SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx"}
-"""Shadow Hand on the asset's PhysX variant."""
+SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx", "Colliders": "simplified"}
+"""Shadow Hand on the asset's PhysX variant, with simplified colliders."""
 
 SHADOW_HAND_NEWTON_CFG = SHADOW_HAND_CFG.copy()
-SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco"}
-"""Shadow Hand on the asset's MuJoCo variant, for the Newton (MJWarp) solver."""
+SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "simplified"}
+"""Shadow Hand on the asset's MuJoCo variant, with simplified colliders, for the Newton (MJWarp) solver."""

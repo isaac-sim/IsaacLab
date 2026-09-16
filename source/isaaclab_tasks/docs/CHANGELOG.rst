@@ -1,6 +1,94 @@
 Changelog
 ---------
 
+20.3.0 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-RenderBenchmark-Franka-Cabinet`` direct task, an animated Franka-and-cabinet scene with no
+  policy or reward used to compare rendering backends under ``scripts/benchmarks/benchmark_renderer.py``.
+
+Changed
+^^^^^^^
+
+* Moved benchmark-only tasks into a new ``isaaclab_tasks.benchmark`` package so they are no longer mixed in with
+  the trainable ``core`` and ``contrib`` task families. The ``IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct``
+  task id is unchanged, but its configuration moved from
+  ``isaaclab_tasks.contrib.reorient.config.shadow_hand.shadow_hand_camera_benchmark_env_cfg`` to
+  ``isaaclab_tasks.benchmark.shadow_hand_camera.shadow_hand_camera_benchmark_env_cfg``. Code that imports the
+  configuration class directly must update the import path; code that resolves the task through ``gym.make`` or
+  ``load_cfg_from_registry`` needs no change.
+
+
+20.2.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added task-owned loading of published Shadow Hand camera feature-extractor checkpoints during playback.
+
+Fixed
+^^^^^
+
+* Restored Newton-backed visualizers for Agibot place tasks after the robot asset's reversed joint ordering was
+  corrected. Newton physics remains unsupported because of an incompatible generated collision mesh.
+* Used the legacy instanceable Franka asset for PhysX Reach tasks to preserve link collisions without
+  de-instancing or large-environment performance regressions.
+
+
+20.1.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed environment-coupled agent variants to participate directly in the shared preset resolution pass through
+  each library's canonical ``<library>_cfg_entry_point``. Commands selecting Cartpole camera features or showcase
+  observation/action spaces now need only ``presets=<name>`` and no preset-specific ``--agent`` value.
+* Removed the default XR camera PiP from the G1 locomanipulation task. Neither the locomanipulation
+  nor fixed-base G1 task creates a PiP panel by default, preventing the articulated head camera from
+  capturing the panel and producing a recursive view. The locomanipulation task retains its recorded
+  robot camera.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``diffik_abs`` preset on ``Isaac-Reach-Franka-OSC``. The OSC action term replaces the
+  arm-controller presets, so on this task the preset only zeroed the action-magnitude reward weight, which
+  removed the sole regularizer on the raw pose targets. The preset now resolves as a no-op and emits a
+  :class:`FutureWarning`; it will be removed in a future release. Migration: drop ``presets=diffik_abs``
+  from ``Isaac-Reach-Franka-OSC`` commands.
+
+Removed
+^^^^^^^
+
+* Removed registry-side agent/preset compatibility metadata and agent auto-selection. Removed ``agent_library`` from
+  :func:`~isaaclab_tasks.utils.setup_preset_cli`; agent configuration families should declare matching root-level
+  :class:`~isaaclab_tasks.utils.PresetCfg` alternatives instead.
+
+Fixed
+^^^^^
+
+* Added an early validation error when Agibot place tasks use Newton-backed visualizers, whose shadow-model importer
+  does not support the reversed gripper joints in the robot USD. Use ``--visualizer kit`` with Isaac Sim PhysX, or
+  ``--visualizer none`` for headless execution.
+* Reduced the default Agibot place environment count from 4096 to one and enabled physics replication to prevent
+  interactive tools from exhausting host memory. Use ``--num_envs`` to configure a larger batch when needed.
+* Fixed unexpected Franka Reach motion before teleoperation input by configuring backend-native gravity control
+  for the differential and Newton IK presets.
+* Fixed Franka Reach links intersecting the table on PhysX by enabling the Menagerie asset's convex link colliders.
+* Fixed ``Isaac-Reach-Franka-OSC`` dropping the Franka Menagerie solver joint velocity limit. The effort
+  actuator copied the deprecated ``velocity_limit_sim`` alias instead of ``joint_velocity_limit``, so the
+  arm ran without a velocity clamp and could reach joint speeds that destabilize the simulation.
+* Fixed ``Isaac-Reach-Franka-OSC`` inheriting the controller-keyed teleop device presets of ``Isaac-Reach-Franka``;
+  the OSC task now always uses the default (empty) teleop device set.
+* Added task-specific installation guidance when loading a task configuration failed because a Pink IK dependency
+  was missing, including the standard Windows installation's missing Pinocchio dependency.
+
+
 20.1.2 (2026-09-09)
 ~~~~~~~~~~~~~~~~~~~
 

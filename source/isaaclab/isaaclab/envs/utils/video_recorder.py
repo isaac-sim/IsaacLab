@@ -201,6 +201,8 @@ class VideoRecorder:
                 )
 
         viz = candidates[0]
+        if not sim.is_rendering:
+            sim.forward()
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(

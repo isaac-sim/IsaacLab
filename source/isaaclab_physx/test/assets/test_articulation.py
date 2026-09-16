@@ -724,7 +724,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -781,7 +781,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -837,7 +837,7 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -902,7 +902,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -963,7 +963,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):

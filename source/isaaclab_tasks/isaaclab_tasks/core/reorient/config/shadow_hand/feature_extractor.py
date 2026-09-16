@@ -12,6 +12,7 @@ import torchvision
 
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
@@ -128,6 +129,14 @@ class FeatureExtractorCfg:
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
+    pretrained_checkpoint: str | None = None
+    """Fallback feature-extractor checkpoint to load when no local checkpoint exists.
+
+    This may be a local or remote path. :class:`FeatureExtractor` first looks for the latest
+    local ``*.pth`` checkpoint in the log directory, then retrieves this checkpoint when configured.
+    Default is None.
+    """
+
     write_image_to_file: bool = False
     """If True, the images from the camera sensor are written to file. Default is False."""
 
@@ -200,9 +209,7 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            list_of_files = glob.glob(self.log_dir + "/*.pth")
-            latest_file = max(list_of_files, key=os.path.getctime)
-            checkpoint = os.path.join(self.log_dir, latest_file)
+            checkpoint = self._resolve_checkpoint_path()
             print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 
@@ -323,3 +330,13 @@ class FeatureExtractor:
         else:
             predicted_pose = self.feature_extractor(img_input)
             return None, predicted_pose
+
+    def _resolve_checkpoint_path(self) -> str:
+        """Resolve the local feature-extractor checkpoint to load."""
+        local_checkpoints = glob.glob(os.path.join(self.log_dir, "*.pth"))
+        if local_checkpoints:
+            return max(local_checkpoints, key=os.path.getctime)
+        if self.cfg.pretrained_checkpoint is not None:
+            print(f"[INFO]: Fetching pretrained feature extractor checkpoint from {self.cfg.pretrained_checkpoint}")
+            return retrieve_file_path(self.cfg.pretrained_checkpoint)
+        raise FileNotFoundError(f"No feature-extractor checkpoint found in '{self.log_dir}'.")

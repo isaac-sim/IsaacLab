@@ -9,7 +9,6 @@ from dataclasses import MISSING
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.app import get_settings_manager
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -209,58 +208,12 @@ class PhysicsCfg(PresetCfg):
     default = isaacsim_physx
 
 
-# Robot USD assets whose gripper revolute joints are authored with reversed
-# body0/body1 ordering, which the Newton MJWarp USD parser rejects.
-_NEWTON_REVERSED_JOINT_ASSETS = ("Robots/Agibot/A2D/",)
-_NEWTON_MODEL_VISUALIZER_TYPES = {"newton", "newton_gl", "newton_rtx", "rerun", "viser"}
-
-
-def _get_active_visualizer_types(env_cfg: ManagerBasedRLEnvCfg) -> set[str]:
-    """Return visualizer types selected by config or launcher settings."""
-    settings = get_settings_manager()
-    if settings.get("/isaaclab/visualizer/disable_all", False):
-        return set()
-
-    if settings.get("/isaaclab/visualizer/explicit", False):
-        value = settings.get("/isaaclab/visualizer/types", "")
-        return {item for chunk in str(value).split(",") for item in chunk.split() if item}
-
-    visualizer_cfgs = env_cfg.sim.visualizer_cfgs
-    if not isinstance(visualizer_cfgs, list):
-        visualizer_cfgs = [visualizer_cfgs]
-    return {cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)}
-
-
-def raise_if_reversed_joints_on_newton(env_cfg: ManagerBasedRLEnvCfg) -> None:
-    """Reject Newton import paths for robots whose USD has reversed gripper joints.
-
-    The Newton MJWarp ``parse_usd`` importer requires each joint prim to define the parent
-    body as ``physics:body0`` and the child as ``physics:body1``. Some robot assets (e.g. the
-    Agibot A2D gripper support-link revolute joints) author these reversed; PhysX tolerates
-    this, but Newton raises ``Reversed joints are not supported`` deep in scene creation.
-    Newton-backed visualizers also use this importer to build a shadow model when PhysX is
-    active. This raises an actionable error before either import path is initialized.
-
-    Args:
-        env_cfg: The resolved environment config to inspect.
-    """
-    robot_cfg = getattr(env_cfg.scene, "robot", None)
-    usd_path = getattr(getattr(robot_cfg, "spawn", None), "usd_path", None)
-    newton_model_visualizers = sorted(_get_active_visualizer_types(env_cfg) & _NEWTON_MODEL_VISUALIZER_TYPES)
-
-    if usd_path is None or not (isinstance(env_cfg.sim.physics, NewtonCfg) or newton_model_visualizers):
-        return
-    if any(marker in usd_path for marker in _NEWTON_REVERSED_JOINT_ASSETS):
-        visualizer_reason = (
-            f" The selected Newton-backed visualizer(s) {newton_model_visualizers} require the same importer."
-            if newton_model_visualizers
-            else ""
-        )
+def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Reject Newton physics while the Agibot collision mesh cannot compile."""
+    if isinstance(env_cfg.sim.physics, NewtonCfg):
         raise ValueError(
-            "This task's robot has gripper joints authored with reversed body0/body1 ordering, "
-            "which Newton's USD importer does not support ('Reversed joints are not supported')."
-            f"{visualizer_reason} Use physics=isaacsim_physx with --visualizer kit, or use "
-            "--visualizer none for headless execution."
+            "The Agibot A2D asset contains a generated convex collision mesh whose volume is too small for "
+            "Newton MJWarp. Re-run this task with physics=isaacsim_physx (the default)."
         )
 
 
@@ -294,7 +247,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
     def validate_config(self):
         """Reject backend combinations that the configured robot cannot run on."""
-        raise_if_reversed_joints_on_newton(self)
+        raise_if_unsupported_newton_physics(self)
 
 
 """
