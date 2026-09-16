@@ -28,8 +28,8 @@
             ["Isaac-Lift-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", "", false, {"*": ["shapes"]}],
             ["Isaac-Lift-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", "tasks/manipulation/kuka_allegro_lift.jpg", false, {"*": ["shapes"]}],
             ["Isaac-Lift-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", "tasks/manipulation/kuka_allegro_lift.jpg", false, {"*": ["rgb64", "shapes", "single_camera"]}],
-            ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", "newton/franka-mjwarp-vbd-coupling.png", false, {"*": ["joint"]}],
-            ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", "newton/franka-mjwarp-vbd-coupling.png", false, {"*": ["joint"]}],
+            ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", "newton/franka-mjwarp-vbd-coupling.png", false, {"*": ["joint"]}, {}, "tetrahedralization"],
+            ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", "newton/franka-mjwarp-vbd-coupling.png", false, {"*": ["joint"]}, {}, "tetrahedralization"],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/classic/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}],
@@ -156,6 +156,7 @@
         task, rl, physics, renderer, presets, previewImage = "", supportsWarpFrontend = false,
         pretrainedCheckpointPresetCompatibility = {},
         defaultAlgorithms = {},
+        requiredExtras = "",
     ]) => ({
         task,
         scope: task.startsWith("IsaacContrib-") ? "contrib" : "core",
@@ -167,6 +168,7 @@
         supportsWarpFrontend,
         pretrainedCheckpointPresetCompatibility,
         defaultAlgorithms,
+        requiredExtras: splitValues(requiredExtras),
     }));
 
     const builder = document.querySelector("[data-environment-browser]");
@@ -358,6 +360,15 @@
         "Isaac-Velocity-Rough-G1": "velocity-rough-g1-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Lift-KukaAllegro": "lift-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
     };
+    const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
+    const failedPreviewVideos = new Set();
+
+    const previewImageUrl = (task) => {
+        const imagePath = previewImageFor(task);
+        return imagePath.startsWith("tasks/")
+            ? new URL(imagePath, previewImageBaseUrl).href
+            : new URL(`../../_static/${imagePath}`, window.location.href).href;
+    };
 
     const updateTaskControls = () => {
         const task = selectedTask();
@@ -407,7 +418,8 @@
     };
 
     const currentCommand = () => {
-        const extras = [];
+        const task = selectedTask();
+        const extras = [...task.requiredExtras];
         if (fields.physics.value === "ovphysx" && fields.renderer.value === "ovrtx") {
             extras.push("ov");
         } else {
@@ -429,7 +441,6 @@
         if (extras.length) {
             parts.push("--extra", extras.join(","));
         }
-        const task = selectedTask();
         const supportsRl = task.rl.length > 0;
         parts.push("isaaclab", supportsRl ? state.mode : "zero_agent");
         if (supportsRl && fields.rl.value) {
@@ -460,11 +471,19 @@
         const videoName = fields.rl.value === "rsl_rl" && fields.physics.value === "newton_mjwarp"
             ? previewVideos[state.task]
             : undefined;
-        const previewImageName = previewImageFor(selectedTask()).split("/").pop();
-        previewImage.src = new URL(`../../_images/${previewImageName}`, window.location.href).href;
+        const videoUrl = videoName
+            ? new URL(`../../_static/tasks/previews/${videoName}`, window.location.href).href
+            : undefined;
+        previewImage.src = previewImageUrl(selectedTask());
         previewImage.alt = `${state.task} preview`;
-        if (videoName) {
-            const videoUrl = new URL(`../../_static/${videoName}`, window.location.href).href;
+        if (videoUrl && !failedPreviewVideos.has(videoUrl)) {
+            previewVideo.onerror = () => {
+                if (previewVideo.src === videoUrl) {
+                    failedPreviewVideos.add(videoUrl);
+                    previewVideo.hidden = true;
+                    previewImage.hidden = false;
+                }
+            };
             if (previewVideo.src !== videoUrl) {
                 previewVideo.src = videoUrl;
             }
@@ -473,6 +492,7 @@
             previewImage.hidden = true;
             previewVideo.play().catch(() => {});
         } else {
+            previewVideo.onerror = null;
             previewVideo.pause();
             previewVideo.hidden = true;
             previewImage.hidden = false;
@@ -561,7 +581,7 @@
         const refreshCard = () => {
             const activeTask = variants.find((task) => task.task === state.task) || variants[0];
             const isSelected = variants.includes(activeTask) && activeTask.task === state.task;
-            image.src = new URL(`../../_static/${previewImageFor(activeTask)}`, window.location.href).href;
+            image.src = previewImageUrl(activeTask);
             image.alt = "";
             selectButton.dataset.taskName = activeTask.task;
             selectButton.setAttribute("aria-pressed", String(isSelected));

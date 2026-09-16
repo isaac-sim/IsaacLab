@@ -50,6 +50,7 @@ RUN apt-get update && \
     ncurses-term \
     cmake \
     git \
+    curl \
     wget
 
 # Install the Carbonite environment shim that serializes glibc environment
@@ -82,10 +83,10 @@ RUN set -euo pipefail && \
       *) echo "Unsupported base OS: $ID"; exit 1 ;; \
     esac && \
     apt-get update && apt-get install -y --no-install-recommends wget gnupg ca-certificates && \
-    wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-keyring_1.1-1_all.deb && \
+    wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-keyring_1.1-1_all.deb && \
     dpkg -i cuda-keyring_1.1-1_all.deb && \
     rm -f cuda-keyring_1.1-1_all.deb && \
-    wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
+    wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
     mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -155,11 +156,17 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch*
 
 # HACK: Reinstall pip properly after removing prebundled packages
 # The removal of torch* corrupts pip's vendor packages (_structures.py is deleted).
-# We must completely remove pip first, then do a clean install.
-RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* && \
-    wget -q https://bootstrap.pypa.io/get-pip.py && \
-    ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
-    rm get-pip.py
+# Verify the pinned bootstrap before removing pip, then do a clean install.
+RUN set -euo pipefail && \
+    bootstrap_dir="$(mktemp -d)" && \
+    trap 'rm -rf -- "${bootstrap_dir}"' EXIT && \
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+        --retry 2 --connect-timeout 60 --max-time 300 --output "${bootstrap_dir}/get-pip.py" \
+        https://raw.githubusercontent.com/pypa/get-pip/f6f644156f23dfe9acc06e7b9ca75eee311f2e37/public/get-pip.py && \
+    printf '%s  %s\n' fb24e693bab954209a063d90953621412ccad4a500905a726286e038f508ddf6 \
+        "${bootstrap_dir}/get-pip.py" | sha256sum --check --strict - && \
+    rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* && \
+    ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 "${bootstrap_dir}/get-pip.py"
 
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install

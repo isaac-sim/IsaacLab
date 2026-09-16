@@ -50,8 +50,11 @@ RUN apt-get update && \
     ncurses-term \
     cmake \
     git \
-    git-lfs \
+    curl \
     wget
+
+COPY docker/scripts/install_git_lfs.sh /tmp/install_git_lfs.sh
+RUN /bin/bash /tmp/install_git_lfs.sh && rm /tmp/install_git_lfs.sh
 
 # Install the Carbonite environment shim that serializes glibc environment
 # access across Kit worker threads. Use /etc/ld.so.preload because Isaac Sim's
