@@ -40,7 +40,6 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     # Feature extras a user can activate with ``uv run --extra``.
     expected_extras = {
         "test",
-        "dev",
         "sb3",
         "skrl",
         "rl-games",
@@ -98,7 +97,6 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "leapp",
         "wandb",
         "test",
-        "dev",
     }
 
 
