@@ -174,3 +174,98 @@ def test_fixed_configuration_round_trip_in_isaac_sim(device, tmp_path, native_ac
                         np.testing.assert_allclose(Gf.Matrix3d(qa), Gf.Matrix3d(qb), atol=1e-5)
                 else:
                     np.testing.assert_allclose(actual, value, rtol=3e-4, atol=1e-5, err_msg=f"{path}: {name}")
+
+
+@pytest.mark.parametrize("deformable_type", ["surface", "volume"])
+def test_deformable_configuration_round_trip(tmp_path, deformable_type):
+    """Retain two selected deformables and their effective materials, omitting the other world."""
+    import numpy as np
+    import warp as wp
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+    from isaaclab_physx.sim.spawners.materials import (
+        PhysxDeformableBodyMaterialCfg,
+        PhysxSurfaceDeformableBodyMaterialCfg,
+    )
+
+    from pxr import Sdf, UsdShade
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import DeformableObjectCfg
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_fixed_scene_cfg
+
+    cfg = make_fixed_scene_cfg(tmp_path)
+    cfg.num_envs = 2
+    material_type = (
+        PhysxSurfaceDeformableBodyMaterialCfg if deformable_type == "surface" else PhysxDeformableBodyMaterialCfg
+    )
+    cfg.soft = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Soft",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            edge_refinement=1,
+            deformable_props=PhysxDeformableBodyPropertiesCfg(),
+            physics_material=material_type(youngs_modulus=1e5, poissons_ratio=0.3, dynamic_friction=0.4),
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+    )
+    cfg.other_soft = cfg.soft.replace(
+        prim_path="{ENV_REGEX_NS}/OtherSoft",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
+    )
+    output = tmp_path / "deformables.usda"
+    expected = {}
+    fields = (
+        "get_simulation_element_indices",
+        "get_rest_element_indices",
+        "get_rest_nodal_positions",
+        "get_collision_element_indices",
+    )
+    materials = ("dynamic_friction", "youngs_modulus", "poissons_ratio")
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cuda:0", physics=PhysxCfg())) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.reset_to_default()
+        sim.forward()
+        scene.update(0.0)
+        for asset_index, asset in enumerate(scene.deformable_objects.values()):
+            material = asset.material_physx_view
+            for name in materials:
+                values = getattr(material, "get_" + name)().numpy()
+                values *= np.asarray([1.0, 1.1 + asset_index / 10]).reshape(values.shape)
+                getattr(material, "set_" + name)(
+                    wp.array(values, dtype=wp.float32, device="cpu"),
+                    wp.array([0, 1], dtype=wp.uint32, device="cpu"),
+                )
+            expected[asset.root_view.prim_paths[1]] = (
+                {name: getattr(asset.root_view, name)().numpy()[1].copy() for name in fields},
+                {name: getattr(material, "get_" + name)().numpy()[1].copy() for name in materials},
+            )
+        before = scene.sim.stage.GetRootLayer().ExportToString()
+        scene.export_to_usd(str(output), env_id=1, preserve_source_contacts=True)
+        assert scene.sim.stage.GetRootLayer().ExportToString() == before
+    stage = Usd.Stage.Open(str(output))
+    assert not stage.GetPrimAtPath("/World/envs/env_0")
+    with build_simulation_context(
+        device="cuda:0", dt=stage.GetRootLayer().customLayerData["isaaclab:physicsDt"]
+    ) as fresh:
+        fresh.stage.GetRootLayer().TransferContent(Sdf.Layer.FindOrOpen(str(output)))
+        fresh.reset()
+        for root, (properties, material_values) in expected.items():
+            view = getattr(fresh.physics_sim_view, f"create_{deformable_type}_deformable_body_view")(root)
+            assert view.count == 1
+            for name, value in properties.items():
+                actual = getattr(view, name)().numpy()[0]
+                if value.dtype.kind in "iu":
+                    np.testing.assert_array_equal(actual, value)
+                else:
+                    np.testing.assert_allclose(actual, value, rtol=5e-4, atol=2e-5)
+            material, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(root)).ComputeBoundMaterial("physics")
+            material_view = fresh.physics_sim_view.create_deformable_material_view(str(material.GetPath()))
+            assert material_view.count == 1
+            for name, value in material_values.items():
+                np.testing.assert_allclose(
+                    getattr(material_view, "get_" + name)().numpy()[0], value, rtol=5e-4, atol=2e-5
+                )

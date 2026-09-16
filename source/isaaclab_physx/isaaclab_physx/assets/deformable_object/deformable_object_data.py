@@ -7,8 +7,10 @@ from __future__ import annotations
 import weakref
 from typing import TYPE_CHECKING
 
+import numpy as np
 import warp as wp
 
+from isaaclab.assets.physics_properties import UsdAttribute, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
@@ -211,3 +213,29 @@ class DeformableObjectData:
         if self._root_vel_w_ta is None:
             self._root_vel_w_ta = ProxyArray(self._root_vel_w.data)
         return self._root_vel_w_ta
+
+
+class DeformableMaterialData:
+    """Selected effective PhysX material values missing from the public node data."""
+
+    def __init__(self, view: physx.DeformableMaterialView, row: int):
+        self._view = view
+        self._row = row if view.count > 1 else 0
+
+    @property
+    @usd_field(UsdAttribute("omniphysics:dynamicFriction", type_name="float"), scope="material")
+    def dynamic_friction(self) -> np.ndarray:
+        """Effective dynamic friction, shape (1, 1)."""
+        return self._view.get_dynamic_friction().numpy()[self._row].reshape(1, 1)
+
+    @property
+    @usd_field(UsdAttribute("omniphysics:youngsModulus", type_name="float"), scope="material")
+    def youngs_modulus(self) -> np.ndarray:
+        """Effective youngs modulus [Pa], shape (1, 1)."""
+        return self._view.get_youngs_modulus().numpy()[self._row].reshape(1, 1)
+
+    @property
+    @usd_field(UsdAttribute("omniphysics:poissonsRatio", type_name="float"), scope="material")
+    def poissons_ratio(self) -> np.ndarray:
+        """Effective poissons ratio, shape (1, 1)."""
+        return self._view.get_poissons_ratio().numpy()[self._row].reshape(1, 1)

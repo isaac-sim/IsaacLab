@@ -85,6 +85,7 @@ class UsdWriter:
         self.env_id = 0
         self.clone_plan: ClonePlan | None = None
         self.body_paths: set[str] = set()
+        self.deformable_paths: set[str] = set()
         self.represented_collider_paths: set[str] = set()
         self._joint_shared_values: dict[tuple[str, str], float] = {}
         # Retain owners with their arrays, so ids cannot be reused during an export.
@@ -442,6 +443,16 @@ class UsdWriter:
             UsdAttribute("physxScene:timeStepsPerSecond", "PhysxSceneAPI", type_name="uint"),
             round(frequency),
         )
+
+    def write_deformable_points(self, mesh: Usd.Prim, positions: np.ndarray) -> None:
+        """Write an owner's selected simulation nodes from world positions [m]."""
+        positions = np.asarray(positions)
+        if positions.ndim != 2 or positions.shape[1] != 3:
+            raise ValueError(f"Invalid node positions for {mesh.GetPath()}: {positions.shape}.")
+        # USD mesh points are local, whereas backend simulation nodes are world-space.
+        transform = np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(mesh).GetInverse())
+        points = positions @ transform[:3, :3] + transform[3, :3]
+        UsdGeom.PointBased(mesh).GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points.astype(np.float32)))
 
     def write_gravity(self, scene_path: str, gravity) -> None:
         """Author effective gravity [m/s²] from a backend's selected world."""

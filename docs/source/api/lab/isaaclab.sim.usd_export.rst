@@ -37,7 +37,7 @@ events remain unchanged.
 Selection and ownership
 -----------------------
 
-The scene selects registered articulations, rigid objects, collections and cables using
+The scene selects registered articulations, rigid objects, collections, deformables and cables using
 ClonePlan queries, retains static geometry and shared resources, and removes other
 environments. ``env_id`` defaults to zero; one environment is sufficient. ClonePlan
 provides layout and source variants, not subsequent property overrides. Physics-only
@@ -140,8 +140,9 @@ an Isaac Lab adapter, not a native Newton/USD heightfield schema. Loading the me
 is a different geometry representation and needs its own physical-semantics validation.
 
 Set ``include_solver_settings=True`` on ``scene.export_to_usd`` to request available
-Newton MJWarp settings. Other Newton solvers still export scene/assets; VBD, XPBD,
-Kamino and coupled solver settings are not serialized or reconstructed. Determinism is
+Newton MJWarp, VBD, XPBD, Kamino and proxy-coupled settings. Each manager owns its
+constructor provenance and restoration; VBD collision scheduling and Kamino nested
+configuration use their manager's ``load_exported_solver`` method. Determinism is
 excluded. PhysX and OVPhysX keep their supported scene settings, including the frequency
 used to cook automatic contacts. The integration timestep [s] is recorded separately in
 ``stage.GetRootLayer().customLayerData["isaaclab:physicsDt"]``; use it when stepping the
@@ -157,20 +158,43 @@ A deployment loop must choose its own stepping schedule.
 Limits and validation
 ---------------------
 
-Deformable export and its dedicated loading are deferred. The existing deformation and
-coupling simulation implementations remain unchanged; exporting a scene containing a
-registered deformable fails explicitly. Surface grippers are also unsupported. Source
+Registered deformables use their owning backend adapters; unregistered deformables and
+surface grippers are rejected. Source
 geometry, schemas, camera prims and external resources are retained where supported,
 but flattening does not package external textures or MDL dependencies.
 
 Fresh same-backend tests compare stable entity identities, exact discrete topology and
 collision relationships, and floating-point mass/inertia/COM, joint, geometry/material
 and gravity values with tolerances. They verify selection from multiple environments,
-source USD preservation and the initialization boundary. Non-MJWarp solver configuration
-reconstruction is not a test gate. Physical round-trip results do not certify controllers,
+source USD preservation and the initialization boundary. Optional solver settings and
+proxy ownership are compared after reconstruction. Physical round-trip results do not certify controllers,
 policy observations, sensor execution or cross-backend semantics.
 
 Policies, explicit controller code/history, observation processing, sensor sampling and
 rendering, warm-start caches, active contacts, transient forces and runtime solver choices
 require deployment integration. Export is an initialized physical configuration, not a
 training-state checkpoint.
+
+Deformable loading
+------------------
+
+Deformable source topology, rest geometry and materials remain in USD. Newton writes
+selected particle masses, pinning, radii, flags and effective rest angles through the
+same data-bound array writer used by cables. Existing initialization is unchanged.
+PhysX preserves its cooked schemas and supplements effective material values.
+
+Newton consumers can reuse ``add_exported_deformables_to_builder(stage, builder)`` from
+``isaaclab_contrib.deformable.deformable_object`` before native ``add_usd``. Pass the
+returned ``ignore_paths`` to native import, color a VBD builder, and restore each
+entry's ``inverse_masses`` after finalization (which otherwise derives them from mass).
+This adapter shares the normal asset reader and construction path; no task events run.
+The fresh-loader recipe in ``isaaclab_newton/test/sim/test_usd_export.py`` demonstrates
+terrain, cable and deformable supplements together.
+
+Proxy coupling additionally records entry ownership, substeps and proxy relationships
+by prim identity and local node index. ``NewtonCouplerManager.load_exported_solver``
+accepts the exported JSON options and a ``(mesh_path, node_index)`` to native particle
+index map derived from the returned particle ranges. ADMM coupling and arbitrary
+user-defined solver factories have no export representation. Global Newton soft contact
+constants live in ``isaaclab:newtonSoftContacts`` and must be applied to the fresh model.
+Controllers, sensors and observation execution remain external deployment components.

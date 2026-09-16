@@ -503,8 +503,7 @@ class InteractiveScene:
         Args:
             path: Destination USD file. External dependencies must remain accessible.
             env_id: Environment to export, retaining its world frame and shared resources.
-            include_solver_settings: Include optional Newton MJWarp settings when available.
-                Other Newton solvers export scene/assets without solver settings.
+            include_solver_settings: Include optional settings from the selected Newton solver manager.
             preserve_source_contacts: Preserve authored PhysX collider materials and offset defaults.
                 Use only before backend-buffer contact overrides. Automatic pre-startup export
                 enables this; Newton retains its explicit native shape mapping.
@@ -555,7 +554,7 @@ class InteractiveScene:
         from isaaclab.sim.utils.queries import has_deformable_body_api
 
         for prim in writer.stage.Traverse():
-            if has_deformable_body_api(prim):
+            if has_deformable_body_api(prim) and str(prim.GetPath()) not in writer.deformable_paths:
                 raise NotImplementedError(f"Deployment export does not support deformable body {prim.GetPath()}.")
         writer.validate()
         result = writer.save(path, validate=False)

@@ -571,6 +571,15 @@ class NewtonManager(PhysicsManager):
         super().author_fixed_configuration(writer, scene)
         stage = writer.stage
         model = cls.get_model()
+        if model.particle_count:
+            stage.GetRootLayer().customLayerData = {
+                **stage.GetRootLayer().customLayerData,
+                "isaaclab:newtonSoftContacts": {
+                    name: float(getattr(model, name))
+                    for name in ("soft_contact_ke", "soft_contact_kd", "soft_contact_kf", "soft_contact_mu")
+                },
+            }
+
         if hasattr(model, "gravity"):
             writer.write_gravity(
                 scene.physics_scene_path, model.gravity.numpy()[writer.env_id if model.world_count else -1]

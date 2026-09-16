@@ -53,6 +53,8 @@ class NewtonMJWarpManager(NewtonManager):
         scene: InteractiveScene,
         solver: SolverMuJoCo,
         solver_cfg: MJWarpSolverCfg,
+        *,
+        scene_settings: bool = True,
     ) -> None:
         """Write optional MuJoCo settings without making asset import depend on them."""
         import json
@@ -93,16 +95,18 @@ class NewtonMJWarpManager(NewtonManager):
         options["enable_multiccd"] = not bool(flags & mujoco.mjtDisableBit.mjDSBL_MULTICCD)
         from newton.usd import PrimType, SchemaResolverMjc
 
-        target = SchemaResolverMjc.mapping[PrimType.SCENE]["max_solver_iterations"].name
-        writer.write_attribute(
-            scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
-        )
+        if scene_settings:
+            target = SchemaResolverMjc.mapping[PrimType.SCENE]["max_solver_iterations"].name
+            writer.write_attribute(
+                scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+            )
         options = {name: option for name, option in options.items() if option is not None}
         writer.stage.GetRootLayer().customLayerData = {
             **writer.stage.GetRootLayer().customLayerData,
             "isaaclab:newtonDriver": {"solver": "mujoco", "options": json.dumps(options)},
         }
-        writer.write_gravity(scene.physics_scene_path, value(native.opt, "gravity"))
+        if scene_settings:
+            writer.write_gravity(scene.physics_scene_path, value(native.opt, "gravity"))
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:

@@ -5,10 +5,12 @@
 
 from __future__ import annotations
 
+import numpy as np
 import warp as wp
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
+from isaaclab.assets.physics_properties import UsdAttribute, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
@@ -109,6 +111,51 @@ class DeformableObjectData(BaseDeformableObjectData):
     ##
     # Properties.
     ##
+
+    def _element_values(self, name: str) -> np.ndarray:
+        """Gather each instance by particle range or element connectivity."""
+        model = SimulationManager.get_model()
+        values = getattr(model, name).numpy()
+        rows = []
+        for start in self._particle_offsets.numpy():
+            stop = start + self._particles_per_body
+            if name.startswith("edge_"):
+                edges = model.edge_indices.numpy()
+                owned = np.all((edges < 0) | ((edges >= start) & (edges < stop)), axis=1)
+                rows.append(values[owned])
+            else:
+                rows.append(values[start:stop])
+        return np.asarray(rows)
+
+    @property
+    @usd_field(UsdAttribute("physics:masses", type_name="float[]"), scope="array")
+    def particle_mass(self) -> np.ndarray:
+        """Particle masses [kg], one row per instance."""
+        return self._element_values("particle_mass")
+
+    @property
+    @usd_field(UsdAttribute("newton:export:particle_inv_mass", type_name="float[]"), scope="array")
+    def particle_inv_mass(self) -> np.ndarray:
+        """Particle inverse masses [1/kg], including pinned nodes, one row per instance."""
+        return self._element_values("particle_inv_mass")
+
+    @property
+    @usd_field(UsdAttribute("newton:export:particle_radius", type_name="float[]"), scope="array")
+    def particle_radius(self) -> np.ndarray:
+        """Particle collision radii [m], one row per instance."""
+        return self._element_values("particle_radius")
+
+    @property
+    @usd_field(UsdAttribute("newton:export:particle_flags", type_name="int[]"), scope="array")
+    def particle_flags(self) -> np.ndarray:
+        """Particle flags, one row per instance."""
+        return self._element_values("particle_flags")
+
+    @property
+    @usd_field(UsdAttribute("newton:export:edge_rest_angle", type_name="float[]"), scope="array")
+    def edge_rest_angle(self) -> np.ndarray:
+        """Effective stress-free bending angles [rad], one row per instance."""
+        return self._element_values("edge_rest_angle")
 
     @property
     def nodal_pos_w(self) -> ProxyArray:

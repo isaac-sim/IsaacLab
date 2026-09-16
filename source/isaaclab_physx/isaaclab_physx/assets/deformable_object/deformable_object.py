@@ -36,6 +36,8 @@ from .kernels import (
 if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
+    from isaaclab.sim.usd_export import UsdWriter
+
     from .deformable_object_cfg import DeformableObjectCfg
 
 # import logger
@@ -157,6 +159,23 @@ class DeformableObject(AssetBase):
     """
     Operations.
     """
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Preserve cooked topology/rest schemas and export mutable material properties."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        row = writer.env_index
+        path = writer.resolve_paths(AssetPaths([(self.root_view.prim_paths[row], 0)], [])).bodies[0][0]
+        from isaaclab.scene_data.deformable_discovery import _classify_deformable_meshes
+
+        _, mesh, _, count, *_ = _classify_deformable_meshes(writer.stage.GetPrimAtPath(path))
+        writer.write_deformable_points(mesh, self.data.nodal_pos_w.torch[row, :count].cpu().numpy())
+        writer.deformable_paths.add(path)
+        if self.material_physx_view is not None:
+            from .deformable_object_data import DeformableMaterialData
+
+            data = DeformableMaterialData(self.material_physx_view, row)
+            writer.write_material_override(path, data, row=0, env_index=0)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the deformable object.

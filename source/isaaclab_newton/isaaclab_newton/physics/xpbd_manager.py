@@ -7,11 +7,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from newton import Model
 from newton.solvers import SolverXPBD
 
 from .newton_manager import NewtonManager
 from .xpbd_manager_cfg import XPBDSolverCfg
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import UsdWriter
 
 
 class NewtonXPBDManager(NewtonManager):
@@ -19,6 +25,39 @@ class NewtonXPBDManager(NewtonManager):
 
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Export the XPBD driver's effective constructor settings."""
+        import inspect
+        import json
+
+        super().author_fixed_configuration(writer, scene)
+        if not writer.include_solver_settings:
+            return
+        solver = cls._solver
+        options = {}
+        for name, parameter in inspect.signature(SolverXPBD).parameters.items():
+            if name in {"model", "deterministic"}:
+                continue
+            value = getattr(solver, name, parameter.default)
+            if value is None:
+                continue
+            if not isinstance(value, (bool, int, float, str)):
+                raise NotImplementedError(f"No XPBD export representation for {name}: {value!r}.")
+            options[name] = value
+        from newton.usd import PrimType, SchemaResolverNewton
+
+        from isaaclab.assets.physics_properties import UsdAttribute
+
+        target = SchemaResolverNewton.mapping[PrimType.SCENE]["max_solver_iterations"].name
+        writer.write_attribute(
+            scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+        )
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "xpbd", "options": json.dumps(options)},
+        }
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: XPBDSolverCfg) -> SolverXPBD:
