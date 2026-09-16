@@ -34,6 +34,7 @@ from isaaclab.controllers.config.rmp_flow import (  # isort: skip
     GALBOT_RIGHT_ARM_RMPFLOW_CFG,
 )
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from isaaclab.utils import copy_config
 
 
 ##
@@ -45,7 +46,8 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # read use_relative_mode from environment variable
         # True for record_demos, and False for replay_demos, annotate_demos and generate_demos
@@ -95,7 +97,8 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
 class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightArmCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # read use_relative_mode from environment variable
         # True for record_demos, and False for replay_demos, annotate_demos and generate_demos
@@ -166,7 +169,8 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set left and right wrist cameras for VLA policy training
         self.scene.right_wrist_cam = CameraCfg(
@@ -223,7 +227,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.6), rot=(0.5963, 0.5963, -0.3799, -0.3799), convention="ros"),
         )
 
-        marker_right_camera_cfg = FRAME_MARKER_CFG.copy()
+        marker_right_camera_cfg = copy_config(FRAME_MARKER_CFG)
         marker_right_camera_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_right_camera_cfg.prim_path = "/Visuals/FrameTransformerRightCamera"
 
@@ -243,7 +247,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             ],
         )
 
-        marker_left_camera_cfg = FRAME_MARKER_CFG.copy()
+        marker_left_camera_cfg = copy_config(FRAME_MARKER_CFG)
         marker_left_camera_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_left_camera_cfg.prim_path = "/Visuals/FrameTransformerLeftCamera"
 
@@ -286,7 +290,8 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
 class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot", joint_names=["left_arm_joint.*"], scale=1.0, use_default_offset=False
@@ -312,7 +317,8 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCu
 class GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Enable Parallel Gripper with AbsBinaryJointPosition Control
         self.actions.gripper_action = mdp.AbsBinaryJointPositionActionCfg(

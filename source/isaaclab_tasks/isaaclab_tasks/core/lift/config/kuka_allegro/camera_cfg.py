@@ -4,12 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING, dataclass
+from typing import Any
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
@@ -102,88 +104,124 @@ WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
 class BaseTiledCameraCfg(PresetCfg):
     """Tiled camera configurations"""
 
-    rgb64 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=64, height=64)
-    rgb128 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=128, height=128)
-    rgb256 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=256, height=256)
-    depth64 = BASE_CAMERA_CFG.replace(data_types=["depth"], width=64, height=64)
-    depth128 = BASE_CAMERA_CFG.replace(data_types=["depth"], width=128, height=128)
-    depth256 = BASE_CAMERA_CFG.replace(data_types=["depth"], width=256, height=256)
-    albedo64 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
-    albedo128 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
-    albedo256 = BASE_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
-    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(
-        data_types=["simple_shading_constant_diffuse"], width=64, height=64
+    rgb64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=64, height=64))
+    rgb128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=128, height=128))
+    rgb256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=256, height=256))
+    depth64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=64, height=64))
+    depth128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=128, height=128))
+    depth256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=256, height=256))
+    albedo64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=64, height=64))
+    albedo128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=128, height=128))
+    albedo256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=256, height=256))
+    simple_shading_constant_diffuse64: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64)
     )
-    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(
-        data_types=["simple_shading_constant_diffuse"], width=128, height=128
+    simple_shading_constant_diffuse128: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128)
     )
-    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(
-        data_types=["simple_shading_constant_diffuse"], width=256, height=256
+    simple_shading_constant_diffuse256: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256)
     )
-    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(
-        data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+    simple_shading_diffuse_mdl64: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64)
     )
-    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(
-        data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+    simple_shading_diffuse_mdl128: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128)
     )
-    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(
-        data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+    simple_shading_diffuse_mdl256: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256)
     )
-    simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
-    simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
-    simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
-    semantic_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
-    semantic_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
-    semantic_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
+    simple_shading_full_mdl64: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64)
+    )
+    simple_shading_full_mdl128: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128)
+    )
+    simple_shading_full_mdl256: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256)
+    )
+    semantic_segmentation64: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64)
+    )
+    semantic_segmentation128: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128)
+    )
+    semantic_segmentation256: Any = config_field(
+        replace_config(BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256)
+    )
     # raycaster camera presets
-    raycaster_depth64 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=64, height=64))
-    raycaster_depth128 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=128, height=128))
-    raycaster_depth256 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=256, height=256))
-    default = rgb64
+    raycaster_depth64: Any = config_field(
+        replace_config(BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=64, height=64))
+    )
+    raycaster_depth128: Any = config_field(
+        replace_config(BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=128, height=128))
+    )
+    raycaster_depth256: Any = config_field(
+        replace_config(BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=256, height=256))
+    )
+    default: Any = config_field(rgb64)
 
 
 @dataclass
 class WristTiledCameraCfg(PresetCfg):
     """Tiled camera configurations"""
 
-    rgb64 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=64, height=64)
-    rgb128 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=128, height=128)
-    rgb256 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=256, height=256)
-    depth64 = WRIST_CAMERA_CFG.replace(data_types=["depth"], width=64, height=64)
-    depth128 = WRIST_CAMERA_CFG.replace(data_types=["depth"], width=128, height=128)
-    depth256 = WRIST_CAMERA_CFG.replace(data_types=["depth"], width=256, height=256)
-    albedo64 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
-    albedo128 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
-    albedo256 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
-    simple_shading_constant_diffuse64 = WRIST_CAMERA_CFG.replace(
-        data_types=["simple_shading_constant_diffuse"], width=64, height=64
+    rgb64: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=64, height=64))
+    rgb128: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=128, height=128))
+    rgb256: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=256, height=256))
+    depth64: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=64, height=64))
+    depth128: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=128, height=128))
+    depth256: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=256, height=256))
+    albedo64: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=64, height=64))
+    albedo128: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=128, height=128))
+    albedo256: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=256, height=256))
+    simple_shading_constant_diffuse64: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64)
     )
-    simple_shading_constant_diffuse128 = WRIST_CAMERA_CFG.replace(
-        data_types=["simple_shading_constant_diffuse"], width=128, height=128
+    simple_shading_constant_diffuse128: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128)
     )
-    simple_shading_constant_diffuse256 = WRIST_CAMERA_CFG.replace(
-        data_types=["simple_shading_constant_diffuse"], width=256, height=256
+    simple_shading_constant_diffuse256: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256)
     )
-    simple_shading_diffuse_mdl64 = WRIST_CAMERA_CFG.replace(
-        data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+    simple_shading_diffuse_mdl64: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64)
     )
-    simple_shading_diffuse_mdl128 = WRIST_CAMERA_CFG.replace(
-        data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+    simple_shading_diffuse_mdl128: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128)
     )
-    simple_shading_diffuse_mdl256 = WRIST_CAMERA_CFG.replace(
-        data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+    simple_shading_diffuse_mdl256: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256)
     )
-    simple_shading_full_mdl64 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
-    simple_shading_full_mdl128 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
-    simple_shading_full_mdl256 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
-    semantic_segmentation64 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
-    semantic_segmentation128 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
-    semantic_segmentation256 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
+    simple_shading_full_mdl64: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64)
+    )
+    simple_shading_full_mdl128: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128)
+    )
+    simple_shading_full_mdl256: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256)
+    )
+    semantic_segmentation64: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64)
+    )
+    semantic_segmentation128: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128)
+    )
+    semantic_segmentation256: Any = config_field(
+        replace_config(WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256)
+    )
     # raycaster camera presets
-    raycaster_depth64 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=64, height=64))
-    raycaster_depth128 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=128, height=128))
-    raycaster_depth256 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=256, height=256))
-    default = rgb64
+    raycaster_depth64: Any = config_field(
+        replace_config(WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=64, height=64))
+    )
+    raycaster_depth128: Any = config_field(
+        replace_config(WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=128, height=128))
+    )
+    raycaster_depth256: Any = config_field(
+        replace_config(WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=256, height=256))
+    )
+    default: Any = config_field(rgb64)
 
 
 ############################
@@ -194,7 +232,8 @@ class StateObservationCfg(lift.ObservationsCfg):
     """Kuka Allegro participant scene for Lift Lifting/Reorientation"""
 
     def __post_init__(self: lift.ObservationsCfg):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.proprio.contact = ObsTerm(
             func=mdp.fingers_contact_force_b,
             params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
@@ -211,16 +250,18 @@ class SingleCameraObservationsCfg(StateObservationCfg):
     class BaseImageObsCfg(ObsGroup):
         """Camera observations for policy group."""
 
-        object_observation_b = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("base_camera")},
+        object_observation_b: Any = config_field(
+            ObsTerm(
+                func=mdp.vision_camera,
+                noise=Unoise(n_min=-0.0, n_max=0.0),
+                clip=(-1.0, 1.0),
+                params={"sensor_cfg": SceneEntityCfg("base_camera")},
+            )
         )
 
     # image groups keep the group default of no history: a stack of frames per step costs more
     # memory than the state groups' history and the state groups already carry the temporal signal
-    base_image: BaseImageObsCfg = BaseImageObsCfg()
+    base_image: BaseImageObsCfg = config_field(BaseImageObsCfg())
 
 
 @dataclass
@@ -229,11 +270,13 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
 
     @dataclass
     class WristImageObsCfg(ObsGroup):
-        wrist_observation = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("wrist_camera")},
+        wrist_observation: Any = config_field(
+            ObsTerm(
+                func=mdp.vision_camera,
+                noise=Unoise(n_min=-0.0, n_max=0.0),
+                clip=(-1.0, 1.0),
+                params={"sensor_cfg": SceneEntityCfg("wrist_camera")},
+            )
         )
 
-    wrist_image: WristImageObsCfg = WristImageObsCfg()
+    wrist_image: WristImageObsCfg = config_field(WristImageObsCfg())

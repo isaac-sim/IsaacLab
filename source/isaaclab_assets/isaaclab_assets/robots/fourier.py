@@ -19,6 +19,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -117,7 +118,8 @@ GR1T2_CFG = ArticulationCfg(
 """Configuration for the GR1T2 Humanoid robot."""
 
 
-GR1T2_HIGH_PD_CFG = GR1T2_CFG.replace(
+GR1T2_HIGH_PD_CFG = replace_config(
+    GR1T2_CFG,
     actuators={
         "trunk": ImplicitActuatorCfg(
             joint_names_expr=["waist_.*"],

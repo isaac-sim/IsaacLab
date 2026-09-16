@@ -17,6 +17,8 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from isaaclab.utils import config_field
+
 try:
     import websockets
 
@@ -388,8 +390,8 @@ class HaplyDeviceCfg(DeviceCfg):
         limit_force: Maximum force magnitude in Newtons (safety limit)
     """
 
-    websocket_uri: str = "ws://localhost:10001"
-    pos_sensitivity: float = 1.0
-    data_rate: float = 200.0
-    limit_force: float = 2.0
-    class_type: type[DeviceBase] = HaplyDevice
+    websocket_uri: str = config_field("ws://localhost:10001")
+    pos_sensitivity: float = config_field(1.0)
+    data_rate: float = config_field(200.0)
+    limit_force: float = config_field(2.0)
+    class_type: type[DeviceBase] = config_field(HaplyDevice)

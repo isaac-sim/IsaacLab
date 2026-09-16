@@ -18,6 +18,7 @@ Reference: https://github.com/frankaemika/franka_ros
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import copy_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
@@ -76,7 +77,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
 """Configuration of Franka Emika Panda robot."""
 
 
-FRANKA_PANDA_MENAGERIE_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_MENAGERIE_CFG = copy_config(FRANKA_PANDA_CFG)
 FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_PANDA_MENAGERIE_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
@@ -99,7 +100,7 @@ backends, while the arm and hand retain their USD-authored drives.
 """
 
 
-FRANKA_PANDA_HIGH_PD_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_HIGH_PD_CFG = copy_config(FRANKA_PANDA_CFG)
 FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].damping = 80.0
@@ -111,7 +112,7 @@ This configuration is useful for task-space control using differential IK.
 """
 
 
-FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_ROBOTIQ_GRIPPER_CFG = copy_config(FRANKA_PANDA_CFG)
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True

@@ -22,6 +22,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils import config_to_dict
+
 # Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
 # cudaStreamCaptureModeRelaxed (2) allows the RTX compositor's background
 # CUDA stream to keep running during capture without invalidating it.
@@ -2159,7 +2161,7 @@ class NewtonManager(PhysicsManager):
         are always excluded — ``model`` is passed positionally at construction.
         """
         valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = {k: v for k, v in config_to_dict(solver_cfg).items() if k in valid}
         if "deterministic" in valid:
             kwargs["deterministic"] = NewtonManager._deterministic_mode
         return kwargs

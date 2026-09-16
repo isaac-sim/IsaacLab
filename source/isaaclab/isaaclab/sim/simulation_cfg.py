@@ -16,19 +16,19 @@ from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.visualizers import VisualizerCfg
 
 
 @dataclass
-class SimulationCfg(ConfigMixin):
+class SimulationCfg:
     """Configuration for simulation physics.
 
     This class contains the main simulation parameters including physics time-step, gravity,
     device settings, and physics backend configuration.
     """
 
-    device: str = "cuda:0"
+    device: str = config_field("cuda:0")
     """The device to run the simulation on. Default is ``"cuda:0"``.
 
     Valid options are:
@@ -38,13 +38,13 @@ class SimulationCfg(ConfigMixin):
     - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
     """
 
-    dt: float = 1.0 / 60.0
+    dt: float = config_field(1.0 / 60.0)
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
 
-    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
+    gravity: tuple[float, float, float] = config_field((0.0, 0.0, -9.81))
     """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
 
-    physics_prim_path: str = "/physicsScene"
+    physics_prim_path: str = config_field("/physicsScene")
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
     physics_material: RigidBodyMaterialBaseCfg = field(default_factory=RigidBodyMaterialBaseCfg)
@@ -56,7 +56,7 @@ class SimulationCfg(ConfigMixin):
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
 
-    use_fabric: bool = True
+    use_fabric: bool = config_field(True)
     """Enable/disable reading of physics buffers directly. Default is True.
 
     When running the simulation, updates in the states in the scene is normally synchronized with USD.
@@ -67,10 +67,10 @@ class SimulationCfg(ConfigMixin):
     of primitives in the scene.
     """
 
-    render_interval: int = 1
+    render_interval: int = config_field(1)
     """The number of physics simulation steps per rendering step. Default is 1."""
 
-    enable_scene_query_support: bool = False
+    enable_scene_query_support: bool = config_field(False)
     """Enable/disable scene query support for collision shapes. Default is False.
 
     This flag allows performing collision queries (raycasts, sweeps, and overlaps) on actors and
@@ -85,7 +85,7 @@ class SimulationCfg(ConfigMixin):
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_newton_actuators: bool = True
+    use_newton_actuators: bool = config_field(True)
     """Use native actuators for supported explicit actuator configurations. Default is True.
 
     When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
@@ -99,26 +99,26 @@ class SimulationCfg(ConfigMixin):
     to use the deprecated Isaac Lab actuator execution path.
     """
 
-    physics: PhysicsCfg | None = None
+    physics: PhysicsCfg | None = config_field(None)
     """Physics manager configuration. Default is None (uses PhysxCfg()).
 
     This configuration determines which physics manager to use. Override with
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
     """
 
-    create_stage_in_memory: bool = False
+    create_stage_in_memory: bool = config_field(False)
     """If stage is first created in memory. Default is False.
 
     Creating the stage in memory can reduce start-up time.
     """
 
-    logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING"
+    logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = config_field("WARNING")
     """The logging level. Default is "WARNING"."""
 
-    save_logs_to_file: bool = True
+    save_logs_to_file: bool = config_field(True)
     """Save logs to a file. Default is True."""
 
-    log_dir: str | None = None
+    log_dir: str | None = config_field(None)
     """The directory to save the logs to. Default is None.
 
     If :attr:`save_logs_to_file` is True, the logs will be saved to the directory specified by :attr:`log_dir`.
@@ -128,7 +128,7 @@ class SimulationCfg(ConfigMixin):
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = field(default_factory=list)
     """The visualizer configuration(s). Default is an empty list."""
 
-    default_visualizer_cfg: VisualizerCfg | None = None
+    default_visualizer_cfg: VisualizerCfg | None = config_field(None)
     """Default visualizer settings applied to any visualizer that is selected at runtime.
 
     This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.

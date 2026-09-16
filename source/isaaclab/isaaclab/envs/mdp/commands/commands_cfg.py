@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 if TYPE_CHECKING:
     from .null_command import NullCommand
@@ -19,11 +19,24 @@ if TYPE_CHECKING:
     from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
 
+def _scaled_marker_cfg(
+    marker_cfg: VisualizationMarkersCfg,
+    *,
+    prim_path: str,
+    marker_name: str,
+    scale: tuple[float, float, float],
+) -> VisualizationMarkersCfg:
+    """Create a marker configuration with one marker scaled for command visualization."""
+    cfg = replace_config(marker_cfg, prim_path=prim_path)
+    cfg.markers[marker_name].scale = scale
+    return cfg
+
+
 @dataclass
 class NullCommandCfg(CommandTermCfg):
     """Configuration for the null command generator."""
 
-    class_type: type["NullCommand"] | str = "{DIR}.null_command:NullCommand"
+    class_type: type["NullCommand"] | str = config_field("{DIR}.null_command:NullCommand")
 
     def __post_init__(self):
         """Post initialization."""
@@ -35,12 +48,12 @@ class NullCommandCfg(CommandTermCfg):
 class UniformVelocityCommandCfg(CommandTermCfg):
     """Configuration for the uniform velocity command generator."""
 
-    class_type: type["UniformVelocityCommand"] | str = "{DIR}.velocity_command:UniformVelocityCommand"
+    class_type: type["UniformVelocityCommand"] | str = config_field("{DIR}.velocity_command:UniformVelocityCommand")
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name of the asset in the environment for which the commands are generated."""
 
-    heading_command: bool = False
+    heading_command: bool = config_field(False)
     """Whether to use heading command or angular velocity command. Defaults to False.
 
     If True, the angular velocity command is computed from the heading error, where the
@@ -48,13 +61,13 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     command is sampled uniformly from provided range.
     """
 
-    heading_control_stiffness: float = 1.0
+    heading_control_stiffness: float = config_field(1.0)
     """Scale factor to convert the heading error to angular velocity command. Defaults to 1.0."""
 
-    rel_standing_envs: float = 0.0
+    rel_standing_envs: float = config_field(0.0)
     """The sampled probability of environments that should be standing still. Defaults to 0.0."""
 
-    rel_heading_envs: float = 1.0
+    rel_heading_envs: float = config_field(1.0)
     """The sampled probability of environments where the robots follow the heading-based angular velocity command
     (the others follow the sampled angular velocity command). Defaults to 1.0.
 
@@ -62,34 +75,34 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     """
 
     @dataclass
-    class Ranges(ConfigMixin):
+    class Ranges:
         """Uniform distribution ranges for the velocity commands."""
 
-        lin_vel_x: tuple[float, float] = MISSING
+        lin_vel_x: tuple[float, float] = config_field(MISSING)
         """Range for the linear-x velocity command (in m/s)."""
 
-        lin_vel_y: tuple[float, float] = MISSING
+        lin_vel_y: tuple[float, float] = config_field(MISSING)
         """Range for the linear-y velocity command (in m/s)."""
 
-        ang_vel_z: tuple[float, float] = MISSING
+        ang_vel_z: tuple[float, float] = config_field(MISSING)
         """Range for the angular-z velocity command (in rad/s)."""
 
-        heading: tuple[float, float] | None = None
+        heading: tuple[float, float] | None = config_field(None)
         """Range for the heading command (in rad). Defaults to None.
 
         This parameter is only used if :attr:`~UniformVelocityCommandCfg.heading_command` is True.
         """
 
-    ranges: Ranges = MISSING
+    ranges: Ranges = config_field(MISSING)
     """Distribution ranges for the velocity commands."""
 
-    vel_xy_success_threshold: float = 0.5
+    vel_xy_success_threshold: float = config_field(0.5)
     """Threshold on the per-episode mean XY velocity error norm [m/s]."""
 
-    vel_yaw_success_threshold: float = 0.4
+    vel_yaw_success_threshold: float = config_field(0.4)
     """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
-    marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.5)
+    marker_pos_offset: tuple[float, float, float] = config_field((0.0, 0.0, 0.5))
     """Offset [m] applied to the robot root position when placing velocity visualization markers.
 
     The default of ``(0.0, 0.0, 0.5)`` works well for quadrupeds. For taller robots such as
@@ -97,51 +110,57 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     the robot's head rather than clipping through the torso.
     """
 
-    goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/velocity_goal"
+    goal_vel_visualizer_cfg: VisualizationMarkersCfg = config_field(
+        _scaled_marker_cfg(
+            GREEN_ARROW_X_MARKER_CFG,
+            prim_path="/Visuals/Command/velocity_goal",
+            marker_name="arrow",
+            scale=(0.5, 0.5, 0.5),
+        )
     )
     """The configuration for the goal velocity visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
 
-    current_vel_visualizer_cfg: VisualizationMarkersCfg = BLUE_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/velocity_current"
+    current_vel_visualizer_cfg: VisualizationMarkersCfg = config_field(
+        _scaled_marker_cfg(
+            BLUE_ARROW_X_MARKER_CFG,
+            prim_path="/Visuals/Command/velocity_current",
+            marker_name="arrow",
+            scale=(0.5, 0.5, 0.5),
+        )
     )
     """The configuration for the current velocity visualization marker. Defaults to BLUE_ARROW_X_MARKER_CFG."""
-
-    # Set the scale of the visualization markers to (0.5, 0.5, 0.5)
-    goal_vel_visualizer_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
-    current_vel_visualizer_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
 
 
 @dataclass
 class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
     """Configuration for the normal velocity command generator."""
 
-    class_type: type["NormalVelocityCommand"] | str = "{DIR}.velocity_command:NormalVelocityCommand"
-    heading_command: bool = False  # --> we don't use heading command for normal velocity command.
+    class_type: type["NormalVelocityCommand"] | str = config_field("{DIR}.velocity_command:NormalVelocityCommand")
+    heading_command: bool = config_field(False)  # --> we don't use heading command for normal velocity command.
 
     @dataclass
-    class Ranges(ConfigMixin):
+    class Ranges:
         """Normal distribution ranges for the velocity commands."""
 
-        mean_vel: tuple[float, float, float] = MISSING
+        mean_vel: tuple[float, float, float] = config_field(MISSING)
         """Mean velocity for the normal distribution (in m/s).
 
         The tuple contains the mean linear-x, linear-y, and angular-z velocity.
         """
 
-        std_vel: tuple[float, float, float] = MISSING
+        std_vel: tuple[float, float, float] = config_field(MISSING)
         """Standard deviation for the normal distribution (in m/s).
 
         The tuple contains the standard deviation linear-x, linear-y, and angular-z velocity.
         """
 
-        zero_prob: tuple[float, float, float] = MISSING
+        zero_prob: tuple[float, float, float] = config_field(MISSING)
         """Probability of zero velocity for the normal distribution.
 
         The tuple contains the probability of zero linear-x, linear-y, and angular-z velocity.
         """
 
-    ranges: Ranges = MISSING
+    ranges: Ranges = config_field(MISSING)
     """Distribution ranges for the velocity commands."""
 
 
@@ -149,136 +168,148 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
 class UniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type["UniformPoseCommand"] | str = "{DIR}.pose_command:UniformPoseCommand"
+    class_type: type["UniformPoseCommand"] | str = config_field("{DIR}.pose_command:UniformPoseCommand")
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name of the asset in the environment for which the commands are generated."""
 
-    body_name: str = MISSING
+    body_name: str = config_field(MISSING)
     """Name of the body in the asset for which the commands are generated."""
 
-    make_quat_unique: bool = False
+    make_quat_unique: bool = config_field(False)
     """Whether to make the quaternion unique or not. Defaults to False.
 
     If True, the quaternion is made unique by ensuring the real part is positive.
     """
 
     @dataclass
-    class Ranges(ConfigMixin):
+    class Ranges:
         """Uniform distribution ranges for the pose commands."""
 
-        pos_x: tuple[float, float] = MISSING
+        pos_x: tuple[float, float] = config_field(MISSING)
         """Range for the x position (in m)."""
 
-        pos_y: tuple[float, float] = MISSING
+        pos_y: tuple[float, float] = config_field(MISSING)
         """Range for the y position (in m)."""
 
-        pos_z: tuple[float, float] = MISSING
+        pos_z: tuple[float, float] = config_field(MISSING)
         """Range for the z position (in m)."""
 
-        roll: tuple[float, float] = MISSING
+        roll: tuple[float, float] = config_field(MISSING)
         """Range for the roll angle (in rad)."""
 
-        pitch: tuple[float, float] = MISSING
+        pitch: tuple[float, float] = config_field(MISSING)
         """Range for the pitch angle (in rad)."""
 
-        yaw: tuple[float, float] = MISSING
+        yaw: tuple[float, float] = config_field(MISSING)
         """Range for the yaw angle (in rad)."""
 
-    ranges: Ranges = MISSING
+    ranges: Ranges = config_field(MISSING)
     """Ranges for the commands."""
 
-    position_success_threshold: float | None = None
+    position_success_threshold: float | None = config_field(None)
     """If set, position-error norm [m] below this value (per step) is required for success.
 
     When both position and orientation thresholds are set, both conditions must be satisfied.
     The episode-level binary "ever successful" is mean-reduced across environments and logged
     under ``Metrics/success_rate``. Defaults to ``None``."""
 
-    orientation_success_threshold: float | None = None
+    orientation_success_threshold: float | None = config_field(None)
     """If set, orientation-error norm [rad] below this value (per step) is required for success.
 
     When both position and orientation thresholds are set, both conditions must be satisfied.
     The episode-level binary "ever successful" is mean-reduced across environments and logged
     under ``Metrics/success_rate``. Defaults to ``None``."""
 
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = config_field(
+        _scaled_marker_cfg(
+            FRAME_MARKER_CFG,
+            prim_path="/Visuals/Command/goal_pose",
+            marker_name="frame",
+            scale=(0.1, 0.1, 0.1),
+        )
+    )
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/body_pose"
+    current_pose_visualizer_cfg: VisualizationMarkersCfg = config_field(
+        _scaled_marker_cfg(
+            FRAME_MARKER_CFG,
+            prim_path="/Visuals/Command/body_pose",
+            marker_name="frame",
+            scale=(0.1, 0.1, 0.1),
+        )
     )
     """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
-
-    # Set the scale of the visualization markers to (0.1, 0.1, 0.1)
-    goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
 
 @dataclass
 class UniformPose2dCommandCfg(CommandTermCfg):
     """Configuration for the uniform 2D-pose command generator."""
 
-    class_type: type["UniformPose2dCommand"] | str = "{DIR}.pose_2d_command:UniformPose2dCommand"
+    class_type: type["UniformPose2dCommand"] | str = config_field("{DIR}.pose_2d_command:UniformPose2dCommand")
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name of the asset in the environment for which the commands are generated."""
 
-    simple_heading: bool = MISSING
+    simple_heading: bool = config_field(MISSING)
     """Whether to use simple heading or not.
 
     If True, the heading is in the direction of the target position.
     """
 
     @dataclass
-    class Ranges(ConfigMixin):
+    class Ranges:
         """Uniform distribution ranges for the position commands."""
 
-        pos_x: tuple[float, float] = MISSING
+        pos_x: tuple[float, float] = config_field(MISSING)
         """Range for the x position (in m)."""
 
-        pos_y: tuple[float, float] = MISSING
+        pos_y: tuple[float, float] = config_field(MISSING)
         """Range for the y position (in m)."""
 
-        heading: tuple[float, float] = MISSING
+        heading: tuple[float, float] = config_field(MISSING)
         """Heading range for the position commands (in rad).
 
         Used only if :attr:`simple_heading` is False.
         """
 
-    ranges: Ranges = MISSING
+    ranges: Ranges = config_field(MISSING)
     """Distribution ranges for the position commands."""
 
-    position_success_threshold: float | None = None
+    position_success_threshold: float | None = config_field(None)
     """If set, XY position-error norm below this value (per step) flags the episode as successful.
 
     The episode-level binary "ever within threshold" is mean-reduced across environments and
     logged under ``Metrics/success_rate``. Defaults to ``None`` (success tracking disabled)."""
 
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/pose_goal"
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = config_field(
+        _scaled_marker_cfg(
+            GREEN_ARROW_X_MARKER_CFG,
+            prim_path="/Visuals/Command/pose_goal",
+            marker_name="arrow",
+            scale=(0.2, 0.2, 0.8),
+        )
     )
     """The configuration for the goal pose visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
-
-    # Set the scale of the visualization markers to (0.2, 0.2, 0.8)
-    goal_pose_visualizer_cfg.markers["arrow"].scale = (0.2, 0.2, 0.8)
 
 
 @dataclass
 class TerrainBasedPose2dCommandCfg(UniformPose2dCommandCfg):
     """Configuration for the terrain-based position command generator."""
 
-    class_type: type["TerrainBasedPose2dCommand"] | str = "{DIR}.pose_2d_command:TerrainBasedPose2dCommand"
+    class_type: type["TerrainBasedPose2dCommand"] | str = config_field(
+        "{DIR}.pose_2d_command:TerrainBasedPose2dCommand"
+    )
 
     @dataclass
-    class Ranges(ConfigMixin):
+    class Ranges:
         """Uniform distribution ranges for the position commands."""
 
-        heading: tuple[float, float] = MISSING
+        heading: tuple[float, float] = config_field(MISSING)
         """Heading range for the position commands (in rad).
 
         Used only if :attr:`simple_heading` is False.
         """
 
-    ranges: Ranges = MISSING
+    ranges: Ranges = config_field(MISSING)
     """Distribution ranges for the sampled commands."""

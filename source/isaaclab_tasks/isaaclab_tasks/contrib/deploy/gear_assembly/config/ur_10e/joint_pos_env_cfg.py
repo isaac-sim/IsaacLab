@@ -13,7 +13,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events
@@ -23,7 +23,7 @@ from isaaclab_tasks.contrib.deploy.gear_assembly.gear_assembly_env_cfg import Ge
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.universal_robots import UR10e_ROBOTIQ_GRIPPER_CFG, UR10e_ROBOTIQ_2F_85_CFG  # isort: skip
-
+from typing import Any
 
 ##
 # Gripper-specific helper functions
@@ -102,130 +102,150 @@ def set_finger_joint_pos_robotiq_2f85(
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    robot_joint_stiffness_and_damping = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]
-            ),  # only the arm joints are randomized
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
-    )
-
-    joint_friction = EventTerm(
-        func=mdp.randomize_joint_parameters,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]),
-            "friction_distribution_params": (0.3, 0.7),
-            "operation": "add",
-            "distribution": "uniform",
-        },
-    )
-
-    small_gear_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    medium_gear_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    large_gear_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    gear_base_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*finger"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    randomize_gear_type = EventTerm(
-        func=gear_assembly_events.randomize_gear_type,
-        mode="reset",
-        params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
-    )
-
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
-    randomize_gears_and_base_pose = EventTerm(
-        func=gear_assembly_events.randomize_gears_and_base_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": [-0.1, 0.1],
-                "y": [-0.25, 0.25],
-                "z": [-0.1, 0.1],
-                "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
-                "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
-                "yaw": [-math.pi / 6, math.pi / 6],  # 2 degree
+    robot_joint_stiffness_and_damping: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_actuator_gains,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg(
+                    "robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]
+                ),  # only the arm joints are randomized
+                "stiffness_distribution_params": (0.75, 1.5),
+                "damping_distribution_params": (0.3, 3.0),
+                "operation": "scale",
+                "distribution": "log_uniform",
             },
-            "gear_pos_range": {
-                "x": [-0.02, 0.02],
-                "y": [-0.02, 0.02],
-                "z": [0.0575, 0.0775],  # 0.045 + 0.0225
-            },
-            "velocity_range": {},
-        },
+        )
     )
 
-    set_robot_to_grasp_pose = EventTerm(
-        func=gear_assembly_events.set_robot_to_grasp_pose,
-        mode="reset",
-        params={
-            "robot_asset_cfg": SceneEntityCfg("robot"),
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
-        },
+    joint_friction: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_joint_parameters,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]),
+                "friction_distribution_params": (0.3, 0.7),
+                "operation": "add",
+                "distribution": "uniform",
+            },
+        )
+    )
+
+    small_gear_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    medium_gear_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    large_gear_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    gear_base_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    robot_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=".*finger"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    randomize_gear_type: Any = config_field(
+        EventTerm(
+            func=gear_assembly_events.randomize_gear_type,
+            mode="reset",
+            params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
+        )
+    )
+
+    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+
+    randomize_gears_and_base_pose: Any = config_field(
+        EventTerm(
+            func=gear_assembly_events.randomize_gears_and_base_pose,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": [-0.1, 0.1],
+                    "y": [-0.25, 0.25],
+                    "z": [-0.1, 0.1],
+                    "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
+                    "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
+                    "yaw": [-math.pi / 6, math.pi / 6],  # 2 degree
+                },
+                "gear_pos_range": {
+                    "x": [-0.02, 0.02],
+                    "y": [-0.02, 0.02],
+                    "z": [0.0575, 0.0775],  # 0.045 + 0.0225
+                },
+                "velocity_range": {},
+            },
+        )
+    )
+
+    set_robot_to_grasp_pose: Any = config_field(
+        EventTerm(
+            func=gear_assembly_events.set_robot_to_grasp_pose,
+            mode="reset",
+            params={
+                "robot_asset_cfg": SceneEntityCfg("robot"),
+                "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
+            },
+        )
     )
 
 
@@ -239,7 +259,8 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Robot-specific parameters (can be overridden for other robots)
         self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks
@@ -312,12 +333,15 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # switch robot to ur10e with 2F-140 gripper
-        self.scene.robot = UR10e_ROBOTIQ_GRIPPER_CFG.replace(
+        self.scene.robot = replace_config(
+            UR10e_ROBOTIQ_GRIPPER_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=UR10e_ROBOTIQ_GRIPPER_CFG.spawn.replace(
+            spawn=replace_config(
+                UR10e_ROBOTIQ_GRIPPER_CFG.spawn,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
@@ -401,12 +425,15 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # switch robot to ur10e with 2F-85 gripper
-        self.scene.robot = UR10e_ROBOTIQ_2F_85_CFG.replace(
+        self.scene.robot = replace_config(
+            UR10e_ROBOTIQ_2F_85_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=UR10e_ROBOTIQ_2F_85_CFG.spawn.replace(
+            spawn=replace_config(
+                UR10e_ROBOTIQ_2F_85_CFG.spawn,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,

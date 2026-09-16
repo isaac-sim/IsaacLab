@@ -19,6 +19,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.cloner import queue_replication
+from isaaclab.utils import copy_config, validate_config
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -71,9 +72,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # store inputs
-        self.cfg = cfg.copy()
+        self.cfg = copy_config(cfg)
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects

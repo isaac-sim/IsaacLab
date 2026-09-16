@@ -16,6 +16,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -73,56 +77,64 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground = TerrainImporterCfg(
-        prim_path="/World/ground",
-        max_init_terrain_level=None,
-        terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(color_scheme="random"),
-        visual_material=None,
-        debug_vis=False,
+    ground: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/ground",
+            max_init_terrain_level=None,
+            terrain_type="generator",
+            terrain_generator=replace_config(ROUGH_TERRAINS_CFG, color_scheme="random"),
+            visual_material=None,
+            debug_vis=False,
+        )
     )
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # sensors
-    camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-        update_period=0.1,
-        height=480,
-        width=640,
-        data_types=["rgb", "distance_to_image_plane"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-        ),
-        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-    )
-    tiled_camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-        update_period=0.1,
-        height=480,
-        width=640,
-        data_types=["rgb", "distance_to_image_plane"],
-        spawn=None,  # the camera is already spawned in the scene
-        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-    )
-    raycast_camera = RayCasterCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        mesh_prim_paths=["/World/ground"],
-        update_period=0.1,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-        data_types=["distance_to_image_plane", "normals"],
-        pattern_cfg=patterns.PinholeCameraPatternCfg(
-            focal_length=24.0,
-            horizontal_aperture=20.955,
+    camera: Any = config_field(
+        CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+            update_period=0.1,
             height=480,
             width=640,
-        ),
+            data_types=["rgb", "distance_to_image_plane"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+            ),
+            offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+        )
+    )
+    tiled_camera: Any = config_field(
+        CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+            update_period=0.1,
+            height=480,
+            width=640,
+            data_types=["rgb", "distance_to_image_plane"],
+            spawn=None,  # the camera is already spawned in the scene
+            offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+        )
+    )
+    raycast_camera: Any = config_field(
+        RayCasterCameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            mesh_prim_paths=["/World/ground"],
+            update_period=0.1,
+            offset=RayCasterCameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+            data_types=["distance_to_image_plane", "normals"],
+            pattern_cfg=patterns.PinholeCameraPatternCfg(
+                focal_length=24.0,
+                horizontal_aperture=20.955,
+                height=480,
+                width=640,
+            ),
+        )
     )
 
 

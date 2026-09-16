@@ -10,6 +10,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace_config
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -80,7 +81,7 @@ def generate_robot_and_two_cubes(
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/env_[^/]+/Robot")
+    robot_cfg = replace_config(FRANKA_PANDA_CFG, prim_path="/World/env_[^/]+/Robot")
     robot = Articulation(robot_cfg)
 
     colliding_cube = DeformableObject(

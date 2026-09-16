@@ -19,6 +19,7 @@ from datetime import datetime
 from distutils.util import strtobool
 
 from isaaclab.app import add_launcher_args, report_activity
+from isaaclab.utils import config_to_dict
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
@@ -232,7 +233,7 @@ def run(argv: list[str]) -> None:
                     save_code=True,
                 )
                 if not wandb.run.resumed:
-                    wandb.config.update({"env_cfg": env_cfg.to_dict()})
+                    wandb.config.update({"env_cfg": config_to_dict(env_cfg)})
                     wandb.config.update({"agent_cfg": agent_cfg})
 
             screen.close()

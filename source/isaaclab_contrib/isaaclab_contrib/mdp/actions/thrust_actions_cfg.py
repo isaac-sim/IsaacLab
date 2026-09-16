@@ -8,6 +8,7 @@ from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
@@ -74,9 +75,9 @@ class ThrustActionCfg(ActionTermCfg):
         - :class:`~isaaclab.managers.ActionTermCfg`: Base action term configuration
     """
 
-    class_type: type[ThrustAction] | str = "{DIR}.thrust_actions:ThrustAction"
+    class_type: type[ThrustAction] | str = config_field("{DIR}.thrust_actions:ThrustAction")
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name or regex expression of the asset that the action will be mapped to.
 
     This should match the name given to the multirotor asset in the scene configuration.
@@ -84,7 +85,7 @@ class ThrustActionCfg(ActionTermCfg):
     ``asset_name`` should be ``"robot"``.
     """
 
-    scale: float | dict[str, float] = 1.0
+    scale: float | dict[str, float] = config_field(1.0)
     """Scale factor for the action. Default is ``1.0``, which means no scaling.
 
     This multiplies the raw action values to adjust the command magnitude. It can be:
@@ -108,7 +109,7 @@ class ThrustActionCfg(ActionTermCfg):
             }
     """
 
-    offset: float | dict[str, float] = 0.0
+    offset: float | dict[str, float] = config_field(0.0)
     """Offset factor for the action. Default is ``0.0``, which means no offset.
 
     This value is added to the scaled actions to establish a baseline thrust.
@@ -133,7 +134,7 @@ class ThrustActionCfg(ActionTermCfg):
             }
     """
 
-    clip: dict[str, tuple[float, float]] | None = None
+    clip: dict[str, tuple[float, float]] | None = config_field(None)
     """Clipping ranges for processed actions. Default is ``None``, which means no clipping.
 
     This constrains the final thrust commands to safe operational ranges after
@@ -154,14 +155,14 @@ class ThrustActionCfg(ActionTermCfg):
 
     """
 
-    preserve_order: bool = False
+    preserve_order: bool = config_field(False)
     """Whether to preserve the order of the asset names in the action output. Default is ``False``.
 
     If ``True``, the thruster ordering matches the regex pattern order exactly.
     If ``False``, ordering is determined by the USD scene traversal order.
     """
 
-    use_default_offset: bool = True
+    use_default_offset: bool = config_field(True)
     """Whether to use default thrust configured in the multirotor asset as offset. Default is ``True``.
 
     If ``True``, the :attr:`offset` value is overwritten with the default thruster
@@ -190,17 +191,17 @@ class NavigationActionCfg(ThrustActionCfg):
     See :class:`NavigationAction` for more details.
     """
 
-    class_type: type[NavigationAction] | str = "{DIR}.thrust_actions:NavigationAction"
+    class_type: type[NavigationAction] | str = config_field("{DIR}.thrust_actions:NavigationAction")
 
-    controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = MISSING
+    controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = config_field(MISSING)
     """The configuration for the Lee velocity controller."""
 
-    max_magnitude: float = MISSING
+    max_magnitude: float = config_field(MISSING)
     """Maximum magnitude for position [m], velocity [m/s], or acceleration [m/s²] commands."""
 
-    max_yaw_command: float = MISSING
+    max_yaw_command: float = config_field(MISSING)
     """Maximum yaw command. Yaw rate [rad/s] for velocity and acceleration lee geometric controller and relative
     yaw change [rad] for position lee geometric controller."""
 
-    max_inclination_angle: float = MISSING
+    max_inclination_angle: float = config_field(MISSING)
     """Maximum inclination angle [rad] for position, velocity and acceleration lee geometric controller."""

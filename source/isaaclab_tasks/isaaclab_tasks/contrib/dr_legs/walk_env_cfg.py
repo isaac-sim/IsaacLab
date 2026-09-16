@@ -11,6 +11,7 @@ contact sensor, and gait / contact / foot-clearance rewards.
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
@@ -18,7 +19,7 @@ from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -46,41 +47,47 @@ _FOOT_SENSOR_CFG = SceneEntityCfg("contact_forces", body_names=["foot_l", "foot_
 class DrLegsContactSensorCfg(PresetCfg):
     """Backend-specific foot contact sensor configuration."""
 
-    default = NewtonContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
-        history_length=3,
-        track_air_time=True,
+    default: Any = config_field(
+        NewtonContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
+            history_length=3,
+            track_air_time=True,
+        )
     )
-    newton_kamino = default
-    physx = PhysXContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
-        history_length=3,
-        track_air_time=True,
+    newton_kamino: Any = config_field(default)
+    physx: Any = config_field(
+        PhysXContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
+            history_length=3,
+            track_air_time=True,
+        )
     )
-    isaacsim_physx = physx
+    isaacsim_physx: Any = config_field(physx)
 
 
 @dataclass
 class WalkSceneCfg(HoldPoseSceneCfg):
-    contact_forces = DrLegsContactSensorCfg()
+    contact_forces: Any = config_field(DrLegsContactSensorCfg())
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
-    base_velocity = mdp.UniformVelocityCommandCfg(
-        asset_name="robot",
-        resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.1,
-        rel_heading_envs=1.0,
-        heading_command=True,
-        heading_control_stiffness=0.5,
-        debug_vis=False,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.3, 0.3),
-            lin_vel_y=(-0.3, 0.3),
-            ang_vel_z=(-0.8, 0.8),
-            heading=(-math.pi, math.pi),
-        ),
+class CommandsCfg:
+    base_velocity: Any = config_field(
+        mdp.UniformVelocityCommandCfg(
+            asset_name="robot",
+            resampling_time_range=(10.0, 10.0),
+            rel_standing_envs=0.1,
+            rel_heading_envs=1.0,
+            heading_command=True,
+            heading_control_stiffness=0.5,
+            debug_vis=False,
+            ranges=mdp.UniformVelocityCommandCfg.Ranges(
+                lin_vel_x=(-0.3, 0.3),
+                lin_vel_y=(-0.3, 0.3),
+                ang_vel_z=(-0.8, 0.8),
+                heading=(-math.pi, math.pi),
+            ),
+        )
     )
 
 
@@ -88,89 +95,111 @@ class CommandsCfg(ConfigMixin):
 class WalkObservationsCfg(ObservationsCfg):
     @dataclass
     class WalkPolicyCfg(ObservationsCfg.PolicyCfg):
-        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": _GAIT_PERIOD})
+        velocity_commands: Any = config_field(
+            ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        )
+        gait_phase: Any = config_field(ObsTerm(func=mdp.gait_phase, params={"period": _GAIT_PERIOD}))
 
-    policy: WalkPolicyCfg = WalkPolicyCfg()
+    policy: WalkPolicyCfg = config_field(WalkPolicyCfg())
 
 
 @dataclass
-class WalkRewardsCfg(ConfigMixin):
+class WalkRewardsCfg:
     """Gait / contact / feet reward suite for velocity-tracking walking."""
 
     # -- positive (task / gait)
-    survival = RewTerm(func=mdp.is_alive, weight=10.0)
-    contact_matching = RewTerm(
-        func=mdp.contact_matching,
-        weight=10.0,
-        params={"sensor_cfg": _FOOT_SENSOR_CFG, "threshold": 1.0, "gait_period": _GAIT_PERIOD},
+    survival: Any = config_field(RewTerm(func=mdp.is_alive, weight=10.0))
+    contact_matching: Any = config_field(
+        RewTerm(
+            func=mdp.contact_matching,
+            weight=10.0,
+            params={"sensor_cfg": _FOOT_SENSOR_CFG, "threshold": 1.0, "gait_period": _GAIT_PERIOD},
+        )
     )
-    track_lin_vel_xy = RewTerm(
-        func=mdp.track_lin_vel_xy_exp,
-        weight=5.0,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.125)},
+    track_lin_vel_xy: Any = config_field(
+        RewTerm(
+            func=mdp.track_lin_vel_xy_exp,
+            weight=5.0,
+            params={"command_name": "base_velocity", "std": math.sqrt(0.125)},
+        )
     )
-    root_orientation = RewTerm(
-        func=mdp.root_orientation_exp,
-        weight=5.0,
-        params={"asset_cfg": SceneEntityCfg("robot"), "sigma": 0.2},
+    root_orientation: Any = config_field(
+        RewTerm(
+            func=mdp.root_orientation_exp,
+            weight=5.0,
+            params={"asset_cfg": SceneEntityCfg("robot"), "sigma": 0.2},
+        )
     )
-    foot_clearance = RewTerm(
-        func=mdp.foot_clearance,
-        weight=5.0,
-        params={
-            "asset_cfg": _FOOT_ASSET_CFG,
-            "target_height": 0.065,
-            "sigma": 0.01,
-            "gait_period": _GAIT_PERIOD,
-        },
+    foot_clearance: Any = config_field(
+        RewTerm(
+            func=mdp.foot_clearance,
+            weight=5.0,
+            params={
+                "asset_cfg": _FOOT_ASSET_CFG,
+                "target_height": 0.065,
+                "sigma": 0.01,
+                "gait_period": _GAIT_PERIOD,
+            },
+        )
     )
-    track_ang_vel_z = RewTerm(
-        func=mdp.track_ang_vel_z_exp,
-        weight=2.0,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.5)},
+    track_ang_vel_z: Any = config_field(
+        RewTerm(
+            func=mdp.track_ang_vel_z_exp,
+            weight=2.0,
+            params={"command_name": "base_velocity", "std": math.sqrt(0.5)},
+        )
     )
-    feet_parallel = RewTerm(
-        func=mdp.feet_parallel,
-        weight=2.0,
-        params={"asset_cfg": _FOOT_ASSET_CFG, "sigma": 0.2},
+    feet_parallel: Any = config_field(
+        RewTerm(
+            func=mdp.feet_parallel,
+            weight=2.0,
+            params={"asset_cfg": _FOOT_ASSET_CFG, "sigma": 0.2},
+        )
     )
-    feet_flat = RewTerm(
-        func=mdp.feet_flat,
-        weight=2.0,
-        params={"asset_cfg": _FOOT_ASSET_CFG, "sigma": 0.2},
+    feet_flat: Any = config_field(
+        RewTerm(
+            func=mdp.feet_flat,
+            weight=2.0,
+            params={"asset_cfg": _FOOT_ASSET_CFG, "sigma": 0.2},
+        )
     )
 
     # -- negative (penalties)
-    feet_touchdown_vel = RewTerm(
-        func=mdp.feet_touchdown_vel,
-        weight=-2.0,
-        params={"asset_cfg": _FOOT_ASSET_CFG, "sensor_cfg": _FOOT_SENSOR_CFG, "threshold": 1.0},
+    feet_touchdown_vel: Any = config_field(
+        RewTerm(
+            func=mdp.feet_touchdown_vel,
+            weight=-2.0,
+            params={"asset_cfg": _FOOT_ASSET_CFG, "sensor_cfg": _FOOT_SENSOR_CFG, "threshold": 1.0},
+        )
     )
-    lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
-    ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.5)
-    torques = RewTerm(
-        func=mdp.joint_pd_command_l2,
-        weight=-0.001,
-        params={"asset_cfg": _ACTUATED_JOINT_CFG, "stiffness": 5.0, "damping": 0.2},
+    lin_vel_z: Any = config_field(RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5))
+    ang_vel_xy: Any = config_field(RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.5))
+    torques: Any = config_field(
+        RewTerm(
+            func=mdp.joint_pd_command_l2,
+            weight=-0.001,
+            params={"asset_cfg": _ACTUATED_JOINT_CFG, "stiffness": 5.0, "damping": 0.2},
+        )
     )
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
-    action_2nd_derivative = RewTerm(func=mdp.ActionRate2L2, weight=-5.0e-5)
+    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.001))
+    action_2nd_derivative: Any = config_field(RewTerm(func=mdp.ActionRate2L2, weight=-5.0e-5))
 
     # -- success metric (velocity tracking + gait-contact match)
-    success_rate = RewTerm(
-        func=mdp.walk_success_rate,
-        weight=1.0,
-        params={
-            "command_name": "base_velocity",
-            "asset_cfg": SceneEntityCfg("robot"),
-            "sensor_cfg": _FOOT_SENSOR_CFG,
-            "gait_period": _GAIT_PERIOD,
-            "contact_threshold": 1.0,
-            "vel_xy_threshold": 0.15,
-            "vel_yaw_threshold": 0.4,
-            "contact_match_threshold": 0.7,
-        },
+    success_rate: Any = config_field(
+        RewTerm(
+            func=mdp.walk_success_rate,
+            weight=1.0,
+            params={
+                "command_name": "base_velocity",
+                "asset_cfg": SceneEntityCfg("robot"),
+                "sensor_cfg": _FOOT_SENSOR_CFG,
+                "gait_period": _GAIT_PERIOD,
+                "contact_threshold": 1.0,
+                "vel_xy_threshold": 0.15,
+                "vel_yaw_threshold": 0.4,
+                "contact_match_threshold": 0.7,
+            },
+        )
     )
 
 
@@ -178,7 +207,7 @@ class WalkRewardsCfg(ConfigMixin):
 class DrLegsWalkEnvCfg(DrLegsHoldPoseEnvCfg):
     """DR Legs velocity-tracking walk environment."""
 
-    scene: WalkSceneCfg = WalkSceneCfg(num_envs=4096, env_spacing=2.0)
-    observations: WalkObservationsCfg = WalkObservationsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    rewards: WalkRewardsCfg = WalkRewardsCfg()
+    scene: WalkSceneCfg = config_field(WalkSceneCfg(num_envs=4096, env_spacing=2.0))
+    observations: WalkObservationsCfg = config_field(WalkObservationsCfg())
+    commands: CommandsCfg = config_field(CommandsCfg())
+    rewards: WalkRewardsCfg = config_field(WalkRewardsCfg())

@@ -8,7 +8,7 @@ from dataclasses import MISSING, dataclass
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from isaaclab_tasks.contrib.stack import mdp
 
@@ -99,7 +99,7 @@ def _build_so101_joint_teleop_pipeline():
 
 
 @dataclass
-class SO101JointTeleopActionsCfg(ConfigMixin):
+class SO101JointTeleopActionsCfg:
     """Action terms for SO-101 joint-space teleop, ordered to match the pipeline ``output_order``.
 
     This is a fresh (non-inheriting) action container declared in field order
@@ -112,8 +112,8 @@ class SO101JointTeleopActionsCfg(ConfigMixin):
     Inheriting from the base ``ActionsCfg`` would keep its delta-scaled arm term and binary gripper.
     """
 
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.JointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
+    gripper_action: mdp.JointPositionActionCfg = config_field(MISSING)
 
 
 @dataclass
@@ -128,7 +128,8 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Replace the actions container with an absolute joint mirror. The base env's arm term is
         # delta-scaled (``scale=0.5``, ``use_default_offset=True``) with a binary gripper, which is

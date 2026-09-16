@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import warp as wp
 
+from isaaclab.utils import replace_config
+
 if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
@@ -162,7 +164,7 @@ def apply_articulation_ordering_preset(
     parsed_ordering = parse_articulation_ordering_convention(ordering)
     if parsed_ordering is None:
         return cfg
-    return cfg.replace(joint_ordering=parsed_ordering, body_ordering=parsed_ordering)
+    return replace_config(cfg, joint_ordering=parsed_ordering, body_ordering=parsed_ordering)
 
 
 def build_articulation_name_map(

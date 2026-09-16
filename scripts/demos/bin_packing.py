@@ -32,6 +32,10 @@ velocity, and mass noise, teleporting out-of-bounds objects back in.
 
 from __future__ import annotations
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -202,13 +206,13 @@ class RandomSubsetSet(InclusionSet):
     :class:`~isaaclab.cloner.InclusionSet` and filling in the active assets.
     """
 
-    pool: list[str] = MISSING
+    pool: list[str] = config_field(MISSING)
     """Scene asset names eligible for inclusion."""
 
-    num_active: tuple[int, int] = MISSING
+    num_active: tuple[int, int] = config_field(MISSING)
     """Inclusive lower and upper bound on the number of active assets."""
 
-    seed: int | None = None
+    seed: int | None = config_field(None)
     """Seed for the draw. ``None`` draws a different subset for every instance."""
 
     def __post_init__(self):
@@ -228,65 +232,69 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
     """
 
     # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)))
     )
     # rigid object
-    object: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
-            scale=(2.0, 2.0, 2.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0, kinematic_enabled=True
+    object: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
+                scale=(2.0, 2.0, 2.0),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    solver_position_iteration_count=4, solver_velocity_iteration_count=0, kinematic_enabled=True
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
+        )
     )
 
     # grocery slots, one per object that may end up in the bin
-    grocery_00: AssetBaseCfg = grocery_cfg(0)
-    grocery_01: AssetBaseCfg = grocery_cfg(1)
-    grocery_02: AssetBaseCfg = grocery_cfg(2)
-    grocery_03: AssetBaseCfg = grocery_cfg(3)
-    grocery_04: AssetBaseCfg = grocery_cfg(4)
-    grocery_05: AssetBaseCfg = grocery_cfg(5)
-    grocery_06: AssetBaseCfg = grocery_cfg(6)
-    grocery_07: AssetBaseCfg = grocery_cfg(7)
-    grocery_08: AssetBaseCfg = grocery_cfg(8)
-    grocery_09: AssetBaseCfg = grocery_cfg(9)
-    grocery_10: AssetBaseCfg = grocery_cfg(10)
-    grocery_11: AssetBaseCfg = grocery_cfg(11)
-    grocery_12: AssetBaseCfg = grocery_cfg(12)
-    grocery_13: AssetBaseCfg = grocery_cfg(13)
-    grocery_14: AssetBaseCfg = grocery_cfg(14)
-    grocery_15: AssetBaseCfg = grocery_cfg(15)
-    grocery_16: AssetBaseCfg = grocery_cfg(16)
-    grocery_17: AssetBaseCfg = grocery_cfg(17)
-    grocery_18: AssetBaseCfg = grocery_cfg(18)
-    grocery_19: AssetBaseCfg = grocery_cfg(19)
-    grocery_20: AssetBaseCfg = grocery_cfg(20)
-    grocery_21: AssetBaseCfg = grocery_cfg(21)
-    grocery_22: AssetBaseCfg = grocery_cfg(22)
-    grocery_23: AssetBaseCfg = grocery_cfg(23)
+    grocery_00: AssetBaseCfg = config_field(grocery_cfg(0))
+    grocery_01: AssetBaseCfg = config_field(grocery_cfg(1))
+    grocery_02: AssetBaseCfg = config_field(grocery_cfg(2))
+    grocery_03: AssetBaseCfg = config_field(grocery_cfg(3))
+    grocery_04: AssetBaseCfg = config_field(grocery_cfg(4))
+    grocery_05: AssetBaseCfg = config_field(grocery_cfg(5))
+    grocery_06: AssetBaseCfg = config_field(grocery_cfg(6))
+    grocery_07: AssetBaseCfg = config_field(grocery_cfg(7))
+    grocery_08: AssetBaseCfg = config_field(grocery_cfg(8))
+    grocery_09: AssetBaseCfg = config_field(grocery_cfg(9))
+    grocery_10: AssetBaseCfg = config_field(grocery_cfg(10))
+    grocery_11: AssetBaseCfg = config_field(grocery_cfg(11))
+    grocery_12: AssetBaseCfg = config_field(grocery_cfg(12))
+    grocery_13: AssetBaseCfg = config_field(grocery_cfg(13))
+    grocery_14: AssetBaseCfg = config_field(grocery_cfg(14))
+    grocery_15: AssetBaseCfg = config_field(grocery_cfg(15))
+    grocery_16: AssetBaseCfg = config_field(grocery_cfg(16))
+    grocery_17: AssetBaseCfg = config_field(grocery_cfg(17))
+    grocery_18: AssetBaseCfg = config_field(grocery_cfg(18))
+    grocery_19: AssetBaseCfg = config_field(grocery_cfg(19))
+    grocery_20: AssetBaseCfg = config_field(grocery_cfg(20))
+    grocery_21: AssetBaseCfg = config_field(grocery_cfg(21))
+    grocery_22: AssetBaseCfg = config_field(grocery_cfg(22))
+    grocery_23: AssetBaseCfg = config_field(grocery_cfg(23))
 
     # A slot claimed by some layout but active in none of the layouts the environments
     # actually receive is never spawned, which the scene rejects. Environments cycle
     # through the layouts in order, so a full first layout keeps every slot active for
     # any ``--num_envs``, and the random draws below stay unconstrained.
-    clone_cfg: CloneCfg = CloneCfg(
-        clone_combinations=[
-            InclusionSet(assets=GROCERY_NAMES),
-            *(
-                RandomSubsetSet(pool=GROCERY_NAMES, num_active=(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN))
-                for _ in range(NUM_LAYOUTS - 1)
-            ),
-        ],
-        clone_strategy=sequential,
+    clone_cfg: CloneCfg = config_field(
+        CloneCfg(
+            clone_combinations=[
+                InclusionSet(assets=GROCERY_NAMES),
+                *(
+                    RandomSubsetSet(pool=GROCERY_NAMES, num_active=(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN))
+                    for _ in range(NUM_LAYOUTS - 1)
+                ),
+            ],
+            clone_strategy=sequential,
+        )
     )
 
 

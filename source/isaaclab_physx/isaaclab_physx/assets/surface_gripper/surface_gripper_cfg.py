@@ -7,6 +7,7 @@ from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .surface_gripper import SurfaceGripper
@@ -16,19 +17,19 @@ if TYPE_CHECKING:
 class SurfaceGripperCfg(AssetBaseCfg):
     """Configuration parameters for a surface gripper actuator."""
 
-    prim_path: str = MISSING
+    prim_path: str = config_field(MISSING)
     """The expression to find the grippers in the stage."""
 
-    max_grip_distance: float | None = None
+    max_grip_distance: float | None = config_field(None)
     """The maximum grip distance of the gripper."""
 
-    coaxial_force_limit: float | None = None
+    coaxial_force_limit: float | None = config_field(None)
     """The coaxial force limit of the gripper."""
 
-    shear_force_limit: float | None = None
+    shear_force_limit: float | None = config_field(None)
     """The shear force limit of the gripper."""
 
-    retry_interval: float | None = None
+    retry_interval: float | None = config_field(None)
     """The amount of time the gripper will spend trying to grasp an object."""
 
-    class_type: type["SurfaceGripper"] | str = "{DIR}.surface_gripper:SurfaceGripper"
+    class_type: type["SurfaceGripper"] | str = config_field("{DIR}.surface_gripper:SurfaceGripper")

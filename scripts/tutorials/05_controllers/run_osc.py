@@ -16,6 +16,10 @@ mass matricescomputed by PhysX.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, copy_config, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -66,39 +70,45 @@ class SceneCfg(InteractiveSceneCfg):
     """Configuration for a simple scene with a tilted wall."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/defaultGroundPlane",
+            spawn=sim_utils.GroundPlaneCfg(),
+        )
     )
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # Tilted wall
-    tilted_wall = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/TiltedWall",
-        spawn=sim_utils.CuboidCfg(
-            size=(2.0, 1.5, 0.01),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-            activate_contact_sensors=True,
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.0, -0.3826834324, 0.0, 0.9238795325)
-        ),
+    tilted_wall: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/TiltedWall",
+            spawn=sim_utils.CuboidCfg(
+                size=(2.0, 1.5, 0.01),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+                activate_contact_sensors=True,
+            ),
+            init_state=AssetBaseCfg.InitialStateCfg(
+                pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.0, -0.3826834324, 0.0, 0.9238795325)
+            ),
+        )
     )
 
-    contact_forces = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/TiltedWall",
-        update_period=0.0,
-        history_length=2,
-        debug_vis=False,
+    contact_forces: Any = config_field(
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/TiltedWall",
+            update_period=0.0,
+            history_length=2,
+            debug_vis=False,
+        )
     )
 
-    robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: Any = config_field(replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
     robot.actuators["panda_shoulder"].stiffness = 0.0
     robot.actuators["panda_shoulder"].damping = 0.0
     robot.actuators["panda_forearm"].stiffness = 0.0
@@ -140,10 +150,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg = copy_config(FRAME_MARKER_CFG)
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
-    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+    ee_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
 
     # Define targets for the arm (x,y,z,qx,qy,qz,qw)
     ee_goal_pose_set_tilted_b = torch.tensor(

@@ -27,6 +27,7 @@ from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.actuators._compat import _resolve_limit_aliases
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from isaaclab.utils import copy_config
 from isaaclab.utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
 
 
@@ -222,7 +223,7 @@ def _author_actuator_prims(
         if not joint_names:
             continue
 
-        resolved_cfg = cfg.copy()
+        resolved_cfg = copy_config(cfg)
         # Collection construction emits the deprecation warning later in the
         # normal asset lifecycle. Authoring only needs the normalized value.
         _resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)

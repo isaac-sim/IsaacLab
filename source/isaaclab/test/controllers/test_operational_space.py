@@ -5,7 +5,10 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from typing import Any
+
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field, copy_config, replace_config
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -41,7 +44,6 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import ConfigMixin
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
@@ -75,10 +77,10 @@ def sim():
     cfg.func("/World/GroundPlane", cfg)
 
     # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg = copy_config(FRAME_MARKER_CFG)
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
-    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+    ee_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
 
     light_cfg = sim_utils.DistantLightCfg(intensity=5.0, exposure=10.0)
     light_cfg.func(
@@ -97,7 +99,7 @@ def sim():
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
     robot_cfg.actuators["panda_shoulder"].damping = 0.0
     robot_cfg.actuators["panda_forearm"].stiffness = 0.0
@@ -1291,51 +1293,54 @@ _G1_ARM_JOINT_NAMES = [
 class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
     """Minimal scene with a floating-base G1 humanoid."""
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False))
+    robot: ArticulationCfg = config_field(replace_config(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.robot.spawn.articulation_props.fix_root_link = False
         self.robot.spawn.rigid_props.disable_gravity = True
 
 
 @dataclass
-class _FloatingBaseOscActionsCfg(ConfigMixin):
-    arm_action: OperationalSpaceControllerActionCfg = OperationalSpaceControllerActionCfg(
-        asset_name="robot",
-        joint_names=_G1_ARM_JOINT_NAMES,
-        body_name="left_elbow_link",
-        controller_cfg=OperationalSpaceControllerCfg(
-            target_types=["pose_abs"],
-            impedance_mode="fixed",
-            # Both flags enabled so the action term fetches mass matrix AND
-            # gravity each step, exercising the floating-base +6 indexing on
-            # both quantities.
-            inertial_dynamics_decoupling=True,
-            gravity_compensation=True,
-            motion_stiffness_task=500.0,
-            motion_damping_ratio_task=1.0,
-        ),
+class _FloatingBaseOscActionsCfg:
+    arm_action: OperationalSpaceControllerActionCfg = config_field(
+        OperationalSpaceControllerActionCfg(
+            asset_name="robot",
+            joint_names=_G1_ARM_JOINT_NAMES,
+            body_name="left_elbow_link",
+            controller_cfg=OperationalSpaceControllerCfg(
+                target_types=["pose_abs"],
+                impedance_mode="fixed",
+                # Both flags enabled so the action term fetches mass matrix AND
+                # gravity each step, exercising the floating-base +6 indexing on
+                # both quantities.
+                inertial_dynamics_decoupling=True,
+                gravity_compensation=True,
+                motion_stiffness_task=500.0,
+                motion_damping_ratio_task=1.0,
+            ),
+        )
     )
 
 
 @dataclass
-class _FloatingBaseOscObsCfg(ConfigMixin):
+class _FloatingBaseOscObsCfg:
     @dataclass
     class _PolicyCfg(ObsGroup):
-        joint_pos = ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot")})
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot")}))
 
-    policy: _PolicyCfg = _PolicyCfg()
+    policy: _PolicyCfg = config_field(_PolicyCfg())
 
 
 @dataclass
 class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
-    scene: _FloatingBaseOscSceneCfg = _FloatingBaseOscSceneCfg(num_envs=4, env_spacing=4.0)
-    actions: _FloatingBaseOscActionsCfg = _FloatingBaseOscActionsCfg()
-    observations: _FloatingBaseOscObsCfg = _FloatingBaseOscObsCfg()
-    decimation: int = 1
-    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=0.01)
+    scene: _FloatingBaseOscSceneCfg = config_field(_FloatingBaseOscSceneCfg(num_envs=4, env_spacing=4.0))
+    actions: _FloatingBaseOscActionsCfg = config_field(_FloatingBaseOscActionsCfg())
+    observations: _FloatingBaseOscObsCfg = config_field(_FloatingBaseOscObsCfg())
+    decimation: int = config_field(1)
+    sim: sim_utils.SimulationCfg = config_field(sim_utils.SimulationCfg(dt=0.01))
 
 
 @pytest.mark.isaacsim_ci

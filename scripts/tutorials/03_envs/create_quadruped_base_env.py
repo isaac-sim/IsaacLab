@@ -17,6 +17,10 @@ the terrain.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -54,7 +58,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import ConfigMixin
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, read_file
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -85,38 +88,44 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # add terrain
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=5,
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        debug_vis=False,
+    terrain: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            terrain_generator=ROUGH_TERRAINS_CFG,
+            max_init_terrain_level=5,
+            collision_group=-1,
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                friction_combine_mode="multiply",
+                restitution_combine_mode="multiply",
+                static_friction=1.0,
+                dynamic_friction=1.0,
+            ),
+            debug_vis=False,
+        )
     )
 
     # add robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # sensors
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=True,
-        mesh_prim_paths=["/World/ground"],
+    height_scanner: Any = config_field(
+        RayCasterCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+            ray_alignment="yaw",
+            pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+            debug_vis=True,
+            mesh_prim_paths=["/World/ground"],
+        )
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        )
     )
 
 
@@ -126,14 +135,16 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    joint_pos: Any = config_field(
+        mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -141,21 +152,25 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        projected_gravity = ObsTerm(
-            func=mdp.projected_gravity,
-            noise=Unoise(n_min=-0.05, n_max=0.05),
+        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
+        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)))
+        projected_gravity: Any = config_field(
+            ObsTerm(
+                func=mdp.projected_gravity,
+                noise=Unoise(n_min=-0.05, n_max=0.05),
+            )
         )
-        velocity_commands = ObsTerm(func=constant_commands)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
-        actions = ObsTerm(func=mdp.last_action)
-        height_scan = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
-            clip=(-1.0, 1.0),
+        velocity_commands: Any = config_field(ObsTerm(func=constant_commands))
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5)))
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        height_scan: Any = config_field(
+            ObsTerm(
+                func=mdp.height_scan,
+                params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+                noise=Unoise(n_min=-0.1, n_max=0.1),
+                clip=(-1.0, 1.0),
+            )
         )
 
         def __post_init__(self):
@@ -163,14 +178,14 @@ class ObservationsCfg(ConfigMixin):
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    reset_scene = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+    reset_scene: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
 
 ##
@@ -183,11 +198,11 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)
+    scene: MySceneCfg = config_field(MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    events: EventCfg = config_field(EventCfg())
 
     def __post_init__(self):
         """Post initialization."""

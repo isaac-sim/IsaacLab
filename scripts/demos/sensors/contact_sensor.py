@@ -6,9 +6,10 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field, replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the contact sensor.")
@@ -52,54 +53,62 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # Rigid Object
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.5, 0.5, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.5, 0.05)),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.5, 0.5, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.5, 0.05)),
+        )
     )
 
-    contact_forces_LF = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
-        update_period=0.0,
-        history_length=6,
-        debug_vis=True,
-        filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
-        track_friction_forces=args_cli.physics == "newton_mjwarp",
+    contact_forces_LF: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
+            update_period=0.0,
+            history_length=6,
+            debug_vis=True,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
+            track_friction_forces=args_cli.physics == "newton_mjwarp",
+        )
     )
 
-    contact_forces_RF = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT",
-        update_period=0.0,
-        history_length=6,
-        debug_vis=True,
-        filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
-        track_friction_forces=args_cli.physics == "newton_mjwarp",
+    contact_forces_RF: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT",
+            update_period=0.0,
+            history_length=6,
+            debug_vis=True,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
+            track_friction_forces=args_cli.physics == "newton_mjwarp",
+        )
     )
 
-    contact_forces_H = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*H_FOOT",
-        update_period=0.0,
-        history_length=6,
-        debug_vis=True,
-        track_friction_forces=args_cli.physics == "newton_mjwarp",
+    contact_forces_H: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/.*H_FOOT",
+            update_period=0.0,
+            history_length=6,
+            debug_vis=True,
+            track_friction_forces=args_cli.physics == "newton_mjwarp",
+        )
     )
 
 

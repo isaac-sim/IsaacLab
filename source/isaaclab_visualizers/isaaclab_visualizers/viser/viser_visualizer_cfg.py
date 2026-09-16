@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -20,43 +21,43 @@ if TYPE_CHECKING:
 class ViserVisualizerCfg(VisualizerCfg):
     """Configuration for Viser visualizer (web-based visualization)."""
 
-    class_type: type[ViserVisualizer] | str = "{DIR}.viser_visualizer:ViserVisualizer"
+    class_type: type[ViserVisualizer] | str = config_field("{DIR}.viser_visualizer:ViserVisualizer")
     """Visualizer implementation class."""
 
-    visualizer_type: str = "viser"
+    visualizer_type: str = config_field("viser")
     """Type identifier for Viser visualizer."""
 
-    port: int = 8080
+    port: int = config_field(8080)
     """Port of the local viser web server."""
 
-    bind_address: str = "0.0.0.0"
+    bind_address: str = config_field("0.0.0.0")
     """Host/interface for the Viser server to bind.
 
     Use ``"0.0.0.0"`` to listen on all interfaces for remote access.
     """
 
-    display_address: str = "localhost"
+    display_address: str = config_field("localhost")
     """Host name or IP address shown in the printed browser URL.
 
     For remote access, set this to the hostname/IP reachable from your browser.
     """
 
-    open_browser: bool = False
+    open_browser: bool = config_field(False)
     """Whether to attempt opening the viser web viewer URL in a browser.
 
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    verbose: bool = True
+    verbose: bool = config_field(True)
     """Whether to print viewer server startup information."""
 
-    share: bool = False
+    share: bool = config_field(False)
     """Whether to request a public share URL from viser."""
 
-    record_to_viser: str | None = None
+    record_to_viser: str | None = config_field(None)
     """Path to save a .viser recording file. None = no recording."""
 
-    show_particles: bool = True
+    show_particles: bool = config_field(True)
     """Whether to render particle systems (MPM, VBD) in the Viser viewer.
 
     Defaults to ``True`` so particle simulations (granular, cloth, soft-body) are

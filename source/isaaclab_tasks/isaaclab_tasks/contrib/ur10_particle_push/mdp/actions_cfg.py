@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions import RelativeJointPositionActionCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .actions import ClampedRelativeJointPositionAction
@@ -20,7 +21,9 @@ if TYPE_CHECKING:
 class ClampedRelativeJointPositionActionCfg(RelativeJointPositionActionCfg):
     """Configuration for one bounded joint-delta target per policy step."""
 
-    joint_limit_margin: float = 0.0
+    joint_limit_margin: float = config_field(0.0)
     """Margin retained inside the articulation's soft joint-position limits [rad]."""
 
-    class_type: type[ClampedRelativeJointPositionAction] | str = "{DIR}.actions:ClampedRelativeJointPositionAction"
+    class_type: type[ClampedRelativeJointPositionAction] | str = config_field(
+        "{DIR}.actions:ClampedRelativeJointPositionAction"
+    )

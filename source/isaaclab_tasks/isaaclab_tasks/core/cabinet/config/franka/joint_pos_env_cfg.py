@@ -4,9 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.utils import config_field, replace_config
 
 import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
@@ -18,43 +20,46 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 class FrankaCabinetSceneCfg(CabinetSceneCfg):
     """Cabinet scene configured for the Franka robot."""
 
-    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    ee_frame = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
-        debug_vis=False,
-        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
-        target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
-                name="ee_tcp",
-                offset=OffsetCfg(
-                    pos=(0.0, 0.0, 0.1034),
+    robot: Any = config_field(replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    ee_frame: Any = config_field(
+        FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+            debug_vis=False,
+            visualizer_cfg=replace_config(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/EndEffectorFrameTransformer"),
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                    name="ee_tcp",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.1034),
+                    ),
                 ),
-            ),
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
-                name="tool_leftfinger",
-                offset=OffsetCfg(
-                    pos=(0.0, 0.0, 0.046),
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+                    name="tool_leftfinger",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.046),
+                    ),
                 ),
-            ),
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
-                name="tool_rightfinger",
-                offset=OffsetCfg(
-                    pos=(0.0, 0.0, 0.046),
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+                    name="tool_rightfinger",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.046),
+                    ),
                 ),
-            ),
-        ],
+            ],
+        )
     )
 
 
 @dataclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
-    scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
+    scene: FrankaCabinetSceneCfg = config_field(FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0))
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # actions
         self.actions.arm_action = mdp.JointPositionActionCfg(

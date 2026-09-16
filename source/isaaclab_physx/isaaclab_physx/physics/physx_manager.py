@@ -43,6 +43,7 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_root_path,
     resolve_deformable_vertex_count,
 )
+from isaaclab.utils import config_to_dict
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_physx.cloner import PhysxReplicateContext
@@ -825,7 +826,7 @@ class PhysxManager(PhysicsManager):
             "physics_material",
             "class_type",
         }
-        for key, value in cfg.to_dict().items():  # type: ignore
+        for key, value in config_to_dict(cfg).items():  # type: ignore
             if key not in skip:
                 attr_name = "bounce_threshold" if key == "bounce_threshold_velocity" else key
                 sim_utils.safe_set_attribute_on_usd_prim(

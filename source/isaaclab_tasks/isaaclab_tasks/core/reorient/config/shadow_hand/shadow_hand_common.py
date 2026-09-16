@@ -11,6 +11,7 @@ scales and thresholds live inline in the workflow configuration files.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -23,7 +24,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
@@ -36,108 +37,124 @@ from isaaclab_assets.robots.shadow_hand import (
 
 
 @dataclass
-class ShadowHandRandomizationEventCfg(ConfigMixin):
+class ShadowHandRandomizationEventCfg:
     """Randomization of the hand and the object, applied on every physics backend."""
 
-    robot_joint_stiffness_and_damping = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
+    robot_joint_stiffness_and_damping: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_actuator_gains,
+            min_step_count_between_reset=720,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot"),
+                "stiffness_distribution_params": (0.75, 1.5),
+                "damping_distribution_params": (0.3, 3.0),
+                "operation": "scale",
+                "distribution": "log_uniform",
+            },
+        )
     )
-    object_scale_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": (0.5, 1.5),
-            "operation": "scale",
-            "distribution": "uniform",
-            "recompute_inertia": False,
-        },
+    object_scale_mass: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_mass,
+            min_step_count_between_reset=720,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("object"),
+                "mass_distribution_params": (0.5, 1.5),
+                "operation": "scale",
+                "distribution": "uniform",
+                "recompute_inertia": False,
+            },
+        )
     )
 
     # -- scene
-    reset_gravity = EventTerm(
-        func=mdp.randomize_physics_scene_gravity,
-        mode="interval",
-        is_global_time=True,
-        interval_range_s=(36.0, 36.0),  # time_s = num_steps * (decimation * dt)
-        params={
-            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.4]),
-            "operation": "add",
-            "distribution": "gaussian",
-        },
+    reset_gravity: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_physics_scene_gravity,
+            mode="interval",
+            is_global_time=True,
+            interval_range_s=(36.0, 36.0),  # time_s = num_steps * (decimation * dt)
+            params={
+                "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.4]),
+                "operation": "add",
+                "distribution": "gaussian",
+            },
+        )
     )
 
-    robot_tendon_properties = EventTerm(
-        func=mdp.randomize_fixed_tendon_parameters,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
+    robot_tendon_properties: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_fixed_tendon_parameters,
+            min_step_count_between_reset=720,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
+                "stiffness_distribution_params": (0.75, 1.5),
+                "damping_distribution_params": (0.3, 3.0),
+                "operation": "scale",
+                "distribution": "log_uniform",
+            },
+        )
     )
 
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="reset",
-        min_step_count_between_reset=720,
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (1.0, 1.0),
-            "restitution_range": (1.0, 1.0),
-            "num_buckets": 250,
-        },
+    robot_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="reset",
+            min_step_count_between_reset=720,
+            params={
+                "asset_cfg": SceneEntityCfg("robot"),
+                "static_friction_range": (0.7, 1.3),
+                "dynamic_friction_range": (1.0, 1.0),
+                "restitution_range": (1.0, 1.0),
+                "num_buckets": 250,
+            },
+        )
     )
 
-    object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("object"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (1.0, 1.0),
-            "restitution_range": (1.0, 1.0),
-            "num_buckets": 250,
-        },
+    object_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            min_step_count_between_reset=720,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("object"),
+                "static_friction_range": (0.7, 1.3),
+                "dynamic_friction_range": (1.0, 1.0),
+                "restitution_range": (1.0, 1.0),
+                "num_buckets": 250,
+            },
+        )
     )
 
 
 @dataclass
-class ShadowHandManagerResetEventCfg(ConfigMixin):
+class ShadowHandManagerResetEventCfg:
     """Only the per-episode state reset, with no domain randomization."""
 
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_with_random_orientation,
-        mode="reset",
-        params={
-            # the Direct task jitters the drop position and samples a random orientation
-            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
+    reset_object: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_with_random_orientation,
+            mode="reset",
+            params={
+                # the Direct task jitters the drop position and samples a random orientation
+                "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
+                "velocity_range": {},
+                "asset_cfg": SceneEntityCfg("object"),
+            },
+        )
     )
-    reset_hand = EventTerm(
-        func=reorient_mdp.reset_reorient_hand,
-        mode="reset",
-        params={
-            "joint_position_noise": 0.2,  # [rad]
-            "joint_velocity_noise": 0.0,  # [rad/s]
-        },
+    reset_hand: Any = config_field(
+        EventTerm(
+            func=reorient_mdp.reset_reorient_hand,
+            mode="reset",
+            params={
+                "joint_position_noise": 0.2,  # [rad]
+                "joint_velocity_noise": 0.0,  # [rad/s]
+            },
+        )
     )
 
 
@@ -150,8 +167,8 @@ class ShadowHandManagerEventCfg(ShadowHandRandomizationEventCfg, ShadowHandManag
 class ShadowHandManagerEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
-    randomized = ShadowHandManagerEventCfg()
-    default = ShadowHandManagerResetEventCfg()
+    randomized: Any = config_field(ShadowHandManagerEventCfg())
+    default: Any = config_field(ShadowHandManagerResetEventCfg())
 
 
 @dataclass
@@ -164,17 +181,23 @@ class ShadowHandRobotCfg(PresetCfg):
     """
 
     # `spawn_path` authors only the prototype env; the scene clone plan replicates the rest (#7036).
-    newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
+    newton_mjwarp: Any = config_field(
+        replace_config(
+            SHADOW_HAND_NEWTON_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace_config(SHADOW_HAND_NEWTON_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
+        )
     )
-    isaacsim_physx = SHADOW_HAND_PHYSX_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_PHYSX_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
+    isaacsim_physx: Any = config_field(
+        replace_config(
+            SHADOW_HAND_PHYSX_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace_config(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
+        )
     )
-    physx = isaacsim_physx
-    ovphysx = isaacsim_physx
-    default = newton_mjwarp
+    physx: Any = config_field(isaacsim_physx)
+    ovphysx: Any = config_field(isaacsim_physx)
+    default: Any = config_field(newton_mjwarp)
 
 
 CUBE_CFG = RigidObjectCfg(
@@ -210,25 +233,29 @@ CUBE_CFG = RigidObjectCfg(
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx = PhysxCfg(
-        bounce_threshold_velocity=0.2,
-        gpu_max_rigid_contact_count=2**23,
-        gpu_max_rigid_patch_count=2**23,
+    isaacsim_physx: Any = config_field(
+        PhysxCfg(
+            bounce_threshold_velocity=0.2,
+            gpu_max_rigid_contact_count=2**23,
+            gpu_max_rigid_patch_count=2**23,
+        )
     )
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            integrator="implicitfast",
-            njmax=200,
-            nconmax=70,
-            impratio=10.0,
-            cone="elliptic",
-            update_data_interval=2,
-        ),
-        num_substeps=2,
+    newton_mjwarp: Any = config_field(
+        NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                integrator="implicitfast",
+                njmax=200,
+                nconmax=70,
+                impratio=10.0,
+                cone="elliptic",
+                update_data_interval=2,
+            ),
+            num_substeps=2,
+        )
     )
-    ovphysx = OvPhysxCfg()
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = newton_mjwarp
+    ovphysx: Any = config_field(OvPhysxCfg())
+    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
+    default: Any = config_field(newton_mjwarp)
 
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(

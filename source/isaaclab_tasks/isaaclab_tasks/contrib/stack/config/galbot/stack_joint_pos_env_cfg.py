@@ -5,6 +5,7 @@
 
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_physx.assets import SurfaceGripperCfg
 from isaaclab_teleop import IsaacTeleopCfg
@@ -19,7 +20,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -120,70 +121,86 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    reset_all: Any = config_field(
+        EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    )
 
-    randomize_cube_positions = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-0.2, 0.0),
-                "y": (0.20, 0.40),
-                "z": (0.0203, 0.0203),
-                "yaw": (-1.0, 1.0, 0.0),
+    randomize_cube_positions: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": (-0.2, 0.0),
+                    "y": (0.20, 0.40),
+                    "z": (0.0203, 0.0203),
+                    "yaw": (-1.0, 1.0, 0.0),
+                },
+                "min_separation": 0.1,
+                "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
             },
-            "min_separation": 0.1,
-            "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
-        },
+        )
     )
 
 
 @dataclass
-class ObservationGalbotLeftArmGripperCfg(ConfigMixin):
+class ObservationGalbotLeftArmGripperCfg:
     """Observations for the Galbot Left Arm Gripper."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp.last_action)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
 
-        object = ObsTerm(
-            func=mdp.object_abs_obs_in_base_frame,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-            },
+        object: Any = config_field(
+            ObsTerm(
+                func=mdp.object_abs_obs_in_base_frame,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                },
+            )
         )
-        cube_positions = ObsTerm(
-            func=mdp.cube_poses_in_base_frame, params={"robot_cfg": SceneEntityCfg("robot"), "return_key": "pos"}
+        cube_positions: Any = config_field(
+            ObsTerm(
+                func=mdp.cube_poses_in_base_frame, params={"robot_cfg": SceneEntityCfg("robot"), "return_key": "pos"}
+            )
         )
-        cube_orientations = ObsTerm(
-            func=mdp.cube_poses_in_base_frame, params={"robot_cfg": SceneEntityCfg("robot"), "return_key": "quat"}
+        cube_orientations: Any = config_field(
+            ObsTerm(
+                func=mdp.cube_poses_in_base_frame, params={"robot_cfg": SceneEntityCfg("robot"), "return_key": "quat"}
+            )
         )
 
-        eef_pos = ObsTerm(
-            func=mdp.ee_frame_pose_in_base_frame,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "return_key": "pos",
-            },
+        eef_pos: Any = config_field(
+            ObsTerm(
+                func=mdp.ee_frame_pose_in_base_frame,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "return_key": "pos",
+                },
+            )
         )
-        eef_quat = ObsTerm(
-            func=mdp.ee_frame_pose_in_base_frame,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "return_key": "quat",
-            },
+        eef_quat: Any = config_field(
+            ObsTerm(
+                func=mdp.ee_frame_pose_in_base_frame,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "return_key": "quat",
+                },
+            )
         )
-        gripper_pos = ObsTerm(
-            func=mdp.gripper_pos,
+        gripper_pos: Any = config_field(
+            ObsTerm(
+                func=mdp.gripper_pos,
+            )
         )
 
         def __post_init__(self):
@@ -194,59 +211,73 @@ class ObservationGalbotLeftArmGripperCfg(ConfigMixin):
     class SubtaskCfg(ObservationsCfg.SubtaskCfg):
         """Observations for subtask group."""
 
-        grasp_1 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("cube_2"),
-            },
+        grasp_1: Any = config_field(
+            ObsTerm(
+                func=mdp.object_grasped,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "object_cfg": SceneEntityCfg("cube_2"),
+                },
+            )
         )
-        stack_1 = ObsTerm(
-            func=mdp.object_stacked,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "upper_object_cfg": SceneEntityCfg("cube_2"),
-                "lower_object_cfg": SceneEntityCfg("cube_1"),
-            },
+        stack_1: Any = config_field(
+            ObsTerm(
+                func=mdp.object_stacked,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "upper_object_cfg": SceneEntityCfg("cube_2"),
+                    "lower_object_cfg": SceneEntityCfg("cube_1"),
+                },
+            )
         )
-        grasp_2 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("cube_3"),
-            },
+        grasp_2: Any = config_field(
+            ObsTerm(
+                func=mdp.object_grasped,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "object_cfg": SceneEntityCfg("cube_3"),
+                },
+            )
         )
 
         def __post_init__(self):
-            super().__post_init__()
+            if parent_post_init := getattr(super(), "__post_init__", None):
+                parent_post_init()
 
     @dataclass
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
+        table_cam: Any = config_field(
+            ObsTerm(
+                func=mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False},
+            )
         )
-        wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
+        wrist_cam: Any = config_field(
+            ObsTerm(
+                func=mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False},
+            )
         )
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    subtask_terms: SubtaskCfg = SubtaskCfg()
-    policy: PolicyCfg = PolicyCfg()
-    rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
+    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
+    policy: PolicyCfg = config_field(PolicyCfg())
+    rgb_camera: RGBCameraPolicyCfg = config_field(RGBCameraPolicyCfg())
 
 
 @dataclass
 class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         # MDP settings
 
         # visualizer camera settings
@@ -258,7 +289,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         self.observations.subtask_terms = ObservationGalbotLeftArmGripperCfg().SubtaskCfg()
 
         # Set galbot as robot
-        self.scene.robot = GALBOT_ONE_CHARLIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(GALBOT_ONE_CHARLIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set actions for the specific robot type (galbot)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -319,7 +350,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # Listens to the required transforms
-        self.marker_cfg = FRAME_MARKER_CFG.copy()
+        self.marker_cfg = copy_config(FRAME_MARKER_CFG)
         self.marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self.marker_cfg.prim_path = "/Visuals/FrameTransformer"
 
@@ -355,7 +386,8 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Surface grippers currently require CPU simulation.
         self.sim.device = "cpu"

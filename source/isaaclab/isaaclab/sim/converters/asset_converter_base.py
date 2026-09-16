@@ -14,6 +14,7 @@ import tempfile
 from datetime import datetime
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
+from isaaclab.utils import config_to_dict, validate_config
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.io import dump_yaml
 
@@ -60,7 +61,7 @@ class AssetConverterBase(abc.ABC):
             ValueError: When provided asset file does not exist.
         """
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # check if the asset file exists
         if not check_file_path(cfg.asset_path):
             raise ValueError(f"The asset path does not exist: {cfg.asset_path}")
@@ -114,7 +115,7 @@ class AssetConverterBase(abc.ABC):
             with open(self._dest_hash_path, "w") as f:
                 f.write(self._asset_hash)
             # dump the configuration to a file
-            dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
+            dump_yaml(os.path.join(self.usd_dir, "config.yaml"), config_to_dict(cfg))
             # add comment to top of the saved config file with information about the converter
             current_date = datetime.now().strftime("%Y-%m-%d")
             current_time = datetime.now().strftime("%H:%M:%S")
@@ -223,7 +224,7 @@ class AssetConverterBase(abc.ABC):
         """
 
         # convert to dict and remove path related info
-        config_dic = cfg.to_dict()
+        config_dic = config_to_dict(cfg)
         _ = config_dic.pop("asset_path")
         _ = config_dic.pop("usd_dir")
         _ = config_dic.pop("usd_file_name")

@@ -7,6 +7,9 @@
 
 import sys
 from pathlib import Path
+from typing import Any
+
+from isaaclab.utils import config_field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -29,24 +32,28 @@ from isaaclab.terrains import TerrainImporterCfg
 class PvaTestSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and a PVA sensor."""
 
-    env_spacing = 2.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    env_spacing: Any = config_field(2.0)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
     )
 
-    pva = PvaCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
+    pva: Any = config_field(
+        PvaCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+        )
     )
 
 
@@ -194,22 +201,26 @@ def test_reset(sim):
 class FreefallSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and PVA but no ground plane (freefall)."""
 
-    env_spacing = 2.0
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
+    env_spacing: Any = config_field(2.0)
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
+        )
     )
 
-    pva = PvaCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
+    pva: Any = config_field(
+        PvaCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+        )
     )
 
 
@@ -266,26 +277,30 @@ class OffsetRotatedSceneCfg(InteractiveSceneCfg):
     velocity/acceleration corrections and body-frame gravity projection.
     """
 
-    env_spacing = 2.0
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 5.0),
-            rot=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg about X (x, y, z, w)
-        ),
+    env_spacing: Any = config_field(2.0)
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(
+                pos=(0.0, 0.0, 5.0),
+                rot=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg about X (x, y, z, w)
+            ),
+        )
     )
 
-    pva = PvaCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        offset=PvaCfg.OffsetCfg(pos=(0.0, 0.0, 0.5)),
+    pva: Any = config_field(
+        PvaCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            offset=PvaCfg.OffsetCfg(pos=(0.0, 0.0, 0.5)),
+        )
     )
 
 

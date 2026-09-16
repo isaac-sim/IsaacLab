@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from isaaclab.utils import config_field
+
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
@@ -18,9 +20,9 @@ if TYPE_CHECKING:
 class JointWrenchSensorCfg(SensorBaseCfg):
     """Configuration for a joint reaction wrench sensor."""
 
-    class_type: type[JointWrenchSensor] | str = "{DIR}.joint_wrench_sensor:JointWrenchSensor"
+    class_type: type[JointWrenchSensor] | str = config_field("{DIR}.joint_wrench_sensor:JointWrenchSensor")
 
-    convention: Literal["incoming_joint_frame"] = "incoming_joint_frame"
+    convention: Literal["incoming_joint_frame"] = config_field("incoming_joint_frame")
     """Coordinate convention for the reported wrench. Defaults to ``"incoming_joint_frame"``.
 
     - ``"incoming_joint_frame"`` — child-side joint frame, child-side joint anchor as reference point.

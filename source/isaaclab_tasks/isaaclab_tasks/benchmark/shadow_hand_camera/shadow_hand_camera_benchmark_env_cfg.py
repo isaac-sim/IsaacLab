@@ -7,6 +7,8 @@
 
 from dataclasses import dataclass
 
+from isaaclab.utils import config_field
+
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 
@@ -27,4 +29,4 @@ class ShadowHandCameraBenchmarkEnvCfg(ShadowHandCameraEnvCfg):
         presets = depth, newton_renderer  # benchmark depth rendering with Newton
     """
 
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(enabled=False)
+    feature_extractor: FeatureExtractorCfg = config_field(FeatureExtractorCfg(enabled=False))

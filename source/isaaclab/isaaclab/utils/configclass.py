@@ -14,7 +14,7 @@ import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
 from .string import ResolvableString
@@ -24,6 +24,48 @@ _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[
 
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
+
+
+class _ConfigField(Field):
+    """Dataclass field that keeps its declaration-time default configurable in a class body."""
+
+    def __init__(self, source: Any, base: Field):
+        super().__init__(
+            default=base.default,
+            default_factory=base.default_factory,
+            init=base.init,
+            repr=base.repr,
+            hash=base.hash,
+            compare=base.compare,
+            metadata=base.metadata,
+            kw_only=base.kw_only,
+        )
+        self._config_source = source
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._config_source, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in Field.__slots__ or name == "_config_source":
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._config_source, name, value)
+
+    def __getitem__(self, key: Any) -> Any:
+        return self._config_source[key]
+
+    def __iter__(self):
+        return iter(self._config_source)
+
+    def __len__(self) -> int:
+        return len(self._config_source)
+
+    def __add__(self, other: Any) -> Any:
+        return self._config_source + other
+
+    def __radd__(self, other: Any) -> Any:
+        return other + self._config_source
+
 
 """
 Wrapper around dataclass.
@@ -40,7 +82,7 @@ def configclass(cls, **kwargs):
     """Decorate a legacy configuration class.
 
     .. deprecated:: 3.0
-        Use :func:`dataclasses.dataclass` with :class:`ConfigMixin` instead.
+        Use :func:`dataclasses.dataclass` and the functional configuration utilities instead.
 
     Usage:
 
@@ -48,33 +90,33 @@ def configclass(cls, **kwargs):
 
         from dataclasses import MISSING, dataclass
 
-        from isaaclab.utils import ConfigMixin
+        from isaaclab.utils import config_field, config_to_dict, copy_config, replace_config
 
 
         @dataclass
-        class ViewerCfg(ConfigMixin):
-            eye: list = [7.5, 7.5, 7.5]
-            lookat: list = [0.0, 0.0, 0.0]
+        class ViewerCfg:
+            eye: list = config_field([7.5, 7.5, 7.5])
+            lookat: list = config_field([0.0, 0.0, 0.0])
 
 
         @dataclass
-        class EnvCfg(ConfigMixin):
-            num_envs: int = MISSING
+        class EnvCfg:
+            num_envs: int = config_field(MISSING)
             episode_length: int = 2000
-            viewer: ViewerCfg = ViewerCfg()
+            viewer: ViewerCfg = config_field(ViewerCfg())
 
 
         # create configuration instance
         env_cfg = EnvCfg(num_envs=24)
 
         # print information as a dictionary
-        print(env_cfg.to_dict())
+        print(config_to_dict(env_cfg))
 
         # create a copy of the configuration
-        env_cfg_copy = env_cfg.copy()
+        env_cfg_copy = copy_config(env_cfg)
 
         # replace arbitrary fields using keyword arguments
-        env_cfg_copy = env_cfg_copy.replace(num_envs=32)
+        env_cfg_copy = replace_config(env_cfg_copy, num_envs=32)
 
     Args:
         cls: The class to wrap around.
@@ -86,7 +128,7 @@ def configclass(cls, **kwargs):
     .. _dataclass: https://docs.python.org/3/library/dataclasses.html
     """
     warnings.warn(
-        "configclass is deprecated. Use dataclasses.dataclass with ConfigMixin instead.",
+        "configclass is deprecated. Use dataclasses.dataclass and the functional configuration utilities instead.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -117,50 +159,87 @@ def configclass(cls, **kwargs):
     return cls
 
 
-class ConfigMixin:
-    """Provide Isaac Lab configuration helpers to standard dataclasses.
+def config_field(default: Any = MISSING, **kwargs) -> Field:
+    """Create an independent dataclass field for a configuration default.
 
-    Root configuration classes inherit this mixin and use :func:`dataclasses.dataclass`; configuration subclasses
-    inherit the mixin transitively and only need the decorator. The mixin preserves independent mutable defaults,
-    inferred annotations for legacy declarations, dictionary conversion, copying, validation, and resolvable-string
-    handling.
+    The default is deep-copied for each instance. Callable-like strings are wrapped lazily and ``{DIR}`` references
+    resolve relative to the module declaring the field.
+
+    Args:
+        default: Default field value.
+        **kwargs: Additional arguments forwarded to :func:`dataclasses.field`.
+
+    Returns:
+        A dataclass field with an independent default factory.
     """
+    caller_frame = inspect.currentframe().f_back
+    module_name = caller_frame.f_globals.get("__name__", "") if caller_frame is not None else ""
+    module_dir = module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
+    del caller_frame
 
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Prepare a subclass for standard dataclass decoration."""
-        super().__init_subclass__(**kwargs)
-        own_annotations = set(cls.__dict__.get("__annotations__", {}))
-        own_attributes = {key for key in cls.__dict__ if not key.startswith("__")}
-        cls.__configclass_own_fields__ = frozenset(own_annotations | own_attributes)
-        _add_annotation_types(cls)
-        _process_mutable_types(cls)
-        user_post_init = cls.__dict__.get("__post_init__")
-        if user_post_init is not None:
-            cls.__post_init__ = _combined_function(user_post_init, _custom_post_init)
+    def default_factory():
+        value = _materialize_config_fields(default)
+        return _wrap_resolvable_strings(deepcopy(value), module_dir=module_dir)
 
-    def __post_init__(self) -> None:
-        """Copy field values and resolve callable strings after dataclass initialization."""
-        _custom_post_init(self)
+    return _ConfigField(default, field(default_factory=default_factory, **kwargs))
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert this configuration into a dictionary recursively."""
-        return _class_to_dict(self)
 
-    def from_dict(self, data: dict[str, Any]) -> None:
-        """Update this configuration recursively from a dictionary."""
-        _update_class_from_dict(self, data)
+def _materialize_config_fields(value: Any) -> Any:
+    """Resolve config fields referenced by later declarations in the same class body."""
+    if isinstance(value, Field):
+        if value.default_factory is not MISSING:
+            return _materialize_config_fields(value.default_factory())
+        if value.default is not MISSING:
+            return _materialize_config_fields(value.default)
+        return MISSING
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        changes = {
+            dataclass_field.name: _materialize_config_fields(getattr(value, dataclass_field.name))
+            for dataclass_field in dataclasses.fields(value)
+        }
+        if all(changes[name] is getattr(value, name) for name in changes):
+            return value
+        clone = object.__new__(type(value))
+        if hasattr(value, "__dict__"):
+            object.__setattr__(clone, "__dict__", value.__dict__.copy())
+        for name, item in changes.items():
+            object.__setattr__(clone, name, item)
+        return clone
+    if isinstance(value, dict):
+        resolved = {key: _materialize_config_fields(item) for key, item in value.items()}
+        return value if all(resolved[key] is item for key, item in value.items()) else resolved
+    if isinstance(value, list):
+        resolved = [_materialize_config_fields(item) for item in value]
+        return value if all(new is old for new, old in zip(resolved, value, strict=True)) else resolved
+    if isinstance(value, tuple):
+        resolved = tuple(_materialize_config_fields(item) for item in value)
+        return value if all(new is old for new, old in zip(resolved, value, strict=True)) else resolved
+    return value
 
-    def replace(self, **kwargs) -> Self:
-        """Return a copy with the specified fields replaced."""
-        return _replace_class_with_kwargs(self, **kwargs)
 
-    def copy(self) -> Self:
-        """Return a copy of this configuration."""
-        return _copy_class(self)
+def config_to_dict(config: object) -> dict[str, Any]:
+    """Convert a configuration into a dictionary recursively."""
+    return class_to_dict(_materialize_config_fields(config))
 
-    def validate(self) -> list[str]:
-        """Validate that this configuration contains no missing values."""
-        return _validate(self)
+
+def update_config(config: object, data: dict[str, Any]) -> None:
+    """Update a configuration recursively from a dictionary."""
+    update_class_from_dict(config, data, _ns="")
+
+
+def replace_config(config: object, **changes) -> object:
+    """Return an independent configuration copy with the specified fields replaced."""
+    return deepcopy(replace(_materialize_config_fields(config), **changes))
+
+
+def copy_config(config: object) -> object:
+    """Return a deep copy of a configuration."""
+    return deepcopy(_materialize_config_fields(config))
+
+
+def validate_config(config: object) -> list[str]:
+    """Validate that a configuration contains no missing values."""
+    return _validate(_materialize_config_fields(config))
 
 
 """
@@ -207,13 +286,13 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
     .. code-block:: python
 
         @dataclass(frozen=True)
-        class C(ConfigMixin):
+        class C:
             x: int
             y: int
 
 
         c = C(1, 2)
-        c1 = c.replace(x=3)
+        c1 = replace_config(c, x=3)
         assert c1.x == 3 and c1.y == 2
 
     Args:
@@ -553,9 +632,8 @@ def _custom_post_init(obj):
             continue
         # get data member
         value = getattr(obj, key)
-        # ``ConfigMixin.__init_subclass__`` prepares fields before ``@dataclass`` runs. A subclass that intentionally
-        # inherits a configuration dataclass without decorating itself therefore retains those temporary Field
-        # descriptors. Materialize their defaults so legacy plain subclasses keep their pre-migration behavior.
+        # Legacy ``configclass`` subclasses may retain temporary Field descriptors. Materialize their defaults so
+        # undecorated subclasses preserve their pre-migration behavior.
         if isinstance(value, Field):
             if value.default_factory is not MISSING:
                 value = value.default_factory()

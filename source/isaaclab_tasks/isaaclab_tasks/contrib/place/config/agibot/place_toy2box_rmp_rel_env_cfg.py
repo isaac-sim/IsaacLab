@@ -24,7 +24,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -40,6 +40,7 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+from typing import Any
 
 ##
 # Event settings
@@ -47,36 +48,42 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 
 
 @dataclass
-class EventCfgPlaceToy2Box(ConfigMixin):
+class EventCfgPlaceToy2Box:
     """Configuration for events."""
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
-
-    init_toy_position = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-0.15, 0.20),
-                "y": (-0.3, -0.15),
-                "z": (-0.65, -0.65),
-                "yaw": (-3.14, 3.14),
-            },
-            "asset_cfgs": [SceneEntityCfg("toy_truck")],
-        },
+    reset_all: Any = config_field(
+        EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
     )
-    init_box_position = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (0.25, 0.35),
-                "y": (0.0, 0.10),
-                "z": (-0.55, -0.55),
-                "yaw": (-3.14, 3.14),
+
+    init_toy_position: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": (-0.15, 0.20),
+                    "y": (-0.3, -0.15),
+                    "z": (-0.65, -0.65),
+                    "yaw": (-3.14, 3.14),
+                },
+                "asset_cfgs": [SceneEntityCfg("toy_truck")],
             },
-            "asset_cfgs": [SceneEntityCfg("box")],
-        },
+        )
+    )
+    init_box_position: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": (0.25, 0.35),
+                    "y": (0.0, 0.10),
+                    "z": (-0.55, -0.55),
+                    "yaw": (-3.14, 3.14),
+                },
+                "asset_cfgs": [SceneEntityCfg("box")],
+            },
+        )
     )
 
 
@@ -86,34 +93,43 @@ class EventCfgPlaceToy2Box(ConfigMixin):
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp.last_action)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        toy_truck_positions = ObsTerm(
-            func=place_mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("toy_truck"), "return_key": "pos"},
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        toy_truck_positions: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_poses_in_base_frame,
+                params={"object_cfg": SceneEntityCfg("toy_truck"), "return_key": "pos"},
+            )
         )
-        toy_truck_orientations = ObsTerm(
-            func=place_mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("toy_truck"), "return_key": "quat"},
+        toy_truck_orientations: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_poses_in_base_frame,
+                params={"object_cfg": SceneEntityCfg("toy_truck"), "return_key": "quat"},
+            )
         )
-        box_positions = ObsTerm(
-            func=place_mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
+        box_positions: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_poses_in_base_frame,
+                params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"},
+            )
         )
-        box_orientations = ObsTerm(
-            func=place_mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        box_orientations: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_poses_in_base_frame,
+                params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+            )
         )
-        eef_pos = ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"})
-        eef_quat = ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"})
-        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"}))
+        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"}))
+        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -123,14 +139,16 @@ class ObservationsCfg(ConfigMixin):
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp = ObsTerm(
-            func=place_mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("toy_truck"),
-                "diff_threshold": 0.05,
-            },
+        grasp: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_grasped,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "object_cfg": SceneEntityCfg("toy_truck"),
+                    "diff_threshold": 0.05,
+                },
+            )
         )
 
         def __post_init__(self):
@@ -138,39 +156,44 @@ class ObservationsCfg(ConfigMixin):
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
-    subtask_terms: SubtaskCfg = SubtaskCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
+    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
+    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
 
-    toy_truck_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": -0.85, "asset_cfg": SceneEntityCfg("toy_truck")}
+    toy_truck_dropping: Any = config_field(
+        DoneTerm(
+            func=mdp.root_height_below_minimum,
+            params={"minimum_height": -0.85, "asset_cfg": SceneEntityCfg("toy_truck")},
+        )
     )
 
-    success = DoneTerm(
-        func=place_mdp.object_a_is_into_b,
-        params={
-            "robot_cfg": SceneEntityCfg("robot"),
-            "object_a_cfg": SceneEntityCfg("toy_truck"),
-            "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.10,
-            "height_diff": 0.06,
-            "height_threshold": 0.04,
-        },
+    success: Any = config_field(
+        DoneTerm(
+            func=place_mdp.object_a_is_into_b,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "object_a_cfg": SceneEntityCfg("toy_truck"),
+                "object_b_cfg": SceneEntityCfg("box"),
+                "xy_threshold": 0.10,
+                "height_diff": 0.06,
+                "height_threshold": 0.04,
+            },
+        )
     )
 
 
@@ -178,34 +201,38 @@ class TerminationsCfg(ConfigMixin):
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for Agibot place tasks."""
 
-    isaacsim_physx = PhysxCfg(
-        bounce_threshold_velocity=0.01,
-        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
-        gpu_total_aggregate_pairs_capacity=16 * 1024,
-        friction_correlation_distance=0.00625,
+    isaacsim_physx: Any = config_field(
+        PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+            gpu_total_aggregate_pairs_capacity=16 * 1024,
+            friction_correlation_distance=0.00625,
+        )
     )
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            solver="newton",
-            integrator="implicitfast",
-            njmax=300,
-            nconmax=200,
-            impratio=10.0,
-            cone="elliptic",
-            update_data_interval=2,
-            iterations=100,
-            ls_iterations=15,
-            ls_parallel=False,
-            use_mujoco_contacts=False,
-            ccd_iterations=35,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(),
-        default_shape_cfg=NewtonShapeCfg(),
-        num_substeps=2,
-        debug_mode=False,
+    newton_mjwarp: Any = config_field(
+        NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=300,
+                nconmax=200,
+                impratio=10.0,
+                cone="elliptic",
+                update_data_interval=2,
+                iterations=100,
+                ls_iterations=15,
+                ls_parallel=False,
+                use_mujoco_contacts=False,
+                ccd_iterations=35,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(),
+            default_shape_cfg=NewtonShapeCfg(),
+            num_substeps=2,
+            debug_mode=False,
+        )
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
+    default: Any = config_field(isaacsim_physx)
 
 
 def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
@@ -222,18 +249,18 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
+    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
     # MDP settings
-    terminations: TerminationsCfg = TerminationsCfg()
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
 
     # Unused managers
-    commands = None
-    rewards = None
-    events = None
-    curriculum = None
+    commands: Any = config_field(None)
+    rewards: Any = config_field(None)
+    events: Any = config_field(None)
+    curriculum: Any = config_field(None)
 
     def __post_init__(self):
         """Post initialization."""
@@ -260,12 +287,13 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.events = EventCfgPlaceToy2Box()
 
         # Set Agibot as robot
-        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(AGIBOT_A2D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # add table
         self.scene.table = AssetBaseCfg(
@@ -313,7 +341,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             disable_gravity=False,
         )
 
-        box_properties = toy_truck_properties.copy()
+        box_properties = copy_config(toy_truck_properties)
 
         # Notes: remember to add Physics/Mass properties to the toy_truck mesh to make grasping successful,
         # then you can use below MassPropertiesCfg to set the mass of the toy_truck
@@ -341,7 +369,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         )
 
         # Listens to the required transforms
-        self.marker_cfg = FRAME_MARKER_CFG.copy()
+        self.marker_cfg = copy_config(FRAME_MARKER_CFG)
         self.marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self.marker_cfg.prim_path = "/Visuals/FrameTransformer"
 

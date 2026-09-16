@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
@@ -32,23 +34,23 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
     See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.featherstone_manager:NewtonFeatherstoneManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.featherstone_manager:NewtonFeatherstoneManager")
     """Manager class for the Featherstone solver."""
 
-    solver_type: str = "featherstone"
+    solver_type: str = config_field("featherstone")
     """Solver type. Can be "featherstone"."""
 
-    angular_damping: float = 0.05
+    angular_damping: float = config_field(0.05)
     """Angular damping parameter for rigid contact simulation."""
 
-    update_mass_matrix_interval: int = 1
+    update_mass_matrix_interval: int = config_field(1)
     """Frequency (in simulation steps) at which to update the mass matrix."""
 
-    friction_smoothing: float = 1.0
+    friction_smoothing: float = config_field(1.0)
     """Friction smoothing parameter."""
 
-    use_tile_gemm: bool = False
+    use_tile_gemm: bool = config_field(False)
     """Whether to use tile-based GEMM for the mass matrix."""
 
-    fuse_cholesky: bool = True
+    fuse_cholesky: bool = config_field(True)
     """Whether to fuse the Cholesky decomposition."""

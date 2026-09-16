@@ -7,6 +7,7 @@ from dataclasses import MISSING, dataclass
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.sim.spawners.materials import VisualMaterialCfg as VisualMaterialSpawnerCfg
+from isaaclab.utils import config_field
 
 
 @dataclass
@@ -18,11 +19,11 @@ class VisualMaterialCfg(AssetBaseCfg):
     path through :attr:`isaaclab.sim.spawners.from_files.from_files_cfg.FileCfg.visual_material_bindings`.
     """
 
-    class_type: type | str = "{DIR}.visual_material:VisualMaterial"
-    cloning_contexts: tuple[str | type, ...] | None = ()
-    spawn: VisualMaterialSpawnerCfg | None = MISSING
+    class_type: type | str = config_field("{DIR}.visual_material:VisualMaterial")
+    cloning_contexts: tuple[str | type, ...] | None = config_field(())
+    spawn: VisualMaterialSpawnerCfg | None = config_field(MISSING)
     """Material spawner, or ``None`` to wrap an existing material prim."""
-    channels: tuple[str, ...] = ("color",)
+    channels: tuple[str, ...] = config_field(("color",))
     """Numeric shader channels writable at runtime.
 
     Preview Surface supports ``color``, ``roughness``, ``metallic``, ``emissive_color``, and

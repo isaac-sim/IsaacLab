@@ -17,7 +17,7 @@ from isaaclab_tasks.contrib.deploy.reach.reach_env_cfg import ReachEnvCfg
 # Pre-defined configs
 ##
 from isaaclab_assets import UR10e_CFG  # isort: skip
-
+from isaaclab.utils import replace_config
 
 ##
 # Environment configuration
@@ -28,7 +28,8 @@ from isaaclab_assets import UR10e_CFG  # isort: skip
 class UR10eReachEnvCfg(ReachEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.events.robot_joint_stiffness_and_damping.params["asset_cfg"].joint_names = [
             "shoulder_.*",
@@ -38,7 +39,7 @@ class UR10eReachEnvCfg(ReachEnvCfg):
         self.events.joint_friction.params["asset_cfg"].joint_names = ["shoulder_.*", "elbow_.*", "wrist_.*"]
 
         # switch robot to ur10e
-        self.scene.robot = UR10e_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(UR10e_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # The real UR10e robots polyscore software uses the "base" frame for reference
         # But the USD model and UR10e ROS interface uses the "base_link" frame
@@ -49,7 +50,7 @@ class UR10eReachEnvCfg(ReachEnvCfg):
         self.rewards.end_effector_keypoint_tracking_exp.params["asset_cfg"] = SceneEntityCfg("ee_frame_wrt_base_frame")
         self.scene.ee_frame_wrt_base_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_link",
-            visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
+            visualizer_cfg=replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/FrameTransformer"),
             source_frame_offset=OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

@@ -52,7 +52,7 @@ class ThrustAction(ActionTerm):
             from dataclasses import dataclass
 
             from isaaclab.envs import ManagerBasedRLEnvCfg
-            from isaaclab.utils import ConfigMixin
+            from isaaclab.utils import config_field
             from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 
@@ -61,13 +61,15 @@ class ThrustAction(ActionTerm):
                 # ... other configuration ...
 
                 @dataclass
-                class ActionsCfg(ConfigMixin):
+                class ActionsCfg:
                     # Direct thrust control (normalized actions)
-                    thrust = ThrustActionCfg(
-                        asset_name="robot",
-                        scale=5.0,  # Convert [-1, 1] to [-5, 5] N
-                        use_default_offset=True,  # Add hover thrust as offset
-                        clip={".*": (-2.0, 8.0)},  # Clip to safe thrust range
+                    thrust: ThrustActionCfg = config_field(
+                        ThrustActionCfg(
+                            asset_name="robot",
+                            scale=5.0,  # Convert [-1, 1] to [-5, 5] N
+                            use_default_offset=True,  # Add hover thrust as offset
+                            clip={".*": (-2.0, 8.0)},  # Clip to safe thrust range
+                        )
                     )
 
     """

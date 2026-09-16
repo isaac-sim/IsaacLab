@@ -28,6 +28,7 @@ from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.utils import config_field
 
 from .pose_ik_controller import SO101PoseIKControllerCfg
 
@@ -39,5 +40,5 @@ if TYPE_CHECKING:
 class SO101PoseIKActionCfg(DifferentialInverseKinematicsActionCfg):
     """Configuration for :class:`~.pose_ik_action_term.SO101PoseIKAction`."""
 
-    class_type: type[SO101PoseIKAction] | str = "{DIR}.pose_ik_action_term:SO101PoseIKAction"
-    controller: SO101PoseIKControllerCfg = MISSING
+    class_type: type[SO101PoseIKAction] | str = config_field("{DIR}.pose_ik_action_term:SO101PoseIKAction")
+    controller: SO101PoseIKControllerCfg = config_field(MISSING)

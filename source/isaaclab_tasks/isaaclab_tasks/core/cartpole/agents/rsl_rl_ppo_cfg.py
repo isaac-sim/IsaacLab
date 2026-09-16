@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import dataclass
+from typing import Any
+
+from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -19,40 +22,46 @@ from isaaclab_tasks.utils import PresetCfg
 
 @dataclass
 class CartpolePPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 16
-    max_iterations = 150
-    save_interval = 50
-    experiment_name = "cartpole"
-    actor = RslRlMLPModelCfg(
-        hidden_dims=[32, 32],
-        activation="elu",
-        obs_normalization=False,
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+    num_steps_per_env: Any = config_field(16)
+    max_iterations: Any = config_field(150)
+    save_interval: Any = config_field(50)
+    experiment_name: Any = config_field("cartpole")
+    actor: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[32, 32],
+            activation="elu",
+            obs_normalization=False,
+            distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+        )
     )
-    critic = RslRlMLPModelCfg(
-        hidden_dims=[32, 32],
-        activation="elu",
-        obs_normalization=False,
+    critic: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[32, 32],
+            activation="elu",
+            obs_normalization=False,
+        )
     )
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=1.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.005,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1.0e-3,
-        schedule="adaptive",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.01,
-        max_grad_norm=1.0,
+    algorithm: Any = config_field(
+        RslRlPpoAlgorithmCfg(
+            value_loss_coef=1.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=0.005,
+            num_learning_epochs=5,
+            num_mini_batches=4,
+            learning_rate=1.0e-3,
+            schedule="adaptive",
+            gamma=0.99,
+            lam=0.95,
+            desired_kl=0.01,
+            max_grad_norm=1.0,
+        )
     )
 
 
 @dataclass
 class CartpoleDirectPPORunnerCfg(CartpolePPORunnerCfg):
-    experiment_name = "cartpole_direct"
+    experiment_name: Any = config_field("cartpole_direct")
 
 
 @dataclass
@@ -60,22 +69,24 @@ class CartpolePPORunnerWithSymmetryCfg(CartpolePPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
     # all the other settings are inherited from the parent class
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=1.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.005,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1.0e-3,
-        schedule="adaptive",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.01,
-        max_grad_norm=1.0,
-        symmetry_cfg=RslRlSymmetryCfg(
-            use_data_augmentation=True, data_augmentation_func=symmetry.compute_symmetric_states
-        ),
+    algorithm: Any = config_field(
+        RslRlPpoAlgorithmCfg(
+            value_loss_coef=1.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=0.005,
+            num_learning_epochs=5,
+            num_mini_batches=4,
+            learning_rate=1.0e-3,
+            schedule="adaptive",
+            gamma=0.99,
+            lam=0.95,
+            desired_kl=0.01,
+            max_grad_norm=1.0,
+            symmetry_cfg=RslRlSymmetryCfg(
+                use_data_augmentation=True, data_augmentation_func=symmetry.compute_symmetric_states
+            ),
+        )
     )
 
 
@@ -83,84 +94,96 @@ class CartpolePPORunnerWithSymmetryCfg(CartpolePPORunnerCfg):
 class CartpoleCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """CNN policy for the raw RGB/depth camera observation pipelines."""
 
-    num_steps_per_env = 64
-    max_iterations = 200
-    save_interval = 50
-    experiment_name = "cartpole_camera"
-    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
-    clip_actions = 1.0
-    actor = RslRlCNNModelCfg(
-        cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-            output_channels=[8, 16, 16],
-            kernel_size=[5, 3, 3],
-            stride=[2, 2, 2],
-            activation="relu",
-        ),
-        hidden_dims=[64],
-        activation="elu",
-        obs_normalization=False,
-        distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
+    num_steps_per_env: Any = config_field(64)
+    max_iterations: Any = config_field(200)
+    save_interval: Any = config_field(50)
+    experiment_name: Any = config_field("cartpole_camera")
+    obs_groups: Any = config_field({"actor": ["policy"], "critic": ["critic"]})
+    clip_actions: Any = config_field(1.0)
+    actor: Any = config_field(
+        RslRlCNNModelCfg(
+            cnn_cfg=RslRlCNNModelCfg.CNNCfg(
+                output_channels=[8, 16, 16],
+                kernel_size=[5, 3, 3],
+                stride=[2, 2, 2],
+                activation="relu",
+            ),
+            hidden_dims=[64],
+            activation="elu",
+            obs_normalization=False,
+            distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
+        )
     )
-    critic = RslRlMLPModelCfg(
-        hidden_dims=[32, 32],
-        activation="elu",
-        obs_normalization=False,
+    critic: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[32, 32],
+            activation="elu",
+            obs_normalization=False,
+        )
     )
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=2.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.0,
-        num_learning_epochs=4,
-        num_mini_batches=16,
-        learning_rate=3.0e-4,
-        schedule="fixed",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.008,
-        max_grad_norm=1.0,
-        share_cnn_encoders=False,
+    algorithm: Any = config_field(
+        RslRlPpoAlgorithmCfg(
+            value_loss_coef=2.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=0.0,
+            num_learning_epochs=4,
+            num_mini_batches=16,
+            learning_rate=3.0e-4,
+            schedule="fixed",
+            gamma=0.99,
+            lam=0.95,
+            desired_kl=0.008,
+            max_grad_norm=1.0,
+            share_cnn_encoders=False,
+        )
     )
 
 
 @dataclass
 class CartpoleCameraDirectPPORunnerCfg(CartpoleCameraPPORunnerCfg):
-    experiment_name = "cartpole_camera_direct"
+    experiment_name: Any = config_field("cartpole_camera_direct")
 
 
 @dataclass
 class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """MLP policy for the pretrained-feature pipelines (ResNet18, Theia-Tiny)."""
 
-    num_steps_per_env = 16
-    max_iterations = 200
-    save_interval = 50
-    experiment_name = "cartpole_features"
-    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
-    actor = RslRlMLPModelCfg(
-        hidden_dims=[256, 128],
-        activation="elu",
-        obs_normalization=True,
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+    num_steps_per_env: Any = config_field(16)
+    max_iterations: Any = config_field(200)
+    save_interval: Any = config_field(50)
+    experiment_name: Any = config_field("cartpole_features")
+    obs_groups: Any = config_field({"actor": ["policy"], "critic": ["policy"]})
+    actor: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[256, 128],
+            activation="elu",
+            obs_normalization=True,
+            distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+        )
     )
-    critic = RslRlMLPModelCfg(
-        hidden_dims=[256, 128],
-        activation="elu",
-        obs_normalization=True,
+    critic: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[256, 128],
+            activation="elu",
+            obs_normalization=True,
+        )
     )
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=4.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.0,
-        num_learning_epochs=8,
-        num_mini_batches=4,
-        learning_rate=3.0e-4,
-        schedule="adaptive",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.008,
-        max_grad_norm=1.0,
+    algorithm: Any = config_field(
+        RslRlPpoAlgorithmCfg(
+            value_loss_coef=4.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=0.0,
+            num_learning_epochs=8,
+            num_mini_batches=4,
+            learning_rate=3.0e-4,
+            schedule="adaptive",
+            gamma=0.99,
+            lam=0.95,
+            desired_kl=0.008,
+            max_grad_norm=1.0,
+        )
     )
 
 
@@ -168,6 +191,6 @@ class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
 class CartpoleCameraPPORunnerPresetsCfg(PresetCfg):
     """RSL-RL configuration family keyed by camera pipeline presets."""
 
-    default = CartpoleCameraPPORunnerCfg()
-    resnet18 = CartpoleCameraFeaturePPORunnerCfg()
-    theia_tiny = CartpoleCameraFeaturePPORunnerCfg()
+    default: Any = config_field(CartpoleCameraPPORunnerCfg())
+    resnet18: Any = config_field(CartpoleCameraFeaturePPORunnerCfg())
+    theia_tiny: Any = config_field(CartpoleCameraFeaturePPORunnerCfg())

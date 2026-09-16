@@ -7,6 +7,9 @@
 
 import sys
 from pathlib import Path
+from typing import Any
+
+from isaaclab.utils import config_field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -49,37 +52,43 @@ RAY_START_HEIGHT = SENSOR_HEIGHT - RAY_OFFSET
 class RaycastTestSceneCfg(InteractiveSceneCfg):
     """Scene with a ground plane, a floating sensor body, and a dynamic box."""
 
-    env_spacing = 8.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    env_spacing: Any = config_field(8.0)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    sensor_body = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, SENSOR_HEIGHT)),
+    sensor_body: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, SENSOR_HEIGHT)),
+        )
     )
 
-    box = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Box",
-        spawn=sim_utils.CuboidCfg(
-            size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(3.0, 0.0, 0.5)),
+    box: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Box",
+            spawn=sim_utils.CuboidCfg(
+                size=(1.0, 1.0, 1.0),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(3.0, 0.0, 0.5)),
+        )
     )
 
-    raycast = NewtonRaycastSensorCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        # Start the rays below the carrier cube so they do not hit it.
-        offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
-        pattern_cfg=GridPatternCfg(resolution=0.2, size=(0.4, 0.4)),
-        ray_alignment="yaw",
-        max_distance=100.0,
+    raycast: Any = config_field(
+        NewtonRaycastSensorCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            # Start the rays below the carrier cube so they do not hit it.
+            offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
+            pattern_cfg=GridPatternCfg(resolution=0.2, size=(0.4, 0.4)),
+            ray_alignment="yaw",
+            max_distance=100.0,
+        )
     )
 
 
@@ -91,14 +100,16 @@ class GenericRaycastTestSceneCfg(RaycastTestSceneCfg):
     :class:`~isaaclab.sensors.RayCasterCfg` to verify it is honored after backend dispatch.
     """
 
-    raycast = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
-        pattern_cfg=GridPatternCfg(resolution=0.2, size=(0.4, 0.4)),
-        ray_alignment="yaw",
-        max_distance=100.0,
-        mesh_prim_paths=["/World/ground"],
-        global_world_only=True,
+    raycast: Any = config_field(
+        RayCasterCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
+            pattern_cfg=GridPatternCfg(resolution=0.2, size=(0.4, 0.4)),
+            ray_alignment="yaw",
+            max_distance=100.0,
+            mesh_prim_paths=["/World/ground"],
+            global_world_only=True,
+        )
     )
 
 
@@ -262,14 +273,16 @@ def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
 class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     """Adds a downward-looking Newton tiled camera next to the ray-cast sensor."""
 
-    camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody/cam",
-        width=64,
-        height=48,
-        data_types=["depth"],
-        renderer_cfg=NewtonWarpRendererCfg(),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"),
-        spawn=sim_utils.PinholeCameraCfg(),
+    camera: Any = config_field(
+        CameraCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody/cam",
+            width=64,
+            height=48,
+            data_types=["depth"],
+            renderer_cfg=NewtonWarpRendererCfg(),
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg(),
+        )
     )
 
 

@@ -381,7 +381,7 @@ The policy is trained using a keypoint-based reward that captures both position 
 .. code-block:: python
 
     @dataclass
-    class RewardsCfg(ConfigMixin):
+    class RewardsCfg:
         """Reward terms for the MDP."""
 
         # Linear penalty for keypoint tracking error

@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class SpawnerCfg(ConfigMixin):
+class SpawnerCfg:
     """Configuration parameters for spawning an asset.
 
     Spawning an asset is done by calling the :attr:`func` function. The function takes in the
@@ -31,17 +31,17 @@ class SpawnerCfg(ConfigMixin):
     parameter.
     """
 
-    func: Callable[..., Usd.Prim] = MISSING
+    func: Callable[..., Usd.Prim] = config_field(MISSING)
     """Function to use for spawning the asset.
 
     The function takes in the prim path (or expression) to spawn the asset at, the configuration instance
     and transformation, and returns the source prim spawned.
     """
 
-    visible: bool = True
+    visible: bool = config_field(True)
     """Whether the spawned asset should be visible. Defaults to True."""
 
-    semantic_tags: list[tuple[str, str]] | None = None
+    semantic_tags: list[tuple[str, str]] | None = config_field(None)
     """List of semantic tags to add to the spawned asset. Defaults to None,
     which means no semantic tags will be added.
 
@@ -62,14 +62,14 @@ class SpawnerCfg(ConfigMixin):
 
     """
 
-    copy_from_source: bool = True
+    copy_from_source: bool = config_field(True)
     """Whether to copy the asset from the source prim or inherit it. Defaults to True.
 
     This parameter is only used when cloning prims. If False, then the asset will be inherited from
     the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.
     """
 
-    spawn_path: str | None = None
+    spawn_path: str | None = config_field(None)
     """Path where the prototype is spawned. Defaults to None."""
 
 
@@ -88,7 +88,7 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         | list[schemas.MassFragment]
         | schemas.MassPropertiesCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Mass properties.
 
     Accepts either a mapping from target pattern to a list of
@@ -104,7 +104,7 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     prim itself.
     """
 
-    mass_props_create_if_missing: bool = False
+    mass_props_create_if_missing: bool = config_field(False)
     """Whether the mass writer may apply ``UsdPhysics.MassAPI`` to matched prims that lack it.
     Defaults to False. The flag applies to every entry of the :attr:`mass_props` mapping.
 
@@ -118,7 +118,7 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         | list[schemas.RigidBodyFragment]
         | schemas.RigidBodyBaseCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Rigid body properties.
 
     Accepts either a mapping from target pattern to a list of
@@ -145,7 +145,7 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         | list[schemas.CollisionFragment]
         | schemas.CollisionPropertiesCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Properties to apply to all collision meshes.
 
     Accepts either a mapping from target pattern to a list of
@@ -162,7 +162,7 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     i.e. the anchor prim itself.
     """
 
-    activate_contact_sensors: bool = False
+    activate_contact_sensors: bool = config_field(False)
     """Activate contact reporting on all rigid bodies. Defaults to False.
 
     This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.
@@ -184,8 +184,8 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
         to the prim outside of the properties available by default when spawning the prim.
     """
 
-    mass_props: schemas.MassPropertiesCfg | None = None
+    mass_props: schemas.MassPropertiesCfg | None = config_field(None)
     """Mass properties."""
 
-    deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = None
+    deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = config_field(None)
     """Deformable body properties."""

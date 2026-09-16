@@ -15,6 +15,7 @@ from isaaclab.sim import schemas
 from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from isaaclab.utils import validate_config
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -267,7 +268,7 @@ def spawn_cable(
         raise ValueError(
             "CableCfg consecutive positions must be separated by more than 1e-8 m in the cable-local frame."
         )
-    cfg.physics_material.validate()
+    validate_config(cfg.physics_material)
 
     stage = get_current_stage()
     attributes = {

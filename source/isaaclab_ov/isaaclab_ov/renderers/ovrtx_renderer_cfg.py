@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .ovrtx_renderer import OVRTXRenderer
@@ -29,13 +30,13 @@ class OVRTXRendererCfg(RendererCfg):
     (same pattern as Isaac RTX).
     """
 
-    class_type: type[OVRTXRenderer] | str = "{DIR}.ovrtx_renderer:OVRTXRenderer"
+    class_type: type[OVRTXRenderer] | str = config_field("{DIR}.ovrtx_renderer:OVRTXRenderer")
     """Renderer implementation class."""
 
-    renderer_type: str = "ovrtx"
+    renderer_type: str = config_field("ovrtx")
     """Type identifier for OVRTX renderer."""
 
-    temp_usd_dir: str | None = None
+    temp_usd_dir: str | None = config_field(None)
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 
     When set, the renderer writes ``pre_ovrtx_renderer_stage.usda`` (raw stage before
@@ -43,13 +44,13 @@ class OVRTXRendererCfg(RendererCfg):
     stage plus injected render products) under this directory. Must be writable.
     """
 
-    log_level: str = "verbose"
+    log_level: str = config_field("verbose")
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""
 
-    log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
+    log_file_path: str = config_field(os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log"))
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
 
-    enable_shadows: bool = False
+    enable_shadows: bool = config_field(False)
     """Whether lights cast shadows in RTX Minimal mode. Defaults to False.
 
     Shadow rays cost render time that rarely changes what a policy learns, so they are turned off
@@ -62,7 +63,7 @@ class OVRTXRendererCfg(RendererCfg):
     does not change ``rgb`` and the other AOV outputs.
     """
 
-    colorize_semantic_segmentation: bool = True
+    colorize_semantic_segmentation: bool = config_field(True)
     """Whether to colorize semantic segmentation output. Defaults to True.
 
     If True, semantic IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
@@ -72,7 +73,7 @@ class OVRTXRendererCfg(RendererCfg):
     ``camera.data.info["semantic_segmentation"]["idToLabels"]``.
     """
 
-    colorize_instance_segmentation: bool = True
+    colorize_instance_segmentation: bool = config_field(True)
     """Whether to colorize instance segmentation output. Defaults to True.
 
     If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
@@ -83,7 +84,7 @@ class OVRTXRendererCfg(RendererCfg):
     semantic-label mapping via ``camera.data.info["instance_segmentation"]["idToSemantics"]``.
     """
 
-    colorize_instance_id_segmentation: bool = True
+    colorize_instance_id_segmentation: bool = config_field(True)
     """Whether to colorize instance ID segmentation output. Defaults to True.
 
     If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.

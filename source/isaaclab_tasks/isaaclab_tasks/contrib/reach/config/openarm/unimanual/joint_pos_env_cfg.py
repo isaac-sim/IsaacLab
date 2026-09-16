@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import replace_config
 
 from isaaclab_tasks.contrib.reach.config.openarm.unimanual.reach_openarm_uni_env_cfg import (
     ReachEnvCfg,
@@ -28,10 +29,12 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # switch robot to OpenArm
-        self.scene.robot = OPENARM_UNI_CFG.replace(
+        self.scene.robot = replace_config(
+            OPENARM_UNI_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={

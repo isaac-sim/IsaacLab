@@ -5,6 +5,7 @@
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -13,7 +14,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.contrib.navigation.mdp as mdp
@@ -23,41 +24,45 @@ LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (-0.0, 0.0),
-                "y": (-0.0, 0.0),
-                "z": (-0.0, 0.0),
-                "roll": (-0.0, 0.0),
-                "pitch": (-0.0, 0.0),
-                "yaw": (-0.0, 0.0),
+    reset_base: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+                "velocity_range": {
+                    "x": (-0.0, 0.0),
+                    "y": (-0.0, 0.0),
+                    "z": (-0.0, 0.0),
+                    "roll": (-0.0, 0.0),
+                    "pitch": (-0.0, 0.0),
+                    "yaw": (-0.0, 0.0),
+                },
             },
-        },
+        )
     )
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action terms for the MDP."""
 
-    pre_trained_policy_action: mdp.PreTrainedPolicyActionCfg = mdp.PreTrainedPolicyActionCfg(
-        asset_name="robot",
-        policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/ANYmal-C/Blind/policy.pt",
-        low_level_decimation=4,
-        low_level_actions=LOW_LEVEL_ENV_CFG.actions.joint_pos,
-        low_level_observations=LOW_LEVEL_ENV_CFG.observations.policy,
+    pre_trained_policy_action: mdp.PreTrainedPolicyActionCfg = config_field(
+        mdp.PreTrainedPolicyActionCfg(
+            asset_name="robot",
+            policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/ANYmal-C/Blind/policy.pt",
+            low_level_decimation=4,
+            low_level_actions=LOW_LEVEL_ENV_CFG.actions.joint_pos,
+            low_level_observations=LOW_LEVEL_ENV_CFG.observations.policy,
+        )
     )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -65,58 +70,70 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "pose_command"})
+        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel))
+        projected_gravity: Any = config_field(ObsTerm(func=mdp.projected_gravity))
+        pose_command: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "pose_command"}))
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Reward terms for the MDP."""
 
-    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-400.0)
-    position_tracking = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.5,
-        params={"std": 2.0, "command_name": "pose_command"},
+    termination_penalty: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-400.0))
+    position_tracking: Any = config_field(
+        RewTerm(
+            func=mdp.position_command_error_tanh,
+            weight=0.5,
+            params={"std": 2.0, "command_name": "pose_command"},
+        )
     )
-    position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.5,
-        params={"std": 0.2, "command_name": "pose_command"},
+    position_tracking_fine_grained: Any = config_field(
+        RewTerm(
+            func=mdp.position_command_error_tanh,
+            weight=0.5,
+            params={"std": 0.2, "command_name": "pose_command"},
+        )
     )
-    orientation_tracking = RewTerm(
-        func=mdp.heading_command_error_abs,
-        weight=-0.2,
-        params={"command_name": "pose_command"},
+    orientation_tracking: Any = config_field(
+        RewTerm(
+            func=mdp.heading_command_error_abs,
+            weight=-0.2,
+            params={"command_name": "pose_command"},
+        )
     )
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
+class CommandsCfg:
     """Command terms for the MDP."""
 
-    pose_command = mdp.UniformPose2dCommandCfg(
-        asset_name="robot",
-        simple_heading=False,
-        resampling_time_range=(8.0, 8.0),
-        debug_vis=True,
-        position_success_threshold=0.5,
-        ranges=mdp.UniformPose2dCommandCfg.Ranges(pos_x=(-3.0, 3.0), pos_y=(-3.0, 3.0), heading=(-math.pi, math.pi)),
+    pose_command: Any = config_field(
+        mdp.UniformPose2dCommandCfg(
+            asset_name="robot",
+            simple_heading=False,
+            resampling_time_range=(8.0, 8.0),
+            debug_vis=True,
+            position_success_threshold=0.5,
+            ranges=mdp.UniformPose2dCommandCfg.Ranges(
+                pos_x=(-3.0, 3.0), pos_y=(-3.0, 3.0), heading=(-math.pi, math.pi)
+            ),
+        )
     )
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    base_contact: Any = config_field(
+        DoneTerm(
+            func=mdp.illegal_contact,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+        )
     )
 
 
@@ -125,14 +142,14 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the navigation environment."""
 
     # environment settings
-    scene: SceneEntityCfg = LOW_LEVEL_ENV_CFG.scene
-    actions: ActionsCfg = ActionsCfg()
-    observations: ObservationsCfg = ObservationsCfg()
-    events: EventCfg = EventCfg()
+    scene: SceneEntityCfg = config_field(LOW_LEVEL_ENV_CFG.scene)
+    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    events: EventCfg = config_field(EventCfg())
     # mdp settings
-    commands: CommandsCfg = CommandsCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    commands: CommandsCfg = config_field(CommandsCfg())
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
 
     def __post_init__(self):
         """Post initialization."""

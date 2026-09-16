@@ -12,12 +12,14 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoug
 # Pre-defined configs
 ##
 from isaaclab_assets import ANYMAL_B_CFG  # isort: skip
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # scene
-        self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(ANYMAL_B_CFG, prim_path="{ENV_REGEX_NS}/Robot")

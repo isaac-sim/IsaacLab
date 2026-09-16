@@ -11,7 +11,8 @@ from .rough_env_cfg import AnymalBRoughEnvCfg
 @dataclass
 class AnymalBFlatEnvCfg(AnymalBRoughEnvCfg):
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # physics
         newton_mjwarp = self.sim.physics.newton_mjwarp

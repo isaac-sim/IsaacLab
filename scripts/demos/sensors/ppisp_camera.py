@@ -19,11 +19,14 @@ the Newton Warp or Isaac RTX renderer.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
 import os
-from typing import Any
 
 from isaaclab.app import AppLauncher
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -147,24 +150,28 @@ from isaaclab.sensors import Camera, CameraCfg
 class PpispCameraSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 
-    env_spacing: float = 20.0
+    env_spacing: float = config_field(20.0)
 
-    input_scene = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Scene",
-        spawn=sim_utils.UsdFileCfg(usd_path=""),
+    input_scene: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Scene",
+            spawn=sim_utils.UsdFileCfg(usd_path=""),
+        )
     )
 
-    anchor = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Anchor",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+    anchor: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Anchor",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.01, 0.01, 0.01),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+        )
     )
 
 

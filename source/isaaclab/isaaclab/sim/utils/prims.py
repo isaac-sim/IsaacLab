@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ParamSpec, overload
 
 import torch
 
+from isaaclab.utils import config_to_dict
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 
@@ -1024,11 +1025,9 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         from dataclasses import dataclass
         from typing import Literal
 
-        from isaaclab.utils import ConfigMixin
-
 
         @dataclass
-        class TableVariants(ConfigMixin):
+        class TableVariants:
             color: Literal["blue", "red"] = "red"
             size: Literal["small", "large"] = "large"
 
@@ -1064,7 +1063,7 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
     # Convert to dict if we have a configuration dataclass.
     if not isinstance(variants, dict):
-        variants = variants.to_dict()  # type: ignore
+        variants = config_to_dict(variants)  # type: ignore
 
     existing_variant_sets = prim.GetVariantSets()
     for variant_set_name, variant_selection in variants.items():  # type: ignore

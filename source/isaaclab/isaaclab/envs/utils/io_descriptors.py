@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     import torch
@@ -23,56 +23,56 @@ import inspect
 
 
 @dataclass
-class GenericActionIODescriptor(ConfigMixin):
+class GenericActionIODescriptor:
     """Generic action IO descriptor.
 
     This descriptor is used to describe the action space of a policy.
     It can be extended as needed to add more information about the action term that is being described.
     """
 
-    mdp_type: str = "Action"
+    mdp_type: str = config_field("Action")
     """The type of MDP that the action term belongs to."""
 
-    name: str = None
+    name: str = config_field(None)
     """The name of the action term.
 
     By default, the name of the action term class is used.
     """
 
-    full_path: str = None
+    full_path: str = config_field(None)
     """The full path of the action term class.
 
     By default, python's will retrieve the path from the file that the action term class is defined in
     and the name of the action term class.
     """
 
-    description: str = None
+    description: str = config_field(None)
     """The description of the action term.
 
     By default, the docstring of the action term class is used.
     """
 
-    shape: tuple[int, ...] = None
+    shape: tuple[int, ...] = config_field(None)
     """The shape of the action term.
 
     This should be populated by the user."""
 
-    dtype: str = None
+    dtype: str = config_field(None)
     """The dtype of the action term.
 
     This should be populated by the user."""
 
-    action_type: str = None
+    action_type: str = config_field(None)
     """The type of the action term.
 
     This attribute is purely informative and should be populated by the user."""
 
-    extras: dict[str, Any] = {}
+    extras: dict[str, Any] = config_field({})
     """Extra information about the action term.
 
     This attribute is purely informative and should be populated by the user."""
 
-    export: bool = True
+    export: bool = config_field(True)
     """Whether to export the action term.
 
     Should be set to False if the class is not meant to be exported.
@@ -80,21 +80,21 @@ class GenericActionIODescriptor(ConfigMixin):
 
 
 @dataclass
-class GenericObservationIODescriptor(ConfigMixin):
+class GenericObservationIODescriptor:
     """Generic observation IO descriptor.
 
     This descriptor is used to describe the observation space of a policy.
     It can be extended as needed to add more information about the observation term that is being described.
     """
 
-    mdp_type: str = "Observation"
-    name: str = None
-    full_path: str = None
-    description: str = None
-    shape: tuple[int, ...] = None
-    dtype: str = None
-    observation_type: str = None
-    extras: dict[str, Any] = {}
+    mdp_type: str = config_field("Observation")
+    name: str = config_field(None)
+    full_path: str = config_field(None)
+    description: str = config_field(None)
+    shape: tuple[int, ...] = config_field(None)
+    dtype: str = config_field(None)
+    observation_type: str = config_field(None)
+    extras: dict[str, Any] = config_field({})
 
 
 # These are defined to help with type hinting

@@ -6,8 +6,10 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+from typing import Any
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field, replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the IMU sensor.")
@@ -51,19 +53,19 @@ class ImuSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with IMU sensors on the robot."""
 
     # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
-    imu_RF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT")
+    imu_RF: Any = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT"))
 
-    imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT")
+    imu_LF: Any = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT"))
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):

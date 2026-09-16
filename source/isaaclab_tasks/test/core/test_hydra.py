@@ -11,10 +11,11 @@ external environment configurations.
 
 import warnings
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, config_to_dict
 
 from isaaclab_tasks.utils import hydra as hydra_mod
 from isaaclab_tasks.utils.hydra import (
@@ -33,42 +34,42 @@ from isaaclab_tasks.utils.hydra import (
 
 
 @dataclass
-class PhysxCfg(ConfigMixin):
-    backend: str = "physx"
-    dt: float = 0.005
-    substeps: int = 2
+class PhysxCfg:
+    backend: str = config_field("physx")
+    dt: float = config_field(0.005)
+    substeps: int = config_field(2)
 
 
 @dataclass
-class NewtonCfg(ConfigMixin):
-    backend: str = "newton"
-    dt: float = 0.002
-    substeps: int = 4
-    solver_iterations: int = 8
+class NewtonCfg:
+    backend: str = config_field("newton")
+    dt: float = config_field(0.002)
+    substeps: int = config_field(4)
+    solver_iterations: int = config_field(8)
 
 
 @dataclass
-class NoiselessObservationsCfg(ConfigMixin):
-    enable_corruption: bool = False
-    concatenate_terms: bool = True
-    noise_scale: float = 0.0
+class NoiselessObservationsCfg:
+    enable_corruption: bool = config_field(False)
+    concatenate_terms: bool = config_field(True)
+    noise_scale: float = config_field(0.0)
 
 
 @dataclass
-class FastObservationsCfg(ConfigMixin):
-    enable_corruption: bool = False
-    concatenate_terms: bool = False
-    noise_scale: float = 0.0
+class FastObservationsCfg:
+    enable_corruption: bool = config_field(False)
+    concatenate_terms: bool = config_field(False)
+    noise_scale: float = config_field(0.0)
 
 
 @dataclass
-class SmallPolicyCfg(ConfigMixin):
-    actor_hidden_dims: list = [64, 32]
+class SmallPolicyCfg:
+    actor_hidden_dims: list = config_field([64, 32])
 
 
 @dataclass
-class FastPolicyCfg(ConfigMixin):
-    actor_hidden_dims: list = [32, 16]
+class FastPolicyCfg:
+    actor_hidden_dims: list = config_field([32, 16])
 
 
 # =============================================================================
@@ -77,107 +78,107 @@ class FastPolicyCfg(ConfigMixin):
 
 
 @dataclass
-class SampleEnvCfg(ConfigMixin):
-    decimation: int = 4
-    sim_dt: float = 0.005
+class SampleEnvCfg:
+    decimation: int = config_field(4)
+    sim_dt: float = config_field(0.005)
 
 
 @dataclass
-class SampleAgentCfg(ConfigMixin):
-    max_iterations: int = 1000
-    learning_rate: float = 3e-4
+class SampleAgentCfg:
+    max_iterations: int = config_field(1000)
+    learning_rate: float = config_field(3e-4)
 
 
 @dataclass
 class SimBackendCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
-    newton_mjwarp: NewtonCfg = NewtonCfg()
+    default: PhysxCfg = config_field(PhysxCfg())
+    newton_mjwarp: NewtonCfg = config_field(NewtonCfg())
 
 
 @dataclass
 class ObsModeCfg(PresetCfg):
-    default: NoiselessObservationsCfg = NoiselessObservationsCfg()
-    fast: FastObservationsCfg = FastObservationsCfg()
+    default: NoiselessObservationsCfg = config_field(NoiselessObservationsCfg())
+    fast: FastObservationsCfg = config_field(FastObservationsCfg())
 
 
 @dataclass
 class PolicyModeCfg(PresetCfg):
-    default: SmallPolicyCfg = SmallPolicyCfg()
-    fast: FastPolicyCfg = FastPolicyCfg()
+    default: SmallPolicyCfg = config_field(SmallPolicyCfg())
+    fast: FastPolicyCfg = config_field(FastPolicyCfg())
 
 
 @dataclass
-class PresetCfgEnvCfg(ConfigMixin):
-    decimation: int = 4
-    backend: SimBackendCfg = SimBackendCfg()
-    observations: ObsModeCfg = ObsModeCfg()
+class PresetCfgEnvCfg:
+    decimation: int = config_field(4)
+    backend: SimBackendCfg = config_field(SimBackendCfg())
+    observations: ObsModeCfg = config_field(ObsModeCfg())
 
 
 @dataclass
-class PresetCfgAgentCfg(ConfigMixin):
-    learning_rate: float = 3e-4
-    policy: PolicyModeCfg = PolicyModeCfg()
+class PresetCfgAgentCfg:
+    learning_rate: float = config_field(3e-4)
+    policy: PolicyModeCfg = config_field(PolicyModeCfg())
 
 
 @dataclass
 class RootAgentCfg(PresetCfg):
     """Root-level PresetCfg -- the agent config itself is a PresetCfg."""
 
-    default: SampleAgentCfg = SampleAgentCfg()
-    fast: SampleAgentCfg = SampleAgentCfg(max_iterations=100, learning_rate=1e-3)
+    default: SampleAgentCfg = config_field(SampleAgentCfg())
+    fast: SampleAgentCfg = config_field(SampleAgentCfg(max_iterations=100, learning_rate=1e-3))
 
 
 # -- Nested PresetCfg-inside-PresetCfg (mirrors scene.base_camera pattern) --
 
 
 @dataclass
-class CameraSmallCfg(ConfigMixin):
-    width: int = 64
-    height: int = 64
+class CameraSmallCfg:
+    width: int = config_field(64)
+    height: int = config_field(64)
 
 
 @dataclass
-class CameraLargeCfg(ConfigMixin):
-    width: int = 256
-    height: int = 256
+class CameraLargeCfg:
+    width: int = config_field(256)
+    height: int = config_field(256)
 
 
 @dataclass
-class CameraWideCfg(ConfigMixin):
-    width: int = 512
-    height: int = 128
+class CameraWideCfg:
+    width: int = config_field(512)
+    height: int = config_field(128)
 
 
 @dataclass
 class CameraPresetCfg(PresetCfg):
-    small: CameraSmallCfg = CameraSmallCfg()
-    large: CameraLargeCfg = CameraLargeCfg()
-    default: CameraSmallCfg = CameraSmallCfg()
+    small: CameraSmallCfg = config_field(CameraSmallCfg())
+    large: CameraLargeCfg = config_field(CameraLargeCfg())
+    default: CameraSmallCfg = config_field(CameraSmallCfg())
 
 
 @dataclass
 class WideCameraPresetCfg(PresetCfg):
-    small: CameraWideCfg = CameraWideCfg()
-    default: CameraWideCfg = CameraWideCfg()
+    small: CameraWideCfg = config_field(CameraWideCfg())
+    default: CameraWideCfg = config_field(CameraWideCfg())
 
 
 @dataclass
-class BaseSceneCfg(ConfigMixin):
-    num_envs: int = 1024
-    camera: PresetCfg | None = None
+class BaseSceneCfg:
+    num_envs: int = config_field(1024)
+    camera: PresetCfg | None = config_field(None)
 
 
 @dataclass
 class ScenePresetCfg(PresetCfg):
-    default: BaseSceneCfg = BaseSceneCfg()
-    wide_camera: BaseSceneCfg = BaseSceneCfg(camera=WideCameraPresetCfg())
-    with_camera: BaseSceneCfg = BaseSceneCfg(camera=CameraPresetCfg())
+    default: BaseSceneCfg = config_field(BaseSceneCfg())
+    wide_camera: BaseSceneCfg = config_field(BaseSceneCfg(camera=WideCameraPresetCfg()))
+    with_camera: BaseSceneCfg = config_field(BaseSceneCfg(camera=CameraPresetCfg()))
 
 
 @dataclass
-class NestedPresetEnvCfg(ConfigMixin):
-    decimation: int = 4
-    scene: ScenePresetCfg = ScenePresetCfg()
+class NestedPresetEnvCfg:
+    decimation: int = config_field(4)
+    scene: ScenePresetCfg = config_field(ScenePresetCfg())
 
 
 # -- Scalar PresetCfg and actuator configs (shared by scalar + dict sections) --
@@ -185,16 +186,16 @@ class NestedPresetEnvCfg(ConfigMixin):
 
 @dataclass
 class ScalarPresetCfg(PresetCfg):
-    default: float = 0.0
-    newton_mjwarp: float = 0.01
+    default: float = config_field(0.0)
+    newton_mjwarp: float = config_field(0.01)
 
 
 @dataclass
-class ActuatorWithPresetCfg(ConfigMixin):
-    joint_names: list = [".*"]
-    stiffness: float = 40.0
-    damping: float = 5.0
-    armature: ScalarPresetCfg = ScalarPresetCfg()
+class ActuatorWithPresetCfg:
+    joint_names: list = config_field([".*"])
+    stiffness: float = config_field(40.0)
+    damping: float = config_field(5.0)
+    armature: ScalarPresetCfg = config_field(ScalarPresetCfg())
 
 
 # -- Deep-nested dict configs (event term params pattern) --
@@ -204,39 +205,39 @@ class ActuatorWithPresetCfg(ConfigMixin):
 class OffsetCfg(PresetCfg):
     """Mimics task-specific offset presets (e.g., AssembledOffsetCfg)."""
 
-    task_a: tuple = (0.0, 0.0, 0.01)
-    task_b: tuple = (0.02, 0.0, 0.005)
-    default: tuple = task_a
+    task_a: tuple = config_field((0.0, 0.0, 0.01))
+    task_b: tuple = config_field((0.02, 0.0, 0.005))
+    default: tuple = config_field(task_a)
 
 
 @dataclass
 class FractionCfg(PresetCfg):
-    task_a: tuple = (0.05, 0.5)
-    task_b: tuple = (0.3, 1.0)
-    default: tuple = task_a
+    task_a: tuple = config_field((0.05, 0.5))
+    task_b: tuple = config_field((0.3, 1.0))
+    default: tuple = config_field(task_a)
 
 
 @dataclass
 class JointNamesCfg(PresetCfg):
-    default: list[str] | None = None
-    robot_a: list[str] = None
-    robot_b: list[str] = None
+    default: list[str] | None = config_field(None)
+    robot_a: list[str] = config_field(None)
+    robot_b: list[str] = config_field(None)
 
 
 @dataclass
-class EntityCfg(ConfigMixin):
+class EntityCfg:
     """Mimics SceneEntityCfg with a preset-valued field."""
 
-    name: str = "robot"
-    joint_names: list[str] | None = None
+    name: str = config_field("robot")
+    joint_names: list[str] | None = config_field(None)
 
 
 @dataclass
-class InnerTermCfg(ConfigMixin):
+class InnerTermCfg:
     """Mimics an EventTermCfg with params containing presets."""
 
-    func: str = "reset_fn"
-    params: dict = None
+    func: str = config_field("reset_fn")
+    params: dict = config_field(None)
 
     def __post_init__(self):
         if self.params is None:
@@ -248,11 +249,11 @@ class InnerTermCfg(ConfigMixin):
 
 
 @dataclass
-class OuterTermCfg(ConfigMixin):
+class OuterTermCfg:
     """Mimics a chained reset term with nested terms dict."""
 
-    func: str = "chain_fn"
-    params: dict = None
+    func: str = config_field("chain_fn")
+    params: dict = config_field(None)
 
     def __post_init__(self):
         if self.params is None:
@@ -264,17 +265,17 @@ class OuterTermCfg(ConfigMixin):
 
 
 @dataclass
-class DeepDictEnvCfg(ConfigMixin):
-    decimation: int = 4
-    events: OuterTermCfg = OuterTermCfg()
+class DeepDictEnvCfg:
+    decimation: int = config_field(4)
+    events: OuterTermCfg = config_field(OuterTermCfg())
 
 
 @dataclass
-class DictPresetTermCfg(ConfigMixin):
+class DictPresetTermCfg:
     """Outer term where the terms dict is itself a preset (resolves to a dict)."""
 
-    func: str = "term_choice"
-    params: dict = None
+    func: str = config_field("term_choice")
+    params: dict = config_field(None)
 
     def __post_init__(self):
         if self.params is None:
@@ -292,9 +293,9 @@ class DictPresetTermCfg(ConfigMixin):
 
 
 @dataclass
-class PresetResolvesToDictEnvCfg(ConfigMixin):
-    decimation: int = 4
-    events: DictPresetTermCfg = DictPresetTermCfg()
+class PresetResolvesToDictEnvCfg:
+    decimation: int = config_field(4)
+    events: DictPresetTermCfg = config_field(DictPresetTermCfg())
 
 
 # =============================================================================
@@ -307,7 +308,7 @@ def _apply(env_cfg, agent_cfg=None, global_presets=None, preset_sel=None, preset
     if agent_cfg is None:
         agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     return apply_overrides(
         env_cfg,
         agent_cfg,
@@ -359,8 +360,8 @@ def test_legacy_kamino_attribute_alias_warns():
 
     @dataclass
     class _SolverPresetsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        newton_kamino: NewtonCfg = NewtonCfg()
+        default: PhysxCfg = config_field(PhysxCfg())
+        newton_kamino: NewtonCfg = config_field(NewtonCfg())
 
     cfg = _SolverPresetsCfg()
     with pytest.warns(FutureWarning, match="Preset 'kamino' is deprecated"):
@@ -379,9 +380,9 @@ def test_legacy_renderer_suffix_attribute_alias_warns(legacy_name, canonical_nam
 
     @dataclass
     class _RendererPresetsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        ovrtx: PhysxCfg = PhysxCfg()
-        isaacsim_rtx: PhysxCfg = PhysxCfg()
+        default: PhysxCfg = config_field(PhysxCfg())
+        ovrtx: PhysxCfg = config_field(PhysxCfg())
+        isaacsim_rtx: PhysxCfg = config_field(PhysxCfg())
 
     cfg = _RendererPresetsCfg()
     with pytest.warns(FutureWarning, match=f"Preset '{legacy_name}' is deprecated"):
@@ -393,9 +394,9 @@ def test_legacy_alias_suppressed_when_legacy_name_is_real_field():
 
     @dataclass
     class _ShadowingCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        newton: PhysxCfg = PhysxCfg()
-        newton_mjwarp: NewtonCfg = NewtonCfg()
+        default: PhysxCfg = config_field(PhysxCfg())
+        newton: PhysxCfg = config_field(PhysxCfg())
+        newton_mjwarp: NewtonCfg = config_field(NewtonCfg())
 
     cfg = _ShadowingCfg()
     with warnings.catch_warnings():
@@ -479,7 +480,7 @@ def test_parse_overrides_root_preset():
 def test_presetcfg_auto_default(class_presets):
     """'default' field auto-applied when no CLI override."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
     assert isinstance(env_cfg.backend, PhysxCfg)
     assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
@@ -489,7 +490,7 @@ def test_presetcfg_auto_default(class_presets):
 def test_presetcfg_cli_selection(class_presets):
     """Path selection replaces with chosen preset."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton_mjwarp")], [], presets)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.002
@@ -498,7 +499,7 @@ def test_presetcfg_cli_selection(class_presets):
 def test_presetcfg_global_broadcast(class_presets):
     """Global preset 'fast' broadcasts across env and agent PresetCfg fields."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [], [], presets)
     assert isinstance(env_cfg.observations, FastObservationsCfg)
     assert isinstance(agent_cfg.policy, FastPolicyCfg)
@@ -507,7 +508,7 @@ def test_presetcfg_global_broadcast(class_presets):
 def test_presetcfg_path_selection_others_default(class_presets):
     """Path preset on one field, others get auto-default."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton_mjwarp")], [], presets)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
@@ -608,46 +609,46 @@ def test_nested_presetcfg_path_preset_uses_selected_parent_branch():
 
 
 @dataclass
-class RendererACfg(ConfigMixin):
-    backend: str = "rtx"
+class RendererACfg:
+    backend: str = config_field("rtx")
 
 
 @dataclass
-class RendererBCfg(ConfigMixin):
-    backend: str = "warp"
+class RendererBCfg:
+    backend: str = config_field("warp")
 
 
 @dataclass
 class RendererPresetCfg(PresetCfg):
-    default: RendererACfg = RendererACfg()
-    newton_renderer: RendererBCfg = RendererBCfg()
+    default: RendererACfg = config_field(RendererACfg())
+    newton_renderer: RendererBCfg = config_field(RendererBCfg())
 
 
 @dataclass
-class SensorBaseCfg(ConfigMixin):
-    data_types: list[str] = []
-    width: int = 100
-    height: int = 100
-    renderer: RendererPresetCfg = RendererPresetCfg()
+class SensorBaseCfg:
+    data_types: list[str] = config_field([])
+    width: int = config_field(100)
+    height: int = config_field(100)
+    renderer: RendererPresetCfg = config_field(RendererPresetCfg())
 
 
 @dataclass
 class SensorPresetCfg(PresetCfg):
-    default: SensorBaseCfg = SensorBaseCfg(data_types=["rgb"])
-    depth: SensorBaseCfg = SensorBaseCfg(data_types=["depth"])
+    default: SensorBaseCfg = config_field(SensorBaseCfg(data_types=["rgb"]))
+    depth: SensorBaseCfg = config_field(SensorBaseCfg(data_types=["depth"]))
 
 
 @dataclass
-class RootEnvBaseCfg(ConfigMixin):
-    decimation: int = 2
-    sensor: SensorPresetCfg = SensorPresetCfg()
-    obs_shape: list[int] = [100, 100, 3]
+class RootEnvBaseCfg:
+    decimation: int = config_field(2)
+    sensor: SensorPresetCfg = config_field(SensorPresetCfg())
+    obs_shape: list[int] = config_field([100, 100, 3])
 
 
 @dataclass
 class RootPresetEnvCfg(PresetCfg):
-    default: RootEnvBaseCfg = RootEnvBaseCfg()
-    depth: RootEnvBaseCfg = RootEnvBaseCfg(obs_shape=[100, 100, 1])
+    default: RootEnvBaseCfg = config_field(RootEnvBaseCfg())
+    depth: RootEnvBaseCfg = config_field(RootEnvBaseCfg(obs_shape=[100, 100, 1]))
 
 
 def test_root_presetcfg_with_nested_preset_collect():
@@ -672,21 +673,21 @@ def test_root_presetcfg_resolve_defaults():
 
 
 @dataclass
-class OptionalFeatureCfg(ConfigMixin):
-    buffer_size: int = 200
-    export_path: str = "."
+class OptionalFeatureCfg:
+    buffer_size: int = config_field(200)
+    export_path: str = config_field(".")
 
 
 @dataclass
 class OptionalFeaturePresetCfg(PresetCfg):
-    default = None
-    enabled: OptionalFeatureCfg = OptionalFeatureCfg()
+    default: Any = config_field(None)
+    enabled: OptionalFeatureCfg = config_field(OptionalFeatureCfg())
 
 
 @dataclass
-class EnvWithOptionalFeatureCfg(ConfigMixin):
-    decimation: int = 4
-    optional_feature: OptionalFeaturePresetCfg = OptionalFeaturePresetCfg()
+class EnvWithOptionalFeatureCfg:
+    decimation: int = config_field(4)
+    optional_feature: OptionalFeaturePresetCfg = config_field(OptionalFeaturePresetCfg())
 
 
 def test_presetcfg_none_default_auto_applies():
@@ -700,7 +701,7 @@ def test_presetcfg_none_default_cli_selects_enabled():
     env_cfg = EnvWithOptionalFeatureCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     sel = [("env", "optional_feature", "enabled")]
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [], presets)
     assert isinstance(env_cfg.optional_feature, OptionalFeatureCfg)
@@ -727,9 +728,9 @@ def test_root_presetcfg_global_depth_resolves_nested():
 
 
 @dataclass
-class ScalarPresetEnvCfg(ConfigMixin):
-    decimation: int = 4
-    actuator: ActuatorWithPresetCfg = ActuatorWithPresetCfg()
+class ScalarPresetEnvCfg:
+    decimation: int = config_field(4)
+    actuator: ActuatorWithPresetCfg = config_field(ActuatorWithPresetCfg())
 
 
 def test_scalar_presetcfg_collect():
@@ -773,9 +774,9 @@ def test_scalar_presetcfg_path_selection():
 
 
 @dataclass
-class RobotCfg(ConfigMixin):
-    prim_path: str = "/World/Robot"
-    actuators: dict = None
+class RobotCfg:
+    prim_path: str = config_field("/World/Robot")
+    actuators: dict = config_field(None)
 
     def __post_init__(self):
         if self.actuators is None:
@@ -783,9 +784,9 @@ class RobotCfg(ConfigMixin):
 
 
 @dataclass
-class DictPresetEnvCfg(ConfigMixin):
-    decimation: int = 4
-    robot: RobotCfg = RobotCfg()
+class DictPresetEnvCfg:
+    decimation: int = config_field(4)
+    robot: RobotCfg = config_field(RobotCfg())
 
 
 def test_collect_presets_traverses_dict_values():
@@ -828,25 +829,25 @@ def test_dict_preset_with_factory():
     """preset() factory works inside dict-held configuration dataclasses."""
 
     @dataclass
-    class ActuatorCfgFactory(ConfigMixin):
-        joint_names: list = [".*"]
-        armature: object = None
+    class ActuatorCfgFactory:
+        joint_names: list = config_field([".*"])
+        armature: object = config_field(None)
 
         def __post_init__(self):
             if self.armature is None:
                 self.armature = preset(default=0.0, newton_mjwarp=0.01, physx=0.0)
 
     @dataclass
-    class RobotCfgFactory(ConfigMixin):
-        actuators: dict = None
+    class RobotCfgFactory:
+        actuators: dict = config_field(None)
 
         def __post_init__(self):
             if self.actuators is None:
                 self.actuators = {"legs": ActuatorCfgFactory()}
 
     @dataclass
-    class EnvCfgFactory(ConfigMixin):
-        robot: RobotCfgFactory = RobotCfgFactory()
+    class EnvCfgFactory:
+        robot: RobotCfgFactory = config_field(RobotCfgFactory())
 
     cfg = EnvCfgFactory()
     presets = collect_presets(cfg)
@@ -1005,20 +1006,20 @@ def test_resolve_preset_uses_class_level_override():
 
     @dataclass
     class BodyNameCfg(PresetCfg):
-        default: str = "generic_body"
+        default: str = config_field("generic_body")
 
     @dataclass
-    class TermWithBody(ConfigMixin):
-        func: str = "some_fn"
-        params: dict = None
+    class TermWithBody:
+        func: str = config_field("some_fn")
+        params: dict = config_field(None)
 
         def __post_init__(self):
             if self.params is None:
                 self.params = {"cfg": EntityCfg(name="robot", joint_names=BodyNameCfg())}
 
     @dataclass
-    class EnvWithBody(ConfigMixin):
-        events: TermWithBody = TermWithBody()
+    class EnvWithBody:
+        events: TermWithBody = config_field(TermWithBody())
 
     BodyNameCfg.default = "robot_specific_body"
 
@@ -1064,8 +1065,8 @@ def test_preset_factory_collectable():
     """preset()-created instances are discovered by collect_presets."""
 
     @dataclass
-    class FactoryEnvCfg(ConfigMixin):
-        damping: object = None
+    class FactoryEnvCfg:
+        damping: object = config_field(None)
 
         def __post_init__(self):
             if self.damping is None:
@@ -1106,8 +1107,8 @@ def test_collect_fields_prefers_class_attr_over_instance():
 
     @dataclass
     class MutablePresetCfg(PresetCfg):
-        default: str = "original_default"
-        alt: str = "alternative"
+        default: str = config_field("original_default")
+        alt: str = config_field("alternative")
 
     instance = MutablePresetCfg()
     assert instance.default == "original_default"
@@ -1126,8 +1127,8 @@ def test_collect_fields_includes_dynamic_class_attrs():
 
     @dataclass
     class ExtensiblePresetCfg(PresetCfg):
-        default: str = "base"
-        alt_a: str = "a"
+        default: str = config_field("base")
+        alt_a: str = config_field("a")
 
     ExtensiblePresetCfg.alt_b = "b"
 
@@ -1150,7 +1151,7 @@ def test_apply_overrides_unknown_preset_group_raises():
     env_cfg = PresetCfgEnvCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     with pytest.raises(ValueError, match="Unknown or inactive preset group"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "nonexistent", "val")], [], presets)
 
@@ -1160,7 +1161,7 @@ def test_apply_overrides_unknown_preset_name_raises():
     env_cfg = PresetCfgEnvCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     with pytest.raises(ValueError, match="Unknown preset 'nonexistent'"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "nonexistent")], [], presets)
 
@@ -1170,18 +1171,18 @@ def test_apply_overrides_conflicting_globals_raises():
 
     @dataclass
     class TwoAltsPresetCfg(PresetCfg):
-        default: str = "d"
-        opt_a: str = "a"
-        opt_b: str = "b"
+        default: str = config_field("d")
+        opt_a: str = config_field("a")
+        opt_b: str = config_field("b")
 
     @dataclass
-    class ConflictEnvCfg(ConfigMixin):
-        mode: TwoAltsPresetCfg = TwoAltsPresetCfg()
+    class ConflictEnvCfg:
+        mode: TwoAltsPresetCfg = config_field(TwoAltsPresetCfg())
 
     env_cfg = ConflictEnvCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     with pytest.raises(ValueError, match="Conflicting global presets"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["opt_a", "opt_b"], [], [], presets)
 
@@ -1190,32 +1191,32 @@ def test_apply_overrides_aliased_globals_no_conflict():
     """Two global presets resolving to equal values do not raise.
 
     Mirrors the Lift ObjectCfg pattern where ``newton_mjwarp = cube`` creates
-    separate but equal dataclass instances after ConfigMixin processing.
+    separate but equal dataclass instances after config_field processing.
     """
 
     @dataclass
-    class SharedCfg(ConfigMixin):
-        value: int = 42
+    class SharedCfg:
+        value: int = config_field(42)
 
     cube_val = SharedCfg()
     mjwarp_val = SharedCfg()
 
     @dataclass
     class AliasedPresetCfg(PresetCfg):
-        default: str = "d"
-        cube: SharedCfg = cube_val
-        newton_mjwarp: SharedCfg = mjwarp_val
+        default: str = config_field("d")
+        cube: SharedCfg = config_field(cube_val)
+        newton_mjwarp: SharedCfg = config_field(mjwarp_val)
 
     @dataclass
-    class AliasedEnvCfg(ConfigMixin):
-        mode: AliasedPresetCfg = AliasedPresetCfg()
+    class AliasedEnvCfg:
+        mode: AliasedPresetCfg = config_field(AliasedPresetCfg())
 
     env_cfg = AliasedEnvCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
     assert presets["env"]["mode"]["cube"] is not presets["env"]["mode"]["newton_mjwarp"]
     assert presets["env"]["mode"]["cube"] == presets["env"]["mode"]["newton_mjwarp"]
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["cube", "newton_mjwarp"], [], [], presets)
     assert env_cfg.mode == SharedCfg()
 
@@ -1257,7 +1258,7 @@ def test_parse_overrides_maps_legacy_kamino_preset_to_newton_kamino():
 def test_apply_overrides_resolves_legacy_alias_in_global_and_path_selection(class_presets):
     """``apply_overrides`` resolves legacy names supplied directly (bypassing ``parse_overrides``)."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
         apply_overrides(
             env_cfg,
@@ -1274,7 +1275,7 @@ def test_apply_overrides_resolves_legacy_alias_in_global_and_path_selection(clas
 def test_apply_overrides_legacy_and_current_alias_do_not_conflict(class_presets):
     """``presets=newton,newton_mjwarp`` (legacy + current) resolves to one preset, not a conflict."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["newton", "newton_mjwarp"], [], [], presets)
     assert isinstance(env_cfg.backend, NewtonCfg)
@@ -1334,7 +1335,7 @@ def test_parse_val_types():
 def test_scalar_override_within_preset_path(class_presets):
     """Scalar overrides within preset paths are applied on top of the preset."""
     env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(
         env_cfg,
         agent_cfg,
@@ -1355,17 +1356,17 @@ def test_scalar_override_kamino_solver_config():
 
     @dataclass
     class KaminoPhysicsPreset(PresetCfg):
-        default: NewtonCfg = NewtonCfg()
-        newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True))
+        default: NewtonCfg = config_field(NewtonCfg())
+        newton_kamino: NewtonCfg = config_field(NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True)))
 
     @dataclass
-    class KaminoEnvCfg(ConfigMixin):
-        physics: KaminoPhysicsPreset = KaminoPhysicsPreset()
+    class KaminoEnvCfg:
+        physics: KaminoPhysicsPreset = config_field(KaminoPhysicsPreset())
 
     env_cfg = KaminoEnvCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    hydra_cfg = {"env": config_to_dict(env_cfg), "agent": config_to_dict(agent_cfg)}
     apply_overrides(
         env_cfg,
         agent_cfg,
@@ -1414,11 +1415,11 @@ def test_resolve_presets_errors_on_no_default():
 
     @dataclass
     class NoDefaultPreset(PresetCfg):
-        option_a: int = 1
+        option_a: int = config_field(1)
 
     @dataclass
-    class EnvCfg(ConfigMixin):
-        mode: NoDefaultPreset = NoDefaultPreset()
+    class EnvCfg:
+        mode: NoDefaultPreset = config_field(NoDefaultPreset())
 
     with pytest.raises(ValueError, match="no 'default' field"):
         resolve_presets(EnvCfg())
@@ -1430,15 +1431,15 @@ def test_resolve_presets_errors_on_chained_no_default():
 
     @dataclass
     class InnerNoDefault(PresetCfg):
-        option_a: int = 1
+        option_a: int = config_field(1)
 
     @dataclass
     class OuterPreset(PresetCfg):
-        default: InnerNoDefault = InnerNoDefault()
+        default: InnerNoDefault = config_field(InnerNoDefault())
 
     @dataclass
-    class EnvCfg(ConfigMixin):
-        mode: OuterPreset = OuterPreset()
+    class EnvCfg:
+        mode: OuterPreset = config_field(OuterPreset())
 
     with pytest.raises(ValueError, match="no 'default' field"):
         resolve_presets(EnvCfg())
@@ -1454,14 +1455,14 @@ def test_resolve_presets_errors_on_cyclic_preset():
 
     @dataclass
     class CyclicA(PresetCfg):
-        default: CyclicB = CyclicB()
+        default: CyclicB = config_field(CyclicB())
 
     CyclicA.default = CyclicB()
     CyclicB.default = CyclicA()
 
     @dataclass
-    class EnvCfg(ConfigMixin):
-        mode: CyclicA = CyclicA()
+    class EnvCfg:
+        mode: CyclicA = config_field(CyclicA())
 
     with pytest.raises(ValueError, match="[Cc]ycl"):
         resolve_presets(EnvCfg())
@@ -1476,7 +1477,7 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 
     @dataclass
     class RootCyclicA(PresetCfg):
-        default: RootCyclicB = RootCyclicB()
+        default: RootCyclicB = config_field(RootCyclicB())
 
     RootCyclicA.default = RootCyclicB()
     RootCyclicB.default = RootCyclicA()
@@ -1498,12 +1499,12 @@ from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 class _NewtonPhysicsCfg(_RealPhysicsCfg):
     """Minimal real ``PhysicsCfg`` subclass so isinstance bucketing routes to PHYSICS."""
 
-    dt: float = 0.002
+    dt: float = config_field(0.002)
 
 
 @dataclass
 class _PhysxPhysicsCfg(_RealPhysicsCfg):
-    dt: float = 0.005
+    dt: float = config_field(0.005)
 
 
 def test_validate_typed_presets_passes_when_selector_hits_its_type():
@@ -1531,12 +1532,12 @@ def test_resolve_active_presets_records_physics_hit_for_selector():
 
     @dataclass
     class PhysicsPresetCfg(PresetCfg):
-        default: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
-        newton_mjwarp: _NewtonPhysicsCfg = _NewtonPhysicsCfg()
+        default: _PhysxPhysicsCfg = config_field(_PhysxPhysicsCfg())
+        newton_mjwarp: _NewtonPhysicsCfg = config_field(_NewtonPhysicsCfg())
 
     @dataclass
-    class EnvWithPhysicsCfg(ConfigMixin):
-        physics: PhysicsPresetCfg = PhysicsPresetCfg()
+    class EnvWithPhysicsCfg:
+        physics: PhysicsPresetCfg = config_field(PhysicsPresetCfg())
 
     typed_hits: dict[str, set[PresetTarget]] = {}
     hydra_mod._resolve_active_presets(
@@ -1551,9 +1552,9 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
     """A name resolving only to a scalar records no typed hit, so a physics= selector raises."""
 
     @dataclass
-    class EnvWithScalarOnlyCfg(ConfigMixin):
+    class EnvWithScalarOnlyCfg:
         # ``newton_mjwarp`` here only tunes a scalar -- no PhysicsCfg involved.
-        armature: PresetCfg = preset(default=0.0, newton_mjwarp=0.01)
+        armature: PresetCfg = config_field(preset(default=0.0, newton_mjwarp=0.01))
 
     consumed: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
@@ -1585,8 +1586,8 @@ def test_register_task_play_mode_applies_play_mode(monkeypatch):
     import gymnasium as gym
 
     @dataclass
-    class PlayModeEnvCfg(ConfigMixin):
-        played: bool = False
+    class PlayModeEnvCfg:
+        played: bool = config_field(False)
 
         def play_mode(self):
             self.played = True

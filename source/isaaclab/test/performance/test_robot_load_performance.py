@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace_config
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -72,7 +73,7 @@ def test_robot_load_performance(test_config, device):
         )
 
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
-            robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_[^/]*/Robot"))  # noqa: F841
+            robot = Articulation(replace_config(test_config["robot_cfg"], prim_path="/World/Robots_[^/]*/Robot"))  # noqa: F841
             sim.reset()
             elapsed_time = timer.time_elapsed
         assert elapsed_time <= test_config["expected_load_time"]

@@ -11,6 +11,7 @@ from dataclasses import MISSING, dataclass
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _DEFAULT_GROUND_PLANE_USD = (
@@ -35,7 +36,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         This is done by calling the respective function with the specified properties.
     """
 
-    scale: tuple[float, float, float] | None = None
+    scale: tuple[float, float, float] | None = config_field(None)
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
     articulation_props: (
@@ -44,7 +45,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         | list[schemas.ArticulationRootFragment]
         | schemas.ArticulationRootBaseCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Properties to apply to the articulation root.
 
     Accepts either a mapping from target pattern to a list of
@@ -60,7 +61,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     anchor prim itself.
     """
 
-    articulation_props_create_if_missing: bool = False
+    articulation_props_create_if_missing: bool = config_field(False)
     """Whether the articulation writer may apply ``UsdPhysics.ArticulationRootAPI`` when no matched
     prim carries it. Defaults to False. The flag applies to every entry of the
     :attr:`articulation_props` mapping.
@@ -70,7 +71,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`articulation_props` is given as fragments.
     """
 
-    fix_root_link: bool | None = None
+    fix_root_link: bool | None = config_field(None)
     """Whether to fix the root link of the articulation. Defaults to None.
 
     This is a non-USD, spawner-level behaviour flag consumed by
@@ -95,7 +96,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         | list[schemas.FixedTendonFragment]
         | schemas.FixedTendonPropertiesCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Properties to apply to the fixed tendons (if any).
 
     Accepts either a mapping from target pattern to a list of
@@ -115,7 +116,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         | list[schemas.SpatialTendonFragment]
         | schemas.SpatialTendonPropertiesCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Properties to apply to the spatial tendons (if any).
 
     Accepts either a mapping from target pattern to a list of
@@ -135,7 +136,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         | list[schemas.JointDriveFragment]
         | schemas.JointDriveBaseCfg
         | None
-    ) = None
+    ) = config_field(None)
     """Properties to apply to a joint.
 
     Accepts either a mapping from target pattern to a list of
@@ -159,7 +160,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         for specific joints in an articulation.
     """
 
-    joint_drive_props_create_if_missing: bool = False
+    joint_drive_props_create_if_missing: bool = config_field(False)
     """Whether the joint-drive writer may apply the defining USD drive API to matched joint prims
     that lack it. Defaults to False. The flag applies to every entry of the
     :attr:`joint_drive_props` mapping.
@@ -168,7 +169,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`ensure_drives_exist`, which instead patches zero-gain drives with a minimal stiffness.
     """
 
-    ensure_drives_exist: bool = False
+    ensure_drives_exist: bool = config_field(False)
     """Whether to ensure every joint drive is active when authoring :attr:`joint_drive_props`.
 
     When True, any joint drive whose authored stiffness *and* damping are both zero is given a
@@ -179,21 +180,21 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     ``ensure_drives_exist`` field.
     """
 
-    visual_material_path: str = "material"
+    visual_material_path: str = config_field("material")
     """Path to the visual material to use for the prim. Defaults to "material".
 
     If the path is relative, then it will be relative to the prim's path.
     This parameter is ignored if `visual_material` is not None.
     """
 
-    visual_material: materials.VisualMaterialCfg | None = None
+    visual_material: materials.VisualMaterialCfg | None = config_field(None)
     """Visual material properties to override the visual material properties in the URDF file.
 
     Note:
         If None, then no visual material will be added.
     """
 
-    visual_material_bindings: dict[str, str] = {}
+    visual_material_bindings: dict[str, str] = config_field({})
     """Visual material bindings for selected asset-relative prims.
 
     Keys name prims below the spawned asset. Relative values name materials below that asset,
@@ -201,7 +202,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     materials shared by every clone.
     """
 
-    physics_material_path: str = "material"
+    physics_material_path: str = config_field("material")
     """Path to the physics material to use for the prim. Defaults to "material".
 
     If the path is relative, then it will be relative to the prim's path.
@@ -213,7 +214,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
         | None
-    ) = None
+    ) = config_field(None)
     """Physics material properties.
 
     Accepts either a legacy material cfg, a single
@@ -251,12 +252,12 @@ class UsdFileCfg(FileCfg):
         This is done by calling the respective function with the specified properties.
     """
 
-    func: Callable | str = "{DIR}.from_files:spawn_from_usd"
+    func: Callable | str = config_field("{DIR}.from_files:spawn_from_usd")
 
-    usd_path: str = MISSING
+    usd_path: str = config_field(MISSING)
     """Path to the USD file to spawn asset from."""
 
-    variants: object | dict[str, str] | None = None
+    variants: object | dict[str, str] | None = config_field(None)
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
     This can either be a configuration dataclass, in which case each attribute is used as a variant set name and
@@ -264,7 +265,7 @@ class UsdFileCfg(FileCfg):
     :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
     """
 
-    make_uninstanceable: bool = False
+    make_uninstanceable: bool = config_field(False)
     """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
 
     Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
@@ -295,7 +296,7 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
 
     """
 
-    func: Callable | str = "{DIR}.from_files:spawn_from_urdf"
+    func: Callable | str = config_field("{DIR}.from_files:spawn_from_urdf")
 
 
 @dataclass
@@ -317,7 +318,7 @@ class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
 
     """
 
-    func: Callable | str = "{DIR}.from_files:spawn_from_mjcf"
+    func: Callable | str = config_field("{DIR}.from_files:spawn_from_mjcf")
 
 
 """
@@ -335,23 +336,23 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
     material application.
     """
 
-    func: Callable | str = "{DIR}.from_files:spawn_from_usd_with_compliant_contact_material"
+    func: Callable | str = config_field("{DIR}.from_files:spawn_from_usd_with_compliant_contact_material")
 
-    compliant_contact_stiffness: float | None = None
+    compliant_contact_stiffness: float | None = config_field(None)
     """Stiffness of the compliant contact. Defaults to None.
 
     This parameter is the same as
     :attr:`~isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_stiffness`.
     """
 
-    compliant_contact_damping: float | None = None
+    compliant_contact_damping: float | None = config_field(None)
     """Damping of the compliant contact. Defaults to None.
 
     This parameter is the same as
     :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping`.
     """
 
-    physics_material_prim_path: str | list[str] | None = None
+    physics_material_prim_path: str | list[str] | None = config_field(None)
     """Path to the prim or prims to apply the physics material to. Defaults to None, in which case the
     physics material is not applied.
 
@@ -367,26 +368,26 @@ class GroundPlaneCfg(SpawnerCfg):
     This uses Isaac Lab's metric checker ground plane with NVIDIA-green landmarks by default.
     """
 
-    func: Callable | str = "{DIR}.from_files:spawn_ground_plane"
+    func: Callable | str = config_field("{DIR}.from_files:spawn_ground_plane")
 
-    usd_path: str = _DEFAULT_GROUND_PLANE_USD
+    usd_path: str = config_field(_DEFAULT_GROUND_PLANE_USD)
     """Path to the USD file to spawn asset from. Defaults to Isaac Lab's ground plane on Nucleus."""
 
-    color: tuple[float, float, float] | None = None
+    color: tuple[float, float, float] | None = config_field(None)
     """The color tint of the ground plane. Defaults to None.
 
     If None, the authored material colors remain unchanged. An explicit value multiplicatively
     tints the diffuse texture without changing its authored roughness.
     """
 
-    size: tuple[float, float] = (100.0, 100.0)
+    size: tuple[float, float] = config_field((100.0, 100.0))
     """The size of the ground plane. Defaults to 100 m x 100 m."""
 
     physics_material: (
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = materials.RigidBodyMaterialBaseCfg()
+    ) = config_field(materials.RigidBodyMaterialBaseCfg())
     """Physics material properties. Defaults to the default rigid body material.
 
     The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a

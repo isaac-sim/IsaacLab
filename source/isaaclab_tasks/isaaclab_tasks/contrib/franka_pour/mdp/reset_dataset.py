@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.managers import CurriculumTermCfg
 from isaaclab.managers.manager_base import ManagerTermBase
+from isaaclab.utils import copy_config
 
 from ..reset_sampler import ResetDatasetSamplerCfg, _ResetDatasetSampler
 
@@ -39,7 +40,7 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         self._sampling_mode = env.cfg.reset_dataset_sampling_mode
         if self._sampling_mode not in ("adaptive", "uniform"):
             raise ValueError("reset_dataset_sampling_mode must be 'adaptive' or 'uniform'.")
-        sampler_cfg = env.cfg.reset_dataset_sampler.copy()
+        sampler_cfg = copy_config(env.cfg.reset_dataset_sampler)
         if not isinstance(sampler_cfg, ResetDatasetSamplerCfg):
             raise TypeError("reset_dataset_sampler must be ResetDatasetSamplerCfg.")
         self._sampler = _ResetDatasetSampler(self._row_count, self._device, sampler_cfg)

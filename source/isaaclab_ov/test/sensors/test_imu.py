@@ -28,10 +28,14 @@ first import can fail native symbol resolution after ``ovphysx.reset()``.
 
 from __future__ import annotations
 
+from typing import Any
+
 # ---------------------------------------------------------------------------
 # Wheel gate: skip the whole file if the ovphysx wheel is missing or too old.
 # ---------------------------------------------------------------------------
 import pytest
+
+from isaaclab.utils import config_field, replace_config
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 _TT_module = pytest.importorskip(
@@ -148,7 +152,7 @@ def _spawn_anymal(num_envs: int) -> Articulation:
     The :class:`Articulation` performs the per-env spawn itself once the env
     Xform containers exist; :func:`_spawn_envs` must be called first.
     """
-    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_[^/]+/robot")
+    cfg = replace_config(ANYMAL_C_CFG, prim_path="/World/env_[^/]+/robot")
     cfg.init_state.pos = (0.0, 2.0, 1.0)
     # bump solver iteration counts to match the PhysX test's scene cfg
     cfg.spawn.articulation_props.solver_position_iteration_count = 32
@@ -168,17 +172,19 @@ def _make_imu(prim_path: str, offset: ImuCfg.OffsetCfg | None = None) -> Imu:
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+            spawn=sim_utils.CuboidCfg(
+                size=(0.25, 0.25, 0.25),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+        )
     )
-    imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
+    imu_cube: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
 
 
 # ---------------------------------------------------------------------------

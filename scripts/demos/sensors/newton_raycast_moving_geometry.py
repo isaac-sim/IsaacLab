@@ -17,6 +17,10 @@ miss.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -68,42 +72,48 @@ def _falling_box_cfg(index: int) -> RigidObjectCfg:
 class MovingGeometrySceneCfg(InteractiveSceneCfg):
     """Ground plane, falling boxes, a sweeping bar, and a hovering sensor."""
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    box_0 = _falling_box_cfg(0)
-    box_1 = _falling_box_cfg(1)
-    box_2 = _falling_box_cfg(2)
+    box_0: Any = config_field(_falling_box_cfg(0))
+    box_1: Any = config_field(_falling_box_cfg(1))
+    box_2: Any = config_field(_falling_box_cfg(2))
 
-    bar = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Bar",
-        spawn=sim_utils.CuboidCfg(
-            size=(3.5, 0.3, 0.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.5)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
+    bar: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Bar",
+            spawn=sim_utils.CuboidCfg(
+                size=(3.5, 0.3, 0.3),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.5)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
+        )
     )
 
-    body = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.3, 0.3, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.6, 0.1)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.5)),
+    body: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.6, 0.1)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.5)),
+        )
     )
 
-    raycast = NewtonRaycastSensorCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        # Start the rays below the carrier body so they do not hit it.
-        offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, -0.1)),
-        pattern_cfg=GridPatternCfg(resolution=0.25, size=(3.0, 3.0)),
-        ray_alignment="yaw",
-        max_distance=10.0,
-        debug_vis=True,
+    raycast: Any = config_field(
+        NewtonRaycastSensorCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            # Start the rays below the carrier body so they do not hit it.
+            offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, -0.1)),
+            pattern_cfg=GridPatternCfg(resolution=0.25, size=(3.0, 3.0)),
+            ray_alignment="yaw",
+            max_distance=10.0,
+            debug_vis=True,
+        )
     )
 
 

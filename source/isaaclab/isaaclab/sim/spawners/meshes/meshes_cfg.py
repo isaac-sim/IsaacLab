@@ -11,6 +11,7 @@ from typing import Literal
 
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
+from isaaclab.utils import config_field
 
 
 @dataclass
@@ -37,21 +38,21 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     """
 
-    visual_material_path: str = "material"
+    visual_material_path: str = config_field("material")
     """Path to the visual material to use for the prim. Defaults to "material".
 
     If the path is relative, then it will be relative to the prim's path.
     This parameter is ignored if `visual_material` is not None.
     """
 
-    visual_material: materials.VisualMaterialCfg | None = None
+    visual_material: materials.VisualMaterialCfg | None = config_field(None)
     """Visual material properties.
 
     Note:
         If None, then no visual material will be added.
     """
 
-    physics_material_path: str = "material"
+    physics_material_path: str = config_field("material")
     """Path to the physics material to use for the prim. Defaults to "material".
 
     If the path is relative, then it will be relative to the prim's path.
@@ -63,7 +64,7 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
         | None
-    ) = None
+    ) = config_field(None)
     """Physics material properties.
 
     Accepts either a legacy material cfg, a single
@@ -74,7 +75,7 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no physics material will be added.
     """
 
-    edge_refinement: float = 4.0
+    edge_refinement: float = config_field(4.0)
     """Mesh edge refinement factor for deformable bodies.
 
     The maximum surface edge length is the bounding-box diagonal divided by this value. Volume deformables use the
@@ -91,9 +92,9 @@ class MeshSphereCfg(MeshCfg):
     See :meth:`spawn_mesh_sphere` for more information.
     """
 
-    func: Callable | str = "{DIR}.meshes:spawn_mesh_sphere"
+    func: Callable | str = config_field("{DIR}.meshes:spawn_mesh_sphere")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the sphere (in m)."""
 
 
@@ -104,9 +105,9 @@ class MeshCuboidCfg(MeshCfg):
     See :meth:`spawn_mesh_cuboid` for more information.
     """
 
-    func: Callable | str = "{DIR}.meshes:spawn_mesh_cuboid"
+    func: Callable | str = config_field("{DIR}.meshes:spawn_mesh_cuboid")
 
-    size: tuple[float, float, float] = MISSING
+    size: tuple[float, float, float] = config_field(MISSING)
     """Size of the cuboid [m]."""
 
 
@@ -117,13 +118,13 @@ class MeshCylinderCfg(MeshCfg):
     See :meth:`spawn_cylinder` for more information.
     """
 
-    func: Callable | str = "{DIR}.meshes:spawn_mesh_cylinder"
+    func: Callable | str = config_field("{DIR}.meshes:spawn_mesh_cylinder")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the cylinder (in m)."""
-    height: float = MISSING
+    height: float = config_field(MISSING)
     """Height of the cylinder (in m)."""
-    axis: Literal["X", "Y", "Z"] = "Z"
+    axis: Literal["X", "Y", "Z"] = config_field("Z")
     """Axis of the cylinder. Defaults to "Z"."""
 
 
@@ -134,13 +135,13 @@ class MeshCapsuleCfg(MeshCfg):
     See :meth:`spawn_capsule` for more information.
     """
 
-    func: Callable | str = "{DIR}.meshes:spawn_mesh_capsule"
+    func: Callable | str = config_field("{DIR}.meshes:spawn_mesh_capsule")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the capsule (in m)."""
-    height: float = MISSING
+    height: float = config_field(MISSING)
     """Height of the capsule (in m)."""
-    axis: Literal["X", "Y", "Z"] = "Z"
+    axis: Literal["X", "Y", "Z"] = config_field("Z")
     """Axis of the capsule. Defaults to "Z"."""
 
 
@@ -151,13 +152,13 @@ class MeshConeCfg(MeshCfg):
     See :meth:`spawn_cone` for more information.
     """
 
-    func: Callable | str = "{DIR}.meshes:spawn_mesh_cone"
+    func: Callable | str = config_field("{DIR}.meshes:spawn_mesh_cone")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the cone (in m)."""
-    height: float = MISSING
+    height: float = config_field(MISSING)
     """Height of the v (in m)."""
-    axis: Literal["X", "Y", "Z"] = "Z"
+    axis: Literal["X", "Y", "Z"] = config_field("Z")
     """Axis of the cone. Defaults to "Z"."""
 
 
@@ -168,7 +169,7 @@ class MeshRectangleCfg(MeshCfg):
     See :meth:`spawn_mesh_rectangle` for more information.
     """
 
-    func: Callable | str = "{DIR}.meshes:spawn_mesh_rectangle"
+    func: Callable | str = config_field("{DIR}.meshes:spawn_mesh_rectangle")
 
-    size: tuple[float, float] = MISSING
+    size: tuple[float, float] = config_field(MISSING)
     """Edge lengths of the rectangle along the X and Y axes [m]."""

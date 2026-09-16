@@ -45,7 +45,7 @@ batched physics view.
 
 .. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
-   :start-at: object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
+   :start-at: object_collection: RigidObjectCollectionCfg = config_field(
    :end-before: # articulation
    :dedent: 4
 
@@ -73,7 +73,7 @@ For configuration-based assets, assign :class:`~sim.spawners.wrappers.MultiAsset
 
 .. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
-   :start-at: object: RigidObjectCfg = RigidObjectCfg(
+   :start-at: object: RigidObjectCfg = config_field(
    :end-before: # object collection
    :dedent: 4
 
@@ -92,7 +92,7 @@ For USD assets, assign :class:`~sim.spawners.wrappers.MultiUsdFileCfg` to the
 
 .. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
-   :start-at: robot: ArticulationCfg = ArticulationCfg(
+   :start-at: robot: ArticulationCfg = config_field(
    :end-before: ##
    :dedent: 4
 

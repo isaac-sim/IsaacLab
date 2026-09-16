@@ -11,11 +11,11 @@ from typing import Literal
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class OpenCvDistortionCfg(ConfigMixin):
+class OpenCvDistortionCfg:
     """Base configuration for an OpenCV lens-distortion model carried on a camera cfg.
 
     The distortion model is renderer-agnostic: it is stored on the camera spawn configuration
@@ -31,25 +31,25 @@ class OpenCvDistortionCfg(ConfigMixin):
     :class:`OpenCvPinholeDistortionCfg` or :class:`OpenCvFisheyeDistortionCfg`.
     """
 
-    model: str = MISSING
+    model: str = config_field(MISSING)
     """Discriminator selecting the OpenCV distortion model. Set by each concrete sub-config."""
 
-    fx: float = MISSING
+    fx: float = config_field(MISSING)
     """Focal length along the image x-axis (in pixels)."""
 
-    fy: float = MISSING
+    fy: float = config_field(MISSING)
     """Focal length along the image y-axis (in pixels)."""
 
-    cx: float = MISSING
+    cx: float = config_field(MISSING)
     """Principal point offset along the image x-axis (in pixels)."""
 
-    cy: float = MISSING
+    cy: float = config_field(MISSING)
     """Principal point offset along the image y-axis (in pixels)."""
 
-    image_size: tuple[int, int] = MISSING
+    image_size: tuple[int, int] = config_field(MISSING)
     """Calibrated image size as ``(width, height)`` (in pixels)."""
 
-    apply_lens_distortion: bool = True
+    apply_lens_distortion: bool = config_field(True)
     """Whether to apply the distortion coefficients. Defaults to True.
 
     If False, the distortion coefficients are authored as zero while the intrinsic parameters
@@ -67,42 +67,42 @@ class OpenCvPinholeDistortionCfg(OpenCvDistortionCfg):
     coefficient set of the OpenCV rational model is exposed; unused coefficients default to zero.
     """
 
-    model: str = "opencvPinhole"
+    model: str = config_field("opencvPinhole")
 
-    k1: float = 0.0
+    k1: float = config_field(0.0)
     """First radial distortion coefficient. Defaults to 0.0."""
 
-    k2: float = 0.0
+    k2: float = config_field(0.0)
     """Second radial distortion coefficient. Defaults to 0.0."""
 
-    k3: float = 0.0
+    k3: float = config_field(0.0)
     """Third radial distortion coefficient. Defaults to 0.0."""
 
-    k4: float = 0.0
+    k4: float = config_field(0.0)
     """Fourth radial distortion coefficient (rational model). Defaults to 0.0."""
 
-    k5: float = 0.0
+    k5: float = config_field(0.0)
     """Fifth radial distortion coefficient (rational model). Defaults to 0.0."""
 
-    k6: float = 0.0
+    k6: float = config_field(0.0)
     """Sixth radial distortion coefficient (rational model). Defaults to 0.0."""
 
-    p1: float = 0.0
+    p1: float = config_field(0.0)
     """First tangential distortion coefficient. Defaults to 0.0."""
 
-    p2: float = 0.0
+    p2: float = config_field(0.0)
     """Second tangential distortion coefficient. Defaults to 0.0."""
 
-    s1: float = 0.0
+    s1: float = config_field(0.0)
     """First thin-prism distortion coefficient. Defaults to 0.0."""
 
-    s2: float = 0.0
+    s2: float = config_field(0.0)
     """Second thin-prism distortion coefficient. Defaults to 0.0."""
 
-    s3: float = 0.0
+    s3: float = config_field(0.0)
     """Third thin-prism distortion coefficient. Defaults to 0.0."""
 
-    s4: float = 0.0
+    s4: float = config_field(0.0)
     """Fourth thin-prism distortion coefficient. Defaults to 0.0."""
 
 
@@ -117,18 +117,18 @@ class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
         model authored directly on the camera rather than as an OpenCV ``fx/fy/cx/cy`` calibration.
     """
 
-    model: str = "opencvFisheye"
+    model: str = config_field("opencvFisheye")
 
-    k1: float = 0.0
+    k1: float = config_field(0.0)
     """First fisheye distortion coefficient. Defaults to 0.0."""
 
-    k2: float = 0.0
+    k2: float = config_field(0.0)
     """Second fisheye distortion coefficient. Defaults to 0.0."""
 
-    k3: float = 0.0
+    k3: float = config_field(0.0)
     """Third fisheye distortion coefficient. Defaults to 0.0."""
 
-    k4: float = 0.0
+    k4: float = config_field(0.0)
     """Fourth fisheye distortion coefficient. Defaults to 0.0."""
 
 
@@ -143,9 +143,9 @@ class PinholeCameraCfg(SpawnerCfg):
         world unit is Meter s.t. all of these values are set in cm.
     """
 
-    func: Callable | str = "{DIR}.sensors:spawn_camera"
+    func: Callable | str = config_field("{DIR}.sensors:spawn_camera")
 
-    projection_type: str = "pinhole"
+    projection_type: str = config_field("pinhole")
     """Type of projection to use for the camera. Defaults to "pinhole".
 
     Note:
@@ -155,7 +155,7 @@ class PinholeCameraCfg(SpawnerCfg):
         RTX/OVRTX renderer honors natively.
     """
 
-    distortion: OpenCvDistortionCfg | None = None
+    distortion: OpenCvDistortionCfg | None = config_field(None)
     """OpenCV lens-distortion model to author on the camera. Defaults to None (no distortion).
 
     When set, the OpenCV intrinsics and distortion coefficients are authored on the camera prim.
@@ -165,32 +165,32 @@ class PinholeCameraCfg(SpawnerCfg):
     undistorted there.
     """
 
-    clipping_range: tuple[float, float] = (0.01, 1e6)
+    clipping_range: tuple[float, float] = config_field((0.01, 1e6))
     """Near and far clipping distances (in m). Defaults to (0.01, 1e6).
 
     The minimum clipping range will shift the camera forward by the specified distance. Don't set it too high to
     avoid issues for distance related data types (e.g., ``distance_to_image_plane``).
     """
 
-    focal_length: float = 24.0
+    focal_length: float = config_field(24.0)
     """Perspective focal length (in cm). Defaults to 24.0cm.
 
     Longer lens lengths narrower FOV, shorter lens lengths wider FOV.
     """
 
-    focus_distance: float = 400.0
+    focus_distance: float = config_field(400.0)
     """Distance from the camera to the focus plane (in m). Defaults to 400.0.
 
     The distance at which perfect sharpness is achieved.
     """
 
-    f_stop: float = 0.0
+    f_stop: float = config_field(0.0)
     """Lens aperture. Defaults to 0.0, which turns off focusing.
 
     Controls Distance Blurring. Lower Numbers decrease focus range, larger numbers increase it.
     """
 
-    horizontal_aperture: float = 20.955
+    horizontal_aperture: float = config_field(20.955)
     """Horizontal aperture (in cm). Defaults to 20.955 cm.
 
     Emulates sensor/film width on a camera.
@@ -199,7 +199,7 @@ class PinholeCameraCfg(SpawnerCfg):
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
 
-    vertical_aperture: float | None = None
+    vertical_aperture: float | None = config_field(None)
     r"""Vertical aperture (in mm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
@@ -209,13 +209,13 @@ class PinholeCameraCfg(SpawnerCfg):
         \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
     """
 
-    horizontal_aperture_offset: float = 0.0
+    horizontal_aperture_offset: float = config_field(0.0)
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
 
-    vertical_aperture_offset: float = 0.0
+    vertical_aperture_offset: float = config_field(0.0)
     """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
 
-    lock_camera: bool = True
+    lock_camera: bool = config_field(True)
     """Locks the camera in the Omniverse viewport. Defaults to True.
 
     If True, then the camera remains fixed at its configured transform. This is useful when wanting to view
@@ -306,7 +306,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
         fisheye calibration applied via the :attr:`~PinholeCameraCfg.distortion` field.
     """
 
-    func: Callable | str = "{DIR}.sensors:spawn_camera"
+    func: Callable | str = config_field("{DIR}.sensors:spawn_camera")
 
     projection_type: Literal[
         "fisheyePolynomial",
@@ -314,7 +314,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
         "fisheyeKannalaBrandtK3",
         "fisheyeRadTanThinPrism",
         "omniDirectionalStereo",
-    ] = "fisheyePolynomial"
+    ] = config_field("fisheyePolynomial")
     r"""Type of projection to use for the camera. Defaults to "fisheyePolynomial".
 
     Available options:
@@ -326,37 +326,37 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     - ``"omniDirectionalStereo"``: Fisheye camera model supporting :math:`360^{\circ}` stereoscopic imaging.
     """
 
-    fisheye_nominal_width: float = 1936.0
+    fisheye_nominal_width: float = config_field(1936.0)
     """Nominal width of fisheye lens model (in pixels). Defaults to 1936.0."""
 
-    fisheye_nominal_height: float = 1216.0
+    fisheye_nominal_height: float = config_field(1216.0)
     """Nominal height of fisheye lens model (in pixels). Defaults to 1216.0."""
 
-    fisheye_optical_centre_x: float = 970.94244
+    fisheye_optical_centre_x: float = config_field(970.94244)
     """Horizontal optical centre position of fisheye lens model (in pixels). Defaults to 970.94244."""
 
-    fisheye_optical_centre_y: float = 600.37482
+    fisheye_optical_centre_y: float = config_field(600.37482)
     """Vertical optical centre position of fisheye lens model (in pixels). Defaults to 600.37482."""
 
-    fisheye_max_fov: float = 200.0
+    fisheye_max_fov: float = config_field(200.0)
     """Maximum field of view of fisheye lens model (in degrees). Defaults to 200.0 degrees."""
 
-    fisheye_polynomial_a: float = 0.0
+    fisheye_polynomial_a: float = config_field(0.0)
     """First component of fisheye polynomial. Defaults to 0.0."""
 
-    fisheye_polynomial_b: float = 0.00245
+    fisheye_polynomial_b: float = config_field(0.00245)
     """Second component of fisheye polynomial. Defaults to 0.00245."""
 
-    fisheye_polynomial_c: float = 0.0
+    fisheye_polynomial_c: float = config_field(0.0)
     """Third component of fisheye polynomial. Defaults to 0.0."""
 
-    fisheye_polynomial_d: float = 0.0
+    fisheye_polynomial_d: float = config_field(0.0)
     """Fourth component of fisheye polynomial. Defaults to 0.0."""
 
-    fisheye_polynomial_e: float = 0.0
+    fisheye_polynomial_e: float = config_field(0.0)
     """Fifth component of fisheye polynomial. Defaults to 0.0."""
 
-    fisheye_polynomial_f: float = 0.0
+    fisheye_polynomial_f: float = config_field(0.0)
     """Sixth component of fisheye polynomial. Defaults to 0.0."""
 
 
@@ -369,4 +369,4 @@ class SensorFrameCfg(SpawnerCfg):
     can track it on all backends (including Newton, which rejects physics body prims).
     """
 
-    func: Callable | str = "{DIR}.sensors:spawn_sensor_frame"
+    func: Callable | str = config_field("{DIR}.sensors:spawn_sensor_frame")

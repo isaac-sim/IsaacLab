@@ -25,20 +25,22 @@ from . import stack_joint_pos_env_cfg
 from isaaclab_assets.robots.franka import (  # isort: skip
     FRANKA_PANDA_HIGH_PD_CFG,
 )
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set Franka as robot
         # Use a stiffer PD controller for better IK tracking.
         robot_init_state = self.scene.robot.init_state
         robot_semantic_tags = self.scene.robot.spawn.semantic_tags
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot", init_state=robot_init_state
+        self.scene.robot = replace_config(
+            FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot", init_state=robot_init_state
         )
         self.scene.robot.spawn.semantic_tags = robot_semantic_tags
 
@@ -72,7 +74,8 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
 class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
@@ -88,7 +91,8 @@ class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
 class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
@@ -104,7 +108,8 @@ class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
 class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
@@ -120,7 +125,8 @@ class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
 class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,

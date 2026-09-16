@@ -5,7 +5,9 @@
 
 from collections.abc import Iterable
 from dataclasses import MISSING, dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+from isaaclab.utils import config_field
 
 from .actuator_pd_cfg import DCMotorCfg
 
@@ -17,12 +19,12 @@ if TYPE_CHECKING:
 class ActuatorNetLSTMCfg(DCMotorCfg):
     """Configuration for LSTM-based actuator model."""
 
-    class_type: type["ActuatorNetLSTM"] | str = "{DIR}.actuator_net:ActuatorNetLSTM"
+    class_type: type["ActuatorNetLSTM"] | str = config_field("{DIR}.actuator_net:ActuatorNetLSTM")
     # we don't use stiffness and damping for actuator net
-    stiffness = None
-    damping = None
+    stiffness: Any = config_field(None)
+    damping: Any = config_field(None)
 
-    network_file: str = MISSING
+    network_file: str = config_field(MISSING)
     """Path to the file containing network weights."""
 
 
@@ -30,23 +32,23 @@ class ActuatorNetLSTMCfg(DCMotorCfg):
 class ActuatorNetMLPCfg(DCMotorCfg):
     """Configuration for MLP-based actuator model."""
 
-    class_type: type["ActuatorNetMLP"] | str = "{DIR}.actuator_net:ActuatorNetMLP"
+    class_type: type["ActuatorNetMLP"] | str = config_field("{DIR}.actuator_net:ActuatorNetMLP")
     # we don't use stiffness and damping for actuator net
 
-    stiffness = None
-    damping = None
+    stiffness: Any = config_field(None)
+    damping: Any = config_field(None)
 
-    network_file: str = MISSING
+    network_file: str = config_field(MISSING)
     """Path to the file containing network weights."""
 
-    pos_scale: float = MISSING
+    pos_scale: float = config_field(MISSING)
     """Scaling of the joint position errors input to the network."""
-    vel_scale: float = MISSING
+    vel_scale: float = config_field(MISSING)
     """Scaling of the joint velocities input to the network."""
-    torque_scale: float = MISSING
+    torque_scale: float = config_field(MISSING)
     """Scaling of the joint efforts output from the network."""
 
-    input_order: Literal["pos_vel", "vel_pos"] = MISSING
+    input_order: Literal["pos_vel", "vel_pos"] = config_field(MISSING)
     """Order of the inputs to the network.
 
     The order can be one of the following:
@@ -55,7 +57,7 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     * ``"vel_pos"``: joint velocities followed by joint position errors
     """
 
-    input_idx: Iterable[int] = MISSING
+    input_idx: Iterable[int] = config_field(MISSING)
     """
     Indices of the actuator history buffer passed as inputs to the network.
 

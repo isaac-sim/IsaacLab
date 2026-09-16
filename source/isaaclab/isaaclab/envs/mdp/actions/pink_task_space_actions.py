@@ -16,6 +16,7 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik import PinkIKController
 from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import copy_config
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -87,7 +88,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         for _ in range(self._env.num_envs):
             self._ik_controllers.append(
                 PinkIKController(
-                    cfg=self.cfg.controller.copy(),
+                    cfg=copy_config(self.cfg.controller),
                     robot_cfg=self._env.scene.cfg.robot,
                     device=self.device,
                     controlled_joint_indices=self._isaaclab_controlled_joint_ids,

@@ -34,6 +34,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.utils import config_field
 
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
@@ -47,10 +48,12 @@ wp.init()
 class DeformableSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration for cloned volume deformables."""
 
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    deformable: DeformableObjectCfg = config_field(
+        DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=pre_tetrahedralized_deformable_spawn_cfg(),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
     )
 
 
@@ -58,19 +61,23 @@ class DeformableSceneCfg(InteractiveSceneCfg):
 class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration for cloned deformable and rigid assets."""
 
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    deformable: DeformableObjectCfg = config_field(
+        DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=pre_tetrahedralized_deformable_spawn_cfg(),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
     )
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
+    cube: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
+                collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
+        )
     )
 
 
@@ -78,23 +85,27 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
 class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration with two rigid variants and a deformable."""
 
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    deformable: DeformableObjectCfg = config_field(
+        DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=pre_tetrahedralized_deformable_spawn_cfg(),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
     )
-    shape: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Shape",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-                sim_utils.SphereCfg(radius=0.05),
-            ],
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
-            random_choice=False,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
+    shape: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Shape",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+                    sim_utils.SphereCfg(radius=0.05),
+                ],
+                rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
+                collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+                random_choice=False,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
+        )
     )
 
 

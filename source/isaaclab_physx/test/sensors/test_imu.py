@@ -5,7 +5,10 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from typing import Any
+
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field, replace_config
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -49,127 +52,149 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        max_init_terrain_level=None,
+    terrain: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="plane",
+            max_init_terrain_level=None,
+        )
     )
 
     # rigid objects - balls
-    balls = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/ball",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
-        spawn=sim_utils.SphereCfg(
-            radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-        ),
+    balls: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ball",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+            spawn=sim_utils.SphereCfg(
+                radius=0.25,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+            ),
+        )
     )
 
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-        ),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
+            spawn=sim_utils.CuboidCfg(
+                size=(0.25, 0.25, 0.25),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+            ),
+        )
     )
 
     # articulations - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
+    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot"))
     # pendulum1 - uses merge_fixed_joints=True (same as pendulum2) so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level
     # (the solver uses velocity_iteration_count=0). A non-physics imu_link Xform is
     # created programmatically in the test fixture (see setup_sim).
-    pendulum = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum",
-        spawn=sim_utils.UrdfFileCfg(
-            fix_base=True,
-            merge_fixed_joints=True,
-            make_instanceable=False,
-            asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+    pendulum: Any = config_field(
+        ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum",
+            spawn=sim_utils.UrdfFileCfg(
+                fix_base=True,
+                merge_fixed_joints=True,
+                make_instanceable=False,
+                asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+                    gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
+                ),
             ),
-            joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-                gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(),
-        actuators={
-            "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
-        },
+            init_state=ArticulationCfg.InitialStateCfg(),
+            actuators={
+                "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
+            },
+        )
     )
     # pendulum2 - uses merge_fixed_joints=True so that the fixed-joint child links (base, imu_link)
     # are merged into their parents during URDF XML pre-processing. A non-physics imu_link Xform
     # is created programmatically in the test fixture to test indirect IMU attachment (see setup_sim).
-    pendulum2 = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2",
-        spawn=sim_utils.UrdfFileCfg(
-            fix_base=True,
-            merge_fixed_joints=True,
-            make_instanceable=False,
-            asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+    pendulum2: Any = config_field(
+        ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum2",
+            spawn=sim_utils.UrdfFileCfg(
+                fix_base=True,
+                merge_fixed_joints=True,
+                make_instanceable=False,
+                asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+                    gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
+                ),
             ),
-            joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-                gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(),
-        actuators={
-            "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
-        },
+            init_state=ArticulationCfg.InitialStateCfg(),
+            actuators={
+                "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
+            },
+        )
     )
 
     # sensors - imu (filled inside unit test)
-    imu_ball: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/ball")
-    imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
-    imu_robot_imu_link: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link")
-    imu_robot_base: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/robot/base",
-        offset=ImuCfg.OffsetCfg(
-            pos=POS_OFFSET,
-            rot=ROT_OFFSET,
-        ),
+    imu_ball: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/ball"))
+    imu_cube: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
+    imu_robot_imu_link: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link"))
+    imu_robot_base: ImuCfg = config_field(
+        ImuCfg(
+            prim_path="{ENV_REGEX_NS}/robot/base",
+            offset=ImuCfg.OffsetCfg(
+                pos=POS_OFFSET,
+                rot=ROT_OFFSET,
+            ),
+        )
     )
-    imu_robot_norb: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/robot/LF_HIP/LF_hip_fixed",
-        offset=ImuCfg.OffsetCfg(
-            pos=POS_OFFSET,
-            rot=ROT_OFFSET,
-        ),
+    imu_robot_norb: ImuCfg = config_field(
+        ImuCfg(
+            prim_path="{ENV_REGEX_NS}/robot/LF_HIP/LF_hip_fixed",
+            offset=ImuCfg.OffsetCfg(
+                pos=POS_OFFSET,
+                rot=ROT_OFFSET,
+            ),
+        )
     )
     # The new URDF converter (urdf-usd-converter) places links under Geometry/ in a nested
     # kinematic tree.  With merge_fixed_joints=True the hierarchy for simple_2_link.urdf is:
     #   Geometry/world/link_1  (base merged into world, imu_link merged into link_1)
     # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
-    imu_indirect_pendulum_link: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
+    imu_indirect_pendulum_link: ImuCfg = config_field(
+        ImuCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
+        )
     )
-    imu_indirect_pendulum_base: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
-        offset=ImuCfg.OffsetCfg(
-            pos=PEND_POS_OFFSET,
-            rot=PEND_ROT_OFFSET,
-        ),
+    imu_indirect_pendulum_base: ImuCfg = config_field(
+        ImuCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
+            offset=ImuCfg.OffsetCfg(
+                pos=PEND_POS_OFFSET,
+                rot=PEND_ROT_OFFSET,
+            ),
+        )
     )
-    imu_pendulum_imu_link: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
+    imu_pendulum_imu_link: ImuCfg = config_field(
+        ImuCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
+        )
     )
-    imu_pendulum_base: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1",
-        offset=ImuCfg.OffsetCfg(
-            pos=PEND_POS_OFFSET,
-            rot=PEND_ROT_OFFSET,
-        ),
+    imu_pendulum_base: ImuCfg = config_field(
+        ImuCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1",
+            offset=ImuCfg.OffsetCfg(
+                pos=PEND_POS_OFFSET,
+                rot=PEND_ROT_OFFSET,
+            ),
+        )
     )
 
     def __post_init__(self):
@@ -496,18 +521,20 @@ def test_env_ids_propagation(setup_sim):
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+            spawn=sim_utils.CuboidCfg(
+                size=(0.25, 0.25, 0.25),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+        )
     )
-    imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
+    imu_cube: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
 
 
 def test_no_stale_data_after_scene_reset():

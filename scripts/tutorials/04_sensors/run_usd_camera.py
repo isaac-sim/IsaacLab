@@ -19,6 +19,8 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 
 """
 
+from isaaclab.utils import replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -202,7 +204,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 
     # Create the markers for the --draw option outside of is_running() loop
     if sim.get_setting("/isaaclab/has_gui") and args_cli.draw:
-        cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/CameraPointCloud")
+        cfg = replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/CameraPointCloud")
         cfg.markers["hit"].radius = 0.002
         pc_markers = VisualizationMarkers(cfg)
 

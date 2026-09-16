@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.utils import replace_config
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
 if TYPE_CHECKING:
@@ -133,7 +134,7 @@ class object_point_cloud_b(ManagerTermBase):
             from isaaclab.markers import VisualizationMarkers
             from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 
-            ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
+            ray_cfg = replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/ObservationPointCloud")
             ray_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(ray_cfg)
         from .utils import sample_object_point_cloud

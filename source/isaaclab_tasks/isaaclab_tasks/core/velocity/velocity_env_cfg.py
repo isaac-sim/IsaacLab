@@ -31,7 +31,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -42,7 +42,7 @@ from isaaclab_tasks.utils import PresetCfg
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
-
+from typing import Any
 
 ##
 # Physics presets
@@ -53,25 +53,27 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 class RoughPhysicsCfg(PresetCfg):
     """Shared backend presets for locomotion velocity environments."""
 
-    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=1000,
-            nconmax=300,
-            cone="pyramidal",
-            impratio=1.0,
-            integrator="implicitfast",
-            use_mujoco_contacts=False,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=2,
-        debug_mode=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+    isaacsim_physx: Any = config_field(PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    ovphysx: Any = config_field(OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
+    newton_mjwarp: Any = config_field(
+        NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=1000,
+                nconmax=300,
+                cone="pyramidal",
+                impratio=1.0,
+                integrator="implicitfast",
+                use_mujoco_contacts=False,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+            num_substeps=2,
+            debug_mode=False,
+            default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+        )
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
-    default = newton_mjwarp
+    newton_kamino: Any = config_field(NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64)))
+    default: Any = config_field(newton_mjwarp)
 
 
 ##
@@ -84,47 +86,55 @@ class MySceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
     # ground terrain
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=5,
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-            project_uvw=True,
-            texture_scale=(0.25, 0.25),
-        ),
-        debug_vis=False,
+    terrain: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            terrain_generator=ROUGH_TERRAINS_CFG,
+            max_init_terrain_level=5,
+            collision_group=-1,
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                friction_combine_mode="multiply",
+                restitution_combine_mode="multiply",
+                static_friction=1.0,
+                dynamic_friction=1.0,
+            ),
+            visual_material=sim_utils.MdlFileCfg(
+                mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+                project_uvw=True,
+                texture_scale=(0.25, 0.25),
+            ),
+            debug_vis=False,
+        )
     )
     # robots
-    robot: ArticulationCfg = MISSING
+    robot: ArticulationCfg = config_field(MISSING)
     # sensors -- the concrete implementation is selected automatically from the active physics
     # backend (Newton / PhysX / OvPhysX); backend-specific fields such as ``global_world_only`` are
     # documented on the config and ignored by the backends that do not use them.
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-        global_world_only=True,
+    height_scanner: Any = config_field(
+        RayCasterCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+            ray_alignment="yaw",
+            pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+            debug_vis=False,
+            mesh_prim_paths=["/World/ground"],
+            global_world_only=True,
+        )
     )
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, track_air_time=True)
+    contact_forces: Any = config_field(
+        ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, track_air_time=True)
+    )
     # lights
-    sky_light = AssetBaseCfg(
-        prim_path="/World/skyLight",
-        spawn=sim_utils.DomeLightCfg(
-            intensity=750.0,
-            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
-        ),
+    sky_light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/skyLight",
+            spawn=sim_utils.DomeLightCfg(
+                intensity=750.0,
+                texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+            ),
+        )
     )
 
 
@@ -134,32 +144,36 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
+class CommandsCfg:
     """Command specifications for the MDP."""
 
-    base_velocity = mdp.UniformVelocityCommandCfg(
-        asset_name="robot",
-        resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.02,
-        rel_heading_envs=1.0,
-        heading_command=True,
-        heading_control_stiffness=0.5,
-        debug_vis=True,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
-        ),
+    base_velocity: Any = config_field(
+        mdp.UniformVelocityCommandCfg(
+            asset_name="robot",
+            resampling_time_range=(10.0, 10.0),
+            rel_standing_envs=0.02,
+            rel_heading_envs=1.0,
+            heading_command=True,
+            heading_control_stiffness=0.5,
+            debug_vis=True,
+            ranges=mdp.UniformVelocityCommandCfg.Ranges(
+                lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+            ),
+        )
     )
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    joint_pos: Any = config_field(
+        mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -167,21 +181,27 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        projected_gravity = ObsTerm(
-            func=mdp.projected_gravity,
-            noise=Unoise(n_min=-0.05, n_max=0.05),
+        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
+        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)))
+        projected_gravity: Any = config_field(
+            ObsTerm(
+                func=mdp.projected_gravity,
+                noise=Unoise(n_min=-0.05, n_max=0.05),
+            )
         )
-        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
-        actions = ObsTerm(func=mdp.last_action)
-        height_scan = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
-            clip=(-1.0, 1.0),
+        velocity_commands: Any = config_field(
+            ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        )
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5)))
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        height_scan: Any = config_field(
+            ObsTerm(
+                func=mdp.height_scan,
+                params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+                noise=Unoise(n_min=-0.1, n_max=0.1),
+                clip=(-1.0, 1.0),
+            )
         )
 
         def __post_init__(self):
@@ -189,146 +209,170 @@ class ObservationsCfg(ConfigMixin):
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventsCfg(ConfigMixin):
+class EventsCfg:
     """Configuration for events."""
 
     # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
+    physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+                "static_friction_range": (0.8, 0.8),
+                "dynamic_friction_range": (0.6, 0.6),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 64,
+            },
+        )
     )
 
-    add_base_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            # Multiplicative ±25% log-uniform. Scale-invariant across robot sizes
-            # (no per-robot kg overrides needed) with geometric mean 1.0 and
-            # symmetric inverse perturbation (acceleration symmetric around nominal).
-            "mass_distribution_params": (1 / 1.25, 1.25),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
+    add_base_mass: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_mass,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+                # Multiplicative ±25% log-uniform. Scale-invariant across robot sizes
+                # (no per-robot kg overrides needed) with geometric mean 1.0 and
+                # symmetric inverse perturbation (acceleration symmetric around nominal).
+                "mass_distribution_params": (1 / 1.25, 1.25),
+                "operation": "scale",
+                "distribution": "log_uniform",
+            },
+        )
     )
 
-    base_com = EventTerm(
-        func=mdp.randomize_rigid_body_com,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-        },
+    base_com: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_com,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+                "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+            },
+        )
     )
 
     # reset
-    base_external_force_torque = EventTerm(
-        func=mdp.apply_external_force_torque,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "force_range": (0.0, 0.0),
-            "torque_range": (-0.0, 0.0),
-        },
-    )
-
-    reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.5, 0.5),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.5, 0.5),
+    base_external_force_torque: Any = config_field(
+        EventTerm(
+            func=mdp.apply_external_force_torque,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+                "force_range": (0.0, 0.0),
+                "torque_range": (-0.0, 0.0),
             },
-        },
+        )
     )
 
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
-        mode="reset",
-        params={
-            "position_range": (0.5, 1.5),
-            "velocity_range": (0.0, 0.0),
-        },
+    reset_base: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+                "velocity_range": {
+                    "x": (-0.5, 0.5),
+                    "y": (-0.5, 0.5),
+                    "z": (-0.5, 0.5),
+                    "roll": (-0.5, 0.5),
+                    "pitch": (-0.5, 0.5),
+                    "yaw": (-0.5, 0.5),
+                },
+            },
+        )
+    )
+
+    reset_robot_joints: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_scale,
+            mode="reset",
+            params={
+                "position_range": (0.5, 1.5),
+                "velocity_range": (0.0, 0.0),
+            },
+        )
     )
 
     # interval
-    push_robot = EventTerm(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(10.0, 15.0),
-        params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
+    push_robot: Any = config_field(
+        EventTerm(
+            func=mdp.push_by_setting_velocity,
+            mode="interval",
+            interval_range_s=(10.0, 15.0),
+            params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
+        )
     )
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Reward terms for the MDP."""
 
     # -- task
-    track_lin_vel_xy_exp = RewTerm(
-        func=mdp.track_lin_vel_xy_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    track_lin_vel_xy_exp: Any = config_field(
+        RewTerm(
+            func=mdp.track_lin_vel_xy_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        )
     )
-    track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    track_ang_vel_z_exp: Any = config_field(
+        RewTerm(
+            func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        )
     )
     # -- penalties
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
-    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
-    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1.0e-5)
-    dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
-    feet_air_time = RewTerm(
-        func=mdp.feet_air_time,
-        weight=0.125,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*FOOT"),
-            "command_name": "base_velocity",
-            "threshold": 0.5,
-        },
+    lin_vel_z_l2: Any = config_field(RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0))
+    ang_vel_xy_l2: Any = config_field(RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05))
+    dof_torques_l2: Any = config_field(RewTerm(func=mdp.joint_torques_l2, weight=-1.0e-5))
+    dof_acc_l2: Any = config_field(RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7))
+    action_rate_l2: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.01))
+    feet_air_time: Any = config_field(
+        RewTerm(
+            func=mdp.feet_air_time,
+            weight=0.125,
+            params={
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*FOOT"),
+                "command_name": "base_velocity",
+                "threshold": 0.5,
+            },
+        )
     )
-    undesired_contacts = RewTerm(
-        func=mdp.undesired_contacts,
-        weight=-1.0,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*THIGH"), "threshold": 1.0},
+    undesired_contacts: Any = config_field(
+        RewTerm(
+            func=mdp.undesired_contacts,
+            weight=-1.0,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*THIGH"), "threshold": 1.0},
+        )
     )
     # -- optional penalties
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
+    flat_orientation_l2: Any = config_field(RewTerm(func=mdp.flat_orientation_l2, weight=0.0))
+    dof_pos_limits: Any = config_field(RewTerm(func=mdp.joint_pos_limits, weight=0.0))
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    base_contact: Any = config_field(
+        DoneTerm(
+            func=mdp.illegal_contact,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+        )
     )
 
 
 @dataclass
-class CurriculumCfg(ConfigMixin):
+class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
+    terrain_levels: Any = config_field(CurrTerm(func=mdp.terrain_levels_vel))
 
 
 ##
@@ -341,18 +385,18 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Simulation settings — shared physics preset (PhysX + MJWarp) for all rough-terrain envs
-    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
+    sim: SimulationCfg = config_field(SimulationCfg(physics=RoughPhysicsCfg()))
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: MySceneCfg = config_field(MySceneCfg(num_envs=4096, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    commands: CommandsCfg = config_field(CommandsCfg())
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventsCfg = EventsCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: EventsCfg = config_field(EventsCfg())
+    curriculum: CurriculumCfg = config_field(CurriculumCfg())
 
     def __post_init__(self):
         """Post initialization."""

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class IsaacRtxRendererGlobalSettingsCfg(ConfigMixin):
+class IsaacRtxRendererGlobalSettingsCfg:
     """Global Isaac RTX renderer settings.
 
     These settings are applied to Kit/RTX carb settings. They are carried by
@@ -27,73 +27,73 @@ class IsaacRtxRendererGlobalSettingsCfg(ConfigMixin):
     they affect the process-global RTX renderer rather than a single camera.
     """
 
-    enable_translucency: bool | None = None
+    enable_translucency: bool | None = config_field(None)
     """Enable translucency for specular transmissive surfaces such as glass."""
 
-    enable_reflections: bool | None = None
+    enable_reflections: bool | None = config_field(None)
     """Enable reflections."""
 
-    enable_global_illumination: bool | None = None
+    enable_global_illumination: bool | None = config_field(None)
     """Enable diffuse global illumination."""
 
-    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
+    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = config_field(None)
     """Anti-aliasing mode selected through Replicator."""
 
-    enable_dlssg: bool | None = None
+    enable_dlssg: bool | None = config_field(None)
     """Enable DLSS frame generation."""
 
-    enable_dl_denoiser: bool | None = None
+    enable_dl_denoiser: bool | None = config_field(None)
     """Enable DL denoiser."""
 
-    dlss_mode: Literal[0, 1, 2, 3] | None = None
+    dlss_mode: Literal[0, 1, 2, 3] | None = config_field(None)
     """DLSS performance/quality mode."""
 
-    enable_direct_lighting: bool | None = None
+    enable_direct_lighting: bool | None = config_field(None)
     """Enable direct light contributions from lights."""
 
-    samples_per_pixel: int | None = None
+    samples_per_pixel: int | None = config_field(None)
     """Direct lighting samples per pixel."""
 
-    enable_shadows: bool | None = None
+    enable_shadows: bool | None = config_field(None)
     """Enable shadow rendering."""
 
-    enable_ambient_occlusion: bool | None = None
+    enable_ambient_occlusion: bool | None = config_field(None)
     """Enable ambient occlusion."""
 
-    dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
+    dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = config_field(None)
     """Dome light sampling strategy."""
 
-    max_bounces: int | None = None
+    max_bounces: int | None = config_field(None)
     """Maximum number of ray bounces for RTPT."""
 
-    split_glass: bool | None = None
+    split_glass: bool | None = config_field(None)
     """Enable separate glass ray splitting."""
 
-    split_clearcoat: bool | None = None
+    split_clearcoat: bool | None = config_field(None)
     """Enable separate clearcoat ray splitting."""
 
-    split_rough_reflection: bool | None = None
+    split_rough_reflection: bool | None = config_field(None)
     """Enable separate rough-reflection ray splitting."""
 
-    ambient_light_intensity: float | None = None
+    ambient_light_intensity: float | None = config_field(None)
     """Scene ambient light intensity."""
 
-    ambient_occlusion_denoiser_mode: Literal[0, 1] | None = None
+    ambient_occlusion_denoiser_mode: Literal[0, 1] | None = config_field(None)
     """Ambient occlusion denoiser mode."""
 
-    subpixel_mode: int | None = None
+    subpixel_mode: int | None = config_field(None)
     """RTX subpixel mode."""
 
-    enable_cached_raytracing: bool | None = None
+    enable_cached_raytracing: bool | None = config_field(None)
     """Enable cached ray tracing."""
 
-    max_samples_per_launch: int | None = None
+    max_samples_per_launch: int | None = config_field(None)
     """Path tracing maximum samples per launch."""
 
-    view_tile_limit: int | None = None
+    view_tile_limit: int | None = config_field(None)
     """Maximum number of view tiles."""
 
-    show_all_partitions_by_default: bool | None = None
+    show_all_partitions_by_default: bool | None = config_field(None)
     """Optionally show partitioned content in cameras without a partition token.
 
     ``None`` preserves the launch-time setting. :class:`~isaaclab.app.AppLauncher`
@@ -102,7 +102,7 @@ class IsaacRtxRendererGlobalSettingsCfg(ConfigMixin):
     requested. Environments must be spatially separated when this setting is enabled.
     """
 
-    carb_settings: dict[str, Any] | None = None
+    carb_settings: dict[str, Any] | None = config_field(None)
     """Raw carb settings applied after named fields."""
 
 
@@ -115,13 +115,13 @@ class IsaacRtxRendererCfg(RendererCfg):
     pipeline.
     """
 
-    class_type: type[IsaacRtxRenderer] | str = "{DIR}.isaac_rtx_renderer:IsaacRtxRenderer"
+    class_type: type[IsaacRtxRenderer] | str = config_field("{DIR}.isaac_rtx_renderer:IsaacRtxRenderer")
     """Renderer implementation class."""
 
-    renderer_type: str = "isaac_rtx"
+    renderer_type: str = config_field("isaac_rtx")
     """Type identifier for Isaac RTX renderer."""
 
-    global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
+    global_settings: IsaacRtxRendererGlobalSettingsCfg = config_field(IsaacRtxRendererGlobalSettingsCfg())
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
 
     enable_scene_partitioning: bool = field(default_factory=isaac_rtx_per_env_scene_partition_enabled)
@@ -132,7 +132,7 @@ class IsaacRtxRendererCfg(RendererCfg):
     environment variable still supplies that default when set.
     """
 
-    semantic_filter: str | list[str] = "*:*"
+    semantic_filter: str | list[str] = config_field("*:*")
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 
     If a string, it should be a disjunctive normal form of (semantic type, labels). For examples:
@@ -153,28 +153,28 @@ class IsaacRtxRendererCfg(RendererCfg):
     .. _Replicator Semantics Schema Editor: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
     """
 
-    colorize_semantic_segmentation: bool = True
+    colorize_semantic_segmentation: bool = config_field(True)
     """Whether to colorize the semantic segmentation images. Defaults to True.
 
     If True, semantic segmentation is converted to an image where semantic IDs are mapped to colors
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
     """
 
-    colorize_instance_id_segmentation: bool = True
+    colorize_instance_id_segmentation: bool = config_field(True)
     """Whether to colorize the instance ID segmentation images. Defaults to True.
 
     If True, instance id segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
     """
 
-    colorize_instance_segmentation: bool = True
+    colorize_instance_segmentation: bool = config_field(True)
     """Whether to colorize the instance segmentation images. Defaults to True.
 
     If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
     """
 
-    semantic_segmentation_mapping: dict = {}
+    semantic_segmentation_mapping: dict = config_field({})
     """Dictionary mapping semantics to specific colours
 
     Eg.
@@ -192,7 +192,7 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     """
 
-    depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
+    depth_clipping_behavior: Literal["max", "zero", "none"] = config_field("none")
     """Clipping behavior for the camera for values exceed the maximum value. Defaults to "none".
 
     - ``"max"``: Values are clipped to the maximum value.

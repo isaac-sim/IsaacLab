@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -27,7 +29,6 @@ from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
-from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -38,19 +39,19 @@ def dummy_observation(env: ManagerBasedEnv) -> torch.Tensor:
 
 
 @dataclass
-class EmptyObservationWithHistoryCfg(ConfigMixin):
+class EmptyObservationWithHistoryCfg:
     """Empty observation with history specifications for the environment."""
 
     @dataclass
     class EmptyObservationGroupWithHistoryCfg(ObsGroup):
         """Empty observation with history specifications for the environment."""
 
-        dummy_term: ObsTerm = ObsTerm(func=dummy_observation)
+        dummy_term: ObsTerm = config_field(ObsTerm(func=dummy_observation))
 
         def __post_init__(self):
             self.history_length = 5
 
-    empty_observation: EmptyObservationGroupWithHistoryCfg = EmptyObservationGroupWithHistoryCfg()
+    empty_observation: EmptyObservationGroupWithHistoryCfg = config_field(EmptyObservationGroupWithHistoryCfg())
 
 
 def make_empty_manager_based_env_with_history_cfg(

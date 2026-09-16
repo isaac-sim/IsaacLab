@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
@@ -31,7 +32,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import ConfigMixin
 
 
 class NoOpRetargeter(RetargeterBase):
@@ -53,7 +53,7 @@ class NoOpRetargeter(RetargeterBase):
 
 
 @dataclass
-class EmptyManagerCfg(ConfigMixin):
+class EmptyManagerCfg:
     """Empty manager."""
 
     pass
@@ -70,9 +70,9 @@ class EmptySceneCfg(InteractiveSceneCfg):
 class EmptyEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the empty test environment."""
 
-    scene: EmptySceneCfg = EmptySceneCfg(num_envs=1, env_spacing=1.0)
-    actions: EmptyManagerCfg = EmptyManagerCfg()
-    observations: EmptyManagerCfg = EmptyManagerCfg()
+    scene: EmptySceneCfg = config_field(EmptySceneCfg(num_envs=1, env_spacing=1.0))
+    actions: EmptyManagerCfg = config_field(EmptyManagerCfg())
+    observations: EmptyManagerCfg = config_field(EmptyManagerCfg())
 
     def __post_init__(self):
         """Post initialization."""

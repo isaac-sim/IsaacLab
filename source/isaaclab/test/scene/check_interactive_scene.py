@@ -8,6 +8,10 @@ This script demonstrates how to use the scene interface to quickly setup a scene
 articulated robots and sensors.
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -48,32 +52,38 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
+    terrain: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="plane",
+        )
     )
 
     # articulation - robot 1
-    robot_1 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_1")
+    robot_1: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_1"))
     # articulation - robot 2
-    robot_2 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_2")
+    robot_2: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_2"))
     robot_2.init_state.pos = (0.0, 1.0, 0.6)
 
     # sensor - ray caster attached to the base of robot 1 that scans the ground
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot_1/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=True,
-        mesh_prim_paths=["/World/ground"],
+    height_scanner: Any = config_field(
+        RayCasterCfg(
+            prim_path="{ENV_REGEX_NS}/Robot_1/base",
+            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+            ray_alignment="yaw",
+            pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+            debug_vis=True,
+            mesh_prim_paths=["/World/ground"],
+        )
     )
 
     # extras - light
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 500.0)),
+    light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 500.0)),
+        )
     )
 
 

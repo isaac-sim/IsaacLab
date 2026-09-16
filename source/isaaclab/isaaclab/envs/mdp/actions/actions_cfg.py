@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
@@ -33,13 +33,13 @@ class JointActionCfg(ActionTermCfg):
     See :class:`JointAction` for more details.
     """
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
-    scale: float | dict[str, float] = 1.0
+    scale: float | dict[str, float] = config_field(1.0)
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-    offset: float | dict[str, float] = 0.0
+    offset: float | dict[str, float] = config_field(0.0)
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-    preserve_order: bool = False
+    preserve_order: bool = config_field(False)
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
 
@@ -50,19 +50,19 @@ class FixedTendonPositionActionCfg(ActionTermCfg):
     See :class:`FixedTendonPositionAction` for more details.
     """
 
-    class_type: type[FixedTendonPositionAction] | str = "{DIR}.tendon_actions:FixedTendonPositionAction"
+    class_type: type[FixedTendonPositionAction] | str = config_field("{DIR}.tendon_actions:FixedTendonPositionAction")
 
-    tendon_names: list[str] = MISSING
+    tendon_names: list[str] = config_field(MISSING)
     """Fixed tendon names or regular expressions the motors drive, in action order."""
-    preserve_order: bool = False
+    preserve_order: bool = config_field(False)
     """Whether to preserve the order of the tendon names in the action output. Defaults to False."""
 
-    scale: float | dict[str, float] = 1.0
+    scale: float | dict[str, float] = config_field(1.0)
     """Scale mapping an action onto the tendon's commandable span. Defaults to 1.0.
 
     A dictionary maps tendon-name regular expressions to their own scale, as for a joint term."""
 
-    offset: float | dict[str, float] = 0.0
+    offset: float | dict[str, float] = config_field(0.0)
     """Offset applied to an action after scaling. Defaults to 0.0.
 
     A joint action term rescales to each joint's own position limits, which is what a joint limit
@@ -77,9 +77,9 @@ class JointPositionActionCfg(JointActionCfg):
     See :class:`JointPositionAction` for more details.
     """
 
-    class_type: type[JointPositionAction] | str = "{DIR}.joint_actions:JointPositionAction"
+    class_type: type[JointPositionAction] | str = config_field("{DIR}.joint_actions:JointPositionAction")
 
-    use_default_offset: bool = True
+    use_default_offset: bool = config_field(True)
     """Whether to use default joint positions configured in the articulation asset as offset.
     Defaults to True.
 
@@ -95,9 +95,11 @@ class RelativeJointPositionActionCfg(JointActionCfg):
     See :class:`RelativeJointPositionAction` for more details.
     """
 
-    class_type: type[RelativeJointPositionAction] | str = "{DIR}.joint_actions:RelativeJointPositionAction"
+    class_type: type[RelativeJointPositionAction] | str = config_field(
+        "{DIR}.joint_actions:RelativeJointPositionAction"
+    )
 
-    use_zero_offset: bool = True
+    use_zero_offset: bool = config_field(True)
     """Whether to ignore the offset defined in articulation asset. Defaults to True.
 
     If True, this flag results in overwriting the values of :attr:`offset` to zero.
@@ -111,9 +113,9 @@ class JointVelocityActionCfg(JointActionCfg):
     See :class:`JointVelocityAction` for more details.
     """
 
-    class_type: type[JointVelocityAction] | str = "{DIR}.joint_actions:JointVelocityAction"
+    class_type: type[JointVelocityAction] | str = config_field("{DIR}.joint_actions:JointVelocityAction")
 
-    use_default_offset: bool = True
+    use_default_offset: bool = config_field(True)
     """Whether to use default joint velocities configured in the articulation asset as offset.
     Defaults to True.
 
@@ -128,7 +130,7 @@ class JointEffortActionCfg(JointActionCfg):
     See :class:`JointEffortAction` for more details.
     """
 
-    class_type: type[JointEffortAction] | str = "{DIR}.joint_actions:JointEffortAction"
+    class_type: type[JointEffortAction] | str = config_field("{DIR}.joint_actions:JointEffortAction")
 
 
 ##
@@ -143,15 +145,17 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
     See :class:`JointPositionToLimitsAction` for more details.
     """
 
-    class_type: type[JointPositionToLimitsAction] | str = "{DIR}.joint_actions_to_limits:JointPositionToLimitsAction"
+    class_type: type[JointPositionToLimitsAction] | str = config_field(
+        "{DIR}.joint_actions_to_limits:JointPositionToLimitsAction"
+    )
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
 
-    scale: float | dict[str, float] = 1.0
+    scale: float | dict[str, float] = config_field(1.0)
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
 
-    rescale_to_limits: bool = True
+    rescale_to_limits: bool = config_field(True)
     """Whether to rescale the action to the joint limits. Defaults to True.
 
     If True, the input actions are rescaled to the joint limits, i.e., the action value in
@@ -161,7 +165,7 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
         This operation is performed after applying the scale factor.
     """
 
-    preserve_order: bool = False
+    preserve_order: bool = config_field(False)
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
 
@@ -172,11 +176,11 @@ class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
     See :class:`EMAJointPositionToLimitsAction` for more details.
     """
 
-    class_type: type[EMAJointPositionToLimitsAction] | str = (
+    class_type: type[EMAJointPositionToLimitsAction] | str = config_field(
         "{DIR}.joint_actions_to_limits:EMAJointPositionToLimitsAction"
     )
 
-    alpha: float | dict[str, float] = 1.0
+    alpha: float | dict[str, float] = config_field(1.0)
     """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
 
     If set to 1.0, the processed action is applied directly without any moving average window.
@@ -195,11 +199,11 @@ class BinaryJointActionCfg(ActionTermCfg):
     See :class:`BinaryJointAction` for more details.
     """
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
-    open_command_expr: dict[str, float] = MISSING
+    open_command_expr: dict[str, float] = config_field(MISSING)
     """The joint command to move to *open* configuration."""
-    close_command_expr: dict[str, float] = MISSING
+    close_command_expr: dict[str, float] = config_field(MISSING)
     """The joint command to move to *close* configuration."""
 
 
@@ -210,7 +214,9 @@ class BinaryJointPositionActionCfg(BinaryJointActionCfg):
     See :class:`BinaryJointPositionAction` for more details.
     """
 
-    class_type: type[BinaryJointPositionAction] | str = "{DIR}.binary_joint_actions:BinaryJointPositionAction"
+    class_type: type[BinaryJointPositionAction] | str = config_field(
+        "{DIR}.binary_joint_actions:BinaryJointPositionAction"
+    )
 
 
 @dataclass
@@ -220,7 +226,9 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     See :class:`BinaryJointVelocityAction` for more details.
     """
 
-    class_type: type[BinaryJointVelocityAction] | str = "{DIR}.binary_joint_actions:BinaryJointVelocityAction"
+    class_type: type[BinaryJointVelocityAction] | str = config_field(
+        "{DIR}.binary_joint_actions:BinaryJointVelocityAction"
+    )
 
 
 @dataclass
@@ -244,18 +252,20 @@ class AbsBinaryJointPositionActionCfg(ActionTermCfg):
     See :class:`AbsBinaryJointPositionAction` for more details.
     """
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
-    open_command_expr: dict[str, float] = MISSING
+    open_command_expr: dict[str, float] = config_field(MISSING)
     """The joint command to move to *open* configuration."""
-    close_command_expr: dict[str, float] = MISSING
+    close_command_expr: dict[str, float] = config_field(MISSING)
     """The joint command to move to *close* configuration."""
-    threshold: float = 0.5
+    threshold: float = config_field(0.5)
     """The threshold for the binary action. Defaults to 0.5."""
-    positive_threshold: bool = True
+    positive_threshold: bool = config_field(True)
     """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
 
-    class_type: type[AbsBinaryJointPositionAction] | str = "{DIR}.binary_joint_actions:AbsBinaryJointPositionAction"
+    class_type: type[AbsBinaryJointPositionAction] | str = config_field(
+        "{DIR}.binary_joint_actions:AbsBinaryJointPositionAction"
+    )
 
 
 ##
@@ -270,19 +280,19 @@ class NonHolonomicActionCfg(ActionTermCfg):
     See :class:`NonHolonomicAction` for more details.
     """
 
-    class_type: type[NonHolonomicAction] | str = "{DIR}.non_holonomic_actions:NonHolonomicAction"
+    class_type: type[NonHolonomicAction] | str = config_field("{DIR}.non_holonomic_actions:NonHolonomicAction")
 
-    body_name: str = MISSING
+    body_name: str = config_field(MISSING)
     """Name of the body which has the dummy mechanism connected to."""
-    x_joint_name: str = MISSING
+    x_joint_name: str = config_field(MISSING)
     """The dummy joint name in the x direction."""
-    y_joint_name: str = MISSING
+    y_joint_name: str = config_field(MISSING)
     """The dummy joint name in the y direction."""
-    yaw_joint_name: str = MISSING
+    yaw_joint_name: str = config_field(MISSING)
     """The dummy joint name in the yaw direction."""
-    scale: tuple[float, float] = (1.0, 1.0)
+    scale: tuple[float, float] = config_field((1.0, 1.0))
     """Scale factor for the action. Defaults to (1.0, 1.0)."""
-    offset: tuple[float, float] = (0.0, 0.0)
+    offset: tuple[float, float] = config_field((0.0, 0.0))
     """Offset factor for the action. Defaults to (0.0, 0.0)."""
 
 
@@ -299,7 +309,7 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """
 
     @dataclass
-    class OffsetCfg(ConfigMixin):
+    class OffsetCfg:
         """The offset pose from parent frame to child frame.
 
         On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -308,24 +318,24 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
         "panda_hand" frame.
         """
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[DifferentialInverseKinematicsAction] | str = (
+    class_type: type[DifferentialInverseKinematicsAction] | str = config_field(
         "{DIR}.task_space_actions:DifferentialInverseKinematicsAction"
     )
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
-    body_name: str = MISSING
+    body_name: str = config_field(MISSING)
     """Name of the body or frame for which IK is performed."""
-    body_offset: OffsetCfg | None = None
+    body_offset: OffsetCfg | None = config_field(None)
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    scale: float | tuple[float, ...] = 1.0
+    scale: float | tuple[float, ...] = config_field(1.0)
     """Scale factor for the action. Defaults to 1.0."""
-    controller: DifferentialIKControllerCfg = MISSING
+    controller: DifferentialIKControllerCfg = config_field(MISSING)
     """The configuration for the differential IK controller."""
 
 
@@ -337,7 +347,7 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """
 
     @dataclass
-    class OffsetCfg(ConfigMixin):
+    class OffsetCfg:
         """The offset pose from parent frame to child frame.
 
         On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -346,46 +356,46 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
         "panda_hand" frame.
         """
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[OperationalSpaceControllerAction] | str = (
+    class_type: type[OperationalSpaceControllerAction] | str = config_field(
         "{DIR}.task_space_actions:OperationalSpaceControllerAction"
     )
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
 
-    body_name: str = MISSING
+    body_name: str = config_field(MISSING)
     """Name of the body or frame for which motion/force control is performed."""
 
-    body_offset: OffsetCfg | None = None
+    body_offset: OffsetCfg | None = config_field(None)
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
 
-    task_frame_rel_path: str = None
+    task_frame_rel_path: str = config_field(None)
     """The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None."""
 
-    controller_cfg: OperationalSpaceControllerCfg = MISSING
+    controller_cfg: OperationalSpaceControllerCfg = config_field(MISSING)
     """The configuration for the operational space controller."""
 
-    position_scale: float = 1.0
+    position_scale: float = config_field(1.0)
     """Scale factor for the position targets. Defaults to 1.0."""
 
-    orientation_scale: float = 1.0
+    orientation_scale: float = config_field(1.0)
     """Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
 
-    wrench_scale: float = 1.0
+    wrench_scale: float = config_field(1.0)
     """Scale factor for the wrench targets. Defaults to 1.0."""
 
-    stiffness_scale: float = 1.0
+    stiffness_scale: float = config_field(1.0)
     """Scale factor for the stiffness commands. Defaults to 1.0."""
 
-    damping_ratio_scale: float = 1.0
+    damping_ratio_scale: float = config_field(1.0)
     """Scale factor for the damping ratio commands. Defaults to 1.0."""
 
-    nullspace_joint_pos_target: str = "none"
+    nullspace_joint_pos_target: str = config_field("none")
     """The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
 
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
@@ -405,11 +415,13 @@ class SurfaceGripperBinaryActionCfg(ActionTermCfg):
     See :class:`SurfaceGripperBinaryAction` for more details.
     """
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name of the surface gripper asset in the scene."""
-    open_command: float = -1.0
+    open_command: float = config_field(-1.0)
     """The command value to open the gripper. Defaults to -1.0."""
-    close_command: float = 1.0
+    close_command: float = config_field(1.0)
     """The command value to close the gripper. Defaults to 1.0."""
 
-    class_type: type[SurfaceGripperBinaryAction] | str = "{DIR}.surface_gripper_actions:SurfaceGripperBinaryAction"
+    class_type: type[SurfaceGripperBinaryAction] | str = config_field(
+        "{DIR}.surface_gripper_actions:SurfaceGripperBinaryAction"
+    )

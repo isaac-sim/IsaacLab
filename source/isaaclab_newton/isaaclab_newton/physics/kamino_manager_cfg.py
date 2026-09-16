@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, config_to_dict, validate_config
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -22,70 +22,70 @@ if TYPE_CHECKING:
 
 def _non_none_kwargs(cfg: Any) -> dict[str, Any]:
     """Return ``cfg.to_dict()`` entries with ``None`` values omitted."""
-    return {key: value for key, value in cfg.to_dict().items() if value is not None}
+    return {key: value for key, value in config_to_dict(cfg).items() if value is not None}
 
 
 def _cfg_to_dict(cfg: Any) -> dict[str, Any]:
     """Return a configuration mapping with a type-checker-friendly interface."""
-    return cfg.to_dict()
+    return config_to_dict(cfg)
 
 
 @dataclass
-class KaminoPADMMCfg(ConfigMixin):
+class KaminoPADMMCfg:
     """P-ADMM forward-dynamics solver parameters for Kamino."""
 
-    max_iterations: int = 100
+    max_iterations: int = config_field(100)
     """Maximum number of P-ADMM solver iterations."""
 
-    primal_tolerance: float = 1e-4
+    primal_tolerance: float = config_field(1e-4)
     """Primal residual convergence tolerance."""
 
-    dual_tolerance: float = 1e-4
+    dual_tolerance: float = config_field(1e-4)
     """Dual residual convergence tolerance."""
 
-    compl_tolerance: float = 1e-4
+    compl_tolerance: float = config_field(1e-4)
     """Complementarity residual convergence tolerance."""
 
-    restart_tolerance: float = 0.999
+    restart_tolerance: float = config_field(0.999)
     """Combined primal-dual residual tolerance for acceleration restarts."""
 
-    rho_0: float = 0.05
+    rho_0: float = config_field(0.05)
     """Initial penalty parameter."""
 
-    rho_min: float = 1e-5
+    rho_min: float = config_field(1e-5)
     """Lower bound on the penalty parameter."""
 
-    a_0: float = 1.0
+    a_0: float = config_field(1.0)
     """Initial acceleration parameter."""
 
-    alpha: float = 10.0
+    alpha: float = config_field(10.0)
     """Primal-dual residual threshold for penalty updates."""
 
-    tau: float = 1.5
+    tau: float = config_field(1.5)
     """Penalty increase/decrease factor."""
 
-    eta: float = 1e-5
+    eta: float = config_field(1e-5)
     """Proximal regularization parameter. Must be greater than zero."""
 
-    penalty_update_freq: int = 1
+    penalty_update_freq: int = config_field(1)
     """Frequency of penalty updates. Zero disables updates."""
 
-    penalty_update_method: Literal["fixed", "balanced"] = "fixed"
+    penalty_update_method: Literal["fixed", "balanced"] = config_field("fixed")
     """Penalty update method."""
 
-    linear_solver_tolerance: float = 0.0
+    linear_solver_tolerance: float = config_field(0.0)
     """Absolute tolerance for the iterative linear solver. Zero leaves it unchanged."""
 
-    linear_solver_tolerance_ratio: float = 0.0
+    linear_solver_tolerance_ratio: float = config_field(0.0)
     """Ratio adapting the linear solver tolerance from the ADMM primal residual."""
 
-    use_acceleration: bool = True
+    use_acceleration: bool = config_field(True)
     """Whether to use Nesterov-type acceleration (APADMM)."""
 
-    use_graph_conditionals: bool = False
+    use_graph_conditionals: bool = config_field(False)
     """Whether to use CUDA graph conditional nodes in the iterative solver."""
 
-    warmstart_mode: Literal["none", "internal", "containers"] = "containers"
+    warmstart_mode: Literal["none", "internal", "containers"] = config_field("containers")
     """Warmstart mode."""
 
     contact_warmstart_method: Literal[
@@ -94,57 +94,57 @@ class KaminoPADMMCfg(ConfigMixin):
         "geom_pair_net_wrench",
         "key_and_position_with_net_force_backup",
         "key_and_position_with_net_wrench_backup",
-    ] = "geom_pair_net_force"
+    ] = config_field("geom_pair_net_force")
     """Contact warm-start method."""
 
 
 @dataclass
-class KaminoDVICfg(ConfigMixin):
+class KaminoDVICfg:
     """DVI forward-dynamics solver parameters for Kamino."""
 
-    tolerance: float = 1e-5
+    tolerance: float = config_field(1e-5)
     """Convergence tolerance on the projected update size."""
 
-    regularization: float = 1e-6
+    regularization: float = config_field(1e-6)
     """Diagonal regularization added to each projected update denominator."""
 
-    omega: float = 1.0
+    omega: float = config_field(1.0)
     """Relaxation factor applied to projected Gauss-Seidel updates."""
 
-    max_alternating_iterations: int = 20
+    max_alternating_iterations: int = config_field(20)
     """Maximum outer DVI iterations."""
 
-    inequality_sweeps_per_iteration: int = 1
+    inequality_sweeps_per_iteration: int = config_field(1)
     """Projected Gauss-Seidel sweeps per DVI iteration."""
 
-    bilateral_solve_interval: int = 1
+    bilateral_solve_interval: int = config_field(1)
     """DVI iterations between repeated direct bilateral solves."""
 
-    bilateral_solver_type: Literal["LLTB", "LLTBRCM"] = "LLTB"
+    bilateral_solver_type: Literal["LLTB", "LLTBRCM"] = config_field("LLTB")
     """Direct linear solver for the bilateral constraint block."""
 
     bilateral_solver_kwargs: dict[str, Any] = field(default_factory=dict)
     """Additional keyword arguments for the bilateral linear solver."""
 
-    warmstart_mode: Literal["none", "internal", "containers"] = "containers"
+    warmstart_mode: Literal["none", "internal", "containers"] = config_field("containers")
     """Warmstart mode."""
 
     contact_warmstart_method: Literal[
         "key_and_position",
         "geom_pair_net_force",
         "key_and_position_with_net_force_backup",
-    ] = "key_and_position_with_net_force_backup"
+    ] = config_field("key_and_position_with_net_force_backup")
     """Contact warm-start method when ``warmstart_mode`` is ``containers``."""
 
 
 @dataclass
-class KaminoDynamicsCfg(ConfigMixin):
+class KaminoDynamicsCfg:
     """Constrained forward-dynamics problem parameters for Kamino."""
 
-    preconditioning: bool = True
+    preconditioning: bool = config_field(True)
     """Whether to precondition the dual problem. Must be ``False`` when using DVI."""
 
-    linear_solver_type: Literal["LLTB", "LLTBRCM", "CR", "CRF"] = "LLTB"
+    linear_solver_type: Literal["LLTB", "LLTBRCM", "CR", "CRF"] = config_field("LLTB")
     """Linear solver for the dynamics problem."""
 
     linear_solver_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -152,73 +152,73 @@ class KaminoDynamicsCfg(ConfigMixin):
 
 
 @dataclass
-class KaminoConstraintsCfg(ConfigMixin):
+class KaminoConstraintsCfg:
     """Global constraint stabilization parameters for Kamino."""
 
-    alpha: float = 0.1
+    alpha: float = config_field(0.1)
     """Baumgarte stabilization for bilateral joint constraints. Valid range is [0, 1]."""
 
-    beta: float = 0.01
+    beta: float = config_field(0.01)
     """Baumgarte stabilization for unilateral joint-limit constraints. Valid range is [0, 1]."""
 
-    gamma: float = 0.01
+    gamma: float = config_field(0.01)
     """Baumgarte stabilization for unilateral contact constraints. Valid range is [0, 1]."""
 
-    delta: float = 1.0e-6
+    delta: float = config_field(1.0e-6)
     """Contact penetration margin [m]."""
 
 
 @dataclass
-class KaminoFKCfg(ConfigMixin):
+class KaminoFKCfg:
     """Forward-kinematics reset solver parameters for Kamino."""
 
-    use_regularization: bool = True
+    use_regularization: bool = config_field(True)
     """Whether to regularize the FK reset solve (Tikhonov term on body poses)."""
 
-    regularization_weight: float = 1e-5
+    regularization_weight: float = config_field(1e-5)
     """Weight of the FK reset regularizer when :attr:`use_regularization` is ``True``."""
 
-    tolerance: float = 1e-5
+    tolerance: float = config_field(1e-5)
     """Convergence tolerance of the FK reset solve."""
 
 
 @dataclass
-class KaminoCollisionDetectorCfg(ConfigMixin):
+class KaminoCollisionDetectorCfg:
     """Internal Kamino collision-detector parameters."""
 
-    pipeline: Literal["primitive", "unified"] | None = None
+    pipeline: Literal["primitive", "unified"] | None = config_field(None)
     """Collision-detection pipeline. ``None`` uses Newton's default (``unified``)."""
 
-    broadphase: Literal["nxn", "sap", "explicit"] | None = None
+    broadphase: Literal["nxn", "sap", "explicit"] | None = config_field(None)
     """Broad-phase algorithm. ``None`` uses Newton's default."""
 
-    bvtype: Literal["aabb", "bs"] | None = None
+    bvtype: Literal["aabb", "bs"] | None = config_field(None)
     """Bounding-volume type. ``None`` uses Newton's default."""
 
-    max_contacts: int | None = None
+    max_contacts: int | None = config_field(None)
     """Model-wide contact buffer capacity cap."""
 
-    max_contacts_per_world: int | None = None
+    max_contacts_per_world: int | None = config_field(None)
     """Per-world contact buffer capacity override."""
 
-    max_contacts_per_pair: int | None = None
+    max_contacts_per_pair: int | None = config_field(None)
     """Maximum contacts generated per candidate geometry pair."""
 
-    max_triangle_pairs: int | None = None
+    max_triangle_pairs: int | None = config_field(None)
     """Maximum triangle-primitive shape pairs in narrow phase."""
 
-    default_gap: float | None = None
+    default_gap: float | None = config_field(None)
     """Default detection gap [m] applied as a floor to per-geometry gaps."""
 
 
 @dataclass
-class KaminoMaterialsCfg(ConfigMixin):
+class KaminoMaterialsCfg:
     """Material mixing parameters for Kamino contacts."""
 
-    friction_mix_mode: Literal["average", "multiply", "max", "min"] = "average"
+    friction_mix_mode: Literal["average", "multiply", "max", "min"] = config_field("average")
     """How friction coefficients are mixed for a contact pair."""
 
-    restitution_mix_mode: Literal["average", "multiply", "max", "min"] = "min"
+    restitution_mix_mode: Literal["average", "multiply", "max", "min"] = config_field("min")
     """How restitution coefficients are mixed for a contact pair."""
 
 
@@ -238,19 +238,19 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     .. _Newton Kamino documentation: https://newton-physics.github.io/newton/latest/
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.kamino_manager:NewtonKaminoManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.kamino_manager:NewtonKaminoManager")
     """Manager class for the Kamino solver."""
 
-    solver_type: str = "kamino"
+    solver_type: str = config_field("kamino")
     """Solver type. Can be "kamino"."""
 
-    integrator: Literal["euler", "moreau"] = "moreau"
+    integrator: Literal["euler", "moreau"] = config_field("moreau")
     """Integrator type."""
 
-    use_collision_detector: bool = False
+    use_collision_detector: bool = config_field(False)
     """Whether to use Kamino's internal collision detector instead of Newton's pipeline."""
 
-    use_fk_solver: bool | None = None
+    use_fk_solver: bool | None = config_field(None)
     """Whether to enable the forward kinematics solver for state resets.
 
     When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's
@@ -268,19 +268,19 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     values. This is the faster option for purely articulated (tree-structured) systems.
     """
 
-    sparse_jacobian: bool | None = None
+    sparse_jacobian: bool | None = config_field(None)
     """Whether to use sparse Jacobian computation. ``None`` lets Newton pick per backend."""
 
-    sparse_dynamics: bool = False
+    sparse_dynamics: bool = config_field(False)
     """Whether to use sparse dynamics computation."""
 
-    rotation_correction: Literal["twopi", "continuous", "none"] = "twopi"
+    rotation_correction: Literal["twopi", "continuous", "none"] = config_field("twopi")
     """Rotation correction mode."""
 
-    angular_velocity_damping: float = 0.0
+    angular_velocity_damping: float = config_field(0.0)
     """Angular velocity damping factor. Valid range is [0.0, 1.0]."""
 
-    collect_solver_info: bool = False
+    collect_solver_info: bool = config_field(False)
     """Whether to collect solver convergence and performance info at each step.
 
     .. warning::
@@ -288,7 +288,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
         Enabling this significantly increases solver runtime and should only be used for debugging.
     """
 
-    compute_solution_metrics: bool = False
+    compute_solution_metrics: bool = config_field(False)
     """Whether to compute solution metrics at each step.
 
     .. warning::
@@ -296,7 +296,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
         Enabling this significantly increases solver runtime and should only be used for debugging.
     """
 
-    dynamics: KaminoDynamicsCfg | None = None
+    dynamics: KaminoDynamicsCfg | None = config_field(None)
     """Constrained dynamics problem parameters.
 
     When ``None``, Newton selects defaults appropriate to the selected dynamics solver and
@@ -315,7 +315,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     materials: KaminoMaterialsCfg = field(default_factory=KaminoMaterialsCfg)
     """Material mixing parameters."""
 
-    max_contacts_per_world: int | None = None
+    max_contacts_per_world: int | None = config_field(None)
     """Cap the per-world contact pre-allocation handed to Kamino.
 
     When ``None``, Kamino falls back to ``geoms.world_minimum_contacts`` derived from the
@@ -388,7 +388,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
             materials=MaterialManagerConfig(**_cfg_to_dict(self.materials)),
             **solver_configs,
         )
-        config.validate()
+        validate_config(config)
         return config
 
 

@@ -16,7 +16,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -36,27 +36,27 @@ class DatasetExportMode(enum.IntEnum):
 
 
 @dataclass
-class RecorderManagerBaseCfg(ConfigMixin):
+class RecorderManagerBaseCfg:
     """Base class for configuring recorder manager terms."""
 
-    dataset_file_handler_class_type: type = HDF5DatasetFileHandler
+    dataset_file_handler_class_type: type = config_field(HDF5DatasetFileHandler)
 
-    dataset_export_dir_path: str = "/tmp/isaaclab/logs"
+    dataset_export_dir_path: str = config_field("/tmp/isaaclab/logs")
     """The directory path where the recorded datasets are exported."""
 
-    dataset_filename: str = "dataset"
+    dataset_filename: str = config_field("dataset")
     """Dataset file name without file extension."""
 
-    dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_ALL
+    dataset_export_mode: DatasetExportMode = config_field(DatasetExportMode.EXPORT_ALL)
     """The mode to handle episode exports."""
 
-    export_in_record_pre_reset: bool = True
+    export_in_record_pre_reset: bool = config_field(True)
     """Whether to export episodes in the record_pre_reset call."""
 
-    export_in_close: bool = False
+    export_in_close: bool = config_field(False)
     """Whether to export episodes in the close call."""
 
-    dataset_compression: bool = True
+    dataset_compression: bool = config_field(True)
     """Enable dataset compression."""
 
 

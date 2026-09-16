@@ -10,6 +10,10 @@ This script checks the functionality of scale randomization.
 
 from __future__ import annotations
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -37,7 +41,6 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -116,12 +119,12 @@ class CubeActionTerm(ActionTerm):
 class CubeActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
 
-    class_type: type = CubeActionTerm
+    class_type: type = config_field(CubeActionTerm)
     """The class corresponding to the action term."""
 
-    p_gain: float = 5.0
+    p_gain: float = config_field(5.0)
     """Proportional gain of the PD controller."""
-    d_gain: float = 0.5
+    d_gain: float = config_field(0.5)
     """Derivative gain of the PD controller."""
 
 
@@ -150,38 +153,44 @@ class MySceneCfg(InteractiveSceneCfg):
     """
 
     # add terrain
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False))
 
     # add cube for scale randomization
-    cube1: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_[^/]+/cube1",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+    cube1: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="/World/envs/env_[^/]+/cube1",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+        )
     )
 
     # add cube for static scale values
-    cube2: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_[^/]+/cube2",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+    cube2: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="/World/envs/env_[^/]+/cube2",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+        )
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        )
     )
 
 
@@ -191,14 +200,14 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = CubeActionTermCfg(asset_name="cube1")
+    joint_pos: Any = config_field(CubeActionTermCfg(asset_name="cube1"))
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -206,52 +215,58 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # cube velocity
-        position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube1")})
+        position: Any = config_field(ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube1")}))
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.5, 0.5),
+    reset_base: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+                "velocity_range": {
+                    "x": (-0.5, 0.5),
+                    "y": (-0.5, 0.5),
+                    "z": (-0.5, 0.5),
+                },
+                "asset_cfg": SceneEntityCfg("cube1"),
             },
-            "asset_cfg": SceneEntityCfg("cube1"),
-        },
+        )
     )
 
     # Scale randomization as intended
-    randomize_cube1__scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={
-            "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
-            "asset_cfg": SceneEntityCfg("cube1"),
-        },
+    randomize_cube1__scale: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_scale,
+            mode="prestartup",
+            params={
+                "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
+                "asset_cfg": SceneEntityCfg("cube1"),
+            },
+        )
     )
 
     # Static scale values
-    randomize_cube2__scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={
-            "scale_range": {"x": (1.0, 1.0), "y": (1.0, 1.0), "z": (1.0, 1.0)},
-            "asset_cfg": SceneEntityCfg("cube2"),
-        },
+    randomize_cube2__scale: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_scale,
+            mode="prestartup",
+            params={
+                "scale_range": {"x": (1.0, 1.0), "y": (1.0, 1.0), "z": (1.0, 1.0)},
+                "asset_cfg": SceneEntityCfg("cube2"),
+            },
+        )
     )
 
 
@@ -266,11 +281,11 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     # Note: replicate_physics=False is required for prestartup events (scale randomization)
-    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = config_field(MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    events: EventCfg = config_field(EventCfg())
 
     def __post_init__(self):
         """Post initialization."""

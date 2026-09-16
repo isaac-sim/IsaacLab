@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING, dataclass
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -24,10 +27,10 @@ class RslRlSpatialSoftmaxCNNModelCfg(RslRlCNNModelCfg):
     information a pixels-only policy depends on. See :class:`.models.SpatialSoftmaxCNNModel`.
     """
 
-    class_name: str = "isaaclab_tasks.core.lift.config.kuka_allegro.agents.models:SpatialSoftmaxCNNModel"
+    class_name: str = config_field("isaaclab_tasks.core.lift.config.kuka_allegro.agents.models:SpatialSoftmaxCNNModel")
     """The model class name resolved by rsl-rl."""
 
-    init_temperature: float = 1.0
+    init_temperature: float = config_field(1.0)
     """Initial softmax temperature of the keypoint layer. Defaults to 1.0."""
 
 
@@ -79,46 +82,55 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 
 # Camera actors need a fixed learning rate: the adaptive KL schedule varies it across the range
 # where encoder features change faster than the policy head can track, and does not converge.
-CAMERA_ALGO_CFG = ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=7.0e-5)
+CAMERA_ALGO_CFG = replace_config(ALGO_CFG, num_mini_batches=8, schedule="fixed", learning_rate=7.0e-5)
 
 
 @dataclass
 class KukaAllegroPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 32
-    max_iterations = 15000
-    save_interval = 250
-    experiment_name = (MISSING,)  # type: ignore
-    obs_groups = (MISSING,)  # type: ignore
-    actor = (MISSING,)  # type: ignore
-    critic = (MISSING,)  # type: ignore
-    algorithm = MISSING  # type: ignore
+    num_steps_per_env: Any = config_field(32)
+    max_iterations: Any = config_field(15000)
+    save_interval: Any = config_field(250)
+    experiment_name: Any = config_field((MISSING,))  # type: ignore
+    obs_groups: Any = config_field((MISSING,))  # type: ignore
+    actor: Any = config_field((MISSING,))  # type: ignore
+    critic: Any = config_field((MISSING,))  # type: ignore
+    algorithm: Any = config_field(MISSING)  # type: ignore
 
 
 @dataclass
 class KukaAllegroPPORunnerCfg(PresetCfg):
-    default = KukaAllegroPPOBaseRunnerCfg().replace(
-        experiment_name="lift_kuka_allegro",
-        obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},
-        actor=STATE_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG,
+    default: Any = config_field(
+        replace_config(
+            KukaAllegroPPOBaseRunnerCfg(),
+            experiment_name="lift_kuka_allegro",
+            obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},
+            actor=STATE_POLICY_CFG,
+            critic=STATE_CRITIC_CFG,
+            algorithm=ALGO_CFG,
+        )
     )
 
-    single_camera = KukaAllegroPPOBaseRunnerCfg().replace(
-        experiment_name="lift_kuka_allegro_single_camera",
-        obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
-        actor=CNN_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=CAMERA_ALGO_CFG,
+    single_camera: Any = config_field(
+        replace_config(
+            KukaAllegroPPOBaseRunnerCfg(),
+            experiment_name="lift_kuka_allegro_single_camera",
+            obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
+            actor=CNN_POLICY_CFG,
+            critic=STATE_CRITIC_CFG,
+            algorithm=CAMERA_ALGO_CFG,
+        )
     )
 
-    duo_camera = KukaAllegroPPOBaseRunnerCfg().replace(
-        experiment_name="lift_kuka_allegro_duo_camera",
-        obs_groups={
-            "actor": ["policy", "proprio", "base_image", "wrist_image"],
-            "critic": ["policy", "proprio", "perception"],
-        },
-        actor=CNN_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=CAMERA_ALGO_CFG,
+    duo_camera: Any = config_field(
+        replace_config(
+            KukaAllegroPPOBaseRunnerCfg(),
+            experiment_name="lift_kuka_allegro_duo_camera",
+            obs_groups={
+                "actor": ["policy", "proprio", "base_image", "wrist_image"],
+                "critic": ["policy", "proprio", "perception"],
+            },
+            actor=CNN_POLICY_CFG,
+            critic=STATE_CRITIC_CFG,
+            algorithm=CAMERA_ALGO_CFG,
+        )
     )

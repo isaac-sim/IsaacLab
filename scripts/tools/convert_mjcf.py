@@ -33,6 +33,8 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 
 """
 
+from isaaclab.utils import config_to_dict
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -169,7 +171,7 @@ def main():
     print("-" * 80)
     print(f"Input MJCF file: {mjcf_path}")
     print("MJCF importer config:")
-    print_dict(mjcf_converter_cfg.to_dict(), nesting=0)
+    print_dict(config_to_dict(mjcf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

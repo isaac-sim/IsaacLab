@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 import math
+from typing import Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular demo.")
 parser.add_argument(
@@ -145,27 +147,33 @@ def create_scene_cfg():
     class GranularSceneCfg(InteractiveSceneCfg):
         """Scene containing static colliders and one Newton MPM object."""
 
-        ground = AssetBaseCfg(
-            prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(),
+        ground: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/Ground",
+                spawn=sim_utils.GroundPlaneCfg(),
+            )
         )
 
-        dome_light = AssetBaseCfg(
-            prim_path="/World/DomeLight",
-            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        dome_light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/DomeLight",
+                spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+            )
         )
 
-        media = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/GranularMedia",
-            spawn=MPMGridCfg(
-                lower=EMIT_LO,
-                upper=EMIT_HI,
-                voxel_size=VOXEL_SIZE,
-                particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
-                particle_placement="cell_center",
-                jitter=PARTICLE_JITTER,
-                visual_color=PARTICLE_COLOR,
-            ),
+        media: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/GranularMedia",
+                spawn=MPMGridCfg(
+                    lower=EMIT_LO,
+                    upper=EMIT_HI,
+                    voxel_size=VOXEL_SIZE,
+                    particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
+                    particle_placement="cell_center",
+                    jitter=PARTICLE_JITTER,
+                    visual_color=PARTICLE_COLOR,
+                ),
+            )
         )
 
         if args_cli.collider == "cube":

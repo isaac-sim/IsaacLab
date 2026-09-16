@@ -29,11 +29,11 @@ from __future__ import annotations
 
 from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class NewtonIKObjectiveCfg(ConfigMixin):
+class NewtonIKObjectiveCfg:
     """Base configuration for a Newton IK objective.
 
     Subclasses set :attr:`class_type` to the runtime implementation, which the
@@ -44,7 +44,7 @@ class NewtonIKObjectiveCfg(ConfigMixin):
     action-dimension contribution.
     """
 
-    class_type: type | str = MISSING  # type: ignore[assignment]
+    class_type: type | str = config_field(MISSING)  # type: ignore[assignment]
     """Runtime objective implementation, as a type or a ``"module:Class"`` string."""
 
 
@@ -59,33 +59,33 @@ class NewtonIKPoseObjectiveCfg(NewtonIKObjectiveCfg):
     with its own body, command convention, weights and scale.
     """
 
-    class_type: type | str = "isaaclab_newton.ik.newton_ik_objectives:NewtonIKPoseObjective"
+    class_type: type | str = config_field("isaaclab_newton.ik.newton_ik_objectives:NewtonIKPoseObjective")
 
-    body_name: str = MISSING  # type: ignore[assignment]
+    body_name: str = config_field(MISSING)  # type: ignore[assignment]
     """Name of the controlled end-effector body."""
 
-    name: str | None = None
+    name: str | None = config_field(None)
     """Unique objective name used to update its target. Defaults to :attr:`body_name`."""
 
-    body_offset_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    body_offset_pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Target-frame translation [m] relative to the body frame."""
 
-    body_offset_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    body_offset_rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
     """Target-frame quaternion ``(x, y, z, w)`` relative to the body frame."""
 
-    command_type: str = "pose"
+    command_type: str = config_field("pose")
     """How the policy action is interpreted: ``"position"`` or ``"pose"``."""
 
-    use_relative_mode: bool = True
+    use_relative_mode: bool = config_field(True)
     """Whether the command is a delta from the current end-effector pose."""
 
-    scale: float | tuple[float, ...] = 1.0
+    scale: float | tuple[float, ...] = config_field(1.0)
     """Scale applied to this objective's raw action slice [m for position, rad for relative rotation]."""
 
-    position_weight: float = 1.0
+    position_weight: float = config_field(1.0)
     """Residual weight [unitless] for the position component."""
 
-    rotation_weight: float = 1.0
+    rotation_weight: float = config_field(1.0)
     """Residual weight [unitless] for the rotation component."""
 
 
@@ -97,7 +97,7 @@ class NewtonIKJointLimitObjectiveCfg(NewtonIKObjectiveCfg):
     dimensions.
     """
 
-    class_type: type | str = "isaaclab_newton.ik.newton_ik_objectives:NewtonIKJointLimitObjective"
+    class_type: type | str = config_field("isaaclab_newton.ik.newton_ik_objectives:NewtonIKJointLimitObjective")
 
-    weight: float = 0.1
+    weight: float = config_field(0.1)
     """Residual weight [unitless] applied to limit violations."""

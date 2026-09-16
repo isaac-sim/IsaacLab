@@ -26,6 +26,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 __all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
@@ -59,28 +60,32 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg
 
     @dataclass
     class _SceneCfg(InteractiveSceneCfg):
-        rigid_object: RigidObjectCfg = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Object",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True)],
-                scale=_OBJECT_SCALE,
-            ),
+        rigid_object: RigidObjectCfg = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Object",
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                    rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True)],
+                    scale=_OBJECT_SCALE,
+                ),
+            )
         )
-        camera: CameraCfg = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Camera",
-            height=_CAMERA_HEIGHT,
-            width=_CAMERA_WIDTH,
-            update_period=0.0,
-            update_latest_camera_pose=True,
-            data_types=["depth"],
-            renderer_cfg=backend.renderer_cfg,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0,
-                focus_distance=400.0,
-                horizontal_aperture=20.955,
-                clipping_range=(_MIN_OBJECT_DEPTH, 100.0),
-            ),
+        camera: CameraCfg = config_field(
+            CameraCfg(
+                prim_path="{ENV_REGEX_NS}/Camera",
+                height=_CAMERA_HEIGHT,
+                width=_CAMERA_WIDTH,
+                update_period=0.0,
+                update_latest_camera_pose=True,
+                data_types=["depth"],
+                renderer_cfg=backend.renderer_cfg,
+                spawn=sim_utils.PinholeCameraCfg(
+                    focal_length=24.0,
+                    focus_distance=400.0,
+                    horizontal_aperture=20.955,
+                    clipping_range=(_MIN_OBJECT_DEPTH, 100.0),
+                ),
+            )
         )
         if backend.with_articulation:
             articulation: ArticulationCfg = ArticulationCfg(

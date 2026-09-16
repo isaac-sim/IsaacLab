@@ -9,20 +9,22 @@ from collections.abc import Sequence
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .operational_space import OperationalSpaceController
 
 
 @dataclass
-class OperationalSpaceControllerCfg(ConfigMixin):
+class OperationalSpaceControllerCfg:
     """Configuration for operational-space controller."""
 
-    class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
+    class_type: type[OperationalSpaceController] | str = config_field(
+        "{DIR}.operational_space:OperationalSpaceController"
+    )
     """The associated controller class."""
 
-    target_types: Sequence[str] = MISSING
+    target_types: Sequence[str] = config_field(MISSING)
     """Type of task-space targets.
 
     It has two sub-strings joined by underscore:
@@ -30,28 +32,28 @@ class OperationalSpaceControllerCfg(ConfigMixin):
         - reference for the task-space targets: ``"abs"`` (absolute), ``"rel"`` (relative, only for pose)
     """
 
-    motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
+    motion_control_axes_task: Sequence[int] = config_field((1, 1, 1, 1, 1, 1))
     """Motion direction to control in task reference frame. Mark as ``0/1`` for each axis."""
 
-    contact_wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
+    contact_wrench_control_axes_task: Sequence[int] = config_field((0, 0, 0, 0, 0, 0))
     """Contact wrench direction to control in task reference frame. Mark as 0/1 for each axis."""
 
-    inertial_dynamics_decoupling: bool = False
+    inertial_dynamics_decoupling: bool = config_field(False)
     """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics)."""
 
-    partial_inertial_dynamics_decoupling: bool = False
+    partial_inertial_dynamics_decoupling: bool = config_field(False)
     """Whether to ignore the inertial coupling between the translational & rotational motions."""
 
-    gravity_compensation: bool = False
+    gravity_compensation: bool = config_field(False)
     """Whether to perform gravity compensation."""
 
-    impedance_mode: str = "fixed"
+    impedance_mode: str = config_field("fixed")
     """Type of gains for motion control: ``"fixed"``, ``"variable"``, ``"variable_kp"``."""
 
-    motion_stiffness_task: float | Sequence[float] = (100.0, 100.0, 100.0, 100.0, 100.0, 100.0)
+    motion_stiffness_task: float | Sequence[float] = config_field((100.0, 100.0, 100.0, 100.0, 100.0, 100.0))
     """The positional gain for determining operational space command forces based on task-space pose error."""
 
-    motion_damping_ratio_task: float | Sequence[float] = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+    motion_damping_ratio_task: float | Sequence[float] = config_field((1.0, 1.0, 1.0, 1.0, 1.0, 1.0))
     """The damping ratio is used in-conjunction with positional gain to compute operational space command forces
     based on task-space velocity error.
 
@@ -59,19 +61,19 @@ class OperationalSpaceControllerCfg(ConfigMixin):
         :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.
     """
 
-    motion_stiffness_limits_task: tuple[float, float] = (0, 1000)
+    motion_stiffness_limits_task: tuple[float, float] = config_field((0, 1000))
     """Minimum and maximum values for positional gains.
 
     Note: Used only when :obj:`impedance_mode` is ``"variable"`` or ``"variable_kp"``.
     """
 
-    motion_damping_ratio_limits_task: tuple[float, float] = (0, 100)
+    motion_damping_ratio_limits_task: tuple[float, float] = config_field((0, 100))
     """Minimum and maximum values for damping ratios used to compute velocity gains.
 
     Note: Used only when :obj:`impedance_mode` is ``"variable"``.
     """
 
-    contact_wrench_stiffness_task: float | Sequence[float] | None = None
+    contact_wrench_stiffness_task: float | Sequence[float] | None = config_field(None)
     """The proportional gain for determining operational space command forces for closed-loop contact force control.
 
     If ``None``, then open-loop control of desired contact wrench is performed.
@@ -80,15 +82,15 @@ class OperationalSpaceControllerCfg(ConfigMixin):
     only the first three elements are used for the feedback loop.
     """
 
-    nullspace_control: str = "none"
+    nullspace_control: str = config_field("none")
     """The null space control method for redundant manipulators: ``"none"``, ``"position"``.
 
     Note: ``"position"`` is used to drive the redundant manipulator to zero configuration by default. If
     ``target_joint_pos`` is provided in the ``compute()`` method, it will be driven to this configuration.
     """
 
-    nullspace_stiffness: float = 10.0
+    nullspace_stiffness: float = config_field(10.0)
     """The stiffness for null space control."""
 
-    nullspace_damping_ratio: float = 1.0
+    nullspace_damping_ratio: float = config_field(1.0)
     """The damping ratio for null space control."""

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import RED_ARROW_X_MARKER_CFG
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -22,22 +22,24 @@ if TYPE_CHECKING:
 class PvaCfg(SensorBaseCfg):
     """Configuration for a Pose Velocity Acceleration (PVA) sensor."""
 
-    class_type: type[Pva] | str = "{DIR}.pva:Pva"
+    class_type: type[Pva] | str = config_field("{DIR}.pva:Pva")
 
     @dataclass
-    class OffsetCfg(ConfigMixin):
+    class OffsetCfg:
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Translation w.r.t. the parent frame [m]. Defaults to (0.0, 0.0, 0.0)."""
 
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    offset: OffsetCfg = OffsetCfg()
+    offset: OffsetCfg = config_field(OffsetCfg())
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
-    visualizer_cfg: VisualizationMarkersCfg = RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Command/velocity_goal")
+    visualizer_cfg: VisualizationMarkersCfg = config_field(
+        replace_config(RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/Command/velocity_goal")
+    )
     """The configuration object for the visualization markers. Defaults to RED_ARROW_X_MARKER_CFG.
 
     This attribute is only used when debug visualization is enabled.

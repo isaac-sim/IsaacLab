@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import trimesh
 
+from isaaclab.utils import config_to_dict, copy_config
 from isaaclab.utils.dict import dict_to_md5_hash
 from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.timer import Timer
@@ -357,12 +358,12 @@ class TerrainGenerator:
             The sub-terrain mesh and origin.
         """
         # copy the configuration
-        cfg = cfg.copy()
+        cfg = copy_config(cfg)
         # add other parameters to the sub-terrain configuration
         cfg.difficulty = float(difficulty)
         cfg.seed = self.cfg.seed
         # generate hash for the sub-terrain
-        sub_terrain_hash = dict_to_md5_hash(cfg.to_dict())
+        sub_terrain_hash = dict_to_md5_hash(config_to_dict(cfg))
         # generate the file name
         sub_terrain_cache_dir = os.path.join(self.cfg.cache_dir, sub_terrain_hash)
         sub_terrain_obj_filename = os.path.join(sub_terrain_cache_dir, "mesh.obj")

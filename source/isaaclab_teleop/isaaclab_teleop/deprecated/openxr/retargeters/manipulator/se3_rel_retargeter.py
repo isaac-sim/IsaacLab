@@ -14,6 +14,7 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.utils import copy_config, replace_config
 
 
 class Se3RelRetargeter(RetargeterBase):
@@ -77,9 +78,9 @@ class Se3RelRetargeter(RetargeterBase):
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization
         if cfg.enable_visualization:
-            frame_marker_cfg = FRAME_MARKER_CFG.copy()
+            frame_marker_cfg = copy_config(FRAME_MARKER_CFG)
             frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-            self._goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+            self._goal_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
             self._goal_marker.set_visibility(True)
             self._visualization_pos = np.zeros(3)
             self._visualization_rot = np.array([0.0, 0.0, 0.0, 1.0])  # xyzw format

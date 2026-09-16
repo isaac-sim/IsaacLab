@@ -13,16 +13,16 @@ from typing import Literal
 
 import torch
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from . import patterns
 
 
 @dataclass
-class PatternBaseCfg(ConfigMixin):
+class PatternBaseCfg:
     """Base configuration for a pattern."""
 
-    func: Callable[[PatternBaseCfg, str], tuple[torch.Tensor, torch.Tensor]] = MISSING
+    func: Callable[[PatternBaseCfg, str], tuple[torch.Tensor, torch.Tensor]] = config_field(MISSING)
     """Function to generate the pattern.
 
     The function should take in the configuration and the device name as arguments. It should return
@@ -41,18 +41,18 @@ class GridPatternCfg(PatternBaseCfg):
 
     """
 
-    func: Callable = patterns.grid_pattern
+    func: Callable = config_field(patterns.grid_pattern)
 
-    resolution: float = MISSING
+    resolution: float = config_field(MISSING)
     """Grid resolution (in meters)."""
 
-    size: tuple[float, float] = MISSING
+    size: tuple[float, float] = config_field(MISSING)
     """Grid size (length, width) (in meters)."""
 
-    direction: tuple[float, float, float] = (0.0, 0.0, -1.0)
+    direction: tuple[float, float, float] = config_field((0.0, 0.0, -1.0))
     """Ray direction. Defaults to (0.0, 0.0, -1.0)."""
 
-    ordering: Literal["xy", "yx"] = "xy"
+    ordering: Literal["xy", "yx"] = config_field("xy")
     """Specifies the ordering of points in the generated grid. Defaults to ``"xy"``.
 
     Consider a grid pattern with points at :math:`(x, y)` where :math:`x` and :math:`y` are the grid indices.
@@ -79,15 +79,15 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
         https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html
     """
 
-    func: Callable = patterns.pinhole_camera_pattern
+    func: Callable = config_field(patterns.pinhole_camera_pattern)
 
-    focal_length: float = 24.0
+    focal_length: float = config_field(24.0)
     """Perspective focal length (in cm). Defaults to 24.0cm.
 
     Longer lens lengths narrower FOV, shorter lens lengths wider FOV.
     """
 
-    horizontal_aperture: float = 20.955
+    horizontal_aperture: float = config_field(20.955)
     """Horizontal aperture (in cm). Defaults to 20.955 cm.
 
     Emulates sensor/film width on a camera.
@@ -95,7 +95,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     .. note::
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
-    vertical_aperture: float | None = None
+    vertical_aperture: float | None = config_field(None)
     r"""Vertical aperture (in cm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
@@ -106,16 +106,16 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
         \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
     """
 
-    horizontal_aperture_offset: float = 0.0
+    horizontal_aperture_offset: float = config_field(0.0)
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
 
-    vertical_aperture_offset: float = 0.0
+    vertical_aperture_offset: float = config_field(0.0)
     """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
 
-    width: int = MISSING
+    width: int = config_field(MISSING)
     """Width of the image (in pixels)."""
 
-    height: int = MISSING
+    height: int = config_field(MISSING)
     """Height of the image (in pixels)."""
 
     @classmethod
@@ -177,20 +177,20 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
 class BpearlPatternCfg(PatternBaseCfg):
     """Configuration for the Bpearl pattern for ray-casting."""
 
-    func: Callable = patterns.bpearl_pattern
+    func: Callable = config_field(patterns.bpearl_pattern)
 
-    horizontal_fov: float = 360.0
+    horizontal_fov: float = config_field(360.0)
     """Horizontal field of view (in degrees). Defaults to 360.0."""
 
-    horizontal_res: float = 10.0
+    horizontal_res: float = config_field(10.0)
     """Horizontal resolution (in degrees). Defaults to 10.0."""
 
     # fmt: off
-    vertical_ray_angles: Sequence[float] = [
+    vertical_ray_angles: Sequence[float] = config_field([
         89.5, 86.6875, 83.875, 81.0625, 78.25, 75.4375, 72.625, 69.8125, 67.0, 64.1875, 61.375,
         58.5625, 55.75, 52.9375, 50.125, 47.3125, 44.5, 41.6875, 38.875, 36.0625, 33.25, 30.4375,
         27.625, 24.8125, 22, 19.1875, 16.375, 13.5625, 10.75, 7.9375, 5.125, 2.3125
-    ]
+    ])
     # fmt: on
     """Vertical ray angles (in degrees). Defaults to a list of 32 angles.
 
@@ -204,16 +204,16 @@ class BpearlPatternCfg(PatternBaseCfg):
 class LidarPatternCfg(PatternBaseCfg):
     """Configuration for the LiDAR pattern for ray-casting."""
 
-    func: Callable = patterns.lidar_pattern
+    func: Callable = config_field(patterns.lidar_pattern)
 
-    channels: int = MISSING
+    channels: int = config_field(MISSING)
     """Number of Channels (Beams). Determines the vertical resolution of the LiDAR sensor."""
 
-    vertical_fov_range: tuple[float, float] = MISSING
+    vertical_fov_range: tuple[float, float] = config_field(MISSING)
     """Vertical field of view range in degrees."""
 
-    horizontal_fov_range: tuple[float, float] = MISSING
+    horizontal_fov_range: tuple[float, float] = config_field(MISSING)
     """Horizontal field of view range in degrees."""
 
-    horizontal_res: float = MISSING
+    horizontal_res: float = config_field(MISSING)
     """Horizontal resolution (in degrees)."""

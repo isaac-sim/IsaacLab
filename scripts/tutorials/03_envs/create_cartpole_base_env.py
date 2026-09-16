@@ -13,6 +13,10 @@ scene, action, observation and event managers to create an environment.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -46,21 +50,22 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import ConfigMixin
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneCfg
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the environment."""
 
-    joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+    joint_efforts: Any = config_field(
+        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+    )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the environment."""
 
     @dataclass
@@ -68,51 +73,57 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+        joint_pos_rel: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel_rel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
     # on startup
-    add_pole_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["pole"]),
-            "mass_distribution_params": (0.1, 0.5),
-            "operation": "add",
-        },
+    add_pole_mass: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_mass,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=["pole"]),
+                "mass_distribution_params": (0.1, 0.5),
+                "operation": "add",
+            },
+        )
     )
 
     # on reset
-    reset_cart_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.1, 0.1),
-        },
+    reset_cart_position: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_offset,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+                "position_range": (-1.0, 1.0),
+                "velocity_range": (-0.1, 0.1),
+            },
+        )
     )
 
-    reset_pole_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-            "position_range": (-0.125 * math.pi, 0.125 * math.pi),
-            "velocity_range": (-0.01 * math.pi, 0.01 * math.pi),
-        },
+    reset_pole_position: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_offset,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+                "position_range": (-0.125 * math.pi, 0.125 * math.pi),
+                "velocity_range": (-0.01 * math.pi, 0.01 * math.pi),
+            },
+        )
     )
 
 
@@ -121,11 +132,11 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene = CartpoleSceneCfg(num_envs=1024, env_spacing=2.5)
+    scene: Any = config_field(CartpoleSceneCfg(num_envs=1024, env_spacing=2.5))
     # Basic settings
-    observations = ObservationsCfg()
-    actions = ActionsCfg()
-    events = EventCfg()
+    observations: Any = config_field(ObservationsCfg())
+    actions: Any = config_field(ActionsCfg())
+    events: Any = config_field(EventCfg())
 
     def __post_init__(self):
         """Post initialization."""

@@ -12,6 +12,10 @@
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -53,15 +57,15 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
     # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # articulation
-    cartpole: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    cartpole: ArticulationCfg = config_field(replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):

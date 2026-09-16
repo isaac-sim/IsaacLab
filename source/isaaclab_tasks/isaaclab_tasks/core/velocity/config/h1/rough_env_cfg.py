@@ -19,68 +19,88 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 # Pre-defined configs
 ##
 from isaaclab_assets import H1_MINIMAL_CFG  # isort: skip
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
 
 
 @dataclass
 class H1Rewards(RewardsCfg):
     """Reward terms for the MDP."""
 
-    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
-    lin_vel_z_l2 = None
-    track_lin_vel_xy_exp = RewTerm(
-        func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=1.0,
-        params={"command_name": "base_velocity", "std": 0.5},
+    termination_penalty: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-200.0))
+    lin_vel_z_l2: Any = config_field(None)
+    track_lin_vel_xy_exp: Any = config_field(
+        RewTerm(
+            func=mdp.track_lin_vel_xy_yaw_frame_exp,
+            weight=1.0,
+            params={"command_name": "base_velocity", "std": 0.5},
+        )
     )
-    track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_world_exp, weight=1.0, params={"command_name": "base_velocity", "std": 0.5}
+    track_ang_vel_z_exp: Any = config_field(
+        RewTerm(func=mdp.track_ang_vel_z_world_exp, weight=1.0, params={"command_name": "base_velocity", "std": 0.5})
     )
-    feet_air_time = RewTerm(
-        func=mdp.feet_air_time_positive_biped,
-        weight=0.25,
-        params={
-            "command_name": "base_velocity",
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
-            "threshold": 0.4,
-        },
+    feet_air_time: Any = config_field(
+        RewTerm(
+            func=mdp.feet_air_time_positive_biped,
+            weight=0.25,
+            params={
+                "command_name": "base_velocity",
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+                "threshold": 0.4,
+            },
+        )
     )
-    feet_slide = RewTerm(
-        func=mdp.feet_slide,
-        weight=-0.25,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_link"),
-        },
+    feet_slide: Any = config_field(
+        RewTerm(
+            func=mdp.feet_slide,
+            weight=-0.25,
+            params={
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+                "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_link"),
+            },
+        )
     )
     # Penalize ankle joint limits
-    dof_pos_limits = RewTerm(
-        func=mdp.joint_pos_limits, weight=-1.0, params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_ankle")}
+    dof_pos_limits: Any = config_field(
+        RewTerm(
+            func=mdp.joint_pos_limits,
+            weight=-1.0,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_ankle")},
+        )
     )
     # Penalize deviation from default of the joints that are not essential for locomotion
-    joint_deviation_hip = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw", ".*_hip_roll"])},
+    joint_deviation_hip: Any = config_field(
+        RewTerm(
+            func=mdp.joint_deviation_l1,
+            weight=-0.2,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw", ".*_hip_roll"])},
+        )
     )
-    joint_deviation_arms = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*", ".*_elbow"])},
+    joint_deviation_arms: Any = config_field(
+        RewTerm(
+            func=mdp.joint_deviation_l1,
+            weight=-0.2,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*", ".*_elbow"])},
+        )
     )
-    joint_deviation_torso = RewTerm(
-        func=mdp.joint_deviation_l1, weight=-0.1, params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso")}
+    joint_deviation_torso: Any = config_field(
+        RewTerm(
+            func=mdp.joint_deviation_l1, weight=-0.1, params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso")}
+        )
     )
 
 
 @dataclass
 class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    rewards: H1Rewards = H1Rewards()
+    rewards: H1Rewards = config_field(H1Rewards())
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # scene
-        self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(H1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
         # commands
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8

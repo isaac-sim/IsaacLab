@@ -7,6 +7,8 @@
 
 import pytest
 
+from isaaclab.utils import validate_config
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -28,7 +30,7 @@ def test_parse_env_cfg_preserves_task_device_when_omitted():
     env_cfg = parse_env_cfg("IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow")
 
     assert env_cfg.sim.device == "cpu"
-    env_cfg.validate()
+    validate_config(env_cfg)
 
 
 def test_parse_env_cfg_applies_explicit_device_override():

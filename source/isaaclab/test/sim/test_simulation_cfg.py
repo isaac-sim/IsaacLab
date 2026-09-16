@@ -8,7 +8,7 @@ from dataclasses import dataclass, is_dataclass
 import pytest
 
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import config_to_dict, configclass, copy_config, replace_config, update_config, validate_config
 
 
 def test_simulation_cfg_uses_standard_dataclass():
@@ -29,16 +29,16 @@ def test_simulation_cfg_preserves_config_helpers():
     """The dataclass migration should preserve the public configuration helper methods."""
     cfg = SimulationCfg(dt=0.01)
 
-    copied_cfg = cfg.copy()
-    replaced_cfg = cfg.replace(dt=0.02)
-    cfg.from_dict({"dt": 0.03})
+    copied_cfg = copy_config(cfg)
+    replaced_cfg = replace_config(cfg, dt=0.02)
+    update_config(cfg, {"dt": 0.03})
 
-    assert copied_cfg.to_dict()["dt"] == 0.01
+    assert config_to_dict(copied_cfg)["dt"] == 0.01
     assert copied_cfg is not cfg
     assert copied_cfg.physics_material is not cfg.physics_material
     assert replaced_cfg.dt == 0.02
     assert cfg.dt == 0.03
-    assert cfg.validate() == []
+    assert validate_config(cfg) == []
 
 
 def test_simulation_cfg_mutable_defaults_are_independent():
@@ -55,7 +55,7 @@ def test_simulation_cfg_mutable_defaults_are_independent():
 def test_simulation_cfg_supports_legacy_configclass_subclasses():
     """Existing downstream configclass subclasses should remain compatible during migration."""
 
-    with pytest.deprecated_call(match="Use dataclasses.dataclass with ConfigMixin"):
+    with pytest.deprecated_call(match="functional configuration utilities"):
 
         @configclass
         class LegacyDerivedSimulationCfg(SimulationCfg):

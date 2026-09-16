@@ -20,16 +20,18 @@ from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab.utils import copy_config, replace_config
 
 
 @dataclass
 class FrankaCubeLiftEnvCfg(LiftEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -63,7 +65,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg = copy_config(FRAME_MARKER_CFG)
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(

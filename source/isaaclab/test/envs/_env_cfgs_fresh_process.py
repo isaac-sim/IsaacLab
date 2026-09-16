@@ -14,6 +14,7 @@ from isaaclab.test.env_cfgs import (
     make_empty_manager_based_env_cfg,
     make_empty_manager_based_rl_env_cfg,
 )
+from isaaclab.utils import validate_config
 
 _ENV_CFG_FACTORIES = (
     make_empty_manager_based_env_cfg,
@@ -47,8 +48,7 @@ def main() -> None:
     """Construct and validate every shared configuration without runtime imports."""
     for factory in _ENV_CFG_FACTORIES:
         cfg = factory(device="cpu", num_envs=2, env_spacing=1.5)
-        validate = getattr(cfg, "validate")
-        validate()
+        validate_config(cfg)
         assert cfg.sim.device == "cpu"
         assert cfg.scene.num_envs == 2
         assert cfg.scene.env_spacing == 1.5

@@ -30,7 +30,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 # Pre-defined configs
 ##
 from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
-
+from isaaclab.utils import config_field, replace_config
 
 ##
 # Environment configuration
@@ -41,47 +41,57 @@ from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isor
 class FrankaArmActionCfg(PresetCfg):
     """Arm-controller presets for Franka Reach."""
 
-    joint_pos: mdp.JointPositionActionCfg = mdp.JointPositionActionCfg(
-        asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
+    joint_pos: mdp.JointPositionActionCfg = config_field(
+        mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
+        )
     )
-    diffik: DifferentialInverseKinematicsActionCfg = DifferentialInverseKinematicsActionCfg(
-        asset_name="robot",
-        joint_names=["panda_joint.*"],
-        body_name="panda_hand",
-        controller=DifferentialIKControllerCfg(
-            command_type="pose",
-            use_relative_mode=True,
-            ik_method="dls",
-            ik_params={"lambda_val": 0.01},
-        ),
-        scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
-        body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
-    )
-    diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
-        controller=diffik.controller.replace(
-            use_relative_mode=False,
-            ik_params={"lambda_val": 0.45},
-        ),
-        body_offset=None,
-        scale=1.0,
-    )
-    newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
-        asset_name="robot",
-        joint_names=["panda_joint.*"],
-        controller=NewtonIKSolverCfg(optimizer="lm", jacobian_mode="analytic", iterations=4),
-        objectives=[
-            NewtonIKPoseObjectiveCfg(
-                body_name="panda_hand",
-                body_offset_pos=(0.0, 0.0, 0.107),
+    diffik: DifferentialInverseKinematicsActionCfg = config_field(
+        DifferentialInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            body_name="panda_hand",
+            controller=DifferentialIKControllerCfg(
                 command_type="pose",
                 use_relative_mode=True,
-                scale=(0.05, 0.05, 0.05, 0.25, 0.25, 0.25),
-                rotation_weight=2.0,
+                ik_method="dls",
+                ik_params={"lambda_val": 0.01},
             ),
-            NewtonIKJointLimitObjectiveCfg(weight=0.1),
-        ],
+            scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+        )
     )
-    default: mdp.JointPositionActionCfg = joint_pos
+    diffik_abs: DifferentialInverseKinematicsActionCfg = config_field(
+        replace_config(
+            diffik,
+            controller=replace_config(
+                diffik.controller,
+                use_relative_mode=False,
+                ik_params={"lambda_val": 0.45},
+            ),
+            body_offset=None,
+            scale=1.0,
+        )
+    )
+    newton_ik: NewtonInverseKinematicsActionCfg = config_field(
+        NewtonInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            controller=NewtonIKSolverCfg(optimizer="lm", jacobian_mode="analytic", iterations=4),
+            objectives=[
+                NewtonIKPoseObjectiveCfg(
+                    body_name="panda_hand",
+                    body_offset_pos=(0.0, 0.0, 0.107),
+                    command_type="pose",
+                    use_relative_mode=True,
+                    scale=(0.05, 0.05, 0.05, 0.25, 0.25, 0.25),
+                    rotation_weight=2.0,
+                ),
+                NewtonIKJointLimitObjectiveCfg(weight=0.1),
+            ],
+        )
+    )
+    default: mdp.JointPositionActionCfg = config_field(joint_pos)
 
 
 @dataclass
@@ -98,10 +108,11 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
     def __post_init__(self) -> None:
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Use the collision-complete legacy asset in PhysX until the Menagerie asset is corrected.
-        self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.usd_path = preset(
             default=self.scene.robot.spawn.usd_path,
             isaacsim_physx=FRANKA_PANDA_CFG.spawn.usd_path,

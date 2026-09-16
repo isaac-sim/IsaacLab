@@ -29,6 +29,8 @@ Example usage:
 
 from __future__ import annotations
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -92,7 +94,9 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     cfg.func("/World/Light", cfg)
 
     # Parse terrain generation
-    terrain_gen_cfg = ROUGH_TERRAINS_CFG.replace(curriculum=args_cli.use_curriculum, color_scheme=args_cli.color_scheme)
+    terrain_gen_cfg = replace_config(
+        ROUGH_TERRAINS_CFG, curriculum=args_cli.use_curriculum, color_scheme=args_cli.color_scheme
+    )
 
     # Add flat patch configuration
     # Note: To have separate colors for each sub-terrain type, we set the flat patch sampling configuration name

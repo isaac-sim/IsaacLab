@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
 
@@ -148,15 +149,17 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
 
     @dataclass
     class _SceneCfg(InteractiveSceneCfg):
-        cube: RigidObjectCfg = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Cube",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        cube: RigidObjectCfg = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Cube",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.2, 0.2, 0.2),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+            )
         )
 
     print("  Setting up Newton scene")

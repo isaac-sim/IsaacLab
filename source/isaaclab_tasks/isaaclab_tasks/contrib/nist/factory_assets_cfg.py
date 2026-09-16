@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
@@ -11,6 +12,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
@@ -35,33 +37,37 @@ ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG = sim_utils.RigidBodyPropertiesCfg(
 class _SocketCollisionPropsCfg(PresetCfg):
     """Backend-aware collision props for assembly sockets (bolts, holes, bases)."""
 
-    default = sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0)
-    newton_mjwarp = sim_utils.NewtonSDFCollisionPropertiesCfg(
-        rest_offset=0.0,
-        contact_gap=0.005,
-        sdf_max_resolution=256,
-        sdf_narrow_band_inner=-0.005,
-        sdf_narrow_band_outer=0.005,
+    default: Any = config_field(sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0))
+    newton_mjwarp: Any = config_field(
+        sim_utils.NewtonSDFCollisionPropertiesCfg(
+            rest_offset=0.0,
+            contact_gap=0.005,
+            sdf_max_resolution=256,
+            sdf_narrow_band_inner=-0.005,
+            sdf_narrow_band_outer=0.005,
+        )
     )
-    isaacsim_physx = default
-    physx = isaacsim_physx
+    isaacsim_physx: Any = config_field(default)
+    physx: Any = config_field(isaacsim_physx)
 
 
 @dataclass
 class _PlugCollisionPropsCfg(PresetCfg):
     """Backend-aware collision props for assembly plugs (nuts, pegs, gears)."""
 
-    default = sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0)
-    newton_mjwarp = sim_utils.NewtonSDFCollisionPropertiesCfg(
-        contact_offset=0.0025,
-        rest_offset=0.0,
-        contact_gap=0.005,
-        sdf_max_resolution=256,
-        sdf_narrow_band_inner=-0.005,
-        sdf_narrow_band_outer=0.005,
+    default: Any = config_field(sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0))
+    newton_mjwarp: Any = config_field(
+        sim_utils.NewtonSDFCollisionPropertiesCfg(
+            contact_offset=0.0025,
+            rest_offset=0.0,
+            contact_gap=0.005,
+            sdf_max_resolution=256,
+            sdf_narrow_band_inner=-0.005,
+            sdf_narrow_band_outer=0.005,
+        )
     )
-    isaacsim_physx = default
-    physx = isaacsim_physx
+    isaacsim_physx: Any = config_field(default)
+    physx: Any = config_field(isaacsim_physx)
 
 
 ASSEMBLY_SOCKET_COLLISION_PROPS_CFG = _SocketCollisionPropsCfg()

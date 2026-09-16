@@ -15,6 +15,8 @@
 
 """
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -67,7 +69,7 @@ def main():
         ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
 
         # Spawn robot
-        robot_cfg = ARL_ROBOT_1_CFG.replace(prim_path="/World/Robot")
+        robot_cfg = replace_config(ARL_ROBOT_1_CFG, prim_path="/World/Robot")
         robot_cfg.actuators["thrusters"].dt = sim_cfg.dt
         robot = robot_cfg.class_type(robot_cfg)
 

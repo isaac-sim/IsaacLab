@@ -42,7 +42,8 @@ class CartpoleCaptureCfg(CartpoleEnvCfg):
     """Cartpole configuration with a compact OVRTX recording viewport."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _configure_capture(self, focal_length=18.0)
 
 
@@ -51,7 +52,8 @@ class G1FlatCaptureCfg(G1FlatEnvCfg):
     """G1 flat-terrain configuration with a compact OVRTX recording viewport."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _configure_capture(self, focal_length=20.0)
 
 
@@ -60,7 +62,8 @@ class KukaAllegroCaptureCfg(KukaAllegroLiftEnvCfg):
     """Kuka Allegro lift configuration with a compact OVRTX recording viewport."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _configure_capture(self, focal_length=22.0)
 
 
@@ -69,7 +72,8 @@ class FrankaCabinetCaptureCfg(FrankaCabinetEnvCfg):
     """Franka cabinet configuration with a compact OVRTX recording viewport."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _configure_capture(self, focal_length=22.0)
 
 

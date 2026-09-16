@@ -26,12 +26,14 @@ tactile sensing with the GelSight finger setup.
 import argparse
 import math
 import os
+from typing import Any
 
 import cv2
 import numpy as np
 import torch
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # Add argparse arguments
 parser = argparse.ArgumentParser(description="TacSL tactile sensor example.")
@@ -110,73 +112,77 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with tactile sensors on the robot."""
 
     # Ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
     # Lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # Robot with tactile sensor
-    robot = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileWithCompliantContactCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
-            rigid_props=PhysxRigidBodyPropertiesCfg(
-                disable_gravity=True,
-                max_depenetration_velocity=5.0,
+    robot: Any = config_field(
+        ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.UsdFileWithCompliantContactCfg(
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
+                rigid_props=PhysxRigidBodyPropertiesCfg(
+                    disable_gravity=True,
+                    max_depenetration_velocity=5.0,
+                ),
+                compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
+                compliant_contact_damping=args_cli.tactile_compliant_damping,
+                physics_material_prim_path="elastomer",
+                articulation_props=PhysxArticulationRootPropertiesCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=12,
+                    solver_velocity_iteration_count=1,
+                ),
+                collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.001, rest_offset=-0.0005),
             ),
-            compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
-            compliant_contact_damping=args_cli.tactile_compliant_damping,
-            physics_material_prim_path="elastomer",
-            articulation_props=PhysxArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
-                solver_position_iteration_count=12,
-                solver_velocity_iteration_count=1,
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0.0, 0.0, 0.5),
+                rot=(-math.sqrt(2) / 2, 0.0, 0.0, math.sqrt(2) / 2),  # 90° rotation
+                joint_pos={},
+                joint_vel={},
             ),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.001, rest_offset=-0.0005),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(-math.sqrt(2) / 2, 0.0, 0.0, math.sqrt(2) / 2),  # 90° rotation
-            joint_pos={},
-            joint_vel={},
-        ),
-        actuators={},
+            actuators={},
+        )
     )
 
     # Camera configuration for tactile sensing
 
     # TacSL Tactile Sensor
-    tactile_sensor = VisuoTactileSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
-        debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
-        # Sensor configuration
-        render_cfg=GELSIGHT_R15_CFG,
-        enable_camera_tactile=args_cli.use_tactile_rgb,
-        enable_force_field=args_cli.use_tactile_ff,
-        # Elastomer configuration
-        tactile_array_size=(20, 25),
-        tactile_margin=0.003,
-        # Contact object configuration
-        contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
-        # Force field physics parameters
-        normal_contact_stiffness=args_cli.normal_contact_stiffness,
-        friction_coefficient=args_cli.friction_coefficient,
-        tangential_stiffness=args_cli.tangential_stiffness,
-        # Camera configuration
-        # Note: the camera is already spawned in the scene, properties are set in the
-        # 'gelsight_r15_finger.usd' USD file
-        camera_cfg=CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
-            height=GELSIGHT_R15_CFG.image_height,
-            width=GELSIGHT_R15_CFG.image_width,
-            data_types=["distance_to_image_plane"],
-            spawn=None,
-        ),
-        # Debug Visualization
-        trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
-        visualize_sdf_closest_pts=args_cli.debug_sdf_closest_pts,
+    tactile_sensor: Any = config_field(
+        VisuoTactileSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
+            debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
+            # Sensor configuration
+            render_cfg=GELSIGHT_R15_CFG,
+            enable_camera_tactile=args_cli.use_tactile_rgb,
+            enable_force_field=args_cli.use_tactile_ff,
+            # Elastomer configuration
+            tactile_array_size=(20, 25),
+            tactile_margin=0.003,
+            # Contact object configuration
+            contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
+            # Force field physics parameters
+            normal_contact_stiffness=args_cli.normal_contact_stiffness,
+            friction_coefficient=args_cli.friction_coefficient,
+            tangential_stiffness=args_cli.tangential_stiffness,
+            # Camera configuration
+            # Note: the camera is already spawned in the scene, properties are set in the
+            # 'gelsight_r15_finger.usd' USD file
+            camera_cfg=CameraCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
+                height=GELSIGHT_R15_CFG.image_height,
+                width=GELSIGHT_R15_CFG.image_width,
+                data_types=["distance_to_image_plane"],
+                spawn=None,
+            ),
+            # Debug Visualization
+            trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
+            visualize_sdf_closest_pts=args_cli.debug_sdf_closest_pts,
+        )
     )
 
 
@@ -185,17 +191,19 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
     """Scene with cube contact object."""
 
     # Cube contact object
-    contact_object = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/contact_object",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.01, 0.01, 0.01),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.00327211),
-            collision_props=PhysxCollisionPropertiesCfg(),
-            physics_material=PhysxRigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.1, 0.1)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0 + 0.06776, 0.51), rot=(0.0, 0.0, 0.0, 1.0)),
+    contact_object: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/contact_object",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.01, 0.01, 0.01),
+                rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.00327211),
+                collision_props=PhysxCollisionPropertiesCfg(),
+                physics_material=PhysxRigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.1, 0.1)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0 + 0.06776, 0.51), rot=(0.0, 0.0, 0.0, 1.0)),
+        )
     )
 
 
@@ -204,24 +212,26 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
     """Scene with nut contact object."""
 
     # Nut contact object
-    contact_object = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/contact_object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
-            rigid_props=PhysxRigidBodyPropertiesCfg(
-                disable_gravity=True,
-                solver_position_iteration_count=12,
-                solver_velocity_iteration_count=1,
-                max_angular_velocity=180.0,
+    contact_object: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/contact_object",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
+                rigid_props=PhysxRigidBodyPropertiesCfg(
+                    disable_gravity=True,
+                    solver_position_iteration_count=12,
+                    solver_velocity_iteration_count=1,
+                    max_angular_velocity=180.0,
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+                collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.005, rest_offset=0),
+                articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.005, rest_offset=0),
-            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(0.0, 0.0 + 0.06776, 0.498),
-            rot=(0.0, 0.0, 0.0, 1.0),
-        ),
+            init_state=RigidObjectCfg.InitialStateCfg(
+                pos=(0.0, 0.0 + 0.06776, 0.498),
+                rot=(0.0, 0.0, 0.0, 1.0),
+            ),
+        )
     )
 
 

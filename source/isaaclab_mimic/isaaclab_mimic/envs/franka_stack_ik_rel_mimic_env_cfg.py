@@ -18,7 +18,8 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
 
     def __post_init__(self):
         # post init of parents
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         # # TODO: Figure out how we can move this to the MimicEnvCfg class
         # # The __post_init__() above only calls the init for FrankaCubeStackEnvCfg and not MimicEnvCfg
         # # https://stackoverflow.com/questions/59986413/achieving-multiple-inheritance-using-python-dataclasses

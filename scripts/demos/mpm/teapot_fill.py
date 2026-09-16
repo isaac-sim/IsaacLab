@@ -28,11 +28,13 @@ import argparse
 import math
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import Any
 
 import numpy as np
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
@@ -603,10 +605,10 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
     class DemoMeshCfg(sim_utils.MeshCfg):
         """Demo-local exact triangle-mesh asset config."""
 
-        func: Callable | str = clone(spawn_demo_mesh)
-        vertices: list[list[float]] = MISSING
-        faces: list[list[int]] = MISSING
-        mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = None
+        func: Callable | str = config_field(clone(spawn_demo_mesh))
+        vertices: list[list[float]] = config_field(MISSING)
+        faces: list[list[int]] = config_field(MISSING)
+        mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = config_field(None)
 
     island_cfg = None
     if island_usd is not None:
@@ -641,116 +643,126 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
     class TeapotFillSceneCfg(InteractiveSceneCfg):
         """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
 
-        island: AssetBaseCfg | None = island_cfg
+        island: AssetBaseCfg | None = config_field(island_cfg)
 
-        tabletop_collider = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/TabletopCollider",
-            spawn=sim_utils.CuboidCfg(
-                size=(2.0 * TABLE_HALF_EXTENTS[0], 2.0 * TABLE_HALF_EXTENTS[1], 2.0 * TABLE_HALF_EXTENTS[2]),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=COLLIDER_MARGIN,
+        tabletop_collider: Any = config_field(
+            AssetBaseCfg(
+                prim_path="{ENV_REGEX_NS}/TabletopCollider",
+                spawn=sim_utils.CuboidCfg(
+                    size=(2.0 * TABLE_HALF_EXTENTS[0], 2.0 * TABLE_HALF_EXTENTS[1], 2.0 * TABLE_HALF_EXTENTS[2]),
+                    collision_props=sim_utils.NewtonCollisionPropertiesCfg(
+                        collision_enabled=True,
+                        contact_margin=COLLIDER_MARGIN,
+                    ),
+                    physics_material=sim_utils.NewtonMaterialPropertiesCfg(
+                        static_friction=TABLE_FRICTION,
+                        dynamic_friction=TABLE_FRICTION,
+                    ),
+                    physics_material_path="physicsMaterial",
+                    visible=island_usd is None,
+                    visual_material=(
+                        sim_utils.PreviewSurfaceCfg(diffuse_color=TABLE_COLOR) if island_usd is None else None
+                    ),
+                    visual_material_path="visualMaterial",
                 ),
-                physics_material=sim_utils.NewtonMaterialPropertiesCfg(
-                    static_friction=TABLE_FRICTION,
-                    dynamic_friction=TABLE_FRICTION,
+                init_state=AssetBaseCfg.InitialStateCfg(
+                    pos=(0.0, 0.0, TABLE_TOP_Z - TABLE_HALF_EXTENTS[2]),
+                    rot=TABLE_ORIENTATION,
                 ),
-                physics_material_path="physicsMaterial",
-                visible=island_usd is None,
-                visual_material=(
-                    sim_utils.PreviewSurfaceCfg(diffuse_color=TABLE_COLOR) if island_usd is None else None
-                ),
-                visual_material_path="visualMaterial",
-            ),
-            init_state=AssetBaseCfg.InitialStateCfg(
-                pos=(0.0, 0.0, TABLE_TOP_Z - TABLE_HALF_EXTENTS[2]),
-                rot=TABLE_ORIENTATION,
-            ),
+            )
         )
 
-        catch_bowl_visual: AssetBaseCfg | None = bowl_visual_cfg
+        catch_bowl_visual: AssetBaseCfg | None = config_field(bowl_visual_cfg)
 
-        catch_bowl_collider = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/CatchBowlCollider",
-            spawn=DemoMeshCfg(
-                vertices=(BOWL_SCALE * bowl_vertices).tolist(),
-                faces=bowl_faces.tolist(),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=COLLIDER_MARGIN,
+        catch_bowl_collider: Any = config_field(
+            AssetBaseCfg(
+                prim_path="{ENV_REGEX_NS}/CatchBowlCollider",
+                spawn=DemoMeshCfg(
+                    vertices=(BOWL_SCALE * bowl_vertices).tolist(),
+                    faces=bowl_faces.tolist(),
+                    collision_props=sim_utils.NewtonCollisionPropertiesCfg(
+                        collision_enabled=True,
+                        contact_margin=COLLIDER_MARGIN,
+                    ),
+                    mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
+                    physics_material=sim_utils.NewtonMaterialPropertiesCfg(
+                        static_friction=BOWL_FRICTION,
+                        dynamic_friction=BOWL_FRICTION,
+                    ),
+                    physics_material_path="physicsMaterial",
+                    visible=bowl_usd is None,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BOWL_COLOR) if bowl_usd is None else None,
+                    visual_material_path="visualMaterial",
                 ),
-                mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
-                physics_material=sim_utils.NewtonMaterialPropertiesCfg(
-                    static_friction=BOWL_FRICTION,
-                    dynamic_friction=BOWL_FRICTION,
-                ),
-                physics_material_path="physicsMaterial",
-                visible=bowl_usd is None,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BOWL_COLOR) if bowl_usd is None else None,
-                visual_material_path="visualMaterial",
-            ),
-            init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
+                init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
+            )
         )
 
         # Utah Teapot: free for any use; credit as the (Modified) Utah Teapot
         # (Univ. of Utah); provided "as is", no warranty.
-        container = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/PourContainer",
-            # Re-spawn the source geometry as one exact triangle mesh. The USD
-            # asset's authored convex decomposition is unsuitable for a hollow
-            # MPM collider and SolverImplicitMPM does not accept convex meshes.
-            spawn=DemoMeshCfg(
-                vertices=container_vertices.tolist(),
-                faces=container_faces.tolist(),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
-                    rigid_body_enabled=True,
-                    kinematic_enabled=True,
-                    disable_gravity=True,
+        container: Any = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/PourContainer",
+                # Re-spawn the source geometry as one exact triangle mesh. The USD
+                # asset's authored convex decomposition is unsuitable for a hollow
+                # MPM collider and SolverImplicitMPM does not accept convex meshes.
+                spawn=DemoMeshCfg(
+                    vertices=container_vertices.tolist(),
+                    faces=container_faces.tolist(),
+                    rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
+                        rigid_body_enabled=True,
+                        kinematic_enabled=True,
+                        disable_gravity=True,
+                    ),
+                    collision_props=sim_utils.NewtonCollisionPropertiesCfg(
+                        collision_enabled=True,
+                        contact_margin=COLLIDER_MARGIN,
+                    ),
+                    mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
+                    physics_material=sim_utils.NewtonMaterialPropertiesCfg(
+                        static_friction=CONTAINER_FRICTION,
+                        dynamic_friction=CONTAINER_FRICTION,
+                    ),
+                    physics_material_path="physicsMaterial",
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=CONTAINER_COLOR),
+                    visual_material_path="visualMaterial",
                 ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=COLLIDER_MARGIN,
-                ),
-                mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
-                physics_material=sim_utils.NewtonMaterialPropertiesCfg(
-                    static_friction=CONTAINER_FRICTION,
-                    dynamic_friction=CONTAINER_FRICTION,
-                ),
-                physics_material_path="physicsMaterial",
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=CONTAINER_COLOR),
-                visual_material_path="visualMaterial",
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=container_pos, rot=container_rot),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=container_pos, rot=container_rot),
+            )
         )
 
-        fluid = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Fluid",
-            spawn=MPMPointsCfg(
-                positions=fluid_points.tolist(),
-                mass=particle_mass,
-                radius=particle_radius,
-                material=MPMParticleMaterialCfg(
-                    viscosity=1.0e-3,
-                    friction=0.0,
-                    damping=1.0e-3,
-                    yield_pressure=1.0e15,
-                    tensile_yield_ratio=1.0,
+        fluid: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Fluid",
+                spawn=MPMPointsCfg(
+                    positions=fluid_points.tolist(),
+                    mass=particle_mass,
+                    radius=particle_radius,
+                    material=MPMParticleMaterialCfg(
+                        viscosity=1.0e-3,
+                        friction=0.0,
+                        damping=1.0e-3,
+                        yield_pressure=1.0e15,
+                        tensile_yield_ratio=1.0,
+                    ),
+                    visual_color=WATER_COLOR,
+                    visual_material=sim_utils.PreviewSurfaceCfg(
+                        diffuse_color=WATER_COLOR,
+                        roughness=0.1,
+                        opacity=0.7,
+                    ),
                 ),
-                visual_color=WATER_COLOR,
-                visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=WATER_COLOR,
-                    roughness=0.1,
-                    opacity=0.7,
-                ),
-            ),
-            init_state=MPMObjectCfg.InitialStateCfg(pos=container_pos),
+                init_state=MPMObjectCfg.InitialStateCfg(pos=container_pos),
+            )
         )
 
-        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+        ground: Any = config_field(AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg()))
 
-        dome_light = AssetBaseCfg(
-            prim_path="/World/DomeLight",
-            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        dome_light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/DomeLight",
+                spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+            )
         )
 
     return TeapotFillSceneCfg(num_envs=1, env_spacing=0.0)

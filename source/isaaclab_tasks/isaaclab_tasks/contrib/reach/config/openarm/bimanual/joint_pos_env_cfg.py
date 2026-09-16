@@ -10,6 +10,7 @@
 from dataclasses import dataclass
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.utils import replace_config
 
 from isaaclab_tasks.contrib.reach.config.openarm.bimanual.reach_openarm_bi_env_cfg import ReachEnvCfg
 
@@ -26,10 +27,11 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # switch robot to OpenArm
-        self.scene.robot = OPENARM_BI_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(OPENARM_BI_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # override rewards
         self.rewards.left_end_effector_position_tracking.params["asset_cfg"].body_names = ["openarm_left_hand"]

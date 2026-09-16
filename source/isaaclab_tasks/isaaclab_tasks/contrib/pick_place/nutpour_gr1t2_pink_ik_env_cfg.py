@@ -20,7 +20,8 @@ from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
 class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.actions.gr1_action = PinkInverseKinematicsActionCfg(
             pink_controlled_joint_names=[

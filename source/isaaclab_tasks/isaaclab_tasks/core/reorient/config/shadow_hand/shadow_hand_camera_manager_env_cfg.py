@@ -6,11 +6,12 @@
 """Manager-based counterpart of the Shadow Hand camera reorientation task."""
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as mdp
@@ -42,17 +43,17 @@ _MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
 class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
     """State Manager scene augmented with camera and fingertip-wrench sensors."""
 
-    num_envs = 1225
-    env_spacing = 2.0
+    num_envs: Any = config_field(1225)
+    env_spacing: Any = config_field(2.0)
 
     # does it not need ground? or is ground needed at all in general?
-    ground = None
-    tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
-    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    ground: Any = config_field(None)
+    tiled_camera: ShadowHandTiledCameraCfg = config_field(ShadowHandTiledCameraCfg())
+    joint_wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @dataclass
-class ShadowHandCameraObservationsCfg(ConfigMixin):
+class ShadowHandCameraObservationsCfg:
     """Camera actor and asymmetric critic observation groups."""
 
     @dataclass
@@ -63,21 +64,25 @@ class ShadowHandCameraObservationsCfg(ConfigMixin):
         privileged object and goal-difference terms belong to the critic alone.
         """
 
-        goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        goal_pose: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"}))
         # No action_name, deliberately: omitting it returns the WHOLE action vector, whereas
         # naming a term returns only that term's raw actions. This hand's twenty motors are
         # split across a joint term and a tendon term, so naming either would feed the policy
         # half of its own last action.
-        last_action = ObsTerm(func=mdp.last_action)
-        camera_features = ObsTerm(
-            func=mdp.ShadowHandCameraFeatures,
-            params={
-                "feature_extractor_cfg": FeatureExtractorCfg(),
-                "sensor_cfg": SceneEntityCfg("tiled_camera"),
-                "object_cfg": SceneEntityCfg("object"),
-            },
+        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
+        camera_features: Any = config_field(
+            ObsTerm(
+                func=mdp.ShadowHandCameraFeatures,
+                params={
+                    "feature_extractor_cfg": FeatureExtractorCfg(),
+                    "sensor_cfg": SceneEntityCfg("tiled_camera"),
+                    "object_cfg": SceneEntityCfg("object"),
+                },
+            )
         )
-        goal_keypoints = ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
+        goal_keypoints: Any = config_field(
+            ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
+        )
 
         def __post_init__(self):
             self.concatenate_terms = True
@@ -86,17 +91,19 @@ class ShadowHandCameraObservationsCfg(ConfigMixin):
     class CameraCriticCfg(ReorientFullStateObsCfg):
         """Direct-compatible 214-dimensional asymmetric camera critic state."""
 
-        fingertip_wrench = ObsTerm(
-            func=mdp.body_incoming_wrench,
-            scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
+        fingertip_wrench: Any = config_field(
+            ObsTerm(
+                func=mdp.body_incoming_wrench,
+                scale=10.0,
+                params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
+            )
         )
         # No action_name: this hand splits its motors across a joint term and a tendon term.
-        last_action = ObsTerm(func=mdp.last_action)
-        camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
+        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
+        camera_features: Any = config_field(ObsTerm(func=mdp.shadow_hand_camera_cached_features))
 
-    policy: CameraPolicyCfg = CameraPolicyCfg()
-    critic: CameraCriticCfg = CameraCriticCfg()
+    policy: CameraPolicyCfg = config_field(CameraPolicyCfg())
+    critic: CameraCriticCfg = config_field(CameraCriticCfg())
 
 
 @dataclass
@@ -104,20 +111,23 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
     """Manager-based camera task with exact Direct dynamics and observations."""
 
     # only the fields that differ from ShadowHandManagerEnvCfg are overridden
-    scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg()
-    observations: ShadowHandCameraObservationsCfg = ShadowHandCameraObservationsCfg()
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(
-        pretrained_checkpoint=preset(  # type: ignore[arg-type]
-            default=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
-            newton_mjwarp=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
-            isaacsim_physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
-            ovphysx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
-            physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+    scene: ShadowHandCameraManagerSceneCfg = config_field(ShadowHandCameraManagerSceneCfg())
+    observations: ShadowHandCameraObservationsCfg = config_field(ShadowHandCameraObservationsCfg())
+    feature_extractor: FeatureExtractorCfg = config_field(
+        FeatureExtractorCfg(
+            pretrained_checkpoint=preset(  # type: ignore[arg-type]
+                default=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+                newton_mjwarp=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+                isaacsim_physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+                ovphysx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+                physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            )
         )
     )
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         # camera tasks display the goal inside the tiled camera's frustum
         # goal cube must sit inside the tiled camera's frustum
         self.commands.object_pose.fixed_marker_pos = (-0.2, 0.1, 0.6)

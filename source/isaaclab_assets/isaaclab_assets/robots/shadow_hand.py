@@ -22,6 +22,7 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import copy_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 JOINT_NAMES = [
@@ -152,10 +153,10 @@ here. Prefer :data:`SHADOW_HAND_PHYSX_CFG` or :data:`SHADOW_HAND_NEWTON_CFG`, wh
 engine at the call site instead of relying on the asset's default.
 """
 
-SHADOW_HAND_PHYSX_CFG = SHADOW_HAND_CFG.copy()
+SHADOW_HAND_PHYSX_CFG = copy_config(SHADOW_HAND_CFG)
 SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx", "Colliders": "simplified"}
 """Shadow Hand on the asset's PhysX variant, with simplified colliders."""
 
-SHADOW_HAND_NEWTON_CFG = SHADOW_HAND_CFG.copy()
+SHADOW_HAND_NEWTON_CFG = copy_config(SHADOW_HAND_CFG)
 SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "simplified"}
 """Shadow Hand on the asset's MuJoCo variant, with simplified colliders, for the Newton (MJWarp) solver."""

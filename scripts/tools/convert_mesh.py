@@ -37,6 +37,8 @@ optional arguments:
 
 """
 
+from isaaclab.utils import config_to_dict
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -161,7 +163,7 @@ def main():
     print("-" * 80)
     print(f"Input Mesh file: {mesh_path}")
     print("Mesh importer config:")
-    print_dict(mesh_converter_cfg.to_dict(), nesting=0)
+    print_dict(config_to_dict(mesh_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

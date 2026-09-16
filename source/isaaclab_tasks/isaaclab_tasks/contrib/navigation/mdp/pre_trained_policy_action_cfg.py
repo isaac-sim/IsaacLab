@@ -6,6 +6,7 @@
 from dataclasses import MISSING, dataclass
 
 from isaaclab.managers import ActionTermCfg, ObservationGroupCfg
+from isaaclab.utils import config_field
 
 
 @dataclass
@@ -15,23 +16,23 @@ class PreTrainedPolicyActionCfg(ActionTermCfg):
     See :class:`PreTrainedPolicyAction` for more details.
     """
 
-    class_type: type | str = "{DIR}.pre_trained_policy_action:PreTrainedPolicyAction"
+    class_type: type | str = config_field("{DIR}.pre_trained_policy_action:PreTrainedPolicyAction")
     """Class of the action term."""
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name of the asset in the environment for which the commands are generated."""
 
-    policy_path: str = MISSING
+    policy_path: str = config_field(MISSING)
     """Path to the low level policy (.pt files)."""
 
-    low_level_decimation: int = 4
+    low_level_decimation: int = config_field(4)
     """Decimation factor for the low level action term."""
 
-    low_level_actions: ActionTermCfg = MISSING
+    low_level_actions: ActionTermCfg = config_field(MISSING)
     """Low level action configuration."""
 
-    low_level_observations: ObservationGroupCfg = MISSING
+    low_level_observations: ObservationGroupCfg = config_field(MISSING)
     """Low level observation configuration."""
 
-    debug_vis: bool = True
+    debug_vis: bool = config_field(True)
     """Whether to visualize debug information. Defaults to False."""

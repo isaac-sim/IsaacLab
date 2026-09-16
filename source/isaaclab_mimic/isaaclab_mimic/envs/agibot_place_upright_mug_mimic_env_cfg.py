@@ -21,7 +21,8 @@ class RmpFlowAgibotPlaceUprightMugMimicEnvCfg(RmpFlowAgibotPlaceUprightMugEnvCfg
 
     def __post_init__(self):
         # post init of parents
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.datagen_config.name = "demo_src_place_upright_mug_task_D0"
         self.datagen_config.generation_guarantee = True

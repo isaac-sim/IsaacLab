@@ -42,7 +42,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -62,7 +62,7 @@ from ... import mdp
 ##
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
-
+from typing import Any
 
 ##
 # Helpers
@@ -101,96 +101,104 @@ FRANKA_CAMERA_CFG = CameraCfg(
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
-    newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Deformable",
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
-        spawn=sim_utils.MeshCuboidCfg(
-            size=(0.3, 0.04, 0.04),
-            edge_refinement=8.0,
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
-            physics_material=NewtonDeformableBodyMaterialCfg(
-                density=1000.0,
-                k_mu=YOUNGS_MODULUS / (2.0 * (1.0 + POISSONS_RATIO)),
-                k_lambda=(YOUNGS_MODULUS * POISSONS_RATIO / ((1.0 + POISSONS_RATIO) * (1.0 - 2.0 * POISSONS_RATIO))),
-                particle_radius=0.0025,
+    newton_mjwarp_vbd_proxy: DeformableObjectCfg = config_field(
+        DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Deformable",
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
+            spawn=sim_utils.MeshCuboidCfg(
+                size=(0.3, 0.04, 0.04),
+                edge_refinement=8.0,
+                deformable_props=NewtonDeformableBodyPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+                physics_material=NewtonDeformableBodyMaterialCfg(
+                    density=1000.0,
+                    k_mu=YOUNGS_MODULUS / (2.0 * (1.0 + POISSONS_RATIO)),
+                    k_lambda=(
+                        YOUNGS_MODULUS * POISSONS_RATIO / ((1.0 + POISSONS_RATIO) * (1.0 - 2.0 * POISSONS_RATIO))
+                    ),
+                    particle_radius=0.0025,
+                ),
             ),
-        ),
+        )
     )
 
-    physx: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Deformable",
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
-        spawn=sim_utils.MeshCuboidCfg(
-            size=(0.3, 0.04, 0.04),
-            edge_refinement=8.0,
-            deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
-            physics_material=PhysxDeformableBodyMaterialCfg(
-                density=1000.0,
-                youngs_modulus=YOUNGS_MODULUS,
-                poissons_ratio=POISSONS_RATIO,
-                static_friction=10.0,
-                dynamic_friction=10.0,
+    physx: DeformableObjectCfg = config_field(
+        DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Deformable",
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
+            spawn=sim_utils.MeshCuboidCfg(
+                size=(0.3, 0.04, 0.04),
+                edge_refinement=8.0,
+                deformable_props=PhysxDeformableBodyPropertiesCfg(),
+                collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+                physics_material=PhysxDeformableBodyMaterialCfg(
+                    density=1000.0,
+                    youngs_modulus=YOUNGS_MODULUS,
+                    poissons_ratio=POISSONS_RATIO,
+                    static_friction=10.0,
+                    dynamic_friction=10.0,
+                ),
             ),
-        ),
+        )
     )
-    isaacsim_physx = physx
+    isaacsim_physx: Any = config_field(physx)
 
-    default = newton_mjwarp_vbd_proxy
+    default: Any = config_field(newton_mjwarp_vbd_proxy)
 
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
-        solver_cfg=CouplerProxyCfg(
-            entries=[
-                CouplerEntryCfg(
-                    name="rigid",
-                    solver_cfg=MJWarpSolverCfg(
-                        cone="elliptic",
-                        ls_iterations=20,
-                        integrator="implicitfast",
+    newton_mjwarp_vbd_proxy: NewtonCfg = config_field(
+        NewtonCfg(
+            solver_cfg=CouplerProxyCfg(
+                entries=[
+                    CouplerEntryCfg(
+                        name="rigid",
+                        solver_cfg=MJWarpSolverCfg(
+                            cone="elliptic",
+                            ls_iterations=20,
+                            integrator="implicitfast",
+                        ),
+                        bodies=[r"/World/envs/env_[^/]+/Robot"],
                     ),
-                    bodies=[r"/World/envs/env_[^/]+/Robot"],
-                ),
-                CouplerEntryCfg(
-                    name="soft",
-                    solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=256),
-                    all_particles=True,
-                    include_static_shapes=True,
-                ),
-            ],
-            proxies=[
-                CouplerProxyMappingCfg(
-                    source="rigid",
-                    destination="soft",
-                    bodies=[
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
-                    ],
-                    collide_interval=1,
-                    collision_pipeline=NewtonCollisionPipelineCfg(
-                        enable_rigid_soft_full_surface_contact=True,
+                    CouplerEntryCfg(
+                        name="soft",
+                        solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=256),
+                        all_particles=True,
+                        include_static_shapes=True,
                     ),
-                )
-            ],
-            iterations=1,
-        ),
-        soft_contact_cfg=NewtonSoftContactCfg(
-            soft_contact_ke=8.0e3,
-            soft_contact_kd=1.0e-2,
-            soft_contact_mu=10.0,
-        ),
-        num_substeps=2,
+                ],
+                proxies=[
+                    CouplerProxyMappingCfg(
+                        source="rigid",
+                        destination="soft",
+                        bodies=[
+                            r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                            r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
+                        ],
+                        collide_interval=1,
+                        collision_pipeline=NewtonCollisionPipelineCfg(
+                            enable_rigid_soft_full_surface_contact=True,
+                        ),
+                    )
+                ],
+                iterations=1,
+            ),
+            soft_contact_cfg=NewtonSoftContactCfg(
+                soft_contact_ke=8.0e3,
+                soft_contact_kd=1.0e-2,
+                soft_contact_mu=10.0,
+            ),
+            num_substeps=2,
+        )
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
 
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
 
-    default = newton_mjwarp_vbd_proxy
+    default: Any = config_field(newton_mjwarp_vbd_proxy)
 
 
 ##
@@ -202,49 +210,57 @@ class PhysicsCfg(PresetCfg):
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = config_field(replace_config(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # end-effector frame for reward shaping
-    ee_frame: FrameTransformerCfg = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0",
-        debug_vis=False,
-        target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path=(
-                    "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/"
-                    "panda_link4/panda_link5/panda_link6/panda_link7/panda_hand"
+    ee_frame: FrameTransformerCfg = config_field(
+        FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0",
+            debug_vis=False,
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path=(
+                        "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/"
+                        "panda_link4/panda_link5/panda_link6/panda_link7/panda_hand"
+                    ),
+                    name="end_effector",
+                    offset=OffsetCfg(pos=[0.0, 0.0, 0.1034]),
                 ),
-                name="end_effector",
-                offset=OffsetCfg(pos=[0.0, 0.0, 0.1034]),
-            ),
-        ],
+            ],
+        )
     )
 
-    deformable: DeformableCfg = DeformableCfg()
+    deformable: DeformableCfg = config_field(DeformableCfg())
 
     # static table collider with its top surface at z = 0. Kept invisible: the success
     # visualizer renders the visible table, colored by whether the goal is reached
     # (see CommandsCfg).
-    table: AssetBaseCfg = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
-        spawn=TABLE_SPAWN_CFG,
+    table: AssetBaseCfg = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
+            spawn=TABLE_SPAWN_CFG,
+        )
     )
 
     # ground plane
-    ground: AssetBaseCfg = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, -1.05]),
-        spawn=GroundPlaneCfg(),
+    ground: AssetBaseCfg = config_field(
+        AssetBaseCfg(
+            prim_path="/World/GroundPlane",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, -1.05]),
+            spawn=GroundPlaneCfg(),
+        )
     )
 
     # lights
-    sky_light = AssetBaseCfg(
-        prim_path="/World/skyLight",
-        spawn=sim_utils.DomeLightCfg(
-            intensity=750.0,
-            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
-        ),
+    sky_light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/skyLight",
+            spawn=sim_utils.DomeLightCfg(
+                intensity=750.0,
+                texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+            ),
+        )
     )
 
     def __post_init__(self) -> None:
@@ -306,7 +322,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
     """Franka soft scene with a base camera."""
 
-    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+    base_camera: CameraCfg = config_field(FRANKA_CAMERA_CFG)
 
 
 ##
@@ -315,71 +331,85 @@ class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
+class CommandsCfg:
     """Commands for the deformable goal pose (xyz + identity quat in robot root frame)."""
 
-    deformable_pose = mdp.DeformableUniformPoseCommandCfg(
-        asset_name="robot",
-        object_name="deformable",
-        resampling_time_range=(5.0, 5.0),
-        debug_vis=True,
-        ranges=mdp.DeformableUniformPoseCommandCfg.Ranges(
-            pos_x=(0.4, 0.6),
-            pos_y=(-0.25, 0.25),
-            pos_z=(0.25, 0.5),
-            roll=(0.0, 0.0),
-            pitch=(0.0, 0.0),
-            yaw=(0.0, 0.0),
-        ),
-        # the invisible table is drawn by these markers, tinted green once the goal is reached
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)), visible=True
-                ),
-                "success": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)), visible=True
-                ),
-            },
-        ),
+    deformable_pose: Any = config_field(
+        mdp.DeformableUniformPoseCommandCfg(
+            asset_name="robot",
+            object_name="deformable",
+            resampling_time_range=(5.0, 5.0),
+            debug_vis=True,
+            ranges=mdp.DeformableUniformPoseCommandCfg.Ranges(
+                pos_x=(0.4, 0.6),
+                pos_y=(-0.25, 0.25),
+                pos_z=(0.25, 0.5),
+                roll=(0.0, 0.0),
+                pitch=(0.0, 0.0),
+                yaw=(0.0, 0.0),
+            ),
+            # the invisible table is drawn by these markers, tinted green once the goal is reached
+            success_vis_asset_name="table",
+            success_visualizer_cfg=VisualizationMarkersCfg(
+                prim_path="/Visuals/SuccessMarkers",
+                markers={
+                    "failure": replace_config(
+                        TABLE_SPAWN_CFG,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
+                        visible=True,
+                    ),
+                    "success": replace_config(
+                        TABLE_SPAWN_CFG,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
+                        visible=True,
+                    ),
+                },
+            ),
+        )
     )
 
 
 @dataclass
-class _JointActionsCfg(ConfigMixin):
+class _JointActionsCfg:
     """7-dim relative joint-position arm targets + 1-dim limit-rescaled gripper."""
 
-    arm_action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=["panda_joint.*"], scale=0.03)
+    arm_action: Any = config_field(
+        mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=["panda_joint.*"], scale=0.03)
+    )
 
-    gripper_action = mdp.JointPositionToLimitsActionCfg(
-        asset_name="robot", joint_names=["panda_finger_joint1"], rescale_to_limits=True
+    gripper_action: Any = config_field(
+        mdp.JointPositionToLimitsActionCfg(
+            asset_name="robot", joint_names=["panda_finger_joint1"], rescale_to_limits=True
+        )
     )
 
 
 @dataclass
-class _IkActionsCfg(ConfigMixin):
+class _IkActionsCfg:
     """7-dim absolute end-effector pose (xyz + quaternion) via differential IK + 1-dim binary gripper."""
 
-    arm_action = mdp.DifferentialInverseKinematicsActionCfg(
-        asset_name="robot",
-        joint_names=["panda_joint.*"],
-        body_name="panda_hand",
-        controller=DifferentialIKControllerCfg(
-            command_type="pose",
-            use_relative_mode=False,
-            ik_method="dls",
-            ik_params={"lambda_val": 0.6},
-        ),
-        body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+    arm_action: Any = config_field(
+        mdp.DifferentialInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            body_name="panda_hand",
+            controller=DifferentialIKControllerCfg(
+                command_type="pose",
+                use_relative_mode=False,
+                ik_method="dls",
+                ik_params={"lambda_val": 0.6},
+            ),
+            body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+        )
     )
 
-    gripper_action = mdp.BinaryJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=["panda_finger_joint1"],
-        open_command_expr={"panda_finger_joint1": 0.04},
-        close_command_expr={"panda_finger_joint1": 0.01},
+    gripper_action: Any = config_field(
+        mdp.BinaryJointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["panda_finger_joint1"],
+            open_command_expr={"panda_finger_joint1": 0.04},
+            close_command_expr={"panda_finger_joint1": 0.01},
+        )
     )
 
 
@@ -387,43 +417,49 @@ class _IkActionsCfg(ConfigMixin):
 class ActionsCfg(PresetCfg):
     """Action-space presets: joint-space for RL, task-space IK for scripted end-effector control."""
 
-    joint: _JointActionsCfg = _JointActionsCfg()
+    joint: _JointActionsCfg = config_field(_JointActionsCfg())
 
-    ik: _IkActionsCfg = _IkActionsCfg()
+    ik: _IkActionsCfg = config_field(_IkActionsCfg())
 
-    default = joint
+    default: Any = config_field(joint)
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Policy observations: relative joint state, sampled deformable points, target command, and last action."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        deformable_sampled_points = ObsTerm(
-            func=mdp.DeformableSampledPointsInRobotRootFrame,
-            params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        deformable_sampled_points: Any = config_field(
+            ObsTerm(
+                func=mdp.DeformableSampledPointsInRobotRootFrame,
+                params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
+            )
         )
-        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
-        actions = ObsTerm(func=mdp.last_action)
+        target_position: Any = config_field(
+            ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
+        )
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class FrankaCameraObservationsCfg(ConfigMixin):
+class FrankaCameraObservationsCfg:
     """Observation groups for visual deformable lifting."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
-        actions = ObsTerm(func=mdp.last_action)
+        target_position: Any = config_field(
+            ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
+        )
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
@@ -431,8 +467,8 @@ class FrankaCameraObservationsCfg(ConfigMixin):
 
     @dataclass
     class ProprioCfg(ObsGroup):
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
@@ -440,9 +476,11 @@ class FrankaCameraObservationsCfg(ConfigMixin):
 
     @dataclass
     class PerceptionCfg(ObsGroup):
-        deformable_sampled_points = ObsTerm(
-            func=mdp.DeformableSampledPointsInRobotRootFrame,
-            params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
+        deformable_sampled_points: Any = config_field(
+            ObsTerm(
+                func=mdp.DeformableSampledPointsInRobotRootFrame,
+                params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
+            )
         )
 
         def __post_init__(self) -> None:
@@ -451,152 +489,180 @@ class FrankaCameraObservationsCfg(ConfigMixin):
 
     @dataclass
     class BaseImageCfg(ObsGroup):
-        image = ObsTerm(
-            func=env_mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("base_camera"),
-                "data_type": "rgb",
-                "normalize": True,
-                "permute": True,
-            },
+        image: Any = config_field(
+            ObsTerm(
+                func=env_mdp.image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("base_camera"),
+                    "data_type": "rgb",
+                    "normalize": True,
+                    "permute": True,
+                },
+            )
         )
 
-    policy: PolicyCfg = PolicyCfg()
-    proprio: ProprioCfg = ProprioCfg()
-    perception: PerceptionCfg = PerceptionCfg()
-    base_image: BaseImageCfg = BaseImageCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
+    proprio: ProprioCfg = config_field(ProprioCfg())
+    perception: PerceptionCfg = config_field(PerceptionCfg())
+    base_image: BaseImageCfg = config_field(BaseImageCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Reset events: robot to default joint config, deformable with small position randomization."""
 
-    reset_robot_arm_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
-        mode="reset",
-        params={
-            "position_range": (0.9, 1.1),
-            "velocity_range": (0.0, 0.0),
-            "asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint.*"),
-        },
+    reset_robot_arm_joints: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_scale,
+            mode="reset",
+            params={
+                "position_range": (0.9, 1.1),
+                "velocity_range": (0.0, 0.0),
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint.*"),
+            },
+        )
     )
 
-    reset_robot_gripper_joints = EventTerm(
-        func=mdp.reset_joints_shared_offset,
-        mode="reset",
-        params={
-            "position_range": (-0.02, 0.0),
-            "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
-        },
+    reset_robot_gripper_joints: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_shared_offset,
+            mode="reset",
+            params={
+                "position_range": (-0.02, 0.0),
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
+            },
+        )
     )
 
-    reset_deformable = EventTerm(
-        func=mdp.reset_nodal_state_uniform,
-        mode="reset",
-        params={
-            "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
+    reset_deformable: Any = config_field(
+        EventTerm(
+            func=mdp.reset_nodal_state_uniform,
+            mode="reset",
+            params={
+                "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
+                "velocity_range": {},
+                "asset_cfg": SceneEntityCfg("deformable"),
+            },
+        )
     )
 
-    variable_gravity = EventTerm(
-        func=mdp.randomize_physics_scene_gravity,
-        mode="reset",
-        params={
-            "gravity_distribution_params": ([0.0, 0.0, -9.81], [0.0, 0.0, -9.81]),
-            "operation": "abs",
-        },
+    variable_gravity: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_physics_scene_gravity,
+            mode="reset",
+            params={
+                "gravity_distribution_params": ([0.0, 0.0, -9.81], [0.0, 0.0, -9.81]),
+                "operation": "abs",
+            },
+        )
     )
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Lift-to-target reward for a deformable object."""
 
-    reaching_deformable = RewTerm(
-        func=mdp.deformable_com_ee_distance,
-        params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
-        weight=5.0,
+    reaching_deformable: Any = config_field(
+        RewTerm(
+            func=mdp.deformable_com_ee_distance,
+            params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
+            weight=5.0,
+        )
     )
 
-    lifting_deformable = RewTerm(
-        func=mdp.deformable_lifting,
-        params={"std": 0.1, "minimal_height": 0.02, "asset_cfg": SceneEntityCfg("deformable")},
-        weight=5.0,
+    lifting_deformable: Any = config_field(
+        RewTerm(
+            func=mdp.deformable_lifting,
+            params={"std": 0.1, "minimal_height": 0.02, "asset_cfg": SceneEntityCfg("deformable")},
+            weight=5.0,
+        )
     )
 
-    deformable_goal_tracking = RewTerm(
-        func=mdp.DeformableComGoalDistance,
-        params={
-            "std": 0.3,
-            "minimal_height": 0.0,
-            "command_name": "deformable_pose",
-            "success_threshold": 0.05,
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
-        weight=2.0,
+    deformable_goal_tracking: Any = config_field(
+        RewTerm(
+            func=mdp.DeformableComGoalDistance,
+            params={
+                "std": 0.3,
+                "minimal_height": 0.0,
+                "command_name": "deformable_pose",
+                "success_threshold": 0.05,
+                "asset_cfg": SceneEntityCfg("deformable"),
+            },
+            weight=2.0,
+        )
     )
 
-    success_bonus = RewTerm(
-        func=mdp.deformable_com_goal_reached,
-        params={
-            "minimal_height": 0.0,
-            "command_name": "deformable_pose",
-            "success_threshold": 0.05,
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
-        weight=20.0,
+    success_bonus: Any = config_field(
+        RewTerm(
+            func=mdp.deformable_com_goal_reached,
+            params={
+                "minimal_height": 0.0,
+                "command_name": "deformable_pose",
+                "success_threshold": 0.05,
+                "asset_cfg": SceneEntityCfg("deformable"),
+            },
+            weight=20.0,
+        )
     )
 
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
+    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-1e-3))
 
 
 @dataclass
-class CurriculumCfg(ConfigMixin):
+class CurriculumCfg:
     """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
 
-    action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 15000}
+    action_rate: Any = config_field(
+        CurrTerm(
+            func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 15000}
+        )
     )
 
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
-    gravity = CurrTerm(
-        func=mdp.gravity_range_linear,
-        params={
-            "event_name": "variable_gravity",
-            "start_gravity_z": -0.0001,
-            "end_gravity_z": -9.81,
-            "start_step": 0,
-            "end_step": 10000,
-        },
+    gravity: Any = config_field(
+        CurrTerm(
+            func=mdp.gravity_range_linear,
+            params={
+                "event_name": "variable_gravity",
+                "start_gravity_z": -0.0001,
+                "end_gravity_z": -9.81,
+                "start_step": 0,
+                "end_step": 10000,
+            },
+        )
     )
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Time out + workspace bounds termination."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
 
-    deformable_out_of_bounds = DoneTerm(
-        func=mdp.deformable_outside_bounds,
-        params={
-            "x_bounds": (0.0, 1.0),
-            "y_bounds": (-0.5, 0.5),
-            "z_bounds": (-0.02, 1.0),
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
+    deformable_out_of_bounds: Any = config_field(
+        DoneTerm(
+            func=mdp.deformable_outside_bounds,
+            params={
+                "x_bounds": (0.0, 1.0),
+                "y_bounds": (-0.5, 0.5),
+                "z_bounds": (-0.02, 1.0),
+                "asset_cfg": SceneEntityCfg("deformable"),
+            },
+        )
     )
 
-    ee_below_table = DoneTerm(
-        func=mdp.ee_below_minimum,
-        params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
+    ee_below_table: Any = config_field(
+        DoneTerm(
+            func=mdp.ee_below_minimum,
+            params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
+        )
     )
 
-    joint_vel_out_of_limit = DoneTerm(
-        func=mdp.joint_vel_out_of_sim_limit,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+    joint_vel_out_of_limit: Any = config_field(
+        DoneTerm(
+            func=mdp.joint_vel_out_of_sim_limit,
+            params={"asset_cfg": SceneEntityCfg("robot")},
+        )
     )
 
 
@@ -607,33 +673,37 @@ class TerminationsCfg(ConfigMixin):
 
 @dataclass
 class FrankaSoftSceneCfg(PresetCfg):
-    newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(
-        num_envs=2048, env_spacing=2.0, replicate_physics=True
+    newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = config_field(
+        _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
     )
 
     # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
-    isaacsim_physx = physx
+    physx: _FrankaSoftSceneCfg = config_field(
+        _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    )
+    isaacsim_physx: Any = config_field(physx)
 
-    default = newton_mjwarp_vbd_proxy
+    default: Any = config_field(newton_mjwarp_vbd_proxy)
 
 
 @dataclass
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
-    newton_mjwarp_vbd_proxy: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=True
+    newton_mjwarp_vbd_proxy: _FrankaSoftCameraSceneCfg = config_field(
+        _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
     )
-    physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
-    isaacsim_physx = physx
-    default = newton_mjwarp_vbd_proxy
+    physx: _FrankaSoftCameraSceneCfg = config_field(
+        _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
+    )
+    isaacsim_physx: Any = config_field(physx)
+    default: Any = config_field(newton_mjwarp_vbd_proxy)
 
 
 @dataclass
 class _FrankaSoftVisualizerCfg(VisualizerCfg):
-    window_width: int = 1920
-    window_height: int = 1080
+    window_width: int = config_field(1920)
+    window_height: int = config_field(1080)
 
 
 @dataclass
@@ -641,16 +711,16 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a soft beam to a target pose."""
 
     # Scene settings
-    scene: FrankaSoftSceneCfg = FrankaSoftSceneCfg()
+    scene: FrankaSoftSceneCfg = config_field(FrankaSoftSceneCfg())
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    commands: CommandsCfg = config_field(CommandsCfg())
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: EventCfg = config_field(EventCfg())
+    curriculum: CurriculumCfg = config_field(CurriculumCfg())
 
     def __post_init__(self) -> None:
         # general settings
@@ -679,10 +749,11 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
 class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
     """Visual Franka volume-deformable lifting environment."""
 
-    scene: FrankaSoftCameraSceneCfg = FrankaSoftCameraSceneCfg()
-    observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
+    scene: FrankaSoftCameraSceneCfg = config_field(FrankaSoftCameraSceneCfg())
+    observations: FrankaCameraObservationsCfg = config_field(FrankaCameraObservationsCfg())
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
         self.num_rerenders_on_reset = 2

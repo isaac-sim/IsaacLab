@@ -5,7 +5,10 @@
 
 """Test curriculum-based environment parameter modification."""
 
+from typing import Any
+
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -26,7 +29,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.env_cfgs import EmptyManagerCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -39,72 +41,82 @@ def replace_value(env, env_id, data, value, num_steps):
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the curriculum test environment."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    joint_effort: Any = config_field(
+        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the curriculum test environment."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Policy observation group."""
 
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+        joint_pos_rel: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Reset event specifications for the curriculum test environment."""
 
-    reset_cart_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.5, 0.5),
-        },
+    reset_cart_position: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_offset,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+                "position_range": (-1.0, 1.0),
+                "velocity_range": (-0.5, 0.5),
+            },
+        )
     )
 
 
 @dataclass
-class CurriculumsCfg(ConfigMixin):
+class CurriculumsCfg:
     """Curriculum specifications under test."""
 
-    modify_observation_joint_pos = CurrTerm(
-        # test writing a term's func.
-        func=mdp.modify_term_cfg,
-        params={
-            "address": "observations.policy.joint_pos_rel.func",
-            "modify_fn": replace_value,
-            "modify_params": {"value": mdp.joint_pos, "num_steps": 1},
-        },
+    modify_observation_joint_pos: Any = config_field(
+        CurrTerm(
+            # test writing a term's func.
+            func=mdp.modify_term_cfg,
+            params={
+                "address": "observations.policy.joint_pos_rel.func",
+                "modify_fn": replace_value,
+                "modify_params": {"value": mdp.joint_pos, "num_steps": 1},
+            },
+        )
     )
 
     # test writing a term's param that involves dictionary.
-    modify_reset_joint_pos = CurrTerm(
-        func=mdp.modify_term_cfg,
-        params={
-            "address": "events.reset_cart_position.params.position_range",
-            "modify_fn": replace_value,
-            "modify_params": {"value": (-0.0, 0.0), "num_steps": 1},
-        },
+    modify_reset_joint_pos: Any = config_field(
+        CurrTerm(
+            func=mdp.modify_term_cfg,
+            params={
+                "address": "events.reset_cart_position.params.position_range",
+                "modify_fn": replace_value,
+                "modify_params": {"value": (-0.0, 0.0), "num_steps": 1},
+            },
+        )
     )
 
     # test writing a non_term env parameter using modify_env_param.
-    modify_episode_max_length = CurrTerm(
-        func=mdp.modify_env_param,
-        params={
-            "address": "cfg.episode_length_s",
-            "modify_fn": replace_value,
-            "modify_params": {"value": 20, "num_steps": 1},
-        },
+    modify_episode_max_length: Any = config_field(
+        CurrTerm(
+            func=mdp.modify_env_param,
+            params={
+                "address": "cfg.episode_length_s",
+                "modify_fn": replace_value,
+                "modify_params": {"value": 20, "num_steps": 1},
+            },
+        )
     )
 
 
@@ -112,13 +124,13 @@ class CurriculumsCfg(ConfigMixin):
 class CurriculumTestEnvCfg(ManagerBasedRLEnvCfg):
     """Minimal cart-pole environment configuration for curriculum tests."""
 
-    scene: CartpoleTestSceneCfg = CartpoleTestSceneCfg(num_envs=16, env_spacing=4.0)
-    actions: ActionsCfg = ActionsCfg()
-    observations: ObservationsCfg = ObservationsCfg()
-    events: EventCfg = EventCfg()
-    rewards: EmptyManagerCfg = EmptyManagerCfg()
-    terminations: EmptyManagerCfg = EmptyManagerCfg()
-    curriculum: CurriculumsCfg = CurriculumsCfg()
+    scene: CartpoleTestSceneCfg = config_field(CartpoleTestSceneCfg(num_envs=16, env_spacing=4.0))
+    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    events: EventCfg = config_field(EventCfg())
+    rewards: EmptyManagerCfg = config_field(EmptyManagerCfg())
+    terminations: EmptyManagerCfg = config_field(EmptyManagerCfg())
+    curriculum: CurriculumsCfg = config_field(CurriculumsCfg())
 
     def __post_init__(self) -> None:
         """Set the simulation timing used by the test."""

@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from .sub_terrain_cfg import SubTerrainBaseCfg
 
@@ -26,16 +26,16 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class TerrainGeneratorCfg(ConfigMixin):
+class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
-    class_type: type[TerrainGenerator] | str = "{DIR}.terrain_generator:TerrainGenerator"
+    class_type: type[TerrainGenerator] | str = config_field("{DIR}.terrain_generator:TerrainGenerator")
     """The class to use for the terrain generator.
 
     Defaults to :class:`isaaclab.terrains.terrain_generator.TerrainGenerator`.
     """
 
-    seed: int | None = None
+    seed: int | None = config_field(None)
     """The seed for the random number generator. Defaults to None, in which case the seed from the
     current NumPy's random state is used.
 
@@ -45,24 +45,24 @@ class TerrainGeneratorCfg(ConfigMixin):
     the code.
     """
 
-    curriculum: bool = False
+    curriculum: bool = config_field(False)
     """Whether to use the curriculum mode. Defaults to False.
 
     If True, the terrains are generated based on their difficulty parameter. Otherwise,
     they are randomly generated.
     """
 
-    size: tuple[float, float] = MISSING
+    size: tuple[float, float] = config_field(MISSING)
     """The width (along x) and length (along y) of each sub-terrain (in m).
 
     Note:
       This value is passed on to all the sub-terrain configurations.
     """
 
-    border_width: float = 0.0
+    border_width: float = config_field(0.0)
     """The width of the border around the terrain (in m). Defaults to 0.0."""
 
-    border_height: float = 1.0
+    border_height: float = config_field(1.0)
     """The height of the border around the terrain (in m). Defaults to 1.0.
 
     .. note::
@@ -71,13 +71,13 @@ class TerrainGeneratorCfg(ConfigMixin):
 
     """
 
-    num_rows: int = 1
+    num_rows: int = config_field(1)
     """Number of rows of sub-terrains to generate. Defaults to 1."""
 
-    num_cols: int = 1
+    num_cols: int = config_field(1)
     """Number of columns of sub-terrains to generate. Defaults to 1."""
 
-    color_scheme: Literal["height", "random", "none"] = "none"
+    color_scheme: Literal["height", "random", "none"] = config_field("none")
     """Color scheme to use for the terrain. Defaults to "none".
 
     The available color schemes are:
@@ -87,19 +87,19 @@ class TerrainGeneratorCfg(ConfigMixin):
     - "none": No color scheme.
     """
 
-    horizontal_scale: float = 0.1
+    horizontal_scale: float = config_field(0.1)
     """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1.
 
     This value is passed on to all the height field sub-terrain configurations.
     """
 
-    vertical_scale: float = 0.005
+    vertical_scale: float = config_field(0.005)
     """The discretization of the terrain along the z axis (in m). Defaults to 0.005.
 
     This value is passed on to all the height field sub-terrain configurations.
     """
 
-    slope_threshold: float | None = 0.75
+    slope_threshold: float | None = config_field(0.75)
     """The slope threshold above which surfaces are made vertical. Defaults to 0.75.
 
     If None no correction is applied.
@@ -107,21 +107,21 @@ class TerrainGeneratorCfg(ConfigMixin):
     This value is passed on to all the height field sub-terrain configurations.
     """
 
-    sub_terrains: dict[str, SubTerrainBaseCfg] = MISSING
+    sub_terrains: dict[str, SubTerrainBaseCfg] = config_field(MISSING)
     """Dictionary of sub-terrain configurations.
 
     The keys correspond to the name of the sub-terrain configuration and the values are the corresponding
     configurations.
     """
 
-    difficulty_range: tuple[float, float] = (0.0, 1.0)
+    difficulty_range: tuple[float, float] = config_field((0.0, 1.0))
     """The range of difficulty values for the sub-terrains. Defaults to (0.0, 1.0).
 
     If curriculum is enabled, the terrains will be generated based on this range in ascending order
     of difficulty. Otherwise, the terrains will be generated based on this range in a random order.
     """
 
-    use_cache: bool = False
+    use_cache: bool = config_field(False)
     """Whether to load the sub-terrain from cache if it exists. Defaults to False.
 
     If enabled, the generated terrains are stored in the cache directory. When generating terrains, the cache
@@ -129,5 +129,5 @@ class TerrainGeneratorCfg(ConfigMixin):
     the terrain is generated and stored in the cache. Caching can be used to speed up terrain generation.
     """
 
-    cache_dir: str = "/tmp/isaaclab/terrains"
+    cache_dir: str = config_field("/tmp/isaaclab/terrains")
     """The directory where the terrain cache is stored. Defaults to "/tmp/isaaclab/terrains"."""

@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace_config
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -84,7 +85,7 @@ def test_franka_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
@@ -102,7 +103,7 @@ def test_ur10_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace_config(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.rigid_props.disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 

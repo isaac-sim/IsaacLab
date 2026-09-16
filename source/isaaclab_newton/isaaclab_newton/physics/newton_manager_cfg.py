@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class NewtonSolverCfg(ConfigMixin):
+class NewtonSolverCfg:
     """Configuration for Newton solver-related parameters.
 
     These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
@@ -37,14 +37,14 @@ class NewtonSolverCfg(ConfigMixin):
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.newton_manager:NewtonManager")
     """Manager class for this solver.
 
     Default points at the abstract :class:`NewtonManager`; concrete subclasses
     override it.
     """
 
-    solver_type: str = "None"
+    solver_type: str = config_field("None")
     """Solver type metadata (deprecated).
 
     .. deprecated::
@@ -55,20 +55,20 @@ class NewtonSolverCfg(ConfigMixin):
 
 
 @dataclass
-class NewtonSoftContactCfg(ConfigMixin):
+class NewtonSoftContactCfg:
     """Global soft-contact parameters applied to the finalized Newton model."""
 
-    soft_contact_ke: float = 1.0e3
+    soft_contact_ke: float = config_field(1.0e3)
     """Body-particle and particle self-contact stiffness [N/m].
 
     Effective body-particle stiffness is ``0.5 * (soft_contact_ke + shape_ke)``,
     where ``shape_ke`` is the rigid shape's material stiffness.
     """
 
-    soft_contact_kd: float = 10.0
+    soft_contact_kd: float = config_field(10.0)
     """Body-particle contact damping [N*s/m]."""
 
-    soft_contact_mu: float = 0.5
+    soft_contact_mu: float = config_field(0.5)
     """Body-particle contact friction coefficient [dimensionless].
 
     Effective body-particle friction is ``sqrt(soft_contact_mu * shape_mu)``,
@@ -77,7 +77,7 @@ class NewtonSoftContactCfg(ConfigMixin):
 
 
 @dataclass
-class NewtonShapeCfg(ConfigMixin):
+class NewtonShapeCfg:
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
     Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Fields that Isaac
@@ -87,7 +87,7 @@ class NewtonShapeCfg(ConfigMixin):
     :func:`~isaaclab.utils.checked_apply` at builder construction.
     """
 
-    margin: float = 0.0
+    margin: float = config_field(0.0)
     """Default per-shape collision margin [m].
 
     A nonzero margin (e.g. ``0.01``) is required for stable contact on
@@ -95,25 +95,25 @@ class NewtonShapeCfg(ConfigMixin):
     rough-terrain locomotion on Newton. Newton's upstream default is ``0.0``.
     """
 
-    gap: float = 0.01
+    gap: float = config_field(0.01)
     """Default per-shape contact gap [m]. Newton's upstream default is ``None``."""
 
     # Defaults mirror Newton's ShapeConfig defaults so an unspecified field is a no-op.
-    ke: float = 2.5e3
+    ke: float = config_field(2.5e3)
     """Default per-shape normal contact stiffness [N/m].
 
     Applied to shapes that lack an explicit material; per-asset materials
     override it. Mirrors Newton's ``ShapeConfig.ke`` default.
     """
 
-    kd: float = 100.0
+    kd: float = config_field(100.0)
     """Default per-shape normal contact damping [N*s/m].
 
     Applied to shapes that lack an explicit material; per-asset materials
     override it. Mirrors Newton's ``ShapeConfig.kd`` default.
     """
 
-    mu: float = 1.0
+    mu: float = config_field(1.0)
     """Default per-shape friction coefficient [dimensionless].
 
     Applied to shapes that lack an explicit material; per-asset materials
@@ -135,29 +135,29 @@ class NewtonCfg(PhysicsCfg):
     :attr:`class_type` explicitly.
     """
 
-    class_type: type[NewtonManager] | str | None = None
+    class_type: type[NewtonManager] | str | None = config_field(None)
     """The class type of the :class:`NewtonManager`.
 
     Auto-set in :meth:`__post_init__` from :attr:`solver_cfg.class_type`.
     Users normally do not set this directly.
     """
 
-    num_substeps: int = 1
+    num_substeps: int = config_field(1)
     """Number of substeps to use for the solver."""
 
-    collision_decimation: int = 0
+    collision_decimation: int = config_field(0)
     """Re-collide every N solver substeps within a physics tick (``0`` = once per tick)."""
 
-    debug_mode: bool = False
+    debug_mode: bool = config_field(False)
     """Whether to enable debug mode for the solver."""
 
-    use_cuda_graph: bool = True
+    use_cuda_graph: bool = config_field(True)
     """Whether to use CUDA graphing when simulating.
 
     If set to False, the simulation performance will be severely degraded.
     """
 
-    deterministic_mode: Literal["not_guaranteed", "run_to_run", "gpu_to_gpu"] = "not_guaranteed"
+    deterministic_mode: Literal["not_guaranteed", "run_to_run", "gpu_to_gpu"] = config_field("not_guaranteed")
     """Determinism guarantee applied to the Newton solver and collision pipeline.
 
     The values ``"not_guaranteed"``, ``"run_to_run"``, and ``"gpu_to_gpu"``
@@ -178,16 +178,16 @@ class NewtonCfg(PhysicsCfg):
     silently running them without the requested guarantee.
     """
 
-    solver_cfg: NewtonSolverCfg | None = None
+    solver_cfg: NewtonSolverCfg | None = config_field(None)
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 
-    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    soft_contact_cfg: NewtonSoftContactCfg | None = config_field(None)
     """Global soft-contact parameters applied after model finalization.
 
     If ``None``, Newton model defaults are preserved.
     """
 
-    collision_cfg: NewtonCollisionPipelineCfg | None = None
+    collision_cfg: NewtonCollisionPipelineCfg | None = config_field(None)
     """Newton collision pipeline configuration.
 
     Controls how Newton's :class:`CollisionPipeline` is configured when it is active.
@@ -213,7 +213,7 @@ class NewtonCfg(PhysicsCfg):
         the field is ignored because Kamino's internal detector handles contacts.
     """
 
-    default_shape_cfg: NewtonShapeCfg = NewtonShapeCfg()
+    default_shape_cfg: NewtonShapeCfg = config_field(NewtonShapeCfg())
     """Default per-shape collision properties applied to every shape in the scene.
 
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
@@ -221,7 +221,7 @@ class NewtonCfg(PhysicsCfg):
     :class:`NewtonShapeCfg` for the declared fields.
     """
 
-    load_visual_shapes: bool | None = None
+    load_visual_shapes: bool | None = config_field(None)
     """Whether Newton replication imports visual-only geometry from USD.
 
     ``None`` imports it only when a viewer, an offscreen ``rgb_array`` capture, or a
@@ -230,7 +230,7 @@ class NewtonCfg(PhysicsCfg):
     needed when a ray-cast sensor must hit geometry that carries no collider.
     """
 
-    bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"
+    bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = config_field("cubql")
     """BVH construction algorithm for mesh geometry colliders.
 
     Selects the bounding-volume-hierarchy builder Newton uses for the triangle
@@ -244,7 +244,7 @@ class NewtonCfg(PhysicsCfg):
       quality on the GPU (default).
     """
 
-    bvh_constructor_scene: Literal["lbvh", "sah"] = "sah"
+    bvh_constructor_scene: Literal["lbvh", "sah"] = config_field("sah")
     """BVH construction algorithm for the top-level scene (broad-phase) hierarchy.
 
     Selects the builder for the BVH over all colliders used during broad-phase
@@ -253,7 +253,7 @@ class NewtonCfg(PhysicsCfg):
     ``"cubql"`` is not available for the scene hierarchy.
     """
 
-    bvh_constructor_gaussian: Literal["lbvh", "sah", "cubql"] = "cubql"
+    bvh_constructor_gaussian: Literal["lbvh", "sah", "cubql"] = config_field("cubql")
     """BVH construction algorithm for Gaussian-splat primitives.
 
     Selects the builder for the BVH over 3D Gaussian primitives (used by the

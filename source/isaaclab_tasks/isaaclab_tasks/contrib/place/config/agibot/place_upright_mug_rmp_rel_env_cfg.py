@@ -20,7 +20,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -35,6 +35,7 @@ from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_LEFT_ARM_RMPFLOW_CFG  # isort: skip
+from typing import Any
 
 ##
 # Event settings
@@ -42,24 +43,28 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_LEFT_ARM_RMPFLOW_CFG  # 
 
 
 @dataclass
-class EventCfgPlaceUprightMug(ConfigMixin):
+class EventCfgPlaceUprightMug:
     """Configuration for events."""
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    reset_all: Any = config_field(
+        EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    )
 
-    randomize_mug_positions = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-0.05, 0.2),
-                "y": (-0.10, 0.10),
-                "z": (0.75, 0.75),
-                "roll": (-1.57, -1.57),
-                "yaw": (-0.57, 0.57),
+    randomize_mug_positions: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": (-0.05, 0.2),
+                    "y": (-0.10, 0.10),
+                    "z": (0.75, 0.75),
+                    "roll": (-1.57, -1.57),
+                    "yaw": (-0.57, 0.57),
+                },
+                "asset_cfgs": [SceneEntityCfg("mug")],
             },
-            "asset_cfgs": [SceneEntityCfg("mug")],
-        },
+        )
     )
 
 
@@ -69,26 +74,31 @@ class EventCfgPlaceUprightMug(ConfigMixin):
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp.last_action)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        mug_positions = ObsTerm(
-            func=place_mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"}
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        mug_positions: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_poses_in_base_frame,
+                params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"},
+            )
         )
-        mug_orientations = ObsTerm(
-            func=place_mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
+        mug_orientations: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_poses_in_base_frame,
+                params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
+            )
         )
-        eef_pos = ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"})
-        eef_quat = ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"})
-        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"}))
+        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"}))
+        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -98,14 +108,16 @@ class ObservationsCfg(ConfigMixin):
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp = ObsTerm(
-            func=place_mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("mug"),
-                "diff_threshold": 0.05,
-            },
+        grasp: Any = config_field(
+            ObsTerm(
+                func=place_mdp.object_grasped,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "object_cfg": SceneEntityCfg("mug"),
+                    "diff_threshold": 0.05,
+                },
+            )
         )
 
         def __post_init__(self):
@@ -113,36 +125,40 @@ class ObservationsCfg(ConfigMixin):
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
-    subtask_terms: SubtaskCfg = SubtaskCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
+    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
+    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
 
-    mug_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": -0.85, "asset_cfg": SceneEntityCfg("mug")}
+    mug_dropping: Any = config_field(
+        DoneTerm(
+            func=mdp.root_height_below_minimum, params={"minimum_height": -0.85, "asset_cfg": SceneEntityCfg("mug")}
+        )
     )
 
-    success = DoneTerm(
-        func=place_mdp.object_placed_upright,
-        params={
-            "robot_cfg": SceneEntityCfg("robot"),
-            "object_cfg": SceneEntityCfg("mug"),
-            "target_height": 0.6,
-        },
+    success: Any = config_field(
+        DoneTerm(
+            func=place_mdp.object_placed_upright,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "object_cfg": SceneEntityCfg("mug"),
+                "target_height": 0.6,
+            },
+        )
     )
 
 
@@ -156,7 +172,8 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.events = EventCfgPlaceUprightMug()
 
@@ -164,7 +181,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, -1.8, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set Agibot as robot
-        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(AGIBOT_A2D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = (-0.60, 0.0, 0.0)
 
         # reset obs and termination terms
@@ -238,7 +255,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         )
 
         # Listens to the required transforms
-        self.marker_cfg = FRAME_MARKER_CFG.copy()
+        self.marker_cfg = copy_config(FRAME_MARKER_CFG)
         self.marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self.marker_cfg.prim_path = "/Visuals/FrameTransformer"
 

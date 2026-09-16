@@ -20,7 +20,8 @@ class FrankaCubeStackIKRelVisuomotorMimicEnvCfg(FrankaCubeStackVisuomotorEnvCfg,
 
     def __post_init__(self):
         # post init of parents
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Override the existing values
         self.datagen_config.name = "isaac_lab_franka_stack_ik_rel_visuomotor_D0"

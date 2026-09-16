@@ -13,11 +13,10 @@ from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import ConfigMixin
 
 
 @dataclass
-class CameraBaseCfg(ConfigMixin):
+class CameraBaseCfg:
     """camera base configuration class
 
     provide the default configuration for different types of cameras, support scene-specific parameter customization
@@ -76,7 +75,7 @@ class CameraBaseCfg(ConfigMixin):
 
 
 @dataclass
-class CameraPresets(ConfigMixin):
+class CameraPresets:
     """camera preset configuration collection
 
     include the common camera configuration preset for different scenes

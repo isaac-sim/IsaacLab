@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 class XrAnchorRotationMode(enum.Enum):
@@ -34,16 +34,16 @@ class XrAnchorRotationMode(enum.Enum):
 
 
 @dataclass
-class XrCfg(ConfigMixin):
+class XrCfg:
     """Configuration for viewing and interacting with the environment through an XR device."""
 
-    anchor_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    anchor_pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Specifies the position (in m) of the simulation when viewed in an XR device.
 
     Specifically: this position will appear at the origin of the XR device's local coordinate frame.
     """
 
-    anchor_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    anchor_rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
     """Specifies the rotation (as a quaternion xyzw) of the simulation when viewed in an XR device.
 
     Specifically: this rotation will determine how the simulation is rotated with respect to the
@@ -52,7 +52,7 @@ class XrCfg(ConfigMixin):
     This quantity is only effective if :attr:`xr_anchor_pos` is set.
     """
 
-    anchor_prim_path: str | None = None
+    anchor_prim_path: str | None = config_field(None)
     """Specifies the prim path to attach the XR anchor to for dynamic positioning.
 
     When set, the XR anchor will be attached to the specified prim (e.g., robot root prim),
@@ -62,7 +62,7 @@ class XrCfg(ConfigMixin):
     If None, the anchor will use the static :attr:`anchor_pos` and :attr:`anchor_rot` values.
     """
 
-    anchor_rotation_mode: XrAnchorRotationMode = XrAnchorRotationMode.FIXED
+    anchor_rotation_mode: XrAnchorRotationMode = config_field(XrAnchorRotationMode.FIXED)
     """Specifies how the XR anchor rotation should behave when attached to a prim.
 
     The available modes are:
@@ -72,7 +72,7 @@ class XrCfg(ConfigMixin):
     - :attr:`XrAnchorRotationMode.CUSTOM`: user provided function to calculate the rotation
     """
 
-    anchor_rotation_smoothing_time: float = 1.0
+    anchor_rotation_smoothing_time: float = config_field(1.0)
     """Wall-clock time constant (seconds) for rotation smoothing in FOLLOW_PRIM_SMOOTHED mode.
 
     This time constant is applied using wall-clock delta time between frames (not physics dt).
@@ -81,8 +81,8 @@ class XrCfg(ConfigMixin):
     Typical useful range: 0.3 – 1.5 seconds depending on runtime frame-rate and comfort.
     """
 
-    anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array(
-        [0, 0, 0, 1], dtype=np.float64
+    anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = config_field(
+        lambda headpose, primpose: np.array([0, 0, 0, 1], dtype=np.float64)
     )
     """Specifies the function to calculate the rotation of the XR anchor when anchor_rotation_mode is CUSTOM.
 
@@ -94,13 +94,13 @@ class XrCfg(ConfigMixin):
         np.ndarray: Quaternion as numpy array [w, x, y, z]
     """
 
-    near_plane: float = 0.15
+    near_plane: float = config_field(0.15)
     """Specifies the near plane distance for the XR device.
 
     This value determines the closest distance at which objects will be rendered in the XR device.
     """
 
-    fixed_anchor_height: bool = True
+    fixed_anchor_height: bool = config_field(True)
     """Specifies if the anchor height should be fixed.
 
     If True, the anchor height will be fixed to the initial height of the anchor prim.

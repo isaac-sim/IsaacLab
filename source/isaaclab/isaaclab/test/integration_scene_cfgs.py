@@ -11,6 +11,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import config_field, copy_config
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
@@ -47,20 +48,22 @@ class CartpoleTestSceneCfg(InteractiveSceneCfg):
     not assert ground or lighting behavior.
     """
 
-    robot: ArticulationCfg = _CARTPOLE_TEST_CFG.copy()
+    robot: ArticulationCfg = config_field(copy_config(_CARTPOLE_TEST_CFG))
 
 
 @dataclass
 class ArticulationRigidObjectSceneCfg(CartpoleTestSceneCfg):
     """Configuration for a minimal scene with articulation and rigid-object state."""
 
-    object: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
+    object: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionBaseCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
+        )
     )

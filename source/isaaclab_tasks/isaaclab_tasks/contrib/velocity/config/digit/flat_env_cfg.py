@@ -11,7 +11,8 @@ from .rough_env_cfg import DigitRoughEnvCfg
 @dataclass
 class DigitFlatEnvCfg(DigitRoughEnvCfg):
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Change terrain to flat.
         self.scene.terrain.terrain_type = "plane"

@@ -18,9 +18,11 @@ from __future__ import annotations
 import argparse
 import traceback
 from functools import partial
+from typing import Any
 
 from isaaclab.app import AppLauncher
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
+from isaaclab.utils import config_field, replace_config
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX JointWrench sensor update path.")
 add_sensor_benchmark_args(
@@ -61,8 +63,8 @@ from isaaclab_assets import CARTPOLE_CFG
 class JointWrenchBenchmarkSceneCfg(InteractiveSceneCfg):
     """One cartpole articulation and JointWrench sensor per environment."""
 
-    robot = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: Any = config_field(replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    joint_wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 def main() -> None:

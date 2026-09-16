@@ -23,6 +23,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -90,89 +94,95 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     """Configuration for a multi-object scene."""
 
     # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # rigid object
-    object: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Object",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.CylinderCfg(radius=0.3, height=0.6, **GREEN_MATERIAL),
-                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **RED_MATERIAL),
-                sim_utils.SphereCfg(radius=0.3, **BLUE_MATERIAL),
-                sim_utils.CylinderCfg(radius=0.3, height=0.6, **GOLD_MATERIAL),
-                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **GOLD_MATERIAL),
-                sim_utils.SphereCfg(radius=0.3, **GOLD_MATERIAL),
-                sim_utils.CylinderCfg(radius=0.3, height=0.6, **PURPLE_MATERIAL),
-                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **PURPLE_MATERIAL),
-                sim_utils.SphereCfg(radius=0.3, **PURPLE_MATERIAL),
-            ],
-            random_choice=False,
-            **OBJECT_PHYSICS,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+    object: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="/World/envs/env_.*/Object",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    sim_utils.CylinderCfg(radius=0.3, height=0.6, **GREEN_MATERIAL),
+                    sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **RED_MATERIAL),
+                    sim_utils.SphereCfg(radius=0.3, **BLUE_MATERIAL),
+                    sim_utils.CylinderCfg(radius=0.3, height=0.6, **GOLD_MATERIAL),
+                    sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **GOLD_MATERIAL),
+                    sim_utils.SphereCfg(radius=0.3, **GOLD_MATERIAL),
+                    sim_utils.CylinderCfg(radius=0.3, height=0.6, **PURPLE_MATERIAL),
+                    sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **PURPLE_MATERIAL),
+                    sim_utils.SphereCfg(radius=0.3, **PURPLE_MATERIAL),
+                ],
+                random_choice=False,
+                **OBJECT_PHYSICS,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+        )
     )
 
     # object collection
-    object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
-        rigid_objects={
-            "object_A": RigidObjectCfg(
-                prim_path="/World/envs/env_.*/Object_A",
-                spawn=sim_utils.SphereCfg(radius=0.1, **RED_MATERIAL, **OBJECT_PHYSICS),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.5, 2.0)),
-            ),
-            "object_B": RigidObjectCfg(
-                prim_path="/World/envs/env_.*/Object_B",
-                spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), **RED_MATERIAL, **OBJECT_PHYSICS),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 2.0)),
-            ),
-            "object_C": RigidObjectCfg(
-                prim_path="/World/envs/env_.*/Object_C",
-                spawn=sim_utils.CylinderCfg(radius=0.1, height=0.3, **RED_MATERIAL, **OBJECT_PHYSICS),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
-            ),
-        }
+    object_collection: RigidObjectCollectionCfg = config_field(
+        RigidObjectCollectionCfg(
+            rigid_objects={
+                "object_A": RigidObjectCfg(
+                    prim_path="/World/envs/env_.*/Object_A",
+                    spawn=sim_utils.SphereCfg(radius=0.1, **RED_MATERIAL, **OBJECT_PHYSICS),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.5, 2.0)),
+                ),
+                "object_B": RigidObjectCfg(
+                    prim_path="/World/envs/env_.*/Object_B",
+                    spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), **RED_MATERIAL, **OBJECT_PHYSICS),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 2.0)),
+                ),
+                "object_C": RigidObjectCfg(
+                    prim_path="/World/envs/env_.*/Object_C",
+                    spawn=sim_utils.CylinderCfg(radius=0.1, height=0.3, **RED_MATERIAL, **OBJECT_PHYSICS),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
+                ),
+            }
+        )
     )
 
     # articulation
-    robot: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.MultiUsdFileCfg(
-            usd_path=[
-                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
-                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
-            ],
-            random_choice=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                retain_accelerations=False,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=1.0,
+    robot: ArticulationCfg = config_field(
+        ArticulationCfg(
+            prim_path="/World/envs/env_.*/Robot",
+            spawn=sim_utils.MultiUsdFileCfg(
+                usd_path=[
+                    f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+                    f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+                ],
+                random_choice=False,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    disable_gravity=False,
+                    retain_accelerations=False,
+                    linear_damping=0.0,
+                    angular_damping=0.0,
+                    max_linear_velocity=1000.0,
+                    max_angular_velocity=1000.0,
+                    max_depenetration_velocity=1.0,
+                ),
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                activate_contact_sensors=True,
             ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0.0, 0.0, 0.6),
+                joint_pos={
+                    ".*HAA": 0.0,  # all HAA
+                    ".*F_HFE": 0.4,  # both front HFE
+                    ".*H_HFE": -0.4,  # both hind HFE
+                    ".*F_KFE": -0.8,  # both front KFE
+                    ".*H_KFE": 0.8,  # both hind KFE
+                },
             ),
-            activate_contact_sensors=True,
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.6),
-            joint_pos={
-                ".*HAA": 0.0,  # all HAA
-                ".*F_HFE": 0.4,  # both front HFE
-                ".*H_HFE": -0.4,  # both hind HFE
-                ".*F_KFE": -0.8,  # both front KFE
-                ".*H_KFE": 0.8,  # both hind KFE
-            },
-        ),
-        actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
+            actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
+        )
     )
 
 

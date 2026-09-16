@@ -15,6 +15,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from isaaclab.utils import config_to_dict
+
 
 def discover_backend_tasks(agent_cfg_entry_points: Sequence[str]) -> tuple[str, ...]:
     """Discover registered Isaac Lab tasks that expose any of the requested agent entry points."""
@@ -96,9 +98,13 @@ def _create_rsl_rl_checkpoint(
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = OnPolicyRunner(
+                env, config_to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device
+            )
         elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = DistillationRunner(
+                env, config_to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device
+            )
         else:
             raise ValueError(f"Unsupported RSL-RL runner class: {agent_cfg.class_name}")
 

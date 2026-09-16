@@ -27,11 +27,16 @@
       version
       warp
 
-   .. Rubric:: Classes
+   .. Rubric:: Configuration functions
 
    .. autosummary::
 
-      ConfigMixin
+      config_field
+      config_to_dict
+      update_config
+      replace_config
+      copy_config
+      validate_config
 
    .. Rubric:: Deprecated functions
 

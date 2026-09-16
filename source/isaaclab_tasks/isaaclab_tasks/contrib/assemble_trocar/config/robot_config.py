@@ -17,7 +17,7 @@ import math
 from dataclasses import dataclass
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import replace_config
 
 from isaaclab_assets.robots.unitree import G129_CFG_WITH_DEX3_BASE_FIX
 
@@ -123,7 +123,8 @@ def make_g1_29dof_dex3_cfg(
     joint_pos = DEFAULT_JOINT_POS.copy()
     if custom_joint_pos:
         joint_pos.update(custom_joint_pos)
-    return base_config.replace(
+    return replace_config(
+        base_config,
         prim_path=prim_path,
         init_state=ArticulationCfg.InitialStateCfg(
             pos=init_pos,
@@ -135,7 +136,7 @@ def make_g1_29dof_dex3_cfg(
 
 
 @dataclass
-class G1RobotPresets(ConfigMixin):
+class G1RobotPresets:
     """G1 robot preset configuration collection"""
 
     @classmethod

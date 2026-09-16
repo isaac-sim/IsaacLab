@@ -17,6 +17,10 @@ Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -72,34 +76,42 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
 
     @dataclass
     class RaycastBenchSceneCfg(InteractiveSceneCfg):
-        terrain = TerrainImporterCfg(
-            prim_path="/World/ground",
-            terrain_type="generator",
-            terrain_generator=_make_terrain_cfg(num_envs, env_spacing),
+        terrain: Any = config_field(
+            TerrainImporterCfg(
+                prim_path="/World/ground",
+                terrain_type="generator",
+                terrain_generator=_make_terrain_cfg(num_envs, env_spacing),
+            )
         )
-        body = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/SensorBody",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.1, 0.1, 0.1),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        body: Any = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/SensorBody",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.1, 0.1, 0.1),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+            )
         )
-        ray_caster = RayCasterCfg(
-            class_type=LegacyRayCaster,
-            prim_path="{ENV_REGEX_NS}/SensorBody",
-            offset=offset,
-            pattern_cfg=pattern,
-            ray_alignment="yaw",
-            mesh_prim_paths=["/World/ground"],
+        ray_caster: Any = config_field(
+            RayCasterCfg(
+                class_type=LegacyRayCaster,
+                prim_path="{ENV_REGEX_NS}/SensorBody",
+                offset=offset,
+                pattern_cfg=pattern,
+                ray_alignment="yaw",
+                mesh_prim_paths=["/World/ground"],
+            )
         )
-        newton_raycast = NewtonRaycastSensorCfg(
-            prim_path="{ENV_REGEX_NS}/SensorBody",
-            offset=offset,
-            pattern_cfg=pattern,
-            ray_alignment="yaw",
-            global_world_only=True,
+        newton_raycast: Any = config_field(
+            NewtonRaycastSensorCfg(
+                prim_path="{ENV_REGEX_NS}/SensorBody",
+                offset=offset,
+                pattern_cfg=pattern,
+                ray_alignment="yaw",
+                global_world_only=True,
+            )
         )
 
     return RaycastBenchSceneCfg(num_envs=num_envs, env_spacing=env_spacing)

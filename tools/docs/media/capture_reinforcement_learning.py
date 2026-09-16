@@ -27,7 +27,8 @@ class AnymalDFlatCaptureCfg(AnymalDFlatEnvCfg):
     """Anymal-D flat-terrain configuration for a fixed OVRTX progression recording."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         command_cfg = self.commands.base_velocity
         command_cfg.heading_command = False

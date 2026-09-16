@@ -18,7 +18,8 @@ class PickPlaceGR1T2WaistEnabledMimicEnvCfg(PickPlaceGR1T2WaistEnabledEnvCfg, Mi
 
     def __post_init__(self):
         # Calling post init of parents
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Override the existing values
         self.datagen_config.name = "gr1t2_pick_place_waist_enabled_D0"

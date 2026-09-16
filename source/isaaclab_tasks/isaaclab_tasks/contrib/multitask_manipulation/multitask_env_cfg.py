@@ -7,6 +7,7 @@
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -22,7 +23,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import FRAME_MARKER_CFG, SPHERE_MARKER_CFG, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as add_scene
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.lift.config.openarm.joint_pos_env_cfg import OpenArmCubeLiftEnvCfg
@@ -87,14 +88,14 @@ def _reach_robot_cfg() -> SceneEntitySelectionCfg:
 
 def _frame_marker_cfg(prim_path: str) -> VisualizationMarkersCfg:
     """Create a compact frame marker at a task-unique path."""
-    cfg = FRAME_MARKER_CFG.replace(prim_path=prim_path)
+    cfg = replace_config(FRAME_MARKER_CFG, prim_path=prim_path)
     cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     return cfg
 
 
 def _sphere_marker_cfg(prim_path: str, color: tuple[float, float, float]) -> VisualizationMarkersCfg:
     """Create a compact sphere marker at a task-unique path."""
-    cfg = SPHERE_MARKER_CFG.replace(prim_path=prim_path)
+    cfg = replace_config(SPHERE_MARKER_CFG, prim_path=prim_path)
     cfg.markers["sphere"].radius = 0.025
     cfg.markers["sphere"].visual_material.diffuse_color = color
     return cfg
@@ -116,350 +117,442 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     scene.num_envs = 4096
     scene.env_spacing = 2.0
     scene.replicate_physics = True
-    scene.plane = PLANE_CFG.copy()
-    scene.light = LIGHT_CFG.copy()
+    scene.plane = copy_config(PLANE_CFG)
+    scene.light = copy_config(LIGHT_CFG)
     return scene
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Task-headed action specification with a fixed global dimension of 22."""
 
-    lift_arm_action = mdp.SelectedJointPositionActionCfg(
-        asset_name=_LIFT_ROBOT,
-        joint_names=["openarm_joint.*"],
-        scale=0.5,
+    lift_arm_action: Any = config_field(
+        mdp.SelectedJointPositionActionCfg(
+            asset_name=_LIFT_ROBOT,
+            joint_names=["openarm_joint.*"],
+            scale=0.5,
+        )
     )
-    lift_gripper_action = mdp.SelectedBinaryJointPositionActionCfg(
-        asset_name=_LIFT_ROBOT,
-        joint_names=["openarm_finger_joint.*"],
-        open_command=0.044,
-        close_command=0.0,
+    lift_gripper_action: Any = config_field(
+        mdp.SelectedBinaryJointPositionActionCfg(
+            asset_name=_LIFT_ROBOT,
+            joint_names=["openarm_finger_joint.*"],
+            open_command=0.044,
+            close_command=0.0,
+        )
     )
-    cabinet_arm_action = mdp.SelectedJointPositionActionCfg(
-        asset_name=_CABINET_ROBOT,
-        joint_names=["panda_joint.*"],
-        scale=1.0,
-        joint_limit_margin=0.02,
+    cabinet_arm_action: Any = config_field(
+        mdp.SelectedJointPositionActionCfg(
+            asset_name=_CABINET_ROBOT,
+            joint_names=["panda_joint.*"],
+            scale=1.0,
+            joint_limit_margin=0.02,
+        )
     )
-    cabinet_gripper_action = mdp.SelectedBinaryJointPositionActionCfg(
-        asset_name=_CABINET_ROBOT,
-        joint_names=["panda_finger.*"],
-        open_command=0.04,
-        close_command=0.0,
+    cabinet_gripper_action: Any = config_field(
+        mdp.SelectedBinaryJointPositionActionCfg(
+            asset_name=_CABINET_ROBOT,
+            joint_names=["panda_finger.*"],
+            open_command=0.04,
+            close_command=0.0,
+        )
     )
-    reach_action = mdp.SelectedJointPositionActionCfg(
-        asset_name=_REACH_ROBOT,
-        joint_names=[".*"],
-        scale=0.5,
+    reach_action: Any = config_field(
+        mdp.SelectedJointPositionActionCfg(
+            asset_name=_REACH_ROBOT,
+            joint_names=[".*"],
+            scale=0.5,
+        )
     )
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
+class CommandsCfg:
     """Goal commands for lift and reach environments."""
 
-    lift_pose = mdp.SelectedUniformPoseCommandCfg(
-        reference_cfg=_selection(_LIFT_ROBOT),
-        tracked_cfg=_lift_object_cfg(),
-        resampling_time_range=(5.0, 5.0),
-        goal_pose_visualizer_cfg=_sphere_marker_cfg("/Visuals/Command/lift_pose/goal", (0.0, 1.0, 0.0)),
-        current_pose_visualizer_cfg=_sphere_marker_cfg("/Visuals/Command/lift_pose/current", (0.0, 0.0, 1.0)),
-        ranges=mdp.SelectedUniformPoseCommandCfg.Ranges(
-            pos_x=(0.2, 0.4),
-            pos_y=(-0.2, 0.2),
-            pos_z=(0.15, 0.4),
-            roll=(0.0, 0.0),
-            pitch=(math.pi / 2, math.pi / 2),
-            yaw=(0.0, 0.0),
-        ),
+    lift_pose: Any = config_field(
+        mdp.SelectedUniformPoseCommandCfg(
+            reference_cfg=_selection(_LIFT_ROBOT),
+            tracked_cfg=_lift_object_cfg(),
+            resampling_time_range=(5.0, 5.0),
+            goal_pose_visualizer_cfg=_sphere_marker_cfg("/Visuals/Command/lift_pose/goal", (0.0, 1.0, 0.0)),
+            current_pose_visualizer_cfg=_sphere_marker_cfg("/Visuals/Command/lift_pose/current", (0.0, 0.0, 1.0)),
+            ranges=mdp.SelectedUniformPoseCommandCfg.Ranges(
+                pos_x=(0.2, 0.4),
+                pos_y=(-0.2, 0.2),
+                pos_z=(0.15, 0.4),
+                roll=(0.0, 0.0),
+                pitch=(math.pi / 2, math.pi / 2),
+                yaw=(0.0, 0.0),
+            ),
+        )
     )
-    reach_pose = mdp.SelectedUniformPoseCommandCfg(
-        reference_cfg=_selection(_REACH_ROBOT),
-        tracked_cfg=_reach_robot_cfg(),
-        resampling_time_range=(4.0, 4.0),
-        goal_pose_visualizer_cfg=_frame_marker_cfg("/Visuals/Command/reach_pose/goal"),
-        current_pose_visualizer_cfg=_frame_marker_cfg("/Visuals/Command/reach_pose/current"),
-        ranges=mdp.SelectedUniformPoseCommandCfg.Ranges(
-            pos_x=(0.35, 0.65),
-            pos_y=(-0.2, 0.2),
-            pos_z=(0.15, 0.5),
-            roll=(0.0, 0.0),
-            pitch=(math.pi / 2, math.pi / 2),
-            yaw=(-math.pi, math.pi),
-        ),
+    reach_pose: Any = config_field(
+        mdp.SelectedUniformPoseCommandCfg(
+            reference_cfg=_selection(_REACH_ROBOT),
+            tracked_cfg=_reach_robot_cfg(),
+            resampling_time_range=(4.0, 4.0),
+            goal_pose_visualizer_cfg=_frame_marker_cfg("/Visuals/Command/reach_pose/goal"),
+            current_pose_visualizer_cfg=_frame_marker_cfg("/Visuals/Command/reach_pose/current"),
+            ranges=mdp.SelectedUniformPoseCommandCfg.Ranges(
+                pos_x=(0.35, 0.65),
+                pos_y=(-0.2, 0.2),
+                pos_z=(0.15, 0.5),
+                roll=(0.0, 0.0),
+                pitch=(math.pi / 2, math.pi / 2),
+                yaw=(-math.pi, math.pi),
+            ),
+        )
     )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Fixed-width observations with zero-filled inactive task blocks."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Policy observations."""
 
-        task_id = ObsTerm(func=mdp.task_encoding, params={"task_asset_cfgs": _task_asset_cfgs()})
+        task_id: Any = config_field(ObsTerm(func=mdp.task_encoding, params={"task_asset_cfgs": _task_asset_cfgs()}))
 
-        lift_joint_pos = ObsTerm(
-            func=mdp.selected_joint_pos_rel,
-            params={"asset_cfg": _lift_joint_cfg()},
+        lift_joint_pos: Any = config_field(
+            ObsTerm(
+                func=mdp.selected_joint_pos_rel,
+                params={"asset_cfg": _lift_joint_cfg()},
+            )
         )
-        lift_joint_vel = ObsTerm(
-            func=mdp.selected_joint_vel_rel,
-            params={"asset_cfg": _lift_joint_cfg()},
+        lift_joint_vel: Any = config_field(
+            ObsTerm(
+                func=mdp.selected_joint_vel_rel,
+                params={"asset_cfg": _lift_joint_cfg()},
+            )
         )
-        lift_object_position = ObsTerm(
-            func=mdp.lift_object_position_b,
-            params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg()},
+        lift_object_position: Any = config_field(
+            ObsTerm(
+                func=mdp.lift_object_position_b,
+                params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg()},
+            )
         )
-        lift_command = ObsTerm(func=base_mdp.generated_commands, params={"command_name": "lift_pose"})
-
-        cabinet_joint_pos = ObsTerm(
-            func=mdp.selected_joint_pos_rel,
-            params={"asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*")},
-        )
-        cabinet_joint_vel = ObsTerm(
-            func=mdp.selected_joint_vel_rel,
-            params={"asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*")},
-        )
-        cabinet_drawer = ObsTerm(func=mdp.cabinet_drawer_state, params={"cabinet_cfg": _cabinet_cfg()})
-        cabinet_ee_handle = ObsTerm(
-            func=mdp.cabinet_ee_to_handle,
-            params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
+        lift_command: Any = config_field(
+            ObsTerm(func=base_mdp.generated_commands, params={"command_name": "lift_pose"})
         )
 
-        reach_joint_pos = ObsTerm(
-            func=mdp.selected_joint_pos_rel,
-            params={"asset_cfg": _selection(_REACH_ROBOT, joint_names=".*")},
+        cabinet_joint_pos: Any = config_field(
+            ObsTerm(
+                func=mdp.selected_joint_pos_rel,
+                params={"asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*")},
+            )
         )
-        reach_joint_vel = ObsTerm(
-            func=mdp.selected_joint_vel_rel,
-            params={"asset_cfg": _selection(_REACH_ROBOT, joint_names=".*")},
+        cabinet_joint_vel: Any = config_field(
+            ObsTerm(
+                func=mdp.selected_joint_vel_rel,
+                params={"asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*")},
+            )
         )
-        reach_command = ObsTerm(func=base_mdp.generated_commands, params={"command_name": "reach_pose"})
+        cabinet_drawer: Any = config_field(
+            ObsTerm(func=mdp.cabinet_drawer_state, params={"cabinet_cfg": _cabinet_cfg()})
+        )
+        cabinet_ee_handle: Any = config_field(
+            ObsTerm(
+                func=mdp.cabinet_ee_to_handle,
+                params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
+            )
+        )
 
-        actions = ObsTerm(func=base_mdp.last_action, clip=(-5.0, 5.0))
+        reach_joint_pos: Any = config_field(
+            ObsTerm(
+                func=mdp.selected_joint_pos_rel,
+                params={"asset_cfg": _selection(_REACH_ROBOT, joint_names=".*")},
+            )
+        )
+        reach_joint_vel: Any = config_field(
+            ObsTerm(
+                func=mdp.selected_joint_vel_rel,
+                params={"asset_cfg": _selection(_REACH_ROBOT, joint_names=".*")},
+            )
+        )
+        reach_command: Any = config_field(
+            ObsTerm(func=base_mdp.generated_commands, params={"command_name": "reach_pose"})
+        )
+
+        actions: Any = config_field(ObsTerm(func=base_mdp.last_action, clip=(-5.0, 5.0)))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Selection-aware reset events."""
 
-    reset_scene = EventTerm(
-        func=mdp.reset_multitask_scene,
-        mode="reset",
-        params={
-            "root_asset_cfgs": tuple(
-                _selection(name) for name in (_LIFT_ROBOT, _CABINET_ROBOT, _CABINET, _REACH_ROBOT)
-            ),
-            "lift_robot_cfg": _selection(_LIFT_ROBOT),
-            "lift_object_cfg": _lift_object_cfg(),
-            "cabinet_robot_cfg": _selection(_CABINET_ROBOT),
-            "cabinet_cfg": _selection(_CABINET),
-            "reach_robot_cfg": _selection(_REACH_ROBOT),
-        },
+    reset_scene: Any = config_field(
+        EventTerm(
+            func=mdp.reset_multitask_scene,
+            mode="reset",
+            params={
+                "root_asset_cfgs": tuple(
+                    _selection(name) for name in (_LIFT_ROBOT, _CABINET_ROBOT, _CABINET, _REACH_ROBOT)
+                ),
+                "lift_robot_cfg": _selection(_LIFT_ROBOT),
+                "lift_object_cfg": _lift_object_cfg(),
+                "cabinet_robot_cfg": _selection(_CABINET_ROBOT),
+                "cabinet_cfg": _selection(_CABINET),
+                "reach_robot_cfg": _selection(_REACH_ROBOT),
+            },
+        )
     )
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Task rewards adapted from the three homogeneous tasks."""
 
-    lift_approach = RewTerm(
-        func=mdp.lift_ee_object_distance,
-        weight=0.11,
-        params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg(), "std": 0.1},
+    lift_approach: Any = config_field(
+        RewTerm(
+            func=mdp.lift_ee_object_distance,
+            weight=0.11,
+            params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg(), "std": 0.1},
+        )
     )
-    lift_height = RewTerm(
-        func=mdp.lift_object_height,
-        weight=1.5,
-        params={"object_cfg": _lift_object_cfg(), "minimum_height": 0.04},
+    lift_height: Any = config_field(
+        RewTerm(
+            func=mdp.lift_object_height,
+            weight=1.5,
+            params={"object_cfg": _lift_object_cfg(), "minimum_height": 0.04},
+        )
     )
-    lift_goal = RewTerm(
-        func=mdp.LiftGoalTracking,
-        weight=1.6,
-        params={
-            "robot_cfg": _lift_robot_cfg(),
-            "object_cfg": _lift_object_cfg(),
-            "command_name": "lift_pose",
-            "std": 0.3,
-            "minimum_height": 0.04,
-            "success_threshold": 0.05,
-        },
+    lift_goal: Any = config_field(
+        RewTerm(
+            func=mdp.LiftGoalTracking,
+            weight=1.6,
+            params={
+                "robot_cfg": _lift_robot_cfg(),
+                "object_cfg": _lift_object_cfg(),
+                "command_name": "lift_pose",
+                "std": 0.3,
+                "minimum_height": 0.04,
+                "success_threshold": 0.05,
+            },
+        )
     )
-    lift_goal_fine = RewTerm(
-        func=mdp.lift_goal_tracking,
-        weight=0.5,
-        params={
-            "robot_cfg": _lift_robot_cfg(),
-            "object_cfg": _lift_object_cfg(),
-            "command_name": "lift_pose",
-            "std": 0.05,
-            "minimum_height": 0.04,
-        },
+    lift_goal_fine: Any = config_field(
+        RewTerm(
+            func=mdp.lift_goal_tracking,
+            weight=0.5,
+            params={
+                "robot_cfg": _lift_robot_cfg(),
+                "object_cfg": _lift_object_cfg(),
+                "command_name": "lift_pose",
+                "std": 0.05,
+                "minimum_height": 0.04,
+            },
+        )
     )
-    lift_action_rate = RewTerm(
-        func=mdp.selected_action_rate_l2,
-        weight=-0.00001,
-        params={
-            "task_asset_cfg": _selection(_LIFT_ROBOT),
-            "action_term_names": ("lift_arm_action", "lift_gripper_action"),
-        },
+    lift_action_rate: Any = config_field(
+        RewTerm(
+            func=mdp.selected_action_rate_l2,
+            weight=-0.00001,
+            params={
+                "task_asset_cfg": _selection(_LIFT_ROBOT),
+                "action_term_names": ("lift_arm_action", "lift_gripper_action"),
+            },
+        )
     )
-    lift_joint_vel = RewTerm(
-        func=mdp.selected_joint_vel_l2,
-        weight=-0.00001,
-        params={"asset_cfg": _lift_joint_cfg()},
-    )
-
-    cabinet_approach = RewTerm(
-        func=mdp.cabinet_approach_ee_handle,
-        weight=2.0,
-        params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg(), "threshold": 0.2},
-    )
-    cabinet_align = RewTerm(
-        func=mdp.cabinet_align_ee_handle,
-        weight=0.5,
-        params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
-    )
-    cabinet_approach_gripper = RewTerm(
-        func=mdp.cabinet_approach_gripper,
-        weight=5.0,
-        params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg(), "offset": 0.04},
-    )
-    cabinet_align_grasp = RewTerm(
-        func=mdp.cabinet_align_grasp,
-        weight=0.125,
-        params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
-    )
-    cabinet_grasp = RewTerm(
-        func=mdp.cabinet_grasp_handle,
-        weight=0.5,
-        params={
-            "robot_cfg": _cabinet_robot_cfg(),
-            "cabinet_cfg": _cabinet_cfg(),
-            "threshold": 0.03,
-            "open_joint_pos": 0.04,
-        },
-    )
-    cabinet_open = RewTerm(
-        func=mdp.CabinetOpenDrawerBonus,
-        weight=7.5,
-        params={
-            "robot_cfg": _cabinet_robot_cfg(),
-            "cabinet_cfg": _cabinet_cfg(),
-            "success_threshold": 0.3,
-        },
-    )
-    cabinet_stages = RewTerm(
-        func=mdp.cabinet_multi_stage_open,
-        weight=1.0,
-        params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
-    )
-    cabinet_action_rate = RewTerm(
-        func=mdp.selected_action_rate_l2,
-        weight=-0.01,
-        params={
-            "task_asset_cfg": _selection(_CABINET_ROBOT),
-            "action_term_names": ("cabinet_arm_action", "cabinet_gripper_action"),
-        },
-    )
-    cabinet_joint_vel = RewTerm(
-        func=mdp.selected_joint_vel_l2,
-        weight=-0.0001,
-        params={"asset_cfg": _selection(_CABINET_ROBOT), "max_velocity": 50.0},
+    lift_joint_vel: Any = config_field(
+        RewTerm(
+            func=mdp.selected_joint_vel_l2,
+            weight=-0.00001,
+            params={"asset_cfg": _lift_joint_cfg()},
+        )
     )
 
-    reach_position = RewTerm(
-        func=mdp.reach_position_error,
-        weight=-0.2,
-        params={"robot_cfg": _reach_robot_cfg(), "command_name": "reach_pose"},
+    cabinet_approach: Any = config_field(
+        RewTerm(
+            func=mdp.cabinet_approach_ee_handle,
+            weight=2.0,
+            params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg(), "threshold": 0.2},
+        )
     )
-    reach_orientation = RewTerm(
-        func=mdp.reach_orientation_error,
-        weight=-0.1,
-        params={"robot_cfg": _reach_robot_cfg(), "command_name": "reach_pose"},
+    cabinet_align: Any = config_field(
+        RewTerm(
+            func=mdp.cabinet_align_ee_handle,
+            weight=0.5,
+            params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
+        )
     )
-    reach_success = RewTerm(
-        func=base_mdp.is_terminated_term,
-        weight=10.0,
-        params={"term_keys": ["reach_success"]},
+    cabinet_approach_gripper: Any = config_field(
+        RewTerm(
+            func=mdp.cabinet_approach_gripper,
+            weight=5.0,
+            params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg(), "offset": 0.04},
+        )
     )
-    reach_action_rate = RewTerm(
-        func=mdp.selected_action_rate_l2,
-        weight=-0.0001,
-        params={"task_asset_cfg": _selection(_REACH_ROBOT), "action_term_names": ("reach_action",)},
+    cabinet_align_grasp: Any = config_field(
+        RewTerm(
+            func=mdp.cabinet_align_grasp,
+            weight=0.125,
+            params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
+        )
     )
-    reach_action_l2 = RewTerm(
-        func=mdp.selected_action_l2,
-        weight=-0.005,
-        params={"task_asset_cfg": _selection(_REACH_ROBOT), "action_term_names": ("reach_action",)},
+    cabinet_grasp: Any = config_field(
+        RewTerm(
+            func=mdp.cabinet_grasp_handle,
+            weight=0.5,
+            params={
+                "robot_cfg": _cabinet_robot_cfg(),
+                "cabinet_cfg": _cabinet_cfg(),
+                "threshold": 0.03,
+                "open_joint_pos": 0.04,
+            },
+        )
     )
-    reach_joint_vel = RewTerm(
-        func=mdp.selected_joint_vel_l2,
-        weight=-0.0001,
-        params={"asset_cfg": _selection(_REACH_ROBOT)},
+    cabinet_open: Any = config_field(
+        RewTerm(
+            func=mdp.CabinetOpenDrawerBonus,
+            weight=7.5,
+            params={
+                "robot_cfg": _cabinet_robot_cfg(),
+                "cabinet_cfg": _cabinet_cfg(),
+                "success_threshold": 0.3,
+            },
+        )
+    )
+    cabinet_stages: Any = config_field(
+        RewTerm(
+            func=mdp.cabinet_multi_stage_open,
+            weight=1.0,
+            params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
+        )
+    )
+    cabinet_action_rate: Any = config_field(
+        RewTerm(
+            func=mdp.selected_action_rate_l2,
+            weight=-0.01,
+            params={
+                "task_asset_cfg": _selection(_CABINET_ROBOT),
+                "action_term_names": ("cabinet_arm_action", "cabinet_gripper_action"),
+            },
+        )
+    )
+    cabinet_joint_vel: Any = config_field(
+        RewTerm(
+            func=mdp.selected_joint_vel_l2,
+            weight=-0.0001,
+            params={"asset_cfg": _selection(_CABINET_ROBOT), "max_velocity": 50.0},
+        )
+    )
+
+    reach_position: Any = config_field(
+        RewTerm(
+            func=mdp.reach_position_error,
+            weight=-0.2,
+            params={"robot_cfg": _reach_robot_cfg(), "command_name": "reach_pose"},
+        )
+    )
+    reach_orientation: Any = config_field(
+        RewTerm(
+            func=mdp.reach_orientation_error,
+            weight=-0.1,
+            params={"robot_cfg": _reach_robot_cfg(), "command_name": "reach_pose"},
+        )
+    )
+    reach_success: Any = config_field(
+        RewTerm(
+            func=base_mdp.is_terminated_term,
+            weight=10.0,
+            params={"term_keys": ["reach_success"]},
+        )
+    )
+    reach_action_rate: Any = config_field(
+        RewTerm(
+            func=mdp.selected_action_rate_l2,
+            weight=-0.0001,
+            params={"task_asset_cfg": _selection(_REACH_ROBOT), "action_term_names": ("reach_action",)},
+        )
+    )
+    reach_action_l2: Any = config_field(
+        RewTerm(
+            func=mdp.selected_action_l2,
+            weight=-0.005,
+            params={"task_asset_cfg": _selection(_REACH_ROBOT), "action_term_names": ("reach_action",)},
+        )
+    )
+    reach_joint_vel: Any = config_field(
+        RewTerm(
+            func=mdp.selected_joint_vel_l2,
+            weight=-0.0001,
+            params={"asset_cfg": _selection(_REACH_ROBOT)},
+        )
     )
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Task-specific success, failure, and timeout conditions."""
 
-    reach_success = DoneTerm(
-        func=mdp.reach_success,
-        params={
-            "robot_cfg": _reach_robot_cfg(),
-            "command_name": "reach_pose",
-            "position_threshold": 0.05,
-            "orientation_threshold": 0.2,
-        },
+    reach_success: Any = config_field(
+        DoneTerm(
+            func=mdp.reach_success,
+            params={
+                "robot_cfg": _reach_robot_cfg(),
+                "command_name": "reach_pose",
+                "position_threshold": 0.05,
+                "orientation_threshold": 0.2,
+            },
+        )
     )
-    lift_object_dropped = DoneTerm(
-        func=mdp.lift_object_dropped,
-        params={"object_cfg": _lift_object_cfg(), "minimum_height": -0.05},
+    lift_object_dropped: Any = config_field(
+        DoneTerm(
+            func=mdp.lift_object_dropped,
+            params={"object_cfg": _lift_object_cfg(), "minimum_height": -0.05},
+        )
     )
-    cabinet_state_invalid = DoneTerm(
-        func=mdp.articulation_state_invalid,
-        params={
-            "asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*"),
-            "max_joint_velocity": 50.0,
-            "joint_position_margin": 0.1,
-        },
+    cabinet_state_invalid: Any = config_field(
+        DoneTerm(
+            func=mdp.articulation_state_invalid,
+            params={
+                "asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*"),
+                "max_joint_velocity": 50.0,
+                "joint_position_margin": 0.1,
+            },
+        )
     )
-    time_out = DoneTerm(
-        func=mdp.task_time_out,
-        time_out=True,
-        params={"task_asset_cfgs": _task_asset_cfgs(), "episode_lengths_s": (6.0, 8.0, 12.0)},
+    time_out: Any = config_field(
+        DoneTerm(
+            func=mdp.task_time_out,
+            time_out=True,
+            params={"task_asset_cfgs": _task_asset_cfgs(), "episode_lengths_s": (6.0, 8.0, 12.0)},
+        )
     )
 
 
 @dataclass
-class CurriculumCfg(ConfigMixin):
+class CurriculumCfg:
     """OpenArm lift penalty curriculum."""
 
-    lift_action_rate = CurrTerm(
-        func=base_mdp.modify_reward_weight,
-        params={
-            "term_name": "lift_action_rate",
-            "weight": -0.01,
-            "num_steps": 10000,
-        },
+    lift_action_rate: Any = config_field(
+        CurrTerm(
+            func=base_mdp.modify_reward_weight,
+            params={
+                "term_name": "lift_action_rate",
+                "weight": -0.01,
+                "num_steps": 10000,
+            },
+        )
     )
-    lift_joint_vel = CurrTerm(
-        func=base_mdp.modify_reward_weight,
-        params={
-            "term_name": "lift_joint_vel",
-            "weight": -0.01,
-            "num_steps": 10000,
-        },
+    lift_joint_vel: Any = config_field(
+        CurrTerm(
+            func=base_mdp.modify_reward_weight,
+            params={
+                "term_name": "lift_joint_vel",
+                "weight": -0.01,
+                "num_steps": 10000,
+            },
+        )
     )
 
 
@@ -467,14 +560,14 @@ class CurriculumCfg(ConfigMixin):
 class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based heterogeneous manipulation training environment."""
 
-    scene: InteractiveSceneCfg = _make_scene_cfg()
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    scene: InteractiveSceneCfg = config_field(_make_scene_cfg())
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    commands: CommandsCfg = config_field(CommandsCfg())
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: EventCfg = config_field(EventCfg())
+    curriculum: CurriculumCfg = config_field(CurriculumCfg())
 
     def __post_init__(self):
         """Configure a common PhysX control clock for all three tasks."""

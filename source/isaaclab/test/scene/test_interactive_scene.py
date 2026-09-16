@@ -5,7 +5,10 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from typing import Any
+
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -37,27 +40,31 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # articulation
-    robot = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-        ),
-        actuators={
-            "joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=1.0),
-        },
+    robot: Any = config_field(
+        ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
+            ),
+            actuators={
+                "joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=1.0),
+            },
+        )
     )
     # rigid object
-    rigid_obj = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/RigidObj",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
+    rigid_obj: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/RigidObj",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.5, 0.5, 0.5),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    disable_gravity=False,
+                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(
+                    collision_enabled=True,
+                ),
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                collision_enabled=True,
-            ),
-        ),
+        )
     )
 
 

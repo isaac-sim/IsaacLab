@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import argparse
 from functools import partial
+from typing import Any
 
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX contact sensor update path.")
 add_sensor_benchmark_args(
@@ -50,23 +52,27 @@ wp.init()
 class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
     """Scene with one cube per environment and a contact sensor on the cube."""
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-            activate_contact_sensors=True,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.5, 0.5, 0.5),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
+        )
     )
 
-    contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        track_air_time=True,
-        update_period=0.0,
+    contact_sensor: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            track_air_time=True,
+            update_period=0.0,
+        )
     )
 
 

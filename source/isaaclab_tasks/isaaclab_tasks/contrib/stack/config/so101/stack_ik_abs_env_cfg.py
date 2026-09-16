@@ -9,7 +9,7 @@ import numpy as np
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils import preset
@@ -170,7 +170,7 @@ def _build_so101_stack_pipeline():
 
 
 @dataclass
-class SO101IkActionsCfg(ConfigMixin):
+class SO101IkActionsCfg:
     """Action terms for SO-101 IK-Abs teleop, ordered to match the pipeline ``output_order``.
 
     This is a fresh (non-inheriting) action container declared in field order
@@ -181,8 +181,8 @@ class SO101IkActionsCfg(ConfigMixin):
     ``ActionsCfg`` would append new fields after the base's and mis-order the concat.
     """
 
-    arm_action: SO101PoseIKActionCfg = MISSING
-    gripper_action: mdp.JointPositionActionCfg = MISSING
+    arm_action: SO101PoseIKActionCfg = config_field(MISSING)
+    gripper_action: mdp.JointPositionActionCfg = config_field(MISSING)
 
 
 @dataclass
@@ -207,7 +207,8 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
         # configured by the parent so its task-specific seated root and stack joint pose are retained.
@@ -220,9 +221,11 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # without penetrating. ``joint_effort_limit`` is the "strength" knob and ``joint_velocity_limit``
         # the "speed" knob; stiffness/damping keep the asset defaults. Tune in-sim (lower effort if
         # it still pushes through; raise it if the cube drops).
-        self.scene.robot = self.scene.robot.replace(
+        self.scene.robot = replace_config(
+            self.scene.robot,
             soft_joint_pos_limit_factor=SO101_HIGH_PD_CFG.soft_joint_pos_limit_factor,
-            spawn=SO101_HIGH_PD_CFG.spawn.replace(
+            spawn=replace_config(
+                SO101_HIGH_PD_CFG.spawn,
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
@@ -232,7 +235,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                         physx="physx",
                         newton_mjwarp="physics",
                     ),
-                }
+                },
             ),
             actuators={
                 "arm": SO101_HIGH_PD_CFG.actuators["arm"],

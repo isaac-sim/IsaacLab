@@ -24,6 +24,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     RigidBodyFragment,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+from isaaclab.utils import config_field
 
 
 @dataclass
@@ -82,7 +83,7 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    gravcomp: float | None = None
+    gravcomp: float | None = config_field(None)
     """Gravity compensation scale for the body [dimensionless].
 
     ``0.0`` = no compensation; ``1.0`` = full compensation.
@@ -108,7 +109,7 @@ class MujocoRigidBodyCfg(RigidBodyFragment):
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = None
 
-    gravcomp: float | None = None
+    gravcomp: float | None = config_field(None)
     """Gravity compensation scale for the body [dimensionless].
 
     ``0.0`` = no compensation; ``1.0`` = full compensation. Written to ``mjc:gravcomp``. Body-level
@@ -134,9 +135,9 @@ class MujocoJointCfg(JointDriveFragment):
     # Custom applier: writes the mjc:* joint attrs and, when ``actuatorgravcomp`` is requested, flips
     # body-level ``mjc:gravcomp`` on the joint's child body (the coupling lives in the backend applier
     # so the core spawner stays backend-free). See :func:`~isaaclab_newton.sim.schemas.apply_mujoco_joint`.
-    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_joint"
+    func: Callable | str = config_field("isaaclab_newton.sim.schemas:apply_mujoco_joint")
 
-    actuatorgravcomp: bool | None = None
+    actuatorgravcomp: bool | None = config_field(None)
     """Route gravity compensation forces through the actuator channel.
 
     When ``True``, compensation forces go to ``qfrc_actuator`` (subject to force limits).
@@ -183,7 +184,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     _usd_applied_schema: ClassVar[str | None] = "MjcJointAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    actuatorgravcomp: bool | None = None
+    actuatorgravcomp: bool | None = config_field(None)
     """Route gravity compensation forces through the actuator channel.
 
     When ``True``, compensation forces go to ``qfrc_actuator`` (subject to force limits).
@@ -212,9 +213,9 @@ class MujocoCollisionCfg(CollisionFragment):
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = None
 
-    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_collision"
+    func: Callable | str = config_field("isaaclab_newton.sim.schemas:apply_mujoco_collision")
 
-    condim: Literal[1, 3, 4, 6] | None = None
+    condim: Literal[1, 3, 4, 6] | None = config_field(None)
     """Number of dimensions in the contact friction cone [dimensionless].
 
     ``1`` is frictionless, ``3`` adds tangential friction, ``4`` adds torsional friction, and
@@ -222,21 +223,21 @@ class MujocoCollisionCfg(CollisionFragment):
     attribute is not authored.
     """
 
-    group: int | None = None
+    group: int | None = config_field(None)
     """MuJoCo geometry group [dimensionless].
 
     Written to ``mjc:group``. Valid values are 0 through 5. This grouping controls MuJoCo
     visualization and inertia-inference selection; it is not an Isaac Lab collision-filter group.
     """
 
-    priority: int | None = None
+    priority: int | None = config_field(None)
     """Contact-parameter precedence for this collider [dimensionless].
 
     Written to ``mjc:priority``. When two colliders have different priorities, MuJoCo uses the
     higher-priority collider's contact parameters. Values must be non-negative.
     """
 
-    solimp: tuple[float, float, float, float, float] | None = None
+    solimp: tuple[float, float, float, float, float] | None = config_field(None)
     """Contact impedance parameters ``(dmin, dmax, width, midpoint, power)``.
 
     Component units are [dimensionless, dimensionless, m, dimensionless, dimensionless].
@@ -244,7 +245,7 @@ class MujocoCollisionCfg(CollisionFragment):
     ``(0.9, 0.95, 0.001, 0.5, 2.0)`` when the attribute is not authored.
     """
 
-    solmix: float | None = None
+    solmix: float | None = config_field(None)
     """Contact-parameter mixing weight [dimensionless].
 
     Written to ``mjc:solmix``. MuJoCo uses this weight to combine compatible contact parameters
@@ -252,7 +253,7 @@ class MujocoCollisionCfg(CollisionFragment):
     ``1.0`` in Newton when the attribute is not authored.
     """
 
-    solref: tuple[float, float] | None = None
+    solref: tuple[float, float] | None = config_field(None)
     """Contact reference parameters.
 
     In positive format, the components are ``(time_constant [s], damping_ratio [dimensionless])``.
@@ -279,7 +280,7 @@ class NewtonCollisionCfg(CollisionFragment):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonCollisionAPI"
 
-    contact_margin: float | None = None
+    contact_margin: float | None = config_field(None)
     """Outward inflation of the collision surface [m].
 
     Extends the effective collision surface outward. Sum of both bodies' margins is used for
@@ -287,7 +288,7 @@ class NewtonCollisionCfg(CollisionFragment):
     via ``NewtonCollisionAPI``. Range: [0, inf).
     """
 
-    contact_gap: float | None = None
+    contact_gap: float | None = config_field(None)
     """Additional contact detection gap [m].
 
     AABBs are expanded by this value; contacts are detected earlier to avoid tunneling. Written to
@@ -313,7 +314,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "NewtonCollisionAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    contact_margin: float | None = None
+    contact_margin: float | None = config_field(None)
     """Outward inflation of the collision surface [m].
 
     Extends the effective collision surface outward. Sum of both bodies' margins is
@@ -322,7 +323,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     Range: [0, inf).
     """
 
-    contact_gap: float | None = None
+    contact_gap: float | None = config_field(None)
     """Additional contact detection gap [m].
 
     AABBs are expanded by this value; contacts detected earlier to avoid tunneling.
@@ -347,7 +348,7 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
     _usd_applied_schema: ClassVar[str | None] = "NewtonMeshCollisionAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    max_hull_vertices: int | None = None
+    max_hull_vertices: int | None = config_field(None)
     """Maximum vertices in the convex hull approximation [dimensionless].
 
     Only relevant when ``physics:approximation = "convexHull"``.
@@ -373,7 +374,7 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
     _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    sdf_max_resolution: int | None = None
+    sdf_max_resolution: int | None = config_field(None)
     """Maximum SDF grid dimension.
 
     Newton requires this value to be divisible by 8. If
@@ -382,38 +383,38 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
     Written to ``newton:sdfMaxResolution`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_narrow_band_inner: float | None = None
+    sdf_narrow_band_inner: float | None = config_field(None)
     """Inner narrow-band distance for SDF generation [m].
 
     Written to ``newton:sdfNarrowBandInner`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_narrow_band_outer: float | None = None
+    sdf_narrow_band_outer: float | None = config_field(None)
     """Outer narrow-band distance for SDF generation [m].
 
     Written to ``newton:sdfNarrowBandOuter`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_target_voxel_size: float | None = None
+    sdf_target_voxel_size: float | None = config_field(None)
     """Target SDF voxel size [m].
 
     Takes precedence over :attr:`sdf_max_resolution` in Newton's USD importer.
     Written to ``newton:sdfTargetVoxelSize`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_texture_format: Literal["uint8", "uint16", "float32"] | None = None
+    sdf_texture_format: Literal["uint8", "uint16", "float32"] | None = config_field(None)
     """Subgrid texture storage format for generated SDFs.
 
     Written to ``newton:sdfTextureFormat`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_padding: float | None = None
+    sdf_padding: float | None = config_field(None)
     """SDF AABB padding [m].
 
     Written to ``newton:sdfPadding`` via ``NewtonSDFCollisionAPI``.
     """
 
-    hydroelastic_enabled: bool | None = None
+    hydroelastic_enabled: bool | None = config_field(None)
     """Whether Newton should use SDF-based hydroelastic contacts for this shape.
 
     Both participating collision shapes must enable hydroelastic contacts for
@@ -421,7 +422,7 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
     ``NewtonSDFCollisionAPI``.
     """
 
-    hydroelastic_stiffness: float | None = None
+    hydroelastic_stiffness: float | None = config_field(None)
     """Hydroelastic contact stiffness.
 
     Written to ``newton:hydroelasticStiffness`` via ``NewtonSDFCollisionAPI``.
@@ -452,7 +453,7 @@ class NewtonMeshCollisionCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonMeshCollisionAPI"
 
-    max_hull_vertices: int | None = None
+    max_hull_vertices: int | None = config_field(None)
     """Maximum vertices in the convex hull approximation [dimensionless].
 
     Only relevant when ``physics:approximation = "convexHull"``.
@@ -487,7 +488,7 @@ class NewtonSDFCollisionCfg(MeshCollisionFragment):
     # the schema ships -- but it is authored, and Newton's importer reads the ``newton:*`` attrs.
     _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
 
-    sdf_max_resolution: int | None = None
+    sdf_max_resolution: int | None = config_field(None)
     """Maximum SDF grid dimension [dimensionless].
 
     Newton requires this value to be divisible by 8. If :attr:`sdf_target_voxel_size` is also
@@ -495,45 +496,45 @@ class NewtonSDFCollisionCfg(MeshCollisionFragment):
     Written to ``newton:sdfMaxResolution`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_narrow_band_inner: float | None = None
+    sdf_narrow_band_inner: float | None = config_field(None)
     """Inner narrow-band distance for SDF generation [m].
 
     Written to ``newton:sdfNarrowBandInner`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_narrow_band_outer: float | None = None
+    sdf_narrow_band_outer: float | None = config_field(None)
     """Outer narrow-band distance for SDF generation [m].
 
     Written to ``newton:sdfNarrowBandOuter`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_target_voxel_size: float | None = None
+    sdf_target_voxel_size: float | None = config_field(None)
     """Target SDF voxel size [m].
 
     Takes precedence over :attr:`sdf_max_resolution` in Newton's USD importer.
     Written to ``newton:sdfTargetVoxelSize`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_texture_format: Literal["uint8", "uint16", "float32"] | None = None
+    sdf_texture_format: Literal["uint8", "uint16", "float32"] | None = config_field(None)
     """Subgrid texture storage format for generated SDFs.
 
     Written to ``newton:sdfTextureFormat`` via ``NewtonSDFCollisionAPI``.
     """
 
-    sdf_padding: float | None = None
+    sdf_padding: float | None = config_field(None)
     """SDF AABB padding [m].
 
     Written to ``newton:sdfPadding`` via ``NewtonSDFCollisionAPI``.
     """
 
-    hydroelastic_enabled: bool | None = None
+    hydroelastic_enabled: bool | None = config_field(None)
     """Whether Newton should use SDF-based hydroelastic contacts for this shape.
 
     Both participating collision shapes must enable hydroelastic contacts for Newton to use this
     path. Written to ``newton:hydroelasticEnabled`` via ``NewtonSDFCollisionAPI``.
     """
 
-    hydroelastic_stiffness: float | None = None
+    hydroelastic_stiffness: float | None = config_field(None)
     """Hydroelastic contact stiffness.
 
     Written to ``newton:hydroelasticStiffness`` via ``NewtonSDFCollisionAPI``.
@@ -557,42 +558,42 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "NewtonMaterialAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    torsional_friction: float | None = None
+    torsional_friction: float | None = config_field(None)
     """Torsional friction coefficient (resistance to spinning at a contact point) [dimensionless].
 
     Written to ``newton:torsionalFriction`` via ``NewtonMaterialAPI``.
     Range: [0, inf).
     """
 
-    rolling_friction: float | None = None
+    rolling_friction: float | None = config_field(None)
     """Rolling friction coefficient (resistance to rolling motion) [dimensionless].
 
     Written to ``newton:rollingFriction`` via ``NewtonMaterialAPI``.
     Range: [0, inf).
     """
 
-    contact_stiffness: float | None = None
+    contact_stiffness: float | None = config_field(None)
     """Contact normal-force stiffness [N/m].
 
     Writes ``newton:contactStiffness``. Replaces the deprecated per-shape ``ke`` contact parameter;
     used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
     """
 
-    contact_damping: float | None = None
+    contact_damping: float | None = config_field(None)
     """Contact normal-force damping coefficient [N·s/m].
 
     Writes ``newton:contactDamping``. Replaces the deprecated per-shape ``kd`` contact parameter;
     used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
     """
 
-    contact_friction_gain: float | None = None
+    contact_friction_gain: float | None = config_field(None)
     """Friction-force stiffness gain used by the tangential (friction) contact response [N·s/m].
 
     Writes ``newton:contactFrictionGain``. Replaces the deprecated per-shape ``kf`` contact
     parameter; used by the SemiImplicit and Featherstone solvers.
     """
 
-    contact_adhesion: float | None = None
+    contact_adhesion: float | None = config_field(None)
     """Contact adhesion distance: shapes closer than this threshold experience an attractive
     (adhesive) force [m].
 
@@ -621,12 +622,12 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
 
-    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_fixed_tendon"
+    func: Callable | str = config_field("isaaclab_newton.sim.schemas:apply_mujoco_fixed_tendon")
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Spring stiffness term acting on the tendon's length [N/m]."""
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """Damping term acting on the tendon length [N·s/m]."""
 
 
@@ -646,7 +647,7 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonArticulationRootAPI"
 
-    self_collision_enabled: bool | None = None
+    self_collision_enabled: bool | None = config_field(None)
     """Whether self-collisions between bodies in this articulation are enabled.
 
     Written to ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``.
@@ -672,7 +673,7 @@ class NewtonArticulationCfg(ArticulationRootFragment):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonArticulationRootAPI"
 
-    self_collision_enabled: bool | None = None
+    self_collision_enabled: bool | None = config_field(None)
     """Whether self-collisions between bodies in this articulation are enabled.
 
     Written to ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``. Newton's

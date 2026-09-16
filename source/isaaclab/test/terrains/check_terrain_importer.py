@@ -26,6 +26,8 @@ Example usage:
     uv run python source/isaaclab/test/terrains/check_terrain_importer.py --terrain_type plane
 """
 
+from isaaclab.utils import replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -100,7 +102,7 @@ def main():
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type=args_cli.terrain_type,
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True, color_scheme=args_cli.color_scheme),
+        terrain_generator=replace_config(ROUGH_TERRAINS_CFG, curriculum=True, color_scheme=args_cli.color_scheme),
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
     )
     terrain_importer = TerrainImporter(terrain_importer_cfg)

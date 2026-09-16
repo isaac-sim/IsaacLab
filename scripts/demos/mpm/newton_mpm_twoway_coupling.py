@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from functools import partial
+from typing import Any
 
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
@@ -29,6 +30,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Newton rigid-sphere and MPM-sand two-way coupling demo.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many frames; negative runs forever.")
@@ -229,58 +231,74 @@ def create_scene_cfg():
     class CoupledSceneCfg(InteractiveSceneCfg):
         """Scene containing a static bath, three rigid spheres, and MPM sand."""
 
-        ground = AssetBaseCfg(
-            prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(),
-            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
+        ground: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/Ground",
+                spawn=sim_utils.GroundPlaneCfg(),
+                init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
+            )
         )
-        dome_light = AssetBaseCfg(
-            prim_path="/World/DomeLight",
-            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        dome_light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/DomeLight",
+                spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+            )
         )
 
-        bath_floor = bath_collider(
-            "/World/Bath/Floor",
-            (bath_x + 2.0 * wall_t, bath_y + 2.0 * wall_t, wall_t),
-            (0.0, 0.0, -0.5 * wall_t),
+        bath_floor: Any = config_field(
+            bath_collider(
+                "/World/Bath/Floor",
+                (bath_x + 2.0 * wall_t, bath_y + 2.0 * wall_t, wall_t),
+                (0.0, 0.0, -0.5 * wall_t),
+            )
         )
-        bath_left = bath_collider(
-            "/World/Bath/LeftWall",
-            (wall_t, bath_y, BATH_WALL_HEIGHT),
-            (-0.5 * (bath_x + wall_t), 0.0, wall_z),
+        bath_left: Any = config_field(
+            bath_collider(
+                "/World/Bath/LeftWall",
+                (wall_t, bath_y, BATH_WALL_HEIGHT),
+                (-0.5 * (bath_x + wall_t), 0.0, wall_z),
+            )
         )
-        bath_right = bath_collider(
-            "/World/Bath/RightWall",
-            (wall_t, bath_y, BATH_WALL_HEIGHT),
-            (0.5 * (bath_x + wall_t), 0.0, wall_z),
+        bath_right: Any = config_field(
+            bath_collider(
+                "/World/Bath/RightWall",
+                (wall_t, bath_y, BATH_WALL_HEIGHT),
+                (0.5 * (bath_x + wall_t), 0.0, wall_z),
+            )
         )
-        bath_front = bath_collider(
-            "/World/Bath/FrontWall",
-            (bath_x + 2.0 * wall_t, wall_t, BATH_WALL_HEIGHT),
-            (0.0, -0.5 * (bath_y + wall_t), wall_z),
+        bath_front: Any = config_field(
+            bath_collider(
+                "/World/Bath/FrontWall",
+                (bath_x + 2.0 * wall_t, wall_t, BATH_WALL_HEIGHT),
+                (0.0, -0.5 * (bath_y + wall_t), wall_z),
+            )
         )
-        bath_back = bath_collider(
-            "/World/Bath/BackWall",
-            (bath_x + 2.0 * wall_t, wall_t, BATH_WALL_HEIGHT),
-            (0.0, 0.5 * (bath_y + wall_t), wall_z),
+        bath_back: Any = config_field(
+            bath_collider(
+                "/World/Bath/BackWall",
+                (bath_x + 2.0 * wall_t, wall_t, BATH_WALL_HEIGHT),
+                (0.0, 0.5 * (bath_y + wall_t), wall_z),
+            )
         )
 
         chute_left_a, chute_left_b, chute_back_a, chute_back_b, chute_right_a, chute_right_b = chute_panels
 
-        spheres = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
+        spheres: Any = config_field(RigidObjectCollectionCfg(rigid_objects=rigid_objects))
 
-        sand = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(
-                lower=SAND_LOWER,
-                upper=SAND_UPPER,
-                voxel_size=args_cli.voxel_size,
-                particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
-                particle_placement="cell_center",
-                jitter=PARTICLE_SPACING,
-                material=MPMParticleMaterialCfg(density=2500.0, friction=0.5, yield_pressure=1.0e5),
-                visual_color=PARTICLE_COLOR,
-            ),
+        sand: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Sand",
+                spawn=MPMGridCfg(
+                    lower=SAND_LOWER,
+                    upper=SAND_UPPER,
+                    voxel_size=args_cli.voxel_size,
+                    particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
+                    particle_placement="cell_center",
+                    jitter=PARTICLE_SPACING,
+                    material=MPMParticleMaterialCfg(density=2500.0, friction=0.5, yield_pressure=1.0e5),
+                    visual_color=PARTICLE_COLOR,
+                ),
+            )
         )
 
     return CoupledSceneCfg(num_envs=1, env_spacing=0.0)

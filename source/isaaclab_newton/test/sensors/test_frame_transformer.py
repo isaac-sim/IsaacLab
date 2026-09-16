@@ -7,6 +7,9 @@
 
 import sys
 from pathlib import Path
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -49,25 +52,27 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
     # articulation - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # sensors - frame transformer (filled inside unit test)
-    frame_transformer: FrameTransformerCfg = None
+    frame_transformer: FrameTransformerCfg = config_field(None)
 
     # block
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
+    cube: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
+        )
     )
 
 
@@ -651,10 +656,10 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
     class MultiRobotSceneCfg(InteractiveSceneCfg):
         """Scene with two robots having bodies with same names."""
 
-        terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
         # Frame transformer will be set after config creation (needs source_robot parameter)
-        frame_transformer: FrameTransformerCfg = None  # type: ignore
+        frame_transformer: FrameTransformerCfg = config_field(None)  # type: ignore
 
     # Use multiple envs for env patterns, single env for direct paths
     num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1
@@ -662,10 +667,11 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
 
     # Create scene config with appropriate prim paths
     scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
-    scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
-    scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+    scene_cfg.robot = replace_config(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
+    scene_cfg.robot_1 = replace_config(
+        ANYMAL_C_CFG,
         prim_path=f"{path_prefix}/Robot_1",
-        init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+        init_state=replace_config(ANYMAL_C_CFG.init_state, pos=(2.0, 0.0, 0.6)),
     )
 
     # Frame transformer tracking same-named bodies from both robots

@@ -9,7 +9,7 @@ from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -18,12 +18,12 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class OffsetCfg(ConfigMixin):
+class OffsetCfg:
     """The offset pose of one frame relative to another frame."""
 
-    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-    rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
     """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
 
@@ -32,10 +32,10 @@ class FrameTransformerCfg(SensorBaseCfg):
     """Configuration for the frame transformer sensor."""
 
     @dataclass
-    class FrameCfg(ConfigMixin):
+    class FrameCfg:
         """Information specific to a coordinate frame."""
 
-        prim_path: str = MISSING
+        prim_path: str = config_field(MISSING)
         """The prim path corresponding to a rigid body.
 
         This can be a regex pattern to match multiple prims. For example, "/Robot/.*"
@@ -48,24 +48,24 @@ class FrameTransformerCfg(SensorBaseCfg):
         the source frame).
         """
 
-        name: str | None = None
+        name: str | None = config_field(None)
         """User-defined name for the new coordinate frame. Defaults to None.
 
         If None, then the name is extracted from the leaf of the prim path.
         """
 
-        offset: OffsetCfg = OffsetCfg()
+        offset: OffsetCfg = config_field(OffsetCfg())
         """The pose offset from the parent prim frame."""
 
-    class_type: type[FrameTransformer] | str = "{DIR}.frame_transformer:FrameTransformer"
+    class_type: type[FrameTransformer] | str = config_field("{DIR}.frame_transformer:FrameTransformer")
 
-    prim_path: str = MISSING
+    prim_path: str = config_field(MISSING)
     """The prim path of the body to transform from (source frame)."""
 
-    source_frame_offset: OffsetCfg = OffsetCfg()
+    source_frame_offset: OffsetCfg = config_field(OffsetCfg())
     """The pose offset from the source prim frame."""
 
-    target_frames: list[FrameCfg] = MISSING
+    target_frames: list[FrameCfg] = config_field(MISSING)
     """A list of the target frames.
 
     This allows a single FrameTransformer to handle multiple target prims. For example, in a quadruped,
@@ -73,7 +73,9 @@ class FrameTransformerCfg(SensorBaseCfg):
     frame using four frame offsets.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
+    visualizer_cfg: VisualizationMarkersCfg = config_field(
+        replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/FrameTransformer")
+    )
     """The configuration object for the visualization markers. Defaults to FRAME_MARKER_CFG.
 
     .. note::

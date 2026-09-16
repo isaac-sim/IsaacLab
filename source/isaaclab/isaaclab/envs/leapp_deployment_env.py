@@ -22,6 +22,8 @@ from typing import Any, cast
 import torch
 import yaml
 
+from isaaclab.utils import validate_config
+
 try:
     from leapp import InferenceManager
 except ImportError as e:
@@ -165,7 +167,7 @@ class LeappDeploymentEnv:
         """
 
         cfg.scene.num_envs = 1
-        cfg.validate()
+        validate_config(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path

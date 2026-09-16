@@ -8,6 +8,10 @@ This script demonstrates the base environment concept that combines a scene with
 observation and event manager for a floating cube.
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -45,7 +49,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import ConfigMixin
 
 ##
 # Scene definition
@@ -57,25 +60,29 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # add terrain
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False))
 
     # add cube
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+    cube: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+        )
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        )
     )
 
 
@@ -141,7 +148,7 @@ class CubeActionTerm(ActionTerm):
 class CubeActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
 
-    class_type: type = CubeActionTerm
+    class_type: type = config_field(CubeActionTerm)
 
 
 ##
@@ -162,14 +169,14 @@ def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tens
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = CubeActionTermCfg(asset_name="cube")
+    joint_pos: Any = config_field(CubeActionTermCfg(asset_name="cube"))
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -177,32 +184,34 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # cube velocity
-        position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")})
+        position: Any = config_field(ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")}))
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.5, 0.5),
+    reset_base: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+                "velocity_range": {
+                    "x": (-0.5, 0.5),
+                    "y": (-0.5, 0.5),
+                    "z": (-0.5, 0.5),
+                },
+                "asset_cfg": SceneEntityCfg("cube"),
             },
-            "asset_cfg": SceneEntityCfg("cube"),
-        },
+        )
     )
 
 
@@ -216,11 +225,11 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=True)
+    scene: MySceneCfg = config_field(MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=True))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    events: EventCfg = config_field(EventCfg())
 
     def __post_init__(self):
         """Post initialization."""

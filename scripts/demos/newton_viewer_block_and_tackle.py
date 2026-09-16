@@ -14,6 +14,7 @@ import argparse
 import math
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Newton block-and-tackle viewer dragging demo.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
@@ -54,8 +55,8 @@ HANDLE_HALF_EXTENTS = (0.025, 0.025, 0.03)
 class _BlockAndTackleVBDSolverCfg(VBDSolverCfg):
     """VBD contact settings for this cable and pulley scene."""
 
-    rigid_contact_hard: bool = False
-    rigid_body_contact_buffer_size: int = 512
+    rigid_contact_hard: bool = config_field(False)
+    rigid_body_contact_buffer_size: int = config_field(512)
 
 
 def _append_arc(points: list[wp.vec3], center: wp.vec3, start: float, end: float) -> None:

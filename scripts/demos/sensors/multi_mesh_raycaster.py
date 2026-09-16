@@ -25,9 +25,10 @@
 from __future__ import annotations
 
 import argparse
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field, replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -106,7 +107,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 if args_cli.asset_type == "allegro_hand":
-    asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace_config(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/palm_link",
         update_period=1 / 60,
@@ -123,11 +124,11 @@ if args_cli.asset_type == "allegro_hand":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "anymal_d":
-    asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace_config(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
@@ -143,7 +144,7 @@ elif args_cli.asset_type == "anymal_d":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "objects":
@@ -203,7 +204,7 @@ elif args_cli.asset_type == "objects":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
@@ -214,21 +215,23 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the asset."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/Ground",
-        spawn=ground_spawn_cfg,
-        init_state=ground_init_state,
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/Ground",
+            spawn=ground_spawn_cfg,
+            init_state=ground_init_state,
+        )
     )
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # asset
-    asset = asset_cfg
+    asset: Any = config_field(asset_cfg)
     # ray caster
-    ray_caster = ray_caster_cfg
+    ray_caster: Any = config_field(ray_caster_cfg)
 
 
 def randomize_shape_color(prim_path_expr: str):

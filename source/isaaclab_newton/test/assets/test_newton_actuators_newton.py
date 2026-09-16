@@ -19,6 +19,7 @@ config (IdealPD, DCMotor, or mixed) and verifies Lab vs Newton equivalence.
 """
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace_config
 
 simulation_app = AppLauncher(headless=True).app
 
@@ -132,7 +133,8 @@ def _run_simulation(
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(
+        art_cfg = replace_config(
+            ANYMAL_C_CFG,
             actuators=actuators,
             prim_path="/World/Env_[^/]*/Robot",
             joint_ordering=joint_ordering,
@@ -348,13 +350,14 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 6.0, 0, 0))
 
-        anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
-        cartpole_cfg = CARTPOLE_CFG.replace(
+        anymal_cfg = replace_config(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
+        cartpole_cfg = replace_config(
+            CARTPOLE_CFG,
             actuators=CARTPOLE_EXPLICIT_ACTUATORS,
             prim_path="/World/Env_[^/]*/Cartpole",
         )
         # Stand the cartpole well clear of the anymal.
-        cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+        cartpole_cfg.init_state = replace_config(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
 
         anymal = Articulation(anymal_cfg)
         cartpole = Articulation(cartpole_cfg)
@@ -452,7 +455,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             sim._app_control_on_stop_handle = None
             for i in range(NUM_ENVS):
                 sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-            art_cfg = ANYMAL_C_CFG.replace(
+            art_cfg = replace_config(
+                ANYMAL_C_CFG,
                 actuators=IDEAL_PD_ACTUATORS,
                 prim_path="/World/Env_[^/]*/Robot",
             )
@@ -514,12 +518,13 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             for i in range(NUM_ENVS):
                 sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 6.0, 0, 0))
 
-            anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
-            cartpole_cfg = CARTPOLE_CFG.replace(
+            anymal_cfg = replace_config(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
+            cartpole_cfg = replace_config(
+                CARTPOLE_CFG,
                 actuators=CARTPOLE_EXPLICIT_ACTUATORS,
                 prim_path="/World/Env_[^/]*/Cartpole",
             )
-            cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+            cartpole_cfg.init_state = replace_config(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
             anymal = Articulation(anymal_cfg)
             cartpole = Articulation(cartpole_cfg)
             sim.reset()
@@ -654,7 +659,9 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
         return SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators)
 
     def _make_articulation(self) -> Articulation:
-        return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
+        return Articulation(
+            replace_config(ANYMAL_C_CFG, actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot")
+        )
 
     def _get_adapter(self, articulation):
         return SimulationManager._adapter
@@ -710,7 +717,8 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
 
-        art_cfg = ANYMAL_C_CFG.replace(
+        art_cfg = replace_config(
+            ANYMAL_C_CFG,
             actuators=actuator_cfgs,
             prim_path="/World/Env_[^/]*/Robot",
         )

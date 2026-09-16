@@ -11,26 +11,26 @@ from dataclasses import dataclass
 
 import torch
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class SuccessMonitorCfg(ConfigMixin):
+class SuccessMonitorCfg:
     """Configuration for :class:`SuccessMonitor`."""
 
-    class_type: type[SuccessMonitor] | str = "{DIR}.success_monitor:SuccessMonitor"
+    class_type: type[SuccessMonitor] | str = config_field("{DIR}.success_monitor:SuccessMonitor")
     """Monitor implementation, resolved when the environment starts."""
 
-    monitored_history_len: int = 10
+    monitored_history_len: int = config_field(10)
     """Episodes remembered per slot."""
 
-    target_success_rate: float = 0.5
+    target_success_rate: float = config_field(0.5)
     """Success rate favored by sampling, in ``[0, 1]``."""
 
-    kappa: float = 1.0
+    kappa: float = config_field(1.0)
     """Concentration around :attr:`target_success_rate`; zero is uniform."""
 
-    temperature: float = 1.0
+    temperature: float = config_field(1.0)
     """Sampling-weight temperature, at or above ``1.0``."""
 
 

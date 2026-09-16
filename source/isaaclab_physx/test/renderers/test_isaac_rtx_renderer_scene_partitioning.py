@@ -24,7 +24,10 @@ variable remains a legacy construction-time override.
 Launch Isaac Sim Simulator first.
 """
 
+from typing import Any
+
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field, replace_config
 
 # launch omniverse app — cameras are required to read back per-env RGB tiles.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -109,32 +112,40 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     @dataclass
     class _Scene(InteractiveSceneCfg):
-        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
-        light = AssetBaseCfg(
-            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
+        ground: Any = config_field(
+            AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
         )
-        cube = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Cube",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.25, 0.25, 0.25),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.2)),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
+        light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
+            )
         )
-        camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Camera",
-            update_period=0.0,
-            height=128,
-            width=192,
-            data_types=["rgb"],
-            renderer_cfg=_isolation_renderer_cfg(),
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.0, clipping_range=(0.05, 100.0)
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 1.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        cube: Any = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Cube",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.25, 0.25, 0.25),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.2)),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
+            )
+        )
+        camera: Any = config_field(
+            CameraCfg(
+                prim_path="{ENV_REGEX_NS}/Camera",
+                update_period=0.0,
+                height=128,
+                width=192,
+                data_types=["rgb"],
+                renderer_cfg=_isolation_renderer_cfg(),
+                spawn=sim_utils.PinholeCameraCfg(
+                    focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.0, clipping_range=(0.05, 100.0)
+                ),
+                offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 1.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+            )
         )
 
     with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
@@ -244,21 +255,25 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
 
     @dataclass
     class _Scene(InteractiveSceneCfg):
-        light = AssetBaseCfg(
-            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
+        light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
+            )
         )
-        robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Camera",
-            update_period=0.0,
-            height=128,
-            width=192,
-            data_types=["rgb"],
-            renderer_cfg=_isolation_renderer_cfg(),
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=18.0, focus_distance=400.0, horizontal_aperture=24.0, clipping_range=(0.05, 100.0)
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(-1.5, 0.0, 0.7), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        robot: ArticulationCfg = config_field(replace_config(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+        camera: Any = config_field(
+            CameraCfg(
+                prim_path="{ENV_REGEX_NS}/Camera",
+                update_period=0.0,
+                height=128,
+                width=192,
+                data_types=["rgb"],
+                renderer_cfg=_isolation_renderer_cfg(),
+                spawn=sim_utils.PinholeCameraCfg(
+                    focal_length=18.0, focus_distance=400.0, horizontal_aperture=24.0, clipping_range=(0.05, 100.0)
+                ),
+                offset=CameraCfg.OffsetCfg(pos=(-1.5, 0.0, 0.7), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+            )
         )
 
     with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:

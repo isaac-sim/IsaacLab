@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 from torchvision.utils import save_image
@@ -20,7 +20,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
@@ -109,22 +109,22 @@ def image(
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp.last_action)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object = ObsTerm(func=mdp.object_obs)
-        cube_positions = ObsTerm(func=mdp.cube_positions_in_world_frame)
-        cube_orientations = ObsTerm(func=mdp.cube_orientations_in_world_frame)
-        eef_pos = ObsTerm(func=mdp.ee_frame_pos)
-        eef_quat = ObsTerm(func=mdp.ee_frame_quat)
-        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        object: Any = config_field(ObsTerm(func=mdp.object_obs))
+        cube_positions: Any = config_field(ObsTerm(func=mdp.cube_positions_in_world_frame))
+        cube_orientations: Any = config_field(ObsTerm(func=mdp.cube_orientations_in_world_frame))
+        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pos))
+        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_quat))
+        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -134,45 +134,53 @@ class ObservationsCfg(ConfigMixin):
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        table_cam_normals = ObsTerm(
-            func=image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_cam"),
-                "data_type": "normals",
-                "normalize": True,
-                "save_image_to_file": True,
-                "image_path": "table_cam",
-            },
+        table_cam_normals: Any = config_field(
+            ObsTerm(
+                func=image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("table_cam"),
+                    "data_type": "normals",
+                    "normalize": True,
+                    "save_image_to_file": True,
+                    "image_path": "table_cam",
+                },
+            )
         )
-        table_cam_segmentation = ObsTerm(
-            func=image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_cam"),
-                "data_type": "semantic_segmentation",
-                "normalize": False,
-                "save_image_to_file": True,
-                "image_path": "table_cam",
-            },
+        table_cam_segmentation: Any = config_field(
+            ObsTerm(
+                func=image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("table_cam"),
+                    "data_type": "semantic_segmentation",
+                    "normalize": False,
+                    "save_image_to_file": True,
+                    "image_path": "table_cam",
+                },
+            )
         )
-        table_high_cam_normals = ObsTerm(
-            func=image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_high_cam"),
-                "data_type": "normals",
-                "normalize": True,
-                "save_image_to_file": True,
-                "image_path": "table_high_cam",
-            },
+        table_high_cam_normals: Any = config_field(
+            ObsTerm(
+                func=image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("table_high_cam"),
+                    "data_type": "normals",
+                    "normalize": True,
+                    "save_image_to_file": True,
+                    "image_path": "table_high_cam",
+                },
+            )
         )
-        table_high_cam_segmentation = ObsTerm(
-            func=image,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_high_cam"),
-                "data_type": "semantic_segmentation",
-                "normalize": False,
-                "save_image_to_file": True,
-                "image_path": "table_high_cam",
-            },
+        table_high_cam_segmentation: Any = config_field(
+            ObsTerm(
+                func=image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("table_high_cam"),
+                    "data_type": "semantic_segmentation",
+                    "normalize": False,
+                    "save_image_to_file": True,
+                    "image_path": "table_high_cam",
+                },
+            )
         )
 
         def __post_init__(self):
@@ -183,29 +191,35 @@ class ObservationsCfg(ConfigMixin):
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp_1 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("cube_2"),
-            },
+        grasp_1: Any = config_field(
+            ObsTerm(
+                func=mdp.object_grasped,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "object_cfg": SceneEntityCfg("cube_2"),
+                },
+            )
         )
-        stack_1 = ObsTerm(
-            func=mdp.object_stacked,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "upper_object_cfg": SceneEntityCfg("cube_2"),
-                "lower_object_cfg": SceneEntityCfg("cube_1"),
-            },
+        stack_1: Any = config_field(
+            ObsTerm(
+                func=mdp.object_stacked,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "upper_object_cfg": SceneEntityCfg("cube_2"),
+                    "lower_object_cfg": SceneEntityCfg("cube_1"),
+                },
+            )
         )
-        grasp_2 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("cube_3"),
-            },
+        grasp_2: Any = config_field(
+            ObsTerm(
+                func=mdp.object_grasped,
+                params={
+                    "robot_cfg": SceneEntityCfg("robot"),
+                    "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                    "object_cfg": SceneEntityCfg("cube_3"),
+                },
+            )
         )
 
         def __post_init__(self):
@@ -213,22 +227,23 @@ class ObservationsCfg(ConfigMixin):
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
-    rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
-    subtask_terms: SubtaskCfg = SubtaskCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
+    rgb_camera: RGBCameraPolicyCfg = config_field(RGBCameraPolicyCfg())
+    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
 
 
 @dataclass
 class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
-    observations: ObservationsCfg = ObservationsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Set actions for the specific robot type (franka)

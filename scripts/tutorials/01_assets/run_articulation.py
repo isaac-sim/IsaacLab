@@ -12,6 +12,8 @@
 
 """
 
+from isaaclab.utils import copy_config
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -62,7 +64,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation
-    cartpole_cfg = CARTPOLE_CFG.copy()
+    cartpole_cfg = copy_config(CARTPOLE_CFG)
     cartpole_cfg.prim_path = "/World/Origin.*/Robot"
     cartpole = Articulation(cfg=cartpole_cfg)
 

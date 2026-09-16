@@ -24,6 +24,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils import replace_config
+
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
@@ -105,7 +107,7 @@ def _make_cartpoles(num_envs: int) -> Articulation:
     """Spawn ``num_envs`` cartpoles as a single Articulation."""
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 2.5, 0.0, 0.0))
-    return Articulation(cfg=CARTPOLE_CFG.replace(prim_path="/World/Env_[^/]+/Robot"))
+    return Articulation(cfg=replace_config(CARTPOLE_CFG, prim_path="/World/Env_[^/]+/Robot"))
 
 
 def _read_offsets(asset, rest_type, contact_type) -> tuple[torch.Tensor, torch.Tensor]:

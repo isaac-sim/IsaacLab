@@ -11,6 +11,8 @@ import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
@@ -27,37 +29,37 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     .. _MuJoCo Warp documentation: https://github.com/google-deepmind/mujoco_warp
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mjwarp_manager:NewtonMJWarpManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.mjwarp_manager:NewtonMJWarpManager")
     """Manager class for the MuJoCo Warp solver."""
 
-    solver_type: str = "mujoco_warp"
+    solver_type: str = config_field("mujoco_warp")
     """Solver type. Can be "mujoco_warp"."""
 
-    njmax: int = 300
+    njmax: int = config_field(300)
     """Number of constraints per environment (world)."""
 
-    nconmax: int | None = None
+    nconmax: int | None = config_field(None)
     """Number of contact points per environment (world)."""
 
-    iterations: int = 100
+    iterations: int = config_field(100)
     """Number of solver iterations."""
 
-    ls_iterations: int = 50
+    ls_iterations: int = config_field(50)
     """Number of line search iterations for the solver."""
 
-    solver: str = "newton"
+    solver: str = config_field("newton")
     """Solver type. Can be "cg" or "newton", or their corresponding MuJoCo integer constants."""
 
-    integrator: str = "euler"
+    integrator: str = config_field("euler")
     """Integrator type. Can be "euler", "rk4", or "implicitfast", or their corresponding MuJoCo integer constants."""
 
-    use_mujoco_cpu: bool = False
+    use_mujoco_cpu: bool = config_field(False)
     """Whether to use the pure MuJoCo backend instead of `mujoco_warp`."""
 
-    disable_contacts: bool = False
+    disable_contacts: bool = config_field(False)
     """Whether to disable contact computation in MuJoCo."""
 
-    disable_sensors: bool = False
+    disable_sensors: bool = config_field(False)
     """Whether to disable MuJoCo Warp's internal sensor computation.
 
     This must be ``True`` when :attr:`NewtonCfg.deterministic_mode` requests a
@@ -65,38 +67,38 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     not depend on MuJoCo Warp's internal sensor data.
     """
 
-    default_actuator_gear: float | None = None
+    default_actuator_gear: float | None = config_field(None)
     """Default gear ratio for all actuators."""
 
-    actuator_gears: dict[str, float] | None = None
+    actuator_gears: dict[str, float] | None = config_field(None)
     """Dictionary mapping joint names to specific gear ratios, overriding the `default_actuator_gear`."""
 
-    update_data_interval: int = 1
+    update_data_interval: int = config_field(1)
     """Frequency (in simulation steps) at which to update the MuJoCo Data object from the Newton state.
 
     If 0, Data is never updated after initialization.
     """
 
-    save_to_mjcf: str | None = None
+    save_to_mjcf: str | None = config_field(None)
     """Optional path to save the generated MJCF model file.
 
     If None, the MJCF model is not saved.
     """
 
-    impratio: float = 1.0
+    impratio: float = config_field(1.0)
     """Frictional-to-normal constraint impedance ratio."""
 
-    cone: str = "pyramidal"
+    cone: str = config_field("pyramidal")
     """The type of contact friction cone. Can be "pyramidal" or "elliptic"."""
 
-    ccd_iterations: int = 35
+    ccd_iterations: int = config_field(35)
     """Maximum iterations for convex collision detection (GJK/EPA).
 
     Increase this if you see warnings about ``opt.ccd_iterations`` needing to be increased,
     which typically occurs with complex collision geometries (e.g. multi-finger hands).
     """
 
-    ls_parallel: bool = False
+    ls_parallel: bool = config_field(False)
     """Deprecated parallel line search option.
 
     Setting this to ``True`` emits a :class:`DeprecationWarning` and is ignored.
@@ -104,7 +106,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     iterative line search for performance.
     """
 
-    use_mujoco_contacts: bool = True
+    use_mujoco_contacts: bool = config_field(True)
     """Whether to use MuJoCo's internal contact solver.
 
     If ``True`` (default), MuJoCo handles collision detection and contact resolution internally.
@@ -118,7 +120,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
         :class:`ValueError` because the two collision modes are mutually exclusive.
     """
 
-    tolerance: float = 1e-6
+    tolerance: float = config_field(1e-6)
     """Solver convergence tolerance for the constraint residual.
 
     The solver iterates until the residual drops below this threshold or

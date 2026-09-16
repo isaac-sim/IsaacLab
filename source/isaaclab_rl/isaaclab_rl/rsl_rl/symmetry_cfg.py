@@ -5,11 +5,11 @@
 
 from dataclasses import MISSING, dataclass
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class RslRlSymmetryCfg(ConfigMixin):
+class RslRlSymmetryCfg:
     """Configuration for the symmetry-augmentation in the training.
 
     When :meth:`use_data_augmentation` is True, the :meth:`data_augmentation_func` is used to generate
@@ -25,13 +25,13 @@ class RslRlSymmetryCfg(ConfigMixin):
     For more information, please check the work from :cite:`mittal2024symmetry`.
     """
 
-    use_data_augmentation: bool = False
+    use_data_augmentation: bool = config_field(False)
     """Whether to use symmetry-based data augmentation. Defaults to False."""
 
-    use_mirror_loss: bool = False
+    use_mirror_loss: bool = config_field(False)
     """Whether to use the symmetry-augmentation loss. Defaults to False."""
 
-    data_augmentation_func: callable = MISSING
+    data_augmentation_func: callable = config_field(MISSING)
     """The symmetry data augmentation function.
 
     The function signature should be as follows:
@@ -47,5 +47,5 @@ class RslRlSymmetryCfg(ConfigMixin):
         if their respective inputs are None.
     """
 
-    mirror_loss_coeff: float = 0.0
+    mirror_loss_coeff: float = config_field(0.0)
     """The weight for the symmetry-mirror loss. Defaults to 0.0."""

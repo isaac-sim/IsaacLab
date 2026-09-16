@@ -9,6 +9,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace_config
 
 HEADLESS = True
 
@@ -284,7 +285,7 @@ def generate_multirotor(
     # or simulator not available) fall back to the simulator-free stub so
     # tests can still run and validate behavior without IsaacSim.
     try:
-        multirotor = Multirotor(multirotor_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+        multirotor = Multirotor(replace_config(multirotor_cfg, prim_path="/World/Env_[^/]*/Robot"))
         return multirotor, translations
     except Exception:
         # Determine a reasonable number of thrusters for the stub from the

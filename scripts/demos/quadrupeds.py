@@ -21,6 +21,8 @@
 
 """
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -88,43 +90,43 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     # Origin 1 with Anymal B
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot")
+    anymal_b_cfg = replace_config(ANYMAL_B_CFG, prim_path="/World/Origin1/Robot")
     anymal_b = anymal_b_cfg.class_type(anymal_b_cfg)
 
     # Origin 2 with Anymal C
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    anymal_c_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
+    anymal_c_cfg = replace_config(ANYMAL_C_CFG, prim_path="/World/Origin2/Robot")
     anymal_c = anymal_c_cfg.class_type(anymal_c_cfg)
 
     # Origin 3 with Anymal D
     sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
     # -- Robot
-    anymal_d_cfg = ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot")
+    anymal_d_cfg = replace_config(ANYMAL_D_CFG, prim_path="/World/Origin3/Robot")
     anymal_d = anymal_d_cfg.class_type(anymal_d_cfg)
 
     # Origin 4 with Unitree A1
     sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
-    unitree_a1_cfg = UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot")
+    unitree_a1_cfg = replace_config(UNITREE_A1_CFG, prim_path="/World/Origin4/Robot")
     unitree_a1 = unitree_a1_cfg.class_type(unitree_a1_cfg)
 
     # Origin 5 with Unitree Go1
     sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
     # -- Robot
-    unitree_go1_cfg = UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot")
+    unitree_go1_cfg = replace_config(UNITREE_GO1_CFG, prim_path="/World/Origin5/Robot")
     unitree_go1 = unitree_go1_cfg.class_type(unitree_go1_cfg)
 
     # Origin 6 with Unitree Go2
     sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
     # -- Robot
-    unitree_go2_cfg = UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot")
+    unitree_go2_cfg = replace_config(UNITREE_GO2_CFG, prim_path="/World/Origin6/Robot")
     unitree_go2 = unitree_go2_cfg.class_type(unitree_go2_cfg)
 
     # Origin 7 with Boston Dynamics Spot
     sim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
     # -- Robot
-    spot_cfg = SPOT_CFG.replace(prim_path="/World/Origin7/Robot")
+    spot_cfg = replace_config(SPOT_CFG, prim_path="/World/Origin7/Robot")
     spot = spot_cfg.class_type(spot_cfg)
 
     # return the scene information

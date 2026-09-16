@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     import numpy as np
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class FlatPatchSamplingCfg(ConfigMixin):
+class FlatPatchSamplingCfg:
     """Configuration for sampling flat patches on the sub-terrain.
 
     For a given sub-terrain, this configuration specifies how to sample flat patches on the terrain.
@@ -27,37 +27,37 @@ class FlatPatchSamplingCfg(ConfigMixin):
     Please check the function :meth:`~isaaclab.terrains.utils.find_flat_patches` for more details.
     """
 
-    num_patches: int = MISSING
+    num_patches: int = config_field(MISSING)
     """Number of patches to sample."""
 
-    patch_radius: float | list[float] = MISSING
+    patch_radius: float | list[float] = config_field(MISSING)
     """Radius of the patches.
 
     A list of radii can be provided to check for patches of different sizes. This is useful to deal with
     cases where the terrain may have holes or obstacles in some areas.
     """
 
-    x_range: tuple[float, float] = (-1e6, 1e6)
+    x_range: tuple[float, float] = config_field((-1e6, 1e6))
     """The range of x-coordinates to sample from. Defaults to (-1e6, 1e6).
 
     This range is internally clamped to the size of the terrain mesh.
     """
 
-    y_range: tuple[float, float] = (-1e6, 1e6)
+    y_range: tuple[float, float] = config_field((-1e6, 1e6))
     """The range of y-coordinates to sample from. Defaults to (-1e6, 1e6).
 
     This range is internally clamped to the size of the terrain mesh.
     """
 
-    z_range: tuple[float, float] = (-1e6, 1e6)
+    z_range: tuple[float, float] = config_field((-1e6, 1e6))
     """Allowed range of z-coordinates for the sampled patch. Defaults to (-1e6, 1e6)."""
 
-    max_height_diff: float = MISSING
+    max_height_diff: float = config_field(MISSING)
     """Maximum allowed height difference between the highest and lowest points on the patch."""
 
 
 @dataclass
-class SubTerrainBaseCfg(ConfigMixin):
+class SubTerrainBaseCfg:
     """Base class for terrain configurations.
 
     All the sub-terrain configurations must inherit from this class.
@@ -66,14 +66,14 @@ class SubTerrainBaseCfg(ConfigMixin):
     extend from :math:`(0, 0)` to :math:`(size[0], size[1])`.
     """
 
-    function: Callable[[float, SubTerrainBaseCfg], tuple[list[trimesh.Trimesh], np.ndarray]] = MISSING
+    function: Callable[[float, SubTerrainBaseCfg], tuple[list[trimesh.Trimesh], np.ndarray]] = config_field(MISSING)
     """Function to generate the terrain.
 
     This function must take as input the terrain difficulty and the configuration parameters and
     return a tuple with a list of ``trimesh`` mesh objects and the terrain origin.
     """
 
-    proportion: float = 1.0
+    proportion: float = config_field(1.0)
     """Proportion of the terrain to generate. Defaults to 1.0.
 
     This is used to generate a mix of terrains. The proportion corresponds to the probability of sampling
@@ -82,14 +82,14 @@ class SubTerrainBaseCfg(ConfigMixin):
     is 0.7.
     """
 
-    size: tuple[float, float] = (10.0, 10.0)
+    size: tuple[float, float] = config_field((10.0, 10.0))
     """The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).
 
     In case the :class:`~isaaclab.terrains.TerrainImporterCfg` is used, this parameter gets overridden by
     :attr:`isaaclab.scene.TerrainImporterCfg.size` attribute.
     """
 
-    convert_to_heightfield: bool = False
+    convert_to_heightfield: bool = config_field(False)
     """Whether the sub-terrain should be converted to a heightfield. Defaults to False.
 
     Conversion only happens if this flag is set for ALL sub-terrains, and is currently only supported by
@@ -97,7 +97,7 @@ class SubTerrainBaseCfg(ConfigMixin):
     risers) that a heightfield cannot represent.
     """
 
-    flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None
+    flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = config_field(None)
     """Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,
     in which case no flat patch sampling is performed.
 

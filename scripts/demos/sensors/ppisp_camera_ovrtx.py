@@ -40,6 +40,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
@@ -132,24 +133,28 @@ if args_cli.save_interval < 1:
 class PpispCameraOvrtxSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 
-    env_spacing: float = 20.0
+    env_spacing: float = config_field(20.0)
 
-    input_scene = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Scene",
-        spawn=sim_utils.UsdFileCfg(usd_path=""),
+    input_scene: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Scene",
+            spawn=sim_utils.UsdFileCfg(usd_path=""),
+        )
     )
 
-    anchor = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Anchor",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+    anchor: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Anchor",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.01, 0.01, 0.01),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+        )
     )
 
 

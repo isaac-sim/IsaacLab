@@ -5,13 +5,14 @@
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
@@ -35,26 +36,32 @@ class CartpoleTiledCameraCfg(PresetCfg):
 
     @dataclass
     class BaseCartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "{ENV_REGEX_NS}/Camera"
-        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
-            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
+        prim_path: str = config_field("{ENV_REGEX_NS}/Camera")
+        offset: CameraCfg.OffsetCfg = config_field(
+            CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world")
         )
-        data_types: list[str] = []
-        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        data_types: list[str] = config_field([])
+        spawn: sim_utils.PinholeCameraCfg = config_field(
+            sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+            )
         )
-        width: int = 96
-        height: int = 96
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+        width: int = config_field(96)
+        height: int = config_field(96)
+        renderer_cfg: MultiBackendRendererCfg = config_field(MultiBackendRendererCfg())
 
-    default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
-    depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
-    albedo = BaseCartpoleTiledCameraCfg(data_types=["albedo"])
-    semantic_segmentation = BaseCartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
-    simple_shading_constant_diffuse = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
-    simple_shading_diffuse_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
-    simple_shading_full_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
-    rgb = default
+    default: Any = config_field(BaseCartpoleTiledCameraCfg(data_types=["rgb"]))
+    depth: Any = config_field(BaseCartpoleTiledCameraCfg(data_types=["depth"]))
+    albedo: Any = config_field(BaseCartpoleTiledCameraCfg(data_types=["albedo"]))
+    semantic_segmentation: Any = config_field(BaseCartpoleTiledCameraCfg(data_types=["semantic_segmentation"]))
+    simple_shading_constant_diffuse: Any = config_field(
+        BaseCartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    )
+    simple_shading_diffuse_mdl: Any = config_field(
+        BaseCartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    )
+    simple_shading_full_mdl: Any = config_field(BaseCartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"]))
+    rgb: Any = config_field(default)
 
 
 ##
@@ -66,7 +73,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
 class CartpoleCameraSceneCfg(CartpoleSceneCfg):
     """Cartpole scene with a selectable tiled camera."""
 
-    tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
+    tiled_camera: CartpoleTiledCameraCfg = config_field(CartpoleTiledCameraCfg())
 
 
 ##
@@ -85,59 +92,65 @@ def image_observations_cfg(data_type: str):
     """
 
     @dataclass
-    class ImageObservationsCfg(ConfigMixin):
+    class ImageObservationsCfg:
         @dataclass
         class PolicyCfg(ObsGroup):
-            image = ObsTerm(
-                func=mdp.CameraImageStack,
-                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type},
+            image: Any = config_field(
+                ObsTerm(
+                    func=mdp.CameraImageStack,
+                    params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type},
+                )
             )
 
             def __post_init__(self):
                 self.enable_corruption = False
                 self.concatenate_terms = True
 
-        policy: ObsGroup = PolicyCfg()
-        critic: ObsGroup = ObservationsCfg.PolicyCfg()
+        policy: ObsGroup = config_field(PolicyCfg())
+        critic: ObsGroup = config_field(ObservationsCfg.PolicyCfg())
 
     return ImageObservationsCfg()
 
 
 @dataclass
-class ResNet18ObservationCfg(ConfigMixin):
+class ResNet18ObservationCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class ResNet18FeaturesCameraPolicyCfg(ObsGroup):
         """Observations for policy group with features extracted from RGB images with a frozen ResNet18."""
 
-        image = ObsTerm(
-            func=mdp.image_features,
-            params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "resnet18"},
+        image: Any = config_field(
+            ObsTerm(
+                func=mdp.image_features,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "resnet18"},
+            )
         )
 
-    policy: ObsGroup = ResNet18FeaturesCameraPolicyCfg()
+    policy: ObsGroup = config_field(ResNet18FeaturesCameraPolicyCfg())
 
 
 @dataclass
-class TheiaTinyObservationCfg(ConfigMixin):
+class TheiaTinyObservationCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class TheiaTinyFeaturesCameraPolicyCfg(ObsGroup):
         """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny Transformer"""
 
-        image = ObsTerm(
-            func=mdp.image_features,
-            params={
-                "sensor_cfg": SceneEntityCfg("tiled_camera"),
-                "data_type": "rgb",
-                "model_name": "theia-tiny-patch16-224-cddsv",
-                "model_device": "cuda:0",
-            },
+        image: Any = config_field(
+            ObsTerm(
+                func=mdp.image_features,
+                params={
+                    "sensor_cfg": SceneEntityCfg("tiled_camera"),
+                    "data_type": "rgb",
+                    "model_name": "theia-tiny-patch16-224-cddsv",
+                    "model_device": "cuda:0",
+                },
+            )
         )
 
-    policy: ObsGroup = TheiaTinyFeaturesCameraPolicyCfg()
+    policy: ObsGroup = config_field(TheiaTinyFeaturesCameraPolicyCfg())
 
 
 ##
@@ -159,34 +172,39 @@ class CartpoleCameraEnvCfg(PresetCfg):
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg` -- only the fields that differ are overridden."""
 
-        frame_stack: int = 2
+        frame_stack: int = config_field(2)
         """Number of frames to stack along the channel dimension.
 
         Values less than two disable stacking.
         """
 
         # scene: fewer, more-spaced envs so each camera renders cleanly
-        scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
+        scene: CartpoleCameraSceneCfg = config_field(CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0))
 
         def __post_init__(self):
-            super().__post_init__()
+            if parent_post_init := getattr(super(), "__post_init__", None):
+                parent_post_init()
             # remove ground as it obstructs the camera
             self.scene.ground = None
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
             # visualizer camera settings
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0), lookat=(0.0, 0.0, 0.0))
 
-    rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))
-    depth = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("depth"))
-    albedo = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("albedo"))
-    semantic_segmentation = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("semantic_segmentation"))
-    simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg(
-        observations=image_observations_cfg("simple_shading_constant_diffuse")
+    rgb: Any = config_field(BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb")))
+    depth: Any = config_field(BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("depth")))
+    albedo: Any = config_field(BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("albedo")))
+    semantic_segmentation: Any = config_field(
+        BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("semantic_segmentation"))
     )
-    simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg(
-        observations=image_observations_cfg("simple_shading_diffuse_mdl")
+    simple_shading_constant_diffuse: Any = config_field(
+        BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_constant_diffuse"))
     )
-    simple_shading_full_mdl = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_full_mdl"))
-    resnet18 = BaseCartpoleCameraEnvCfg(observations=ResNet18ObservationCfg())
-    theia_tiny = BaseCartpoleCameraEnvCfg(observations=TheiaTinyObservationCfg())
-    default = rgb
+    simple_shading_diffuse_mdl: Any = config_field(
+        BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_diffuse_mdl"))
+    )
+    simple_shading_full_mdl: Any = config_field(
+        BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_full_mdl"))
+    )
+    resnet18: Any = config_field(BaseCartpoleCameraEnvCfg(observations=ResNet18ObservationCfg()))
+    theia_tiny: Any = config_field(BaseCartpoleCameraEnvCfg(observations=TheiaTinyObservationCfg()))
+    default: Any = config_field(rgb)

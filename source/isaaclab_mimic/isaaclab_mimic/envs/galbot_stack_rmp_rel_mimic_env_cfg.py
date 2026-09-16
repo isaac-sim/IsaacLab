@@ -22,7 +22,8 @@ class RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg(RmpFlowGalbotLeftArmCub
 
     def __post_init__(self):
         # post init of parents
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Override the existing values
         self.datagen_config.name = "demo_src_stack_isaac_lab_task_D0"
@@ -145,7 +146,8 @@ class RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg(RmpFlowGalbotRightArmC
 
     def __post_init__(self):
         # post init of parents
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Override the existing values
         self.datagen_config.name = "demo_src_stack_isaac_lab_task_D0"

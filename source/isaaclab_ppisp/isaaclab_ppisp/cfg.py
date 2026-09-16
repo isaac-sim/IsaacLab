@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -80,7 +80,7 @@ def default_ppisp_inputs() -> dict[str, float | tuple[float, float]]:
 
 
 @dataclass
-class PpispCfg(ConfigMixin):
+class PpispCfg:
     """Configuration for PPISP post-processing.
 
     PPISP inputs are static in IsaacLab. NRE exports store the authoritative
@@ -89,7 +89,7 @@ class PpispCfg(ConfigMixin):
     samples are ignored.
     """
 
-    camera_prim_path: str | None = None
+    camera_prim_path: str | None = config_field(None)
     """Optional USD camera prim path used to import PPISP camera attributes."""
 
     inputs: dict[str, float | tuple[float, float]] = field(default_factory=default_ppisp_inputs)
@@ -107,10 +107,10 @@ class PpispCfg(ConfigMixin):
       frame the image corners sit at ``r^2 = 0.5``.
     """
 
-    controller_prior_exposure: float = 0.0
+    controller_prior_exposure: float = config_field(0.0)
     """Controller prior exposure [EV] used by the native controller path."""
 
-    controller_responsivity: float | None = None
+    controller_responsivity: float | None = config_field(None)
     """Controller feature-extraction responsivity [dimensionless].
 
     When ``None``, the controller uses the static PPISP ``responsivity`` camera
@@ -118,7 +118,7 @@ class PpispCfg(ConfigMixin):
     radiance as the image PPISP transform.
     """
 
-    controller_weights: tuple[float, ...] | None = None
+    controller_weights: tuple[float, ...] | None = config_field(None)
     """Flattened controller weights.
 
     USD imports read these from the camera's ``ppisp:controllerWeights``

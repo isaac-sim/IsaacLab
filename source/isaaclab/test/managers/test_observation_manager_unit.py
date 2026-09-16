@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import ConfigMixin, modifiers
+from isaaclab.utils import config_field, config_to_dict, modifiers, update_config
 
 pytestmark = pytest.mark.unit
 
@@ -71,19 +71,19 @@ class InvalidModifier:
 
 
 @dataclass
-class HistoryObservationsCfg(ConfigMixin):
+class HistoryObservationsCfg:
     """Observation configuration with group-level history."""
 
     @dataclass
     class PolicyCfg(ObservationGroupCfg):
         """Policy observation group configuration."""
 
-        dummy: ObservationTermCfg = ObservationTermCfg(func=dummy_observation)
+        dummy: ObservationTermCfg = config_field(ObservationTermCfg(func=dummy_observation))
 
         def __post_init__(self):
             self.history_length = 5
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 def test_class_modifier_roundtrip_preserves_func_and_params():
@@ -91,7 +91,7 @@ def test_class_modifier_roundtrip_preserves_func_and_params():
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=StatefulBiasModifier, params={"value": 2.0})]
-    cfg.from_dict(cfg.to_dict())
+    update_config(cfg, config_to_dict(cfg))
     term_cfg = cfg.policy.dummy
     assert term_cfg.modifiers is not None
     modifier_cfg = term_cfg.modifiers[0]
@@ -117,7 +117,7 @@ def test_stateless_modifier_cfg_roundtrip_preserves_signature_validation():
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=modifiers.bias, params={"value": 2.0})]
-    cfg.from_dict(cfg.to_dict())
+    update_config(cfg, config_to_dict(cfg))
 
     env = DummyEnv()
     manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
@@ -130,7 +130,7 @@ def test_class_modifier_validates_constructed_instance():
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=InvalidModifier)]
-    cfg.from_dict(cfg.to_dict())
+    update_config(cfg, config_to_dict(cfg))
 
     with pytest.raises(TypeError, match="is not an instance of 'ModifierBase'"):
         ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))

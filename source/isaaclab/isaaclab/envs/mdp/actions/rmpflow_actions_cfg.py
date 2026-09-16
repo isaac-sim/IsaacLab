@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .rmpflow_task_space_actions import RMPFlowAction
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 @dataclass
 class RMPFlowActionCfg(ActionTermCfg):
     @dataclass
-    class OffsetCfg(ConfigMixin):
+    class OffsetCfg:
         """The offset pose from parent frame to child frame.
 
         On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -28,24 +28,24 @@ class RMPFlowActionCfg(ActionTermCfg):
         "panda_hand" frame.
         """
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[RMPFlowAction] | str = "{DIR}.rmpflow_task_space_actions:RMPFlowAction"
+    class_type: type[RMPFlowAction] | str = config_field("{DIR}.rmpflow_task_space_actions:RMPFlowAction")
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
-    body_name: str = MISSING
+    body_name: str = config_field(MISSING)
     """Name of the body or frame for which IK is performed."""
-    body_offset: OffsetCfg | None = None
+    body_offset: OffsetCfg | None = config_field(None)
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    scale: float | tuple[float, ...] = 1.0
+    scale: float | tuple[float, ...] = config_field(1.0)
 
-    controller: RmpFlowControllerCfg = MISSING
+    controller: RmpFlowControllerCfg = config_field(MISSING)
 
-    use_relative_mode: bool = False
+    use_relative_mode: bool = config_field(False)
     """
     Defaults to False.
     If True, then the controller treats the input command as a delta change in the position/pose.

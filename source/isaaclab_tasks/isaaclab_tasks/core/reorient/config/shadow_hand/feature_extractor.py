@@ -12,7 +12,7 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import retrieve_file_path
 
 # Number of output channels for each supported camera data type.
@@ -121,16 +121,16 @@ class FeatureExtractorNetwork(nn.Module):
 
 
 @dataclass
-class FeatureExtractorCfg(ConfigMixin):
+class FeatureExtractorCfg:
     """Configuration for the feature extractor model."""
 
-    train: bool = True
+    train: bool = config_field(True)
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
-    load_checkpoint: bool = False
+    load_checkpoint: bool = config_field(False)
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
-    pretrained_checkpoint: str | None = None
+    pretrained_checkpoint: str | None = config_field(None)
     """Fallback feature-extractor checkpoint to load when no local checkpoint exists.
 
     This may be a local or remote path. :class:`FeatureExtractor` first looks for the latest
@@ -138,10 +138,10 @@ class FeatureExtractorCfg(ConfigMixin):
     Default is None.
     """
 
-    write_image_to_file: bool = False
+    write_image_to_file: bool = config_field(False)
     """If True, the images from the camera sensor are written to file. Default is False."""
 
-    enabled: bool = True
+    enabled: bool = config_field(True)
     """If True, the CNN forward pass is executed each step.
 
     Set to False to bypass the network entirely and return zero embeddings. This is useful

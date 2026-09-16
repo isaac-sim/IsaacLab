@@ -19,16 +19,18 @@ from isaaclab_tasks.contrib.cabinet.config.openarm.cabinet_openarm_env_cfg impor
     FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
 )
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class OpenArmCabinetEnvCfg(CabinetEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set OpenArm as robot
-        self.scene.robot = OPENARM_UNI_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(OPENARM_UNI_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set Actions for the specific robot type (OpenArm)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -49,7 +51,7 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
         # the other frames are the fingers
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/openarm_link0",
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+            visualizer_cfg=replace_config(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/EndEffectorFrameTransformer"),
             debug_vis=False,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

@@ -9,7 +9,7 @@
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from .ray_caster_cfg import RayCasterCfg
 
@@ -22,13 +22,13 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     """Configuration for the multi-mesh ray-cast sensor."""
 
     @dataclass
-    class RaycastTargetCfg(ConfigMixin):
+    class RaycastTargetCfg:
         """Configuration for different ray-cast targets."""
 
-        prim_expr: str = MISSING
+        prim_expr: str = config_field(MISSING)
         """The regex to specify the target prim to ray cast against."""
 
-        is_shared: bool = False
+        is_shared: bool = config_field(False)
         """Whether the target prim is assumed to be the same mesh across all environments. Defaults to False.
 
         If True, only the first mesh is read and then reused for all environments, rather than re-parsed.
@@ -38,23 +38,23 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
             If :attr:`MultiMeshRayCasterCfg.reference_meshes` is False, this flag has no effect.
         """
 
-        merge_prim_meshes: bool = True
+        merge_prim_meshes: bool = config_field(True)
         """Whether to merge the parsed meshes for a prim that contains multiple meshes. Defaults to True.
 
         This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs
         will then refer to the single merged mesh.
         """
 
-        track_mesh_transforms: bool = True
+        track_mesh_transforms: bool = config_field(True)
         """Whether the mesh transformations should be tracked. Defaults to True.
 
         .. note::
             Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
         """
 
-    class_type: type["MultiMeshRayCaster"] | str = "{DIR}.multi_mesh_ray_caster:MultiMeshRayCaster"
+    class_type: type["MultiMeshRayCaster"] | str = config_field("{DIR}.multi_mesh_ray_caster:MultiMeshRayCaster")
 
-    mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
+    mesh_prim_paths: list[str | RaycastTargetCfg] = config_field(MISSING)
     """The list of mesh primitive paths to ray cast against.
 
     If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with
@@ -62,10 +62,10 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     with the default raycaster.
     """
 
-    update_mesh_ids: bool = False
+    update_mesh_ids: bool = config_field(False)
     """Whether to update the mesh ids of the ray hits in the :attr:`data` container."""
 
-    reference_meshes: bool = True
+    reference_meshes: bool = config_field(True)
     """Whether to reference duplicated meshes instead of loading each one separately into memory.
     Defaults to True.
 

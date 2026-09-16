@@ -192,7 +192,7 @@ double-buffered states, no collision pipeline, and no visualizer force input.
 
    from dataclasses import dataclass
 
-   from isaaclab.utils import ConfigMixin
+   from isaaclab.utils import config_field
    from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
 
 

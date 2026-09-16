@@ -19,6 +19,7 @@ from isaaclab.managers import ActionManager, EventManager, ObservationManager, R
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils import validate_config
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
@@ -87,7 +88,7 @@ class ManagerBasedEnv:
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables

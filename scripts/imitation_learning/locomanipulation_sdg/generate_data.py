@@ -9,6 +9,7 @@ import argparse
 import os
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
@@ -143,7 +144,6 @@ import omni.kit.viewport.utility
 import omni.usd
 
 from isaaclab.managers import DatasetExportMode
-from isaaclab.utils import ConfigMixin
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 from isaaclab.utils.seed import configure_seed
@@ -193,28 +193,28 @@ class LocomanipulationSDGDataGenerationState(enum.IntEnum):
 
 
 @dataclass
-class LocomanipulationSDGControlConfig(ConfigMixin):
+class LocomanipulationSDGControlConfig:
     """Configuration for navigation control parameters."""
 
-    angular_gain: float = 2.0
+    angular_gain: float = config_field(2.0)
     """Proportional gain for angular velocity control"""
 
-    linear_gain: float = 1.0
+    linear_gain: float = config_field(1.0)
     """Proportional gain for linear velocity control"""
 
-    linear_max: float = 1.0
+    linear_max: float = config_field(1.0)
     """Maximum allowed linear velocity (m/s)"""
 
-    distance_threshold: float = 0.2
+    distance_threshold: float = config_field(0.2)
     """Distance threshold for state transitions (m)"""
 
-    following_offset: float = 0.6
+    following_offset: float = config_field(0.6)
     """Look-ahead distance for path following (m)"""
 
-    angle_threshold: float = 0.2
+    angle_threshold: float = config_field(0.2)
     """Angular threshold for orientation control (rad)"""
 
-    approach_distance: float = 0.5
+    approach_distance: float = config_field(0.5)
     """Buffer distance from final goal (m)"""
 
 

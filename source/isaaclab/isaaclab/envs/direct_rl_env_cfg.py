@@ -8,13 +8,14 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 if TYPE_CHECKING:
     from isaaclab.devices.openxr import XrCfg
 from dataclasses import dataclass
 
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import SpaceType, ViewerCfg
@@ -22,18 +23,18 @@ from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 @dataclass
-class DirectRLEnvCfg(ConfigMixin):
+class DirectRLEnvCfg:
     """Configuration for an RL environment defined with the direct workflow.
 
     Please refer to the :class:`isaaclab.envs.direct_rl_env.DirectRLEnv` class for more details.
     """
 
     # simulation settings
-    sim: SimulationCfg = SimulationCfg()
+    sim: SimulationCfg = config_field(SimulationCfg())
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
+    ui_window_class_type: type | str | None = config_field("isaaclab.envs.ui.base_env_window:BaseEnvWindow")
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.
@@ -45,7 +46,7 @@ class DirectRLEnvCfg(ConfigMixin):
     """
 
     # general settings
-    seed: int | None = None
+    seed: int | None = config_field(None)
     """The seed for the random number generator. Defaults to None, in which case the seed is not set.
 
     Note:
@@ -53,14 +54,14 @@ class DirectRLEnvCfg(ConfigMixin):
       creation is deterministic and behaves similarly across different runs.
     """
 
-    decimation: int = MISSING
+    decimation: int = config_field(MISSING)
     """Number of control action updates @ sim dt per policy dt.
 
     For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.
     This means that the control action is updated every 10 simulation steps.
     """
 
-    is_finite_horizon: bool = False
+    is_finite_horizon: bool = config_field(False)
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
 
@@ -82,7 +83,7 @@ class DirectRLEnvCfg(ConfigMixin):
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
-    compute_final_obs: bool = False
+    compute_final_obs: bool = config_field(False)
     """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
 
     Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectRLEnv.metadata`), an environment that
@@ -99,7 +100,7 @@ class DirectRLEnvCfg(ConfigMixin):
         Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
     """
 
-    episode_length_s: float = MISSING
+    episode_length_s: float = config_field(MISSING)
     """Duration of an episode (in seconds).
 
     Based on the decimation rate and physics time step, the episode length is calculated as:
@@ -113,19 +114,19 @@ class DirectRLEnvCfg(ConfigMixin):
     """
 
     # environment settings
-    scene: InteractiveSceneCfg = MISSING
+    scene: InteractiveSceneCfg = config_field(MISSING)
     """Scene settings.
 
     Please refer to the :class:`isaaclab.scene.InteractiveSceneCfg` class for more details.
     """
 
-    events: object | None = None
+    events: object | None = config_field(None)
     """Event settings. Defaults to None, in which case no events are applied through the event manager.
 
     Please refer to the :class:`isaaclab.managers.EventManager` class for more details.
     """
 
-    observation_space: SpaceType = MISSING
+    observation_space: SpaceType = config_field(MISSING)
     """Observation space definition.
 
     The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
@@ -148,7 +149,7 @@ class DirectRLEnvCfg(ConfigMixin):
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_observations: int | None = None
+    num_observations: int | None = config_field(None)
     """The dimension of the observation space from each environment instance.
 
     .. warning::
@@ -156,7 +157,7 @@ class DirectRLEnvCfg(ConfigMixin):
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectRLEnvCfg.observation_space` instead.
     """
 
-    state_space: SpaceType | None = None
+    state_space: SpaceType | None = config_field(None)
     """State space definition.
 
     This is useful for asymmetric actor-critic and defines the observation space for the critic.
@@ -181,7 +182,7 @@ class DirectRLEnvCfg(ConfigMixin):
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_states: int | None = None
+    num_states: int | None = config_field(None)
     """The dimension of the state-space from each environment instance.
 
     .. warning::
@@ -189,14 +190,14 @@ class DirectRLEnvCfg(ConfigMixin):
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectRLEnvCfg.state_space` instead.
     """
 
-    observation_noise_model: NoiseModelCfg | None = None
+    observation_noise_model: NoiseModelCfg | None = config_field(None)
     """The noise model to apply to the computed observations from the environment. Default is None,
     which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
-    action_space: SpaceType = MISSING
+    action_space: SpaceType = config_field(MISSING)
     """Action space definition.
 
     The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
@@ -219,7 +220,7 @@ class DirectRLEnvCfg(ConfigMixin):
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_actions: int | None = None
+    num_actions: int | None = config_field(None)
     """The dimension of the action space for each environment.
 
     .. warning::
@@ -227,14 +228,14 @@ class DirectRLEnvCfg(ConfigMixin):
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectRLEnvCfg.action_space` instead.
     """
 
-    action_noise_model: NoiseModelCfg | None = None
+    action_noise_model: NoiseModelCfg | None = config_field(None)
     """The noise model applied to the actions provided to the environment. Default is None,
     which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
-    rerender_on_reset: bool = False
+    rerender_on_reset: bool = config_field(False)
     """Whether a render step is performed again after at least one environment has been reset.
     Defaults to False, which means no render step will be performed after reset.
 
@@ -252,7 +253,7 @@ class DirectRLEnvCfg(ConfigMixin):
         :attr:`num_rerenders_on_reset` to 1 or 0, respectively.
     """
 
-    num_rerenders_on_reset: int = 0
+    num_rerenders_on_reset: int = config_field(0)
     """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed
     after reset.
 
@@ -263,23 +264,23 @@ class DirectRLEnvCfg(ConfigMixin):
       render steps will be performed after each time an environment is reset.
     """
 
-    wait_for_textures: bool = True
+    wait_for_textures: bool = config_field(True)
     """True to wait for assets to be loaded completely, False otherwise. Defaults to True."""
 
-    xr: XrCfg | None = None
+    xr: XrCfg | None = config_field(None)
     """Configuration for viewing and interacting with the environment through an XR device."""
 
-    log_dir: str | None = None
+    log_dir: str | None = config_field(None)
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    video_recorders: list[VideoRecorderCfg] = []
+    video_recorders: list[VideoRecorderCfg] = config_field([])
     """Video recording streams. Each entry records from its configured source independently.
 
     Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
     with a default stream from the active visualizer.
     """
 
-    viewer: ViewerCfg = ViewerCfg()
+    viewer: ViewerCfg = config_field(ViewerCfg())
     """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
     or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
 

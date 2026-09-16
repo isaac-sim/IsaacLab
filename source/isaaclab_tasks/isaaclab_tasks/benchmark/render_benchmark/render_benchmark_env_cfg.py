@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -20,6 +21,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -38,17 +40,19 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
     them without a separate preset per combination.
     """
 
-    newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(solver="newton", integrator="implicitfast", njmax=200, nconmax=70),
-        num_substeps=2,
-        bvh_constructor_geometry=os.getenv("NEWTON_BVH_GEOMETRY", "cubql"),
-        bvh_constructor_gaussian=os.getenv("NEWTON_BVH_GAUSSIAN", "cubql"),
-        bvh_constructor_scene=os.getenv("NEWTON_BVH_SCENE", "sah"),
-        use_cuda_graph=os.getenv("NEWTON_USE_CUDA_GRAPH", "0") == "1",
+    newton_mjwarp: NewtonCfg = config_field(
+        NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(solver="newton", integrator="implicitfast", njmax=200, nconmax=70),
+            num_substeps=2,
+            bvh_constructor_geometry=os.getenv("NEWTON_BVH_GEOMETRY", "cubql"),
+            bvh_constructor_gaussian=os.getenv("NEWTON_BVH_GAUSSIAN", "cubql"),
+            bvh_constructor_scene=os.getenv("NEWTON_BVH_SCENE", "sah"),
+            use_cuda_graph=os.getenv("NEWTON_USE_CUDA_GRAPH", "0") == "1",
+        )
     )
-    isaacsim_physx: PhysxCfg = PhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = newton_mjwarp
+    isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
+    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
+    default: Any = config_field(newton_mjwarp)
 
 
 @dataclass
@@ -65,27 +69,35 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
         is a 180 deg rotation about the ``(-X, 0, +Z)`` axis, aiming the camera at ``(0.4, 0, 0.4)``.
         """
 
-        prim_path: str = "{ENV_REGEX_NS}/Camera"
-        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
-            pos=(2.0, 0.0, 1.5), rot=(-0.296, 0.0, 0.955, 0.0), convention="world"
+        prim_path: str = config_field("{ENV_REGEX_NS}/Camera")
+        offset: CameraCfg.OffsetCfg = config_field(
+            CameraCfg.OffsetCfg(pos=(2.0, 0.0, 1.5), rot=(-0.296, 0.0, 0.955, 0.0), convention="world")
         )
-        data_types: list[str] = []
-        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.05, 50.0)
+        data_types: list[str] = config_field([])
+        spawn: sim_utils.PinholeCameraCfg = config_field(
+            sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.05, 50.0)
+            )
         )
-        width: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
-        height: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
-            newton_renderer=NewtonWarpRendererCfg(enable_shadows=True),
+        width: int = config_field(int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256")))
+        height: int = config_field(int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256")))
+        renderer_cfg: MultiBackendRendererCfg = config_field(
+            MultiBackendRendererCfg(
+                newton_renderer=NewtonWarpRendererCfg(enable_shadows=True),
+            )
         )
 
-    default = BaseRenderBenchmarkCameraCfg(data_types=["rgb"])
-    rgb = default
-    albedo = BaseRenderBenchmarkCameraCfg(data_types=["albedo"])
-    depth = BaseRenderBenchmarkCameraCfg(data_types=["depth"])
-    simple_shading_constant_diffuse = BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_constant_diffuse"])
-    simple_shading_diffuse_mdl = BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_diffuse_mdl"])
-    simple_shading_full_mdl = BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_full_mdl"])
+    default: Any = config_field(BaseRenderBenchmarkCameraCfg(data_types=["rgb"]))
+    rgb: Any = config_field(default)
+    albedo: Any = config_field(BaseRenderBenchmarkCameraCfg(data_types=["albedo"]))
+    depth: Any = config_field(BaseRenderBenchmarkCameraCfg(data_types=["depth"]))
+    simple_shading_constant_diffuse: Any = config_field(
+        BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    )
+    simple_shading_diffuse_mdl: Any = config_field(
+        BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    )
+    simple_shading_full_mdl: Any = config_field(BaseRenderBenchmarkCameraCfg(data_types=["simple_shading_full_mdl"]))
 
 
 @dataclass
@@ -103,111 +115,119 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     default USD orientation.
     """
 
-    decimation: int = 2
-    episode_length_s: float = 60.0
+    decimation: int = config_field(2)
+    episode_length_s: float = config_field(60.0)
 
-    action_space: int = 1
-    observation_space: int = 1
-    state_space: int = 0
+    action_space: int = config_field(1)
+    observation_space: int = config_field(1)
+    state_space: int = config_field(0)
 
-    sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=2, physics=RenderBenchmarkPhysicsCfg())
+    sim: SimulationCfg = config_field(
+        SimulationCfg(dt=1.0 / 120.0, render_interval=2, physics=RenderBenchmarkPhysicsCfg())
+    )
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True))
 
-    tiled_camera: RenderBenchmarkTiledCameraCfg = RenderBenchmarkTiledCameraCfg()
+    tiled_camera: RenderBenchmarkTiledCameraCfg = config_field(RenderBenchmarkTiledCameraCfg())
 
-    articulations: dict[str, ArticulationCfg] = {
-        # High-PD variant so the joints track the sinusoidal targets smoothly.
-        "robot": FRANKA_PANDA_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
-                pos=(1.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 1.0, 0.0),  # 180 deg about Z, xyzw
+    articulations: dict[str, ArticulationCfg] = config_field(
+        {
+            # High-PD variant so the joints track the sinusoidal targets smoothly.
+            "robot": replace_config(
+                FRANKA_PANDA_HIGH_PD_CFG,
+                prim_path="{ENV_REGEX_NS}/Robot",
+                init_state=replace_config(
+                    FRANKA_PANDA_HIGH_PD_CFG.init_state,
+                    pos=(1.0, 0.0, 0.0),
+                    rot=(0.0, 0.0, 1.0, 0.0),  # 180 deg about Z, xyzw
+                ),
             ),
-        ),
-        # Loaded as an ArticulationCfg rather than a static USD reference so its four joints
-        # animate and it clones to every env through the standard Isaac Lab path.
-        "cabinet": ArticulationCfg(
-            prim_path="{ENV_REGEX_NS}/Cabinet",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
-                activate_contact_sensors=False,
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.4),
-                rot=(0.0, 0.0, 0.0, 1.0),  # identity: cabinet's default USD orientation
-                joint_pos={
-                    "door_left_joint": 0.0,
-                    "door_right_joint": 0.0,
-                    "drawer_bottom_joint": 0.0,
-                    "drawer_top_joint": 0.0,
+            # Loaded as an ArticulationCfg rather than a static USD reference so its four joints
+            # animate and it clones to every env through the standard Isaac Lab path.
+            "cabinet": ArticulationCfg(
+                prim_path="{ENV_REGEX_NS}/Cabinet",
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
+                    activate_contact_sensors=False,
+                ),
+                init_state=ArticulationCfg.InitialStateCfg(
+                    pos=(0.0, 0.0, 0.4),
+                    rot=(0.0, 0.0, 0.0, 1.0),  # identity: cabinet's default USD orientation
+                    joint_pos={
+                        "door_left_joint": 0.0,
+                        "door_right_joint": 0.0,
+                        "drawer_bottom_joint": 0.0,
+                        "drawer_top_joint": 0.0,
+                    },
+                ),
+                actuators={
+                    "drawers": ImplicitActuatorCfg(
+                        joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
+                        joint_effort_limit=87.0,
+                        stiffness=10.0,
+                        damping=1.0,
+                    ),
+                    "doors": ImplicitActuatorCfg(
+                        joint_names_expr=["door_left_joint", "door_right_joint"],
+                        joint_effort_limit=87.0,
+                        stiffness=10.0,
+                        damping=2.5,
+                    ),
                 },
             ),
-            actuators={
-                "drawers": ImplicitActuatorCfg(
-                    joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                    joint_effort_limit=87.0,
-                    stiffness=10.0,
-                    damping=1.0,
-                ),
-                "doors": ImplicitActuatorCfg(
-                    joint_names_expr=["door_left_joint", "door_right_joint"],
-                    joint_effort_limit=87.0,
-                    stiffness=10.0,
-                    damping=2.5,
-                ),
-            },
-        ),
-    }
+        }
+    )
     """Articulations spawned into every environment, keyed by scene name."""
 
-    ground_top_z: float = 0.0
+    ground_top_z: float = config_field(0.0)
     """Height of the ground's top surface [m]."""
 
-    ground_size: tuple[float, float] = (50.0, 50.0)
+    ground_size: tuple[float, float] = config_field((50.0, 50.0))
     """Requested extent of the per-environment ground cuboid in XY [m].
 
     Clamped to :attr:`scene.env_spacing` when the cuboid is built, so neighboring environments'
     ground tiles meet at the boundary instead of overlapping.
     """
 
-    ground_thickness: float = 0.1
+    ground_thickness: float = config_field(0.1)
     """Thickness of the ground cuboid along Z [m]."""
 
-    ground_color: tuple[float, float, float] = (0.5, 0.5, 0.5)
+    ground_color: tuple[float, float, float] = config_field((0.5, 0.5, 0.5))
     """Diffuse color of the ground, as linear RGB in ``[0, 1]``."""
 
-    dome_light_intensity: float = 2000.0
+    dome_light_intensity: float = config_field(2000.0)
     """Intensity of the ambient dome light.
 
     Newton's renderer has no tone mapping or ambient defaults of its own, so without this
     unlit surfaces render pure black.
     """
 
-    light_cfg: sim_utils.LightCfg | None = sim_utils.DistantLightCfg(
-        intensity=200.0,
-        exposure=0.0,
-        angle=0.0,
-        color=(1.0, 1.0, 1.0),
-        normalize=True,
+    light_cfg: sim_utils.LightCfg | None = config_field(
+        sim_utils.DistantLightCfg(
+            intensity=200.0,
+            exposure=0.0,
+            angle=0.0,
+            color=(1.0, 1.0, 1.0),
+            normalize=True,
+        )
     )
     """Directional light spawned on top of the ambient dome light, or ``None`` for dome only."""
 
-    light_orientation: tuple[float, float, float, float] = (0.3251, 0.3251, 0.0, 0.8881)
+    light_orientation: tuple[float, float, float, float] = config_field((0.3251, 0.3251, 0.0, 0.8881))
     """Orientation of :attr:`light_cfg` as ``(qx, qy, qz, qw)``.
 
     Rotates a USD ``DistantLight``'s default ``-Z`` onto ``(-0.57735, 0.57735, -0.57735)``, the
     direction Warp's renderer hard-codes, so both renderers light the scene identically.
     """
 
-    joint_animation_amplitude: float = 0.4
+    joint_animation_amplitude: float = config_field(0.4)
     """Peak sinusoidal offset from each joint's default position [m or rad, depending on joint type].
 
     Values at or below zero disable the animation, leaving a static scene.
     """
 
-    joint_animation_freq_hz: float = 0.35
+    joint_animation_freq_hz: float = config_field(0.35)
     """Frequency of the joint animation [Hz]."""
 
-    write_image_to_file: bool = os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1"
+    write_image_to_file: bool = config_field(os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1")
     """Whether to dump each rendered frame to a PNG, for eyeballing renderer output."""

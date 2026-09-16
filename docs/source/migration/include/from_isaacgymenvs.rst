@@ -48,7 +48,7 @@ Below is an example skeleton of a task config class:
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sim import SimulationCfg
    from dataclasses import dataclass
-   from isaaclab.utils import ConfigMixin
+   from isaaclab.utils import config_field
    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
    @dataclass

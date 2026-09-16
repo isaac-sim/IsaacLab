@@ -30,6 +30,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.utils import copy_config
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -432,7 +433,7 @@ def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, ac
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         actuator = actuator_type(
-            cfg.copy(),
+            copy_config(cfg),
             **constructor_kwargs,
             **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0},
         )

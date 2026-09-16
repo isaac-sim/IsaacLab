@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from ..device_base import DeviceCfg
 
 if TYPE_CHECKING:
@@ -20,8 +22,8 @@ if TYPE_CHECKING:
 class Se2GamepadCfg(DeviceCfg):
     """Configuration for SE2 gamepad devices."""
 
-    v_x_sensitivity: float = 1.0
-    v_y_sensitivity: float = 1.0
-    omega_z_sensitivity: float = 1.0
-    dead_zone: float = 0.01
-    class_type: type[Se2Gamepad] | str = "{DIR}.se2_gamepad:Se2Gamepad"
+    v_x_sensitivity: float = config_field(1.0)
+    v_y_sensitivity: float = config_field(1.0)
+    omega_z_sensitivity: float = config_field(1.0)
+    dead_zone: float = config_field(0.01)
+    class_type: type[Se2Gamepad] | str = config_field("{DIR}.se2_gamepad:Se2Gamepad")

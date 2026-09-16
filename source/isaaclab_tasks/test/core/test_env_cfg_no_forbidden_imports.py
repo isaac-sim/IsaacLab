@@ -25,7 +25,7 @@ Remediation patterns
   imported when first accessed.
 * Guard annotation-only imports with ``TYPE_CHECKING``.
 * Store ``class_type`` / ``func`` fields as fully-qualified strings
-  (e.g. ``"isaaclab.assets.articulation:Articulation"``); ``cfg.validate()``
+  (e.g. ``"isaaclab.assets.articulation:Articulation"``); ``validate_config(cfg)``
   resolves them to callables after Kit has launched.
 * Use local ``# noqa: PLC0415`` imports inside functions for Kit-dependent
   symbols that cannot be imported at module level before Kit is running.

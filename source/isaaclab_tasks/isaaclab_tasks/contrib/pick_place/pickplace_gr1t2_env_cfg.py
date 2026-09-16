@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
@@ -32,6 +32,7 @@ from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: ski
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
+from typing import Any
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -280,59 +281,66 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Pick Place Base Scene."""
 
     # Table
-    packing_table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
+    packing_table: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/PackingTable",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            ),
+        )
     )
 
-    object = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[0.0, 0.0, 0.0, 1.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
-            scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        ),
+    object: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[0.0, 0.0, 0.0, 1.0]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+                scale=(0.75, 0.75, 0.75),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            ),
+        )
     )
 
     # Humanoid robot configured for pick-place manipulation tasks
-    robot: ArticulationCfg = GR1T2_HIGH_PD_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0, 0, 0.93),
-            rot=(0.0, 0.0, 0.7071, 0.7071),
-            joint_pos={
-                # right-arm
-                "right_shoulder_pitch_joint": 0.0,
-                "right_shoulder_roll_joint": 0.0,
-                "right_shoulder_yaw_joint": 0.0,
-                "right_elbow_pitch_joint": -1.5708,
-                "right_wrist_yaw_joint": 0.0,
-                "right_wrist_roll_joint": 0.0,
-                "right_wrist_pitch_joint": 0.0,
-                # left-arm
-                "left_shoulder_pitch_joint": 0.0,
-                "left_shoulder_roll_joint": 0.0,
-                "left_shoulder_yaw_joint": 0.0,
-                "left_elbow_pitch_joint": -1.5708,
-                "left_wrist_yaw_joint": 0.0,
-                "left_wrist_roll_joint": 0.0,
-                "left_wrist_pitch_joint": 0.0,
-                # --
-                "head_.*": 0.0,
-                "waist_.*": 0.0,
-                ".*_hip_.*": 0.0,
-                ".*_knee_.*": 0.0,
-                ".*_ankle_.*": 0.0,
-                "R_.*": 0.0,
-                "L_.*": 0.0,
-            },
-            joint_vel={".*": 0.0},
-        ),
+    robot: ArticulationCfg = config_field(
+        replace_config(
+            GR1T2_HIGH_PD_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0, 0, 0.93),
+                rot=(0.0, 0.0, 0.7071, 0.7071),
+                joint_pos={
+                    # right-arm
+                    "right_shoulder_pitch_joint": 0.0,
+                    "right_shoulder_roll_joint": 0.0,
+                    "right_shoulder_yaw_joint": 0.0,
+                    "right_elbow_pitch_joint": -1.5708,
+                    "right_wrist_yaw_joint": 0.0,
+                    "right_wrist_roll_joint": 0.0,
+                    "right_wrist_pitch_joint": 0.0,
+                    # left-arm
+                    "left_shoulder_pitch_joint": 0.0,
+                    "left_shoulder_roll_joint": 0.0,
+                    "left_shoulder_yaw_joint": 0.0,
+                    "left_elbow_pitch_joint": -1.5708,
+                    "left_wrist_yaw_joint": 0.0,
+                    "left_wrist_roll_joint": 0.0,
+                    "left_wrist_pitch_joint": 0.0,
+                    # --
+                    "head_.*": 0.0,
+                    "waist_.*": 0.0,
+                    ".*_hip_.*": 0.0,
+                    ".*_knee_.*": 0.0,
+                    ".*_ankle_.*": 0.0,
+                    "R_.*": 0.0,
+                    "L_.*": 0.0,
+                },
+                joint_vel={".*": 0.0},
+            ),
+        )
     )
 
     # Per-finger contact sensors on all finger links of each hand, filtered against
@@ -340,29 +348,37 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
     # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
     # (``spawn.activate_contact_sensors=True``), so it is not set again here.
-    left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/[^/]*L_(index|middle|ring|pinky|thumb)[^/]*_link",
-        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
-        update_period=0.0,
-        history_length=3,
+    left_hand_contact: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/[^/]*L_(index|middle|ring|pinky|thumb)[^/]*_link",
+            filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+            update_period=0.0,
+            history_length=3,
+        )
     )
-    right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/[^/]*R_(index|middle|ring|pinky|thumb)[^/]*_link",
-        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
-        update_period=0.0,
-        history_length=3,
+    right_hand_contact: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/[^/]*R_(index|middle|ring|pinky|thumb)[^/]*_link",
+            filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+            update_period=0.0,
+            history_length=3,
+        )
     )
 
     # Ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        spawn=GroundPlaneCfg(),
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/GroundPlane",
+            spawn=GroundPlaneCfg(),
+        )
     )
 
     # Lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        )
     )
 
 
@@ -370,10 +386,12 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
     """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
 
-    robot_pov_cam = robot_pov_camera_cfg(
-        parent_prim_path="{ENV_REGEX_NS}/Robot/base_link",
-        offset_pos=(0.11999996, -0.00000233, 0.74674994),
-        offset_rot=(-0.69303199, 0.69304552, -0.14034840, 0.14034565),
+    robot_pov_cam: Any = config_field(
+        robot_pov_camera_cfg(
+            parent_prim_path="{ENV_REGEX_NS}/Robot/base_link",
+            offset_pos=(0.11999996, -0.00000233, 0.74674994),
+            offset_rot=(-0.69303199, 0.69304552, -0.14034840, 0.14034565),
+        )
     )
 
 
@@ -381,144 +399,162 @@ class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
 # MDP settings
 ##
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    upper_body_ik = PinkInverseKinematicsActionCfg(
-        pink_controlled_joint_names=[
-            "left_shoulder_pitch_joint",
-            "left_shoulder_roll_joint",
-            "left_shoulder_yaw_joint",
-            "left_elbow_pitch_joint",
-            "left_wrist_yaw_joint",
-            "left_wrist_roll_joint",
-            "left_wrist_pitch_joint",
-            "right_shoulder_pitch_joint",
-            "right_shoulder_roll_joint",
-            "right_shoulder_yaw_joint",
-            "right_elbow_pitch_joint",
-            "right_wrist_yaw_joint",
-            "right_wrist_roll_joint",
-            "right_wrist_pitch_joint",
-        ],
-        hand_joint_names=[
-            "L_index_proximal_joint",
-            "L_middle_proximal_joint",
-            "L_pinky_proximal_joint",
-            "L_ring_proximal_joint",
-            "L_thumb_proximal_yaw_joint",
-            "R_index_proximal_joint",
-            "R_middle_proximal_joint",
-            "R_pinky_proximal_joint",
-            "R_ring_proximal_joint",
-            "R_thumb_proximal_yaw_joint",
-            "L_index_intermediate_joint",
-            "L_middle_intermediate_joint",
-            "L_pinky_intermediate_joint",
-            "L_ring_intermediate_joint",
-            "L_thumb_proximal_pitch_joint",
-            "R_index_intermediate_joint",
-            "R_middle_intermediate_joint",
-            "R_pinky_intermediate_joint",
-            "R_ring_intermediate_joint",
-            "R_thumb_proximal_pitch_joint",
-            "L_thumb_distal_joint",
-            "R_thumb_distal_joint",
-        ],
-        target_eef_link_names={
-            "left_wrist": "left_hand_pitch_link",
-            "right_wrist": "right_hand_pitch_link",
-        },
-        # the robot in the sim scene we are controlling
-        asset_name="robot",
-        # Configuration for the IK controller
-        # The frames names are the ones present in the URDF file
-        # The urdf has to be generated from the USD that is being used in the scene
-        controller=PinkIKControllerCfg(
-            articulation_name="robot",
-            base_link_name="base_link",
-            num_hand_joints=22,
-            show_ik_warnings=False,
-            # Determines whether Pink IK solver will fail due to a joint limit violation
-            fail_on_joint_limit_violation=False,
-            variable_input_tasks=[
-                FrameTaskCfg(
-                    frame="left_hand_pitch_link",
-                    position_cost=8.0,  # [cost] / [m]
-                    orientation_cost=1.0,  # [cost] / [rad]
-                    lm_damping=12,  # dampening for solver for step jumps
-                    gain=0.5,
-                ),
-                FrameTaskCfg(
-                    frame="right_hand_pitch_link",
-                    position_cost=8.0,  # [cost] / [m]
-                    orientation_cost=1.0,  # [cost] / [rad]
-                    lm_damping=12,  # dampening for solver for step jumps
-                    gain=0.5,
-                ),
-                DampingTaskCfg(
-                    cost=0.5,  # [cost] * [s] / [rad]
-                ),
-                NullSpacePostureTaskCfg(
-                    cost=0.5,
-                    lm_damping=1,
-                    controlled_frames=[
-                        "left_hand_pitch_link",
-                        "right_hand_pitch_link",
-                    ],
-                    controlled_joints=[
-                        "left_shoulder_pitch_joint",
-                        "left_shoulder_roll_joint",
-                        "left_shoulder_yaw_joint",
-                        "left_elbow_pitch_joint",
-                        "right_shoulder_pitch_joint",
-                        "right_shoulder_roll_joint",
-                        "right_shoulder_yaw_joint",
-                        "right_elbow_pitch_joint",
-                        "waist_yaw_joint",
-                        "waist_pitch_joint",
-                        "waist_roll_joint",
-                    ],
-                ),
+    upper_body_ik: Any = config_field(
+        PinkInverseKinematicsActionCfg(
+            pink_controlled_joint_names=[
+                "left_shoulder_pitch_joint",
+                "left_shoulder_roll_joint",
+                "left_shoulder_yaw_joint",
+                "left_elbow_pitch_joint",
+                "left_wrist_yaw_joint",
+                "left_wrist_roll_joint",
+                "left_wrist_pitch_joint",
+                "right_shoulder_pitch_joint",
+                "right_shoulder_roll_joint",
+                "right_shoulder_yaw_joint",
+                "right_elbow_pitch_joint",
+                "right_wrist_yaw_joint",
+                "right_wrist_roll_joint",
+                "right_wrist_pitch_joint",
             ],
-            fixed_input_tasks=[],
-        ),
+            hand_joint_names=[
+                "L_index_proximal_joint",
+                "L_middle_proximal_joint",
+                "L_pinky_proximal_joint",
+                "L_ring_proximal_joint",
+                "L_thumb_proximal_yaw_joint",
+                "R_index_proximal_joint",
+                "R_middle_proximal_joint",
+                "R_pinky_proximal_joint",
+                "R_ring_proximal_joint",
+                "R_thumb_proximal_yaw_joint",
+                "L_index_intermediate_joint",
+                "L_middle_intermediate_joint",
+                "L_pinky_intermediate_joint",
+                "L_ring_intermediate_joint",
+                "L_thumb_proximal_pitch_joint",
+                "R_index_intermediate_joint",
+                "R_middle_intermediate_joint",
+                "R_pinky_intermediate_joint",
+                "R_ring_intermediate_joint",
+                "R_thumb_proximal_pitch_joint",
+                "L_thumb_distal_joint",
+                "R_thumb_distal_joint",
+            ],
+            target_eef_link_names={
+                "left_wrist": "left_hand_pitch_link",
+                "right_wrist": "right_hand_pitch_link",
+            },
+            # the robot in the sim scene we are controlling
+            asset_name="robot",
+            # Configuration for the IK controller
+            # The frames names are the ones present in the URDF file
+            # The urdf has to be generated from the USD that is being used in the scene
+            controller=PinkIKControllerCfg(
+                articulation_name="robot",
+                base_link_name="base_link",
+                num_hand_joints=22,
+                show_ik_warnings=False,
+                # Determines whether Pink IK solver will fail due to a joint limit violation
+                fail_on_joint_limit_violation=False,
+                variable_input_tasks=[
+                    FrameTaskCfg(
+                        frame="left_hand_pitch_link",
+                        position_cost=8.0,  # [cost] / [m]
+                        orientation_cost=1.0,  # [cost] / [rad]
+                        lm_damping=12,  # dampening for solver for step jumps
+                        gain=0.5,
+                    ),
+                    FrameTaskCfg(
+                        frame="right_hand_pitch_link",
+                        position_cost=8.0,  # [cost] / [m]
+                        orientation_cost=1.0,  # [cost] / [rad]
+                        lm_damping=12,  # dampening for solver for step jumps
+                        gain=0.5,
+                    ),
+                    DampingTaskCfg(
+                        cost=0.5,  # [cost] * [s] / [rad]
+                    ),
+                    NullSpacePostureTaskCfg(
+                        cost=0.5,
+                        lm_damping=1,
+                        controlled_frames=[
+                            "left_hand_pitch_link",
+                            "right_hand_pitch_link",
+                        ],
+                        controlled_joints=[
+                            "left_shoulder_pitch_joint",
+                            "left_shoulder_roll_joint",
+                            "left_shoulder_yaw_joint",
+                            "left_elbow_pitch_joint",
+                            "right_shoulder_pitch_joint",
+                            "right_shoulder_roll_joint",
+                            "right_shoulder_yaw_joint",
+                            "right_elbow_pitch_joint",
+                            "waist_yaw_joint",
+                            "waist_pitch_joint",
+                            "waist_roll_joint",
+                        ],
+                    ),
+                ],
+                fixed_input_tasks=[],
+            ),
+        )
     )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp.last_action)
-        robot_joint_pos = ObsTerm(
-            func=base_mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot")},
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        robot_joint_pos: Any = config_field(
+            ObsTerm(
+                func=base_mdp.joint_pos,
+                params={"asset_cfg": SceneEntityCfg("robot")},
+            )
         )
-        robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
-        robot_links_state = ObsTerm(func=mdp.get_all_robot_link_state)
+        robot_root_pos: Any = config_field(
+            ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        )
+        robot_root_rot: Any = config_field(
+            ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        )
+        object_pos: Any = config_field(
+            ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        )
+        object_rot: Any = config_field(
+            ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        )
+        robot_links_state: Any = config_field(ObsTerm(func=mdp.get_all_robot_link_state))
 
-        left_eef_pos = ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"})
-        left_eef_quat = ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"})
-        right_eef_pos = ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"})
-        right_eef_quat = ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"})
+        left_eef_pos: Any = config_field(ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"}))
+        left_eef_quat: Any = config_field(ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"}))
+        right_eef_pos: Any = config_field(ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"}))
+        right_eef_quat: Any = config_field(ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"}))
 
-        hand_joint_state = ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
-        head_joint_state = ObsTerm(
-            func=mdp.get_robot_joint_state,
-            params={"joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+        hand_joint_state: Any = config_field(
+            ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
+        )
+        head_joint_state: Any = config_field(
+            ObsTerm(
+                func=mdp.get_robot_joint_state,
+                params={"joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+            )
         )
 
-        object = ObsTerm(
-            func=mdp.object_obs,
-            params={"left_eef_link_name": "left_hand_roll_link", "right_eef_link_name": "right_hand_roll_link"},
+        object: Any = config_field(
+            ObsTerm(
+                func=mdp.object_obs,
+                params={"left_eef_link_name": "left_hand_roll_link", "right_eef_link_name": "right_hand_roll_link"},
+            )
         )
 
         def __post_init__(self):
@@ -526,7 +562,7 @@ class ObservationsCfg(ConfigMixin):
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
@@ -535,49 +571,57 @@ class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
 
     @dataclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
-        robot_pov_cam = ObsTerm(
-            func=base_mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
-                "data_type": "rgb",
-                "normalize": False,
-                "clone": False,
-            },
+        robot_pov_cam: Any = config_field(
+            ObsTerm(
+                func=base_mdp.image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                    "data_type": "rgb",
+                    "normalize": False,
+                    "clone": False,
+                },
+            )
         )
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
 
-    object_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
+    object_dropping: Any = config_field(
+        DoneTerm(
+            func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
+        )
     )
 
-    success = DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_hand_roll_link"})
+    success: Any = config_field(
+        DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_hand_roll_link"})
+    )
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": [-0.01, 0.01],
-                "y": [-0.01, 0.01],
+    reset_object: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": [-0.01, 0.01],
+                    "y": [-0.01, 0.01],
+                },
+                "velocity_range": {},
+                "asset_cfg": SceneEntityCfg("object"),
             },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
+        )
     )
 
 
@@ -586,63 +630,67 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: PickPlaceGR1T2SceneCfg = config_field(
+        PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    )
     # Basic settings
-    observations: PickPlaceGR1T2ObservationsCfg = PickPlaceGR1T2ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
+    observations: PickPlaceGR1T2ObservationsCfg = config_field(PickPlaceGR1T2ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
     # MDP settings
-    terminations: TerminationsCfg = TerminationsCfg()
-    events = EventCfg()
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: Any = config_field(EventCfg())
 
     # Unused managers
-    commands = None
-    rewards = None
-    curriculum = None
+    commands: Any = config_field(None)
+    rewards: Any = config_field(None)
+    curriculum: Any = config_field(None)
 
     # Temporary directory for URDF files
-    temp_urdf_dir = tempfile.gettempdir()
+    temp_urdf_dir: Any = config_field(tempfile.gettempdir())
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (11), right hand joint pos (11)]
-    idle_action = [
-        -0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        -0.5,
-        0.5,
-        0.5,
-        0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        -0.5,
-        0.5,
-        0.5,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ]
+    idle_action: Any = config_field(
+        [
+            -0.22878,
+            0.2536,
+            1.0953,
+            0.5,
+            -0.5,
+            0.5,
+            0.5,
+            0.22878,
+            0.2536,
+            1.0953,
+            0.5,
+            -0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+    )
 
     def __post_init__(self):
         """Post initialization."""

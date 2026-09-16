@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, RelativeJointPositionAction
+from isaaclab.utils import copy_config
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -59,7 +60,7 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
     cfg: CurriculumGripperPositionActionCfg
 
     def __init__(self, cfg: CurriculumGripperPositionActionCfg, env: ManagerBasedEnv) -> None:
-        binary_cfg = cfg.copy()
+        binary_cfg = copy_config(cfg)
         binary_cfg.open_command_expr = {".*": float(cfg.neutral_position)}
         binary_cfg.close_command_expr = {".*": float(cfg.close_position)}
         super().__init__(binary_cfg, env)

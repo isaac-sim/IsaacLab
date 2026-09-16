@@ -21,6 +21,8 @@
 
 """
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -68,7 +70,7 @@ def main():
         cfg.func("/World/Light", cfg)
 
         # Robots
-        robot_cfg = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
+        robot_cfg = replace_config(CRAZYFLIE_CFG, prim_path="/World/Crazyflie")
         robot_cfg.spawn.func("/World/Crazyflie", robot_cfg.spawn, translation=robot_cfg.init_state.pos)
 
         # create handles for the robots

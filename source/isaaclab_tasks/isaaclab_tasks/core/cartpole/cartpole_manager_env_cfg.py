@@ -25,14 +25,14 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
-
+from typing import Any
 
 ##
 # Physics backend presets
@@ -41,26 +41,30 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 @dataclass
 class CartpolePhysicsCfg(PresetCfg):
-    isaacsim_physx: PhysxCfg = PhysxCfg()
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=5,
-            nconmax=3,
-            cone="pyramidal",
-            impratio=1,
-            integrator="implicitfast",
-        ),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=True,
+    isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
+    ovphysx: OvPhysxCfg = config_field(OvPhysxCfg())
+    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
+    newton_mjwarp: NewtonCfg = config_field(
+        NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=5,
+                nconmax=3,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicitfast",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
     )
-    default: NewtonCfg = newton_mjwarp
-    newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
-        debug_mode=False,
-        use_cuda_graph=True,
+    default: NewtonCfg = config_field(newton_mjwarp)
+    newton_kamino: NewtonCfg = config_field(
+        NewtonCfg(
+            solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
     )
 
 
@@ -74,22 +78,26 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/ground",
+            spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+        )
     )
 
     # cartpole
-    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = config_field(replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # lights
     # rot quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
-    distant_light = AssetBaseCfg(
-        prim_path="/World/DistantLight",
-        init_state=AssetBaseCfg.InitialStateCfg(
-            rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
-        ),
-        spawn=sim_utils.DistantLightCfg(color=(1.0, 1.0, 1.0), intensity=2000.0),
+    distant_light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/DistantLight",
+            init_state=AssetBaseCfg.InitialStateCfg(
+                rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+            ),
+            spawn=sim_utils.DistantLightCfg(color=(1.0, 1.0, 1.0), intensity=2000.0),
+        )
     )
 
 
@@ -99,14 +107,16 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    joint_effort: Any = config_field(
+        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -114,83 +124,95 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+        joint_pos_rel: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel_rel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
     # reset
-    reset_cart_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.5, 0.5),
-        },
+    reset_cart_position: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_offset,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+                "position_range": (-1.0, 1.0),
+                "velocity_range": (-0.5, 0.5),
+            },
+        )
     )
 
-    reset_pole_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
-            "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
-        },
+    reset_pole_position: Any = config_field(
+        EventTerm(
+            func=mdp.reset_joints_by_offset,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+                "position_range": (-0.25 * math.pi, 0.25 * math.pi),
+                "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
+            },
+        )
     )
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Constant running reward
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    alive: Any = config_field(RewTerm(func=mdp.is_alive, weight=1.0))
     # (2) Failure penalty
-    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+    terminating: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-2.0))
     # (3) Primary task: keep pole upright
-    pole_pos = RewTerm(
-        func=mdp.joint_pos_target_l2,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
+    pole_pos: Any = config_field(
+        RewTerm(
+            func=mdp.joint_pos_target_l2,
+            weight=-1.0,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
+        )
     )
     # (4) Shaping tasks: lower cart velocity
-    cart_vel = RewTerm(
-        func=mdp.joint_vel_l1,
-        weight=-0.01,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
+    cart_vel: Any = config_field(
+        RewTerm(
+            func=mdp.joint_vel_l1,
+            weight=-0.01,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
+        )
     )
     # (5) Shaping tasks: lower pole angular velocity
-    pole_vel = RewTerm(
-        func=mdp.joint_vel_l1,
-        weight=-0.005,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
+    pole_vel: Any = config_field(
+        RewTerm(
+            func=mdp.joint_vel_l1,
+            weight=-0.005,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
+        )
     )
     # (6) Success rate tracking (zero-weight, metric only)
-    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
+    success_rate: Any = config_field(RewTerm(func=mdp.survival_success_rate, weight=0.0))
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
     # (1) Time out
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
     # (2) Cart out of bounds
-    cart_out_of_bounds = DoneTerm(
-        func=mdp.joint_pos_out_of_manual_limit,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
+    cart_out_of_bounds: Any = config_field(
+        DoneTerm(
+            func=mdp.joint_pos_out_of_manual_limit,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
+        )
     )
 
 
@@ -204,14 +226,14 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
+    scene: CartpoleSceneCfg = config_field(CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    events: EventCfg = config_field(EventCfg())
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
 
     # Post initialization
     def __post_init__(self) -> None:

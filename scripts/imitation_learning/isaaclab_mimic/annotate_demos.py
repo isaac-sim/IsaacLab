@@ -9,8 +9,10 @@ Script to add mimic annotations to demos to be used as source demos for mimic da
 
 import argparse
 import math
+from typing import Any
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 # Launching Isaac Sim Simulator first.
@@ -132,7 +134,7 @@ class PreStepDatagenInfoRecorder(RecorderTerm):
 class PreStepDatagenInfoRecorderCfg(RecorderTermCfg):
     """Configuration for the datagen info recorder term."""
 
-    class_type: type[RecorderTerm] = PreStepDatagenInfoRecorder
+    class_type: type[RecorderTerm] = config_field(PreStepDatagenInfoRecorder)
 
 
 class PreStepSubtaskStartsObservationsRecorder(RecorderTerm):
@@ -146,7 +148,7 @@ class PreStepSubtaskStartsObservationsRecorder(RecorderTerm):
 class PreStepSubtaskStartsObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the subtask start observations recorder term."""
 
-    class_type: type[RecorderTerm] = PreStepSubtaskStartsObservationsRecorder
+    class_type: type[RecorderTerm] = config_field(PreStepSubtaskStartsObservationsRecorder)
 
 
 class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
@@ -160,16 +162,16 @@ class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
 class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the step subtask terms observation recorder term."""
 
-    class_type: type[RecorderTerm] = PreStepSubtaskTermsObservationsRecorder
+    class_type: type[RecorderTerm] = config_field(PreStepSubtaskTermsObservationsRecorder)
 
 
 @dataclass
 class MimicRecorderManagerCfg(ActionStateRecorderManagerCfg):
     """Mimic specific recorder terms."""
 
-    record_pre_step_datagen_info = PreStepDatagenInfoRecorderCfg()
-    record_pre_step_subtask_start_signals = PreStepSubtaskStartsObservationsRecorderCfg()
-    record_pre_step_subtask_term_signals = PreStepSubtaskTermsObservationsRecorderCfg()
+    record_pre_step_datagen_info: Any = config_field(PreStepDatagenInfoRecorderCfg())
+    record_pre_step_subtask_start_signals: Any = config_field(PreStepSubtaskStartsObservationsRecorderCfg())
+    record_pre_step_subtask_term_signals: Any = config_field(PreStepSubtaskTermsObservationsRecorderCfg())
 
 
 def main():

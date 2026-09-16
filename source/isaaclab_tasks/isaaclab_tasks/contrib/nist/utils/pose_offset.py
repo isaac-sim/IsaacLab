@@ -21,14 +21,14 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
 
 
 @dataclass
-class Offset(ConfigMixin):
+class Offset:
     """A position + quaternion offset relative to an asset root frame.
 
     Args:
@@ -36,8 +36,8 @@ class Offset(ConfigMixin):
         quat: Orientation offset in (x, y, z, w).
     """
 
-    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    quat: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+    quat: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
 
     @property
     def pose(self) -> tuple[float, float, float, float, float, float, float]:

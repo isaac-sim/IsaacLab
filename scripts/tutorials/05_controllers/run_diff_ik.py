@@ -16,6 +16,10 @@ PhysX. This helps perform parallelized computation of the inverse kinematics.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, copy_config, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -62,30 +66,34 @@ class TableTopSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/defaultGroundPlane",
+            spawn=sim_utils.GroundPlaneCfg(),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+        )
     )
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # mount
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
-        ),
+    table: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+            ),
+        )
     )
 
     # articulation
     if args_cli.robot == "franka_panda":
-        robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot = replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "ur10":
-        robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot = replace_config(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     else:
         raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
 
@@ -101,10 +109,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg = copy_config(FRAME_MARKER_CFG)
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
-    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+    ee_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(replace_config(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
 
     # Define goals for the arm (x,y,z,qx,qy,qz,qw)
     ee_goals = [

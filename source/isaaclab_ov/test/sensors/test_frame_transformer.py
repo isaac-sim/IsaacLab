@@ -18,11 +18,14 @@ Run via ``uv run python -m pytest`` (the standard Kit Python entrypoint).
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import pytest
 import scipy.spatial.transform as tf
 import torch
 import warp as wp
+
+from isaaclab.utils import config_field, replace_config
 
 # OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
@@ -133,21 +136,23 @@ def euler_rpy_apply(rpy, xyz, degrees=False):
 class _SceneCfg(InteractiveSceneCfg):
     """Scene cfg shared across FrameTransformer tests; ``frame_transformer`` is filled per-test."""
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    frame_transformer: FrameTransformerCfg = None  # filled per-test
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    frame_transformer: FrameTransformerCfg = config_field(None)  # filled per-test
 
     # block
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
+    cube: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
+        )
     )
 
 
@@ -791,10 +796,10 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
         class MultiRobotSceneCfg(InteractiveSceneCfg):
             """Scene with two robots having bodies with same names."""
 
-            terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+            terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
             # Frame transformer will be set after config creation (needs source_robot parameter)
-            frame_transformer: FrameTransformerCfg = None  # type: ignore
+            frame_transformer: FrameTransformerCfg = config_field(None)  # type: ignore
 
         # Use multiple envs for env patterns, single env for direct paths
         num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1
@@ -802,10 +807,11 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
 
         # Create scene config with appropriate prim paths
         scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
-        scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
-        scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+        scene_cfg.robot = replace_config(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
+        scene_cfg.robot_1 = replace_config(
+            ANYMAL_C_CFG,
             prim_path=f"{path_prefix}/Robot_1",
-            init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+            init_state=replace_config(ANYMAL_C_CFG.init_state, pos=(2.0, 0.0, 0.6)),
         )
 
         # Frame transformer tracking same-named bodies from both robots

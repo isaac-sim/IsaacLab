@@ -14,6 +14,8 @@ When running this script make sure the --device flag is set to cpu. This is beca
 currently only supported on the CPU.
 """
 
+from isaaclab.utils import copy_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -67,7 +69,7 @@ def design_scene():
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation: First we define the robot config
-    pick_and_place_robot_cfg = PICK_AND_PLACE_CFG.copy()
+    pick_and_place_robot_cfg = copy_config(PICK_AND_PLACE_CFG)
     pick_and_place_robot_cfg.prim_path = "/World/Origin.*/Robot"
     pick_and_place_robot = Articulation(cfg=pick_and_place_robot_cfg)
 

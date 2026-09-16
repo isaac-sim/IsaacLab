@@ -5,6 +5,8 @@
 
 """Tests to verify contact sensor functionality on rigid object prims."""
 
+from isaaclab.utils import config_field, replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -59,9 +61,9 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
     This contains the expected values in the configuration to simplify test fixtures.
     """
 
-    contact_pose: torch.Tensor = MISSING
+    contact_pose: torch.Tensor = config_field(MISSING)
     """6D pose of the rigid object under test when it is in contact with the ground surface."""
-    non_contact_pose: torch.Tensor = MISSING
+    non_contact_pose: torch.Tensor = config_field(MISSING)
     """6D pose of the rigid object under test when it is not in contact."""
 
 
@@ -69,22 +71,22 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
 class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Configuration of the scene used by the contact sensor test."""
 
-    terrain: TerrainImporterCfg = MISSING
+    terrain: TerrainImporterCfg = config_field(MISSING)
     """Terrain configuration within the scene."""
 
-    shape: ContactSensorRigidObjectCfg = MISSING
+    shape: ContactSensorRigidObjectCfg = config_field(MISSING)
     """RigidObject contact prim configuration."""
 
-    contact_sensor: ContactSensorCfg = MISSING
+    contact_sensor: ContactSensorCfg = config_field(MISSING)
     """Contact sensor configuration."""
 
-    shape_2: ContactSensorRigidObjectCfg = None
+    shape_2: ContactSensorRigidObjectCfg = config_field(None)
     """RigidObject contact prim configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second prim used for testing contact filtering.
     """
 
-    contact_sensor_2: ContactSensorCfg = None
+    contact_sensor_2: ContactSensorCfg = config_field(None)
     """Contact sensor configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second contact sensor used for testing contact filtering.
@@ -499,12 +501,12 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -650,10 +652,10 @@ def test_no_contact_reporting(setup_simulation):
         scene_cfg = ContactSensorSceneCfg(num_envs=2, env_spacing=1.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -714,8 +716,8 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, 1.0)
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
@@ -773,8 +775,8 @@ def test_contact_history_updates_at_sensor_period(
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             update_period=update_period_steps * sim_dt,
@@ -877,7 +879,7 @@ def test_sensor_print(setup_simulation):
         sim._app_control_on_stop_handle = None
         # Spawn things into stage
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = CUBE_CFG
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
@@ -902,7 +904,7 @@ def test_contact_sensor_threshold(setup_simulation, device):
         sim._app_control_on_stop_handle = None
         # Spawn things into stage
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = CUBE_CFG
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,

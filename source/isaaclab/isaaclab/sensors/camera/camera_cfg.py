@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
@@ -37,16 +37,16 @@ class CameraCfg(SensorBaseCfg):
     """Configuration for a camera sensor."""
 
     @dataclass
-    class OffsetCfg(ConfigMixin):
+    class OffsetCfg:
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
 
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-        convention: Literal["opengl", "ros", "world"] = "ros"
+        convention: Literal["opengl", "ros", "world"] = config_field("ros")
         """The convention in which the frame offset is applied. Defaults to "ros".
 
         - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera)
@@ -56,9 +56,9 @@ class CameraCfg(SensorBaseCfg):
 
         """
 
-    class_type: type[Camera] | str = "{DIR}.camera:Camera"
+    class_type: type[Camera] | str = config_field("{DIR}.camera:Camera")
 
-    offset: OffsetCfg = OffsetCfg()
+    offset: OffsetCfg = config_field(OffsetCfg())
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity.
 
     .. note::
@@ -66,14 +66,14 @@ class CameraCfg(SensorBaseCfg):
         camera at path ``/World/envs/env_0/Robot/Camera`` is ``/World/envs/env_0/Robot``.
     """
 
-    spawn: PinholeCameraCfg | FisheyeCameraCfg | None = MISSING
+    spawn: PinholeCameraCfg | FisheyeCameraCfg | None = config_field(MISSING)
     """Spawn configuration for the asset.
 
     If None, then the prim is not spawned by the asset. Instead, it is assumed that the
     asset is already present in the scene.
     """
 
-    depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
+    depth_clipping_behavior: Literal["max", "zero", "none"] = config_field("none")
     """Clipping behavior for the camera for values exceed the maximum value. Defaults to "none".
 
     - ``"max"``: Values are clipped to the maximum value.
@@ -86,19 +86,19 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
-    data_types: list[str] = ["rgb"]
+    data_types: list[str] = config_field(["rgb"])
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"].
 
     Please refer to the :class:`Camera` class for a list of available data types.
     """
 
-    width: int = MISSING
+    width: int = config_field(MISSING)
     """Width of the image in pixels."""
 
-    height: int = MISSING
+    height: int = config_field(MISSING)
     """Height of the image in pixels."""
 
-    update_latest_camera_pose: bool = False
+    update_latest_camera_pose: bool = config_field(False)
     """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
 
     If True, the latest camera pose is updated in the camera's data which will slow down performance
@@ -106,7 +106,7 @@ class CameraCfg(SensorBaseCfg):
     If False, the pose of the camera during initialization is returned.
     """
 
-    semantic_filter: str | list[str] = "*:*"
+    semantic_filter: str | list[str] = config_field("*:*")
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 
     If a string, it should be a disjunctive normal form of (semantic type, labels). For examples:
@@ -132,7 +132,7 @@ class CameraCfg(SensorBaseCfg):
         :attr:`renderer_cfg` instead.
     """
 
-    colorize_semantic_segmentation: bool = True
+    colorize_semantic_segmentation: bool = config_field(True)
     """Whether to colorize the semantic segmentation images. Defaults to True.
 
     If True, semantic segmentation is converted to an image where semantic IDs are mapped to colors
@@ -144,7 +144,7 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
-    colorize_instance_id_segmentation: bool = True
+    colorize_instance_id_segmentation: bool = config_field(True)
     """Whether to colorize the instance ID segmentation images. Defaults to True.
 
     If True, instance id segmentation is converted to an image where instance IDs are mapped to colors.
@@ -156,7 +156,7 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
-    colorize_instance_segmentation: bool = True
+    colorize_instance_segmentation: bool = config_field(True)
     """Whether to colorize the instance ID segmentation images. Defaults to True.
 
     If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
@@ -168,7 +168,7 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
-    semantic_segmentation_mapping: dict = {}
+    semantic_segmentation_mapping: dict = config_field({})
     """Dictionary mapping semantics to specific colours
 
     Eg.
@@ -190,7 +190,7 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
-    background_color: tuple[float, float, float] | None = None
+    background_color: tuple[float, float, float] | None = config_field(None)
     """Background color for the camera as normalized RGB floats ``(red, green, blue)`` in ``[0, 1]``.
 
     When set, pixels that miss all geometry are filled with this solid color.
@@ -200,7 +200,7 @@ class CameraCfg(SensorBaseCfg):
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 
-    isp_cfg: Any | CameraISPMode | None = None
+    isp_cfg: Any | CameraISPMode | None = config_field(None)
     """Post-render ISP cfg applied by the renderer backend after it produces HDR output.
 
     Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a

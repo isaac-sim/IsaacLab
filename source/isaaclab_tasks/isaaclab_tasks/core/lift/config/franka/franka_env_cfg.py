@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -13,7 +14,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_assets.robots import FRANKA_PANDA_CFG
@@ -24,7 +25,7 @@ from ... import mdp
 # Lift runs the menagerie-converted asset (identified inertials, authored finger
 # coupling) with actuators calibrated for it; the stock FRANKA_PANDA_CFG stays on the
 # legacy asset so the upstream franka tasks keep their demos and baselines.
-FRANKA_PANDA_LIFT_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_LIFT_CFG = copy_config(FRANKA_PANDA_CFG)
 FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # Inspired by libfranka's joint_impedance_control.cpp. ``actuator_velocity_limit``
@@ -82,10 +83,11 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != THUMB
 class FrankaSceneCfg(lift.SceneCfg):
     """Franka scene for the Lift and Reorient tasks."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_LIFT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = config_field(replace_config(FRANKA_PANDA_LIFT_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.robot.spawn.activate_contact_sensors = True
         # the converted menagerie asset already authors the finger-coupling mimic in its
         # physics payload; re-enable _spawn_franka_with_finger_equality only for assets
@@ -122,7 +124,8 @@ class StateObservationCfg(lift.ObservationsCfg):
     """State observations for the Franka lift tasks."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.proprio.contact = ObsTerm(
             func=mdp.fingers_contact_force_b,
             params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
@@ -132,26 +135,31 @@ class StateObservationCfg(lift.ObservationsCfg):
 
 
 @dataclass
-class FrankaRelJointPosActionCfg(ConfigMixin):
-    action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+class FrankaRelJointPosActionCfg:
+    action: Any = config_field(mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1))
 
 
 @dataclass
 class FrankaReorientRewardCfg(lift.RewardsCfg):
-    good_finger_contact = RewTerm(
-        func=mdp.contacts,
-        weight=0.75,
-        params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
+    good_finger_contact: Any = config_field(
+        RewTerm(
+            func=mdp.contacts,
+            weight=0.75,
+            params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
+        )
     )
 
-    contact_count = RewTerm(
-        func=mdp.contact_count,
-        weight=0.1,
-        params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
+    contact_count: Any = config_field(
+        RewTerm(
+            func=mdp.contact_count,
+            weight=0.1,
+            params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
+        )
     )
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=".*finger")
         self.fingers_to_object.params["thumb_name"] = THUMB_SENSOR
         self.fingers_to_object.params["finger_names"] = FINGER_SENSORS
@@ -171,18 +179,20 @@ class FrankaEventCfg(lift.EventCfg):
     # closing speed = kp * action_scale / kd; kd range derived for 0.2 .. 0.01 m/s so it
     # tracks kp/base-kd/scale changes. Driven finger only: damping on the passive mimic
     # joint drags the pair asymmetrically.
-    gripper_closing_speed = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint1"),
-            "damping_distribution_params": (
-                0.0,
-                FRANKA_PANDA_LIFT_CFG.actuators["panda_hand"].stiffness * 0.1 / 0.01
-                - FRANKA_PANDA_LIFT_CFG.actuators["panda_hand"].damping,
-            ),
-            "operation": "add",
-        },
+    gripper_closing_speed: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_actuator_gains,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint1"),
+                "damping_distribution_params": (
+                    0.0,
+                    FRANKA_PANDA_LIFT_CFG.actuators["panda_hand"].stiffness * 0.1 / 0.01
+                    - FRANKA_PANDA_LIFT_CFG.actuators["panda_hand"].damping,
+                ),
+                "operation": "add",
+            },
+        )
     )
 
     def __post_init__(self):
@@ -214,15 +224,16 @@ class FrankaEventCfg(lift.EventCfg):
 
 
 @dataclass
-class FrankaMixinCfg(ConfigMixin):
-    scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
-    rewards: FrankaReorientRewardCfg = FrankaReorientRewardCfg()
-    observations: StateObservationCfg = StateObservationCfg()
-    actions: FrankaRelJointPosActionCfg = FrankaRelJointPosActionCfg()
-    events: FrankaEventCfg = FrankaEventCfg()
+class FrankaMixinCfg:
+    scene: FrankaSceneCfg = config_field(FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True))
+    rewards: FrankaReorientRewardCfg = config_field(FrankaReorientRewardCfg())
+    observations: StateObservationCfg = config_field(StateObservationCfg())
+    actions: FrankaRelJointPosActionCfg = config_field(FrankaRelJointPosActionCfg())
+    events: FrankaEventCfg = config_field(FrankaEventCfg())
 
     def __post_init__(self: lift.ReorientEnvCfg):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.commands.object_pose.body_name = "panda_hand"
         # Franka base is rotated 180 deg about z, so the workspace mirrors to positive x.
         self.commands.object_pose.ranges.pos_x = (0.3, 0.7)

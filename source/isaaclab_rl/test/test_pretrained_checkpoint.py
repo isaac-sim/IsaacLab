@@ -16,24 +16,24 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from isaaclab_rl.utils import pretrained_checkpoint
 
 
 @dataclass
-class _CameraCfg(ConfigMixin):
+class _CameraCfg:
     """Minimal camera config for renderer-backend discovery."""
 
-    renderer_cfg: IsaacRtxRendererCfg | NewtonWarpRendererCfg = IsaacRtxRendererCfg()
+    renderer_cfg: IsaacRtxRendererCfg | NewtonWarpRendererCfg = config_field(IsaacRtxRendererCfg())
 
 
 @dataclass
-class _EnvCfg(ConfigMixin):
+class _EnvCfg:
     """Minimal resolved environment config for backend discovery."""
 
-    sim: SimulationCfg = SimulationCfg(physics=PhysxCfg())
-    camera: _CameraCfg | None = None
+    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysxCfg()))
+    camera: _CameraCfg | None = config_field(None)
 
 
 def test_get_pretrained_checkpoint_filename_includes_backends():

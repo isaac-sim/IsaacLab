@@ -15,7 +15,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -35,56 +35,65 @@ from isaaclab_assets.robots.universal_robots import (  # isort: skip
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from typing import Any
 
 
 @dataclass
-class EventCfgLongSuction(ConfigMixin):
+class EventCfgLongSuction:
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="reset",
-        params={
-            "default_pose": [0.0, -1.5707, 1.5707, -1.5707, -1.5707, 0.0],
-        },
+    init_franka_arm_pose: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.set_default_joint_pose,
+            mode="reset",
+            params={
+                "default_pose": [0.0, -1.5707, 1.5707, -1.5707, -1.5707, 0.0],
+            },
+        )
     )
 
-    randomize_franka_joint_state = EventTerm(
-        func=franka_stack_events.randomize_joint_by_gaussian_offset,
-        mode="reset",
-        params={
-            "mean": 0.0,
-            "std": 0.02,
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
+    randomize_franka_joint_state: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_joint_by_gaussian_offset,
+            mode="reset",
+            params={
+                "mean": 0.0,
+                "std": 0.02,
+                "asset_cfg": SceneEntityCfg("robot"),
+            },
+        )
     )
 
-    randomize_cube_positions = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
-            "min_separation": 0.1,
-            "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
-        },
+    randomize_cube_positions: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
+                "min_separation": 0.1,
+                "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
+            },
+        )
     )
 
 
 @dataclass
 class UR10CubeStackEnvCfg(StackEnvCfg):
     # Rigid body properties of each cube
-    cube_properties = RigidBodyPropertiesCfg(
-        solver_position_iteration_count=16,
-        solver_velocity_iteration_count=1,
-        max_angular_velocity=1000.0,
-        max_linear_velocity=1000.0,
-        max_depenetration_velocity=5.0,
-        disable_gravity=False,
+    cube_properties: Any = config_field(
+        RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=1,
+            max_angular_velocity=1000.0,
+            max_linear_velocity=1000.0,
+            max_depenetration_velocity=5.0,
+            disable_gravity=False,
+        )
     )
-    cube_scale = (1.0, 1.0, 1.0)
+    cube_scale: Any = config_field((1.0, 1.0, 1.0))
     # Listens to the required transforms
-    marker_cfg = FRAME_MARKER_CFG.copy()
+    marker_cfg: Any = config_field(copy_config(FRAME_MARKER_CFG))
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     marker_cfg.prim_path = "/Visuals/FrameTransformer"
 
@@ -95,7 +104,8 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set events
         self.events = EventCfgLongSuction()
@@ -153,7 +163,8 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Suction grippers currently require CPU simulation
         self.sim.device = "cpu"
@@ -162,7 +173,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         self.events = EventCfgLongSuction()
 
         # Set UR10 as robot
-        self.scene.robot = UR10_LONG_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(UR10_LONG_SUCTION_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(
@@ -193,13 +204,14 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
 class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Suction grippers currently require CPU simulation
         self.sim.device = "cpu"
 
         # Set UR10 as robot
-        self.scene.robot = UR10_SHORT_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(UR10_SHORT_SUCTION_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import ClassVar, Literal
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
@@ -108,7 +108,7 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
 
 
 @dataclass
-class SchemaFragment(ConfigMixin):
+class SchemaFragment:
     """Base for a single-namespace USD-schema config fragment.
 
     Each subclass mirrors exactly one USD applied schema. The fragment carries class-level
@@ -136,7 +136,7 @@ class SchemaFragment(ConfigMixin):
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
 
-    func: Callable | str = "isaaclab.sim.schemas:apply_namespaced"
+    func: Callable | str = config_field("isaaclab.sim.schemas:apply_namespaced")
     """Callable (or its ``module:attr`` import string) that applies this fragment to a prim.
 
     Resolved via :func:`~isaaclab.utils.string.string_to_callable` when a string. The callable
@@ -164,10 +164,10 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = None  # RigidBodyAPI applied by the family anchor
 
-    rigid_body_enabled: bool | None = None
+    rigid_body_enabled: bool | None = config_field(None)
     """Whether to enable or disable the rigid body."""
 
-    kinematic_enabled: bool | None = None
+    kinematic_enabled: bool | None = config_field(None)
     """Determines whether the body is kinematic or not.
 
     A kinematic body is moved through animated or user-defined poses; the simulation still
@@ -219,7 +219,7 @@ class MeshCollisionFragment(SchemaFragment):
     # Mesh-collision fragments author the shared ``physics:approximation`` token in addition to their
     # own namespaced cooking attrs, so they dispatch through :func:`~isaaclab.sim.schemas.apply_mesh_collision`
     # (not the generic :func:`~isaaclab.sim.schemas.apply_namespaced`). See that func for the token coupling.
-    func: Callable | str = "isaaclab.sim.schemas:apply_mesh_collision"
+    func: Callable | str = config_field("isaaclab.sim.schemas:apply_mesh_collision")
 
 
 @dataclass
@@ -264,7 +264,7 @@ class UsdPhysicsCollisionCfg(CollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = None  # CollisionAPI applied by the family anchor
 
-    collision_enabled: bool | None = None
+    collision_enabled: bool | None = config_field(None)
     """Whether to enable or disable collisions.
 
     Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
@@ -295,14 +295,14 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
 
-    func: Callable | str = "isaaclab.sim.schemas:apply_drive"
+    func: Callable | str = config_field("isaaclab.sim.schemas:apply_drive")
 
     def __post_init__(self):
         # Deprecation alias: ``max_effort`` -> ``max_force`` (the USD attr is ``maxForce``).
         # Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
         _deprecate_field_alias(self, "max_effort", "max_force")
 
-    drive_type: Literal["force", "acceleration"] | None = None
+    drive_type: Literal["force", "acceleration"] | None = config_field(None)
     """Joint drive type to apply.
 
     If the drive type is ``"force"``, then the joint is driven by a force. If the drive type is
@@ -311,13 +311,13 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
     inline carve-out from the snake-to-camel convention).
     """
 
-    max_force: float | None = None
+    max_force: float | None = config_field(None)
     """Maximum force/torque that can be applied to the joint [N for linear joints, N·m for angular joints].
 
     Written to ``drive:<inst>:physics:maxForce`` via :class:`UsdPhysics.DriveAPI`.
     """
 
-    max_effort: float | None = None
+    max_effort: float | None = config_field(None)
     """Deprecated alias for :attr:`max_force`.
 
     .. deprecated:: 4.6.25
@@ -327,7 +327,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
         in 4.0.
     """
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Stiffness of the joint drive.
 
     The unit depends on the joint model:
@@ -339,7 +339,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
     being written to ``drive:angular:physics:stiffness``.
     """
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """Damping of the joint drive.
 
     The unit depends on the joint model:
@@ -375,7 +375,7 @@ class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = None  # MeshCollisionAPI applied by the family anchor
 
-    mesh_approximation_name: str = "none"
+    mesh_approximation_name: str = config_field("none")
     """Name of mesh collision approximation method. Default: "none".
 
     Writes the ``physics:approximation`` token via :class:`UsdPhysics.MeshCollisionAPI`.
@@ -384,7 +384,7 @@ class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
 
 
 @dataclass
-class ArticulationRootBaseCfg(ConfigMixin):
+class ArticulationRootBaseCfg:
     """Solver-common properties to apply to the root of an articulation.
 
     Carries :attr:`fix_root_link` (writer-side; materializes a
@@ -418,7 +418,7 @@ class ArticulationRootBaseCfg(ConfigMixin):
         "PhysxArticulationAPI": ("physxArticulation", ["articulation_enabled"]),
     }
 
-    articulation_enabled: bool | None = None
+    articulation_enabled: bool | None = config_field(None)
     """Whether to enable or disable the articulation.
 
     PhysX honors this per-articulation at sim time via
@@ -436,7 +436,7 @@ class ArticulationRootBaseCfg(ConfigMixin):
     honor it.
     """
 
-    fix_root_link: bool | None = None
+    fix_root_link: bool | None = config_field(None)
     """Whether to fix the root link of the articulation.
 
     * If set to None, the root link is not modified.
@@ -451,7 +451,7 @@ class ArticulationRootBaseCfg(ConfigMixin):
 
 
 @dataclass
-class RigidBodyBaseCfg(ConfigMixin):
+class RigidBodyBaseCfg:
     """Solver-common properties to apply to a rigid body.
 
     Contains properties from the `UsdPhysics.RigidBodyAPI`_ that are common across all
@@ -483,10 +483,10 @@ class RigidBodyBaseCfg(ConfigMixin):
         "PhysxRigidBodyAPI": ("physxRigidBody", ["disable_gravity"]),
     }
 
-    rigid_body_enabled: bool | None = None
+    rigid_body_enabled: bool | None = config_field(None)
     """Whether to enable or disable the rigid body."""
 
-    kinematic_enabled: bool | None = None
+    kinematic_enabled: bool | None = config_field(None)
     """Determines whether the body is kinematic or not.
 
     A kinematic body is a body that is moved through animated poses or through user defined poses. The simulation
@@ -495,7 +495,7 @@ class RigidBodyBaseCfg(ConfigMixin):
     For more information on kinematic bodies, please refer to the `documentation <https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies>`_.
     """
 
-    disable_gravity: bool | None = None
+    disable_gravity: bool | None = config_field(None)
     """Disable gravity for the body.
 
     PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True
@@ -517,7 +517,7 @@ class RigidBodyBaseCfg(ConfigMixin):
 
 
 @dataclass
-class CollisionBaseCfg(ConfigMixin):
+class CollisionBaseCfg:
     """Solver-common properties to apply to colliders.
 
     Contains :attr:`collision_enabled` from the `UsdPhysics.CollisionAPI`_ and the
@@ -550,13 +550,13 @@ class CollisionBaseCfg(ConfigMixin):
         "PhysxCollisionAPI": ("physxCollision", ["contact_offset", "rest_offset"]),
     }
 
-    collision_enabled: bool | None = None
+    collision_enabled: bool | None = config_field(None)
     """Whether to enable or disable collisions.
 
     Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
     """
 
-    contact_offset: float | None = None
+    contact_offset: float | None = config_field(None)
     """Contact offset for the collision shape [m].
 
     The collision detector generates contact points as soon as two shapes get closer than the sum of their
@@ -567,7 +567,7 @@ class CollisionBaseCfg(ConfigMixin):
     attribute via its PhysX-bridge resolver.
     """
 
-    rest_offset: float | None = None
+    rest_offset: float | None = config_field(None)
     """Rest offset for the collision shape [m].
 
     The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
@@ -578,7 +578,7 @@ class CollisionBaseCfg(ConfigMixin):
     attribute via its PhysX-bridge resolver.
     """
 
-    mesh_collision_property: MeshCollisionBaseCfg | None = None
+    mesh_collision_property: MeshCollisionBaseCfg | None = config_field(None)
     """Optional mesh-collision approximation to author on this collider.
 
     When set, it is dispatched to :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties`
@@ -591,7 +591,7 @@ class CollisionBaseCfg(ConfigMixin):
 
 
 @dataclass
-class MassPropertiesCfg(ConfigMixin):
+class MassPropertiesCfg:
     """Properties to define explicit mass properties of a rigid body.
 
     See :meth:`modify_mass_properties` for more information.
@@ -608,14 +608,14 @@ class MassPropertiesCfg(ConfigMixin):
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    mass: float | None = None
+    mass: float | None = config_field(None)
     """The mass of the rigid body (in kg).
 
     Note:
         If non-zero, the mass is ignored and the density is used to compute the mass.
     """
 
-    density: float | None = None
+    density: float | None = config_field(None)
     """The density of the rigid body (in kg/m^3).
 
     The density indirectly defines the mass of the rigid body. It is generally computed using the collision
@@ -648,7 +648,7 @@ class MassCfg(MassFragment):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = None  # MassAPI applied by the family anchor
 
-    mass: float | None = None
+    mass: float | None = config_field(None)
     """The mass of the rigid body [kg].
 
     Writes ``physics:mass`` via :class:`UsdPhysics.MassAPI`.
@@ -657,7 +657,7 @@ class MassCfg(MassFragment):
         If ``density`` is non-zero, it takes precedence and is used to compute the mass instead.
     """
 
-    density: float | None = None
+    density: float | None = config_field(None)
     """The density of the rigid body [kg/m^3].
 
     Writes ``physics:density`` via :class:`UsdPhysics.MassAPI`. The density indirectly defines the
@@ -666,7 +666,7 @@ class MassCfg(MassFragment):
 
 
 @dataclass
-class JointDriveBaseCfg(ConfigMixin):
+class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
 
     Contains properties from the `UsdPhysics.DriveAPI`_ that are common across all
@@ -703,20 +703,20 @@ class JointDriveBaseCfg(ConfigMixin):
         _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
         _deprecate_field_alias(self, "max_effort", "max_force")
 
-    drive_type: Literal["force", "acceleration"] | None = None
+    drive_type: Literal["force", "acceleration"] | None = config_field(None)
     """Joint drive type to apply.
 
     If the drive type is "force", then the joint is driven by a force. If the drive type is "acceleration",
     then the joint is driven by an acceleration (usually used for kinematic joints).
     """
 
-    max_force: float | None = None
+    max_force: float | None = config_field(None)
     """Maximum force/torque that can be applied to the joint [N for linear joints, N-m for angular joints].
 
     Writes ``drive:<linear|angular>:physics:maxForce`` via :class:`UsdPhysics.DriveAPI`.
     """
 
-    max_effort: float | None = None
+    max_effort: float | None = config_field(None)
     """Deprecated alias for :attr:`max_force`.
 
     .. deprecated:: 4.6.25
@@ -726,7 +726,7 @@ class JointDriveBaseCfg(ConfigMixin):
         :attr:`max_force` in :meth:`__post_init__` and will be removed in 4.0.
     """
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Stiffness of the joint drive.
 
     The unit depends on the joint model:
@@ -735,7 +735,7 @@ class JointDriveBaseCfg(ConfigMixin):
     * For angular joints, the unit is kg-m^2/s^2/rad (N-m/rad).
     """
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """Damping of the joint drive.
 
     The unit depends on the joint model:
@@ -744,7 +744,7 @@ class JointDriveBaseCfg(ConfigMixin):
     * For angular joints, the unit is kg-m^2/s/rad (N-m-s/rad).
     """
 
-    ensure_drives_exist: bool = False
+    ensure_drives_exist: bool = config_field(False)
     """If True, ensure every joint has a non-zero drive so that physics backends
     (e.g. Newton) create proper actuators for it.
 
@@ -756,7 +756,7 @@ class JointDriveBaseCfg(ConfigMixin):
     overridden later by the actuator model.
     """
 
-    max_joint_velocity: float | None = None
+    max_joint_velocity: float | None = config_field(None)
     """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
 
     Notes:
@@ -770,7 +770,7 @@ class JointDriveBaseCfg(ConfigMixin):
         docstring caveat will be removed.
     """
 
-    max_velocity: float | None = None
+    max_velocity: float | None = config_field(None)
     """Deprecated alias for :attr:`max_joint_velocity`.
 
     .. deprecated:: 4.6.25
@@ -782,7 +782,7 @@ class JointDriveBaseCfg(ConfigMixin):
 
 
 @dataclass
-class MeshCollisionBaseCfg(ConfigMixin):
+class MeshCollisionBaseCfg:
     """Solver-common properties to apply to a mesh in regards to collision.
 
     Carries only the standard ``UsdPhysics:MeshCollisionAPI`` token
@@ -805,7 +805,7 @@ class MeshCollisionBaseCfg(ConfigMixin):
     _usd_attr_name_map: ClassVar[dict] = {}
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    mesh_approximation_name: str = "none"
+    mesh_approximation_name: str = config_field("none")
     """Name of mesh collision approximation method. Default: "none".
 
     Writes ``physics:approximation`` via :class:`UsdPhysics.MeshCollisionAPI`.
@@ -855,7 +855,7 @@ class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
-    mesh_approximation_name: str = "boundingCube"
+    mesh_approximation_name: str = config_field("boundingCube")
     """Name of mesh collision approximation method. Default: "boundingCube"."""
 
 
@@ -870,12 +870,12 @@ class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
-    mesh_approximation_name: str = "boundingSphere"
+    mesh_approximation_name: str = config_field("boundingSphere")
     """Name of mesh collision approximation method. Default: "boundingSphere"."""
 
 
 @dataclass
-class DeformableBodyPropertiesBaseCfg(ConfigMixin):
+class DeformableBodyPropertiesBaseCfg:
     """Base deformable body properties for backend-specific extensions.
 
     This class is currently empty. It will be populated once the USD deformable

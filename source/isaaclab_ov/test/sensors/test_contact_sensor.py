@@ -45,6 +45,8 @@ import torch
 import warp as wp
 from flaky import flaky
 
+from isaaclab.utils import config_field, replace_config
+
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
@@ -146,9 +148,9 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
     This contains the expected values in the configuration to simplify test fixtures.
     """
 
-    contact_pose: torch.Tensor = MISSING
+    contact_pose: torch.Tensor = config_field(MISSING)
     """6D pose of the rigid object under test when it is in contact with the ground surface."""
-    non_contact_pose: torch.Tensor = MISSING
+    non_contact_pose: torch.Tensor = config_field(MISSING)
     """6D pose of the rigid object under test when it is not in contact."""
 
 
@@ -156,22 +158,22 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
 class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Configuration of the scene used by the contact sensor test."""
 
-    terrain: TerrainImporterCfg = MISSING
+    terrain: TerrainImporterCfg = config_field(MISSING)
     """Terrain configuration within the scene."""
 
-    shape: ContactSensorRigidObjectCfg = MISSING
+    shape: ContactSensorRigidObjectCfg = config_field(MISSING)
     """RigidObject contact prim configuration."""
 
-    contact_sensor: ContactSensorCfg = MISSING
+    contact_sensor: ContactSensorCfg = config_field(MISSING)
     """Contact sensor configuration."""
 
-    shape_2: ContactSensorRigidObjectCfg = None
+    shape_2: ContactSensorRigidObjectCfg = config_field(None)
     """RigidObject contact prim configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second prim used for testing contact filtering.
     """
 
-    contact_sensor_2: ContactSensorCfg = None
+    contact_sensor_2: ContactSensorCfg = config_field(None)
     """Contact sensor configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second contact sensor used for testing contact filtering.
@@ -443,12 +445,12 @@ def test_cube_stack_contact_filtering(device, num_envs):
         # Instance new scene for the current terrain and contact prim.
         # OVPhysX uses fnmatch globs (not regex), so ``Env_*`` rather than ``Env_.*``.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -518,10 +520,10 @@ def test_no_contact_reporting():
         scene_cfg = ContactSensorSceneCfg(num_envs=2, env_spacing=1.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # No filter paths — normal_force_matrix_w will not be allocated.
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -578,12 +580,12 @@ def test_multi_body_per_sensor_indexing(device, num_envs):
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- Cube_low: on the ground, will report contact forces
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_low")
+        scene_cfg.shape = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_low")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, 0.25)
         # -- Cube_high: floating well above the ground, should remain in air
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_high")
+        scene_cfg.shape_2 = replace_config(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_high")
         scene_cfg.shape_2.init_state.pos = (0.0, 1.5, 3.0)
         # Single ContactSensor that matches BOTH cubes via a regex glob.
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -712,7 +714,7 @@ def test_sensor_print(device):
     """Test sensor print is working correctly."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = CUBE_CFG
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
@@ -734,7 +736,7 @@ def test_contact_sensor_threshold(device):
     """Test that the contact sensor USD threshold attribute is set to 0.0."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace_config(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = CUBE_CFG
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,

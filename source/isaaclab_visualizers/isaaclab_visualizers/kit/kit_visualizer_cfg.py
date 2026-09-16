@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -27,25 +28,25 @@ class KitVisualizerCfg(VisualizerCfg):
         the panel appears side-by-side with the Viewport instead of as a hidden tab.
     """
 
-    class_type: type[KitVisualizer] | str = "{DIR}.kit_visualizer:KitVisualizer"
+    class_type: type[KitVisualizer] | str = config_field("{DIR}.kit_visualizer:KitVisualizer")
     """Visualizer implementation class."""
 
-    visualizer_type: str = "kit"
+    visualizer_type: str = config_field("kit")
     """Type identifier for Kit visualizer."""
 
-    viewport_name: str | None = None
+    viewport_name: str | None = config_field(None)
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.
 
     If ``None``, a default name (``"Visualizer Viewport"``) is used.
     """
 
-    create_viewport: bool = False
+    create_viewport: bool = config_field(False)
     """If ``True``, create a new viewport window; if ``False``, use the active viewport window."""
 
-    headless: bool = False
+    headless: bool = config_field(False)
     """Run without creating viewport windows when supported by the app."""
 
-    dock_position: str = "SAME"
+    dock_position: str = config_field("SAME")
     """Dock position for the streaming image panel and any new viewport window.
 
     Options: ``'LEFT'``, ``'RIGHT'``, ``'BOTTOM'``, ``'SAME'``.
@@ -57,13 +58,13 @@ class KitVisualizerCfg(VisualizerCfg):
         side-by-side.
     """
 
-    window_width: int = 1280
+    window_width: int = config_field(1280)
     """Viewport width in pixels (when :attr:`create_viewport` is ``True``)."""
 
-    window_height: int = 720
+    window_height: int = config_field(720)
     """Viewport height in pixels (when :attr:`create_viewport` is ``True``)."""
 
-    origin_type: str = "world"
+    origin_type: str = config_field("world")
     """Frame in which :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
     :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` are interpreted.
 
@@ -74,13 +75,13 @@ class KitVisualizerCfg(VisualizerCfg):
     * ``"asset"``: a scene asset (or body) specified by :attr:`origin_track_path`.
     """
 
-    origin_env_index: int = 0
+    origin_env_index: int = config_field(0)
     """Index of the environment used as the viewport camera origin.
 
     Only meaningful when :attr:`origin_type` is ``"env"`` or ``"asset"``.
     """
 
-    origin_track_path: str | None = None
+    origin_track_path: str | None = config_field(None)
     """Asset tracking path for the viewport camera origin.
 
     Format: ``"<asset_name>"`` to track the asset root, or ``"<asset_name>/<body_name>"``

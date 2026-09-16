@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.sim.spawners.sensors.sensors_cfg import SensorFrameCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
@@ -27,17 +27,17 @@ class RayCasterCfg(SensorBaseCfg):
     """Configuration for the ray-cast sensor."""
 
     @dataclass
-    class OffsetCfg(ConfigMixin):
+    class OffsetCfg:
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[RayCaster] | str = "{DIR}.ray_caster:RayCaster"
+    class_type: type[RayCaster] | str = config_field("{DIR}.ray_caster:RayCaster")
 
-    spawn: SensorFrameCfg | None = SensorFrameCfg()
+    spawn: SensorFrameCfg | None = config_field(SensorFrameCfg())
     """Spawn configuration for the sensor Xform prim.
 
     A plain USD Xform is created at :attr:`prim_path` before initialization, matching the
@@ -52,7 +52,7 @@ class RayCasterCfg(SensorBaseCfg):
     **not** be a physics body.
     """
 
-    mesh_prim_paths: list[str] = MISSING
+    mesh_prim_paths: list[str] = config_field(MISSING)
     """The list of mesh primitive paths to ray cast against.
 
     .. note::
@@ -60,10 +60,10 @@ class RayCasterCfg(SensorBaseCfg):
         static meshes and dynamic meshes.
     """
 
-    offset: OffsetCfg = OffsetCfg()
+    offset: OffsetCfg = config_field(OffsetCfg())
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
-    ray_alignment: Literal["base", "yaw", "world"] = "base"
+    ray_alignment: Literal["base", "yaw", "world"] = config_field("base")
     """Specify in what frame the rays are projected onto the ground. Default is "base".
 
     The options are:
@@ -76,13 +76,13 @@ class RayCasterCfg(SensorBaseCfg):
       with a mapping package on the robot and querying ray-casts in a global frame.
     """
 
-    pattern_cfg: PatternBaseCfg = MISSING
+    pattern_cfg: PatternBaseCfg = config_field(MISSING)
     """The pattern that defines the local ray starting positions and directions."""
 
-    max_distance: float = 1e6
+    max_distance: float = config_field(1e6)
     """Maximum distance (in meters) from the sensor to ray cast to. Defaults to 1e6."""
 
-    global_world_only: bool = False
+    global_world_only: bool = config_field(False)
     """Cast rays against the global world only. Defaults to False.
 
     **Newton backend only** (ignored by the PhysX and OvPhysX backends, which ray cast against the
@@ -92,20 +92,24 @@ class RayCasterCfg(SensorBaseCfg):
     rays outside the carrier's geometry in that case.
     """
 
-    drift_range: tuple[float, float] = (0.0, 0.0)
+    drift_range: tuple[float, float] = config_field((0.0, 0.0))
     """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
 
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """
 
-    ray_cast_drift_range: dict[str, tuple[float, float]] = {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0)}
+    ray_cast_drift_range: dict[str, tuple[float, float]] = config_field(
+        {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0)}
+    )
     """The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to
     a dictionary with zero drift for each x, y and z axis.
 
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
+    visualizer_cfg: VisualizationMarkersCfg = config_field(
+        replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster")
+    )
     """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
 
     .. note::

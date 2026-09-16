@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from dataclasses import MISSING, dataclass
 
+from isaaclab.utils import config_field
+
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 
 
@@ -15,10 +17,12 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """Configuration for a reinforcement learning environment with the manager-based workflow."""
 
     # ui settings
-    ui_window_class_type: type | str | None = "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
+    ui_window_class_type: type | str | None = config_field(
+        "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
+    )
 
     # general settings
-    is_finite_horizon: bool = False
+    is_finite_horizon: bool = config_field(False)
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
 
@@ -40,7 +44,7 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
-    compute_final_obs: bool = False
+    compute_final_obs: bool = config_field(False)
     """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
 
     Under Same-Step autoreset (see :attr:`~isaaclab.envs.ManagerBasedRLEnv.metadata`), an environment
@@ -56,7 +60,7 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
         Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
     """
 
-    episode_length_s: float = MISSING
+    episode_length_s: float = config_field(MISSING)
     """Duration of an episode (in seconds).
 
     Based on the decimation rate and physics time step, the episode length is calculated as:
@@ -70,25 +74,25 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """
 
     # environment settings
-    rewards: object = MISSING
+    rewards: object = config_field(MISSING)
     """Reward settings.
 
     Please refer to the :class:`isaaclab.managers.RewardManager` class for more details.
     """
 
-    terminations: object = MISSING
+    terminations: object = config_field(MISSING)
     """Termination settings.
 
     Please refer to the :class:`isaaclab.managers.TerminationManager` class for more details.
     """
 
-    curriculum: object | None = None
+    curriculum: object | None = config_field(None)
     """Curriculum settings. Defaults to None, in which case no curriculum is applied.
 
     Please refer to the :class:`isaaclab.managers.CurriculumManager` class for more details.
     """
 
-    commands: object | None = None
+    commands: object | None = config_field(None)
     """Command settings. Defaults to None, in which case no commands are generated.
 
     Please refer to the :class:`isaaclab.managers.CommandManager` class for more details.

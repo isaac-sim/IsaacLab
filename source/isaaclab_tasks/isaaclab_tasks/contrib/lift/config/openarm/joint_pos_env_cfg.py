@@ -23,6 +23,7 @@ from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from isaaclab.utils import copy_config, replace_config
 
 # The OpenArm is smaller than the Franka, so the goal workspace and the joint-scoped
 # terms are re-tuned for it relative to the shared lift base.
@@ -33,10 +34,11 @@ OPENARM_JOINTS = ["openarm_joint.*", "openarm_finger_joint.*"]
 class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set OpenArm as robot
-        self.scene.robot = OPENARM_UNI_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(OPENARM_UNI_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Scope the joint-space terms to the OpenArm's own joints.
         self.observations.policy.joint_pos.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)}
@@ -92,7 +94,7 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg = copy_config(FRAME_MARKER_CFG)
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(

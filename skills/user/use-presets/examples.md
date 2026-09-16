@@ -16,13 +16,13 @@ Use this when the environment has one supported physics setup and no user-select
 from dataclasses import dataclass
 
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab_physx.physics import PhysxCfg
 
 
 @dataclass
-class MySimpleEnvCfg(ConfigMixin):
-    sim: SimulationCfg = SimulationCfg(physics=PhysxCfg())
+class MySimpleEnvCfg:
+    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysxCfg()))
 ```
 
 This is enough when the task only supports PhysX and there are no renderer, sensor, event, or domain variants to expose.
@@ -38,7 +38,7 @@ from dataclasses import dataclass
 
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -47,19 +47,19 @@ from isaaclab_tasks.utils import PresetCfg
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    ovphysx = OvPhysxCfg()
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
-    newton_mjwarp = NewtonCfg(
+    isaacsim_physx: PhysxCfg = config_field(PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    ovphysx: OvPhysxCfg = config_field(OvPhysxCfg())
+    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
+    default: PhysxCfg = config_field(isaacsim_physx)
+    newton_mjwarp: NewtonCfg = config_field(NewtonCfg(
         solver_cfg=MJWarpSolverCfg(njmax=120, nconmax=15),
         num_substeps=1,
-    )
+    ))
 
 
 @dataclass
-class MyMultiBackendEnvCfg(ConfigMixin):
-    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+class MyMultiBackendEnvCfg:
+    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysicsCfg()))
 ```
 
 Command examples:
@@ -78,6 +78,7 @@ Use domain presets for environment-specific variants such as camera output type.
 from dataclasses import dataclass
 
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.utils import config_field
 from isaaclab_tasks.utils import PresetCfg
 
 
@@ -85,11 +86,11 @@ from isaaclab_tasks.utils import PresetCfg
 class CameraTaskCfg(PresetCfg):
     @dataclass
     class BaseCfg(DirectRLEnvCfg):
-        observation_space = [100, 100, 3]
+        observation_space: list[int] = config_field([100, 100, 3])
 
-    default = BaseCfg()
-    rgb = default
-    depth = BaseCfg(observation_space=[100, 100, 1])
+    default: BaseCfg = config_field(BaseCfg())
+    rgb: BaseCfg = config_field(default)
+    depth: BaseCfg = config_field(BaseCfg(observation_space=[100, 100, 1]))
 ```
 
 Command examples:

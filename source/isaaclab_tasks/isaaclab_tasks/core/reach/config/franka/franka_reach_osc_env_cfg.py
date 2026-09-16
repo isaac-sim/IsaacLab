@@ -39,7 +39,8 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
 
     def __post_init__(self) -> None:
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Use an explicit actuator to enforce the USD-authored effort limits for effort control. Keep the
         # asset's solver velocity limit: the Menagerie USD authors none, so dropping it leaves the arm unbounded.

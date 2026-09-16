@@ -9,18 +9,18 @@ from dataclasses import MISSING, dataclass
 from typing import Any, Literal
 
 from isaaclab.sim import SpawnerCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class AssetBaseCfg(ConfigMixin):
+class AssetBaseCfg:
     """The base configuration class for an asset's parameters.
 
     Please see the :class:`AssetBase` class for more information on the asset class.
     """
 
     @dataclass
-    class InitialStateCfg(ConfigMixin):
+    class InitialStateCfg:
         """Initial state of the asset.
 
         This defines the default initial state of the asset when it is spawned into the simulation, as
@@ -32,21 +32,21 @@ class AssetBaseCfg(ConfigMixin):
         """
 
         # root position
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
         """Position of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
         """Quaternion rotation (x, y, z, w) of the root in simulation world frame.
         Defaults to (0.0, 0.0, 0.0, 1.0).
         """
 
-    class_type: type | str | None = None
+    class_type: type | str | None = config_field(None)
     """The associated asset class. Defaults to None, which means that the asset will be spawned
     but cannot be interacted with via the asset class.
 
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
 
-    cloning_contexts: tuple[str | type, ...] | None = None
+    cloning_contexts: tuple[str | type, ...] | None = config_field(None)
     """Cloning contexts for this asset. Defaults to None.
 
     Entries are ``"module:ContextClass"`` references (or classes). If None, planning
@@ -56,7 +56,7 @@ class AssetBaseCfg(ConfigMixin):
     is set and Kit is available; listing it explicitly forces USD replication even without Kit.
     """
 
-    prim_path: str = MISSING
+    prim_path: str = config_field(MISSING)
     """Prim path (or expression) to the asset.
 
     .. note::
@@ -66,27 +66,27 @@ class AssetBaseCfg(ConfigMixin):
         Example: ``{ENV_REGEX_NS}/Robot`` will be replaced with ``/World/envs/env_[^/]+/Robot``.
     """
 
-    spawn: SpawnerCfg | None = None
+    spawn: SpawnerCfg | None = config_field(None)
     """Spawn configuration for the asset. Defaults to None.
 
     If None, then no prims are spawned by the asset class. Instead, it is assumed that the
     asset is already present in the scene.
     """
 
-    init_state: InitialStateCfg = InitialStateCfg()
+    init_state: InitialStateCfg = config_field(InitialStateCfg())
     """Initial state of the rigid object. Defaults to identity pose."""
 
-    collision_group: Literal[0, -1] = 0
+    collision_group: Literal[0, -1] = config_field(0)
     """Collision group of the asset. Defaults to ``0``.
 
     * ``-1``: global collision group (collides with all assets in the scene).
     * ``0``: local collision group (collides with other assets in the same environment).
     """
 
-    debug_vis: bool = False
+    debug_vis: bool = config_field(False)
     """Whether to enable debug visualization for the asset. Defaults to ``False``."""
 
-    disable_shape_checks: bool | None = None
+    disable_shape_checks: bool | None = config_field(None)
     """Disable shape/dtype validation in setter and writer methods.
 
     When ``True``, :meth:`~AssetBase.assert_shape_and_dtype` and

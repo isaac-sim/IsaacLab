@@ -14,7 +14,8 @@ class UR10eReachROSInferenceEnvCfg(UR10eReachEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Variables used by Isaac Manipuulator for on robot inference
         # TODO: @ashwinvk: Remove these from env cfg once the generic inference node has been implemented

@@ -19,6 +19,7 @@ from datetime import datetime
 from packaging import version
 
 from isaaclab.app import add_launcher_args, report_activity
+from isaaclab.utils import config_to_dict
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
@@ -213,9 +214,9 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             report_activity("Building policy")
             if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+                runner = OnPolicyRunner(env, config_to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device)
             elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+                runner = DistillationRunner(env, config_to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device)
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             report_activity(None)

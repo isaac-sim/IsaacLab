@@ -16,6 +16,7 @@ import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
+from isaaclab.utils import replace_config
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -53,7 +54,7 @@ def _install_test_body_ordering(art) -> np.ndarray:
         body_ordering = (art.backend_body_names[0], *reversed(art.backend_body_names[1:]))
     else:
         body_ordering = tuple(reversed(art.backend_body_names))
-    art.cfg = art.cfg.replace(body_ordering=body_ordering)
+    art.cfg = replace_config(art.cfg, body_ordering=body_ordering)
     # Re-resolve and re-stage the ordering maps exactly as backend initialization
     # does after a config change installs a new ordering on an already-initialized
     # articulation.
@@ -64,7 +65,7 @@ def _install_test_body_ordering(art) -> np.ndarray:
 
 def _install_reversed_joint_ordering(art) -> np.ndarray:
     """Install a reversed public joint ordering on an already constructed articulation."""
-    art.cfg = art.cfg.replace(joint_ordering=tuple(reversed(art.backend_joint_names)))
+    art.cfg = replace_config(art.cfg, joint_ordering=tuple(reversed(art.backend_joint_names)))
     # Re-resolve and re-stage the ordering maps exactly as backend initialization
     # does after a config change installs a new ordering on an already-initialized
     # articulation.

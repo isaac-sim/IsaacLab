@@ -10,11 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, config_to_dict
 
 
 @dataclass
-class HydroelasticSDFCfg(ConfigMixin):
+class HydroelasticSDFCfg:
     """Configuration for SDF-based hydroelastic collision handling.
 
     Hydroelastic contacts generate distributed contact areas instead of point contacts,
@@ -25,7 +25,7 @@ class HydroelasticSDFCfg(ConfigMixin):
     .. _Newton hydroelastic contacts guide: https://newton-physics.github.io/newton/latest/concepts/collisions.html#hydroelastic-contacts
     """
 
-    reduce_contacts: bool = True
+    reduce_contacts: bool = config_field(True)
     """Whether to reduce contacts to a smaller representative set per shape pair.
 
     When False, all generated contacts are passed through without reduction.
@@ -33,7 +33,7 @@ class HydroelasticSDFCfg(ConfigMixin):
     Defaults to ``True`` (same as Newton's default).
     """
 
-    buffer_fraction: float = 1.0
+    buffer_fraction: float = config_field(1.0)
     """Fraction of worst-case hydroelastic buffer allocations. Range: (0, 1].
 
     Lower values reduce memory usage but may cause overflows in dense scenes.
@@ -42,7 +42,7 @@ class HydroelasticSDFCfg(ConfigMixin):
     Defaults to ``1.0`` (same as Newton's default).
     """
 
-    normal_matching: bool = True
+    normal_matching: bool = config_field(True)
     """Whether to rotate reduced contact normals to align with aggregate force direction.
 
     Only active when ``reduce_contacts`` is True.
@@ -50,7 +50,7 @@ class HydroelasticSDFCfg(ConfigMixin):
     Defaults to ``True`` (same as Newton's default).
     """
 
-    anchor_contact: bool = False
+    anchor_contact: bool = config_field(False)
     """Whether to add an anchor contact at the center of pressure for each normal bin.
 
     The anchor contact helps preserve moment balance. Only active when ``reduce_contacts`` is True.
@@ -58,13 +58,13 @@ class HydroelasticSDFCfg(ConfigMixin):
     Defaults to ``False`` (same as Newton's default).
     """
 
-    margin_contact_area: float = 0.01
+    margin_contact_area: float = config_field(0.01)
     """Contact area [m^2] used for non-penetrating contacts at the margin.
 
     Defaults to ``0.01`` (same as Newton's default).
     """
 
-    output_contact_surface: bool = False
+    output_contact_surface: bool = config_field(False)
     """Whether to output hydroelastic contact surface vertices for visualization.
 
     Defaults to ``False`` (same as Newton's default).
@@ -72,7 +72,7 @@ class HydroelasticSDFCfg(ConfigMixin):
 
 
 @dataclass
-class NewtonCollisionPipelineCfg(ConfigMixin):
+class NewtonCollisionPipelineCfg:
     """Configuration for Newton collision pipeline.
 
     Full-featured collision pipeline with GJK/MPR narrow phase and pluggable broad phase.
@@ -95,7 +95,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     .. _CollisionPipeline API: https://newton-physics.github.io/newton/api/_generated/newton.CollisionPipeline.html
     """
 
-    broad_phase: Literal["explicit", "nxn", "sap"] = "explicit"
+    broad_phase: Literal["explicit", "nxn", "sap"] = config_field("explicit")
     """Broad phase algorithm for collision detection.
 
     Options:
@@ -107,7 +107,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``"explicit"`` (same as Newton's default when ``broad_phase=None``).
     """
 
-    reduce_contacts: bool = True
+    reduce_contacts: bool = config_field(True)
     """Whether to reduce contacts for mesh-mesh collisions.
 
     When True, uses shared memory contact reduction to select representative contacts.
@@ -116,7 +116,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``True`` (same as Newton's default).
     """
 
-    rigid_contact_max: int | None = None
+    rigid_contact_max: int | None = config_field(None)
     """Maximum number of rigid contacts to allocate.
 
     Resolution order:
@@ -128,7 +128,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
-    max_triangle_pairs: int = 1_000_000
+    max_triangle_pairs: int = config_field(1_000_000)
     """Maximum number of triangle pairs allocated by narrow phase for mesh and heightfield collisions.
 
     Increase this when scenes with large/complex meshes or heightfields report
@@ -137,7 +137,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``1_000_000`` (same as Newton's default).
     """
 
-    soft_contact_max: int | None = None
+    soft_contact_max: int | None = config_field(None)
     """Maximum number of soft contacts to allocate.
 
     If None, computed as ``shape_count * particle_count``.
@@ -145,13 +145,13 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``None`` (auto-compute, same as Newton's default).
     """
 
-    soft_contact_margin: float = 0.01
+    soft_contact_margin: float = config_field(0.01)
     """Margin [m] for soft contact generation.
 
     Defaults to ``0.01`` (same as Newton's default).
     """
 
-    enable_rigid_soft_full_surface_contact: bool = False
+    enable_rigid_soft_full_surface_contact: bool = config_field(False)
     """Whether to generate soft contacts against full-surface-capable rigid colliders.
 
     When ``True``, Newton adds edge and triangle-interior soft contacts (in addition to the
@@ -162,7 +162,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``False`` (same as Newton's default).
     """
 
-    requires_grad: bool | None = None
+    requires_grad: bool | None = config_field(None)
     """Whether to enable gradient computation for collision.
 
     If ``None``, uses ``model.requires_grad``.
@@ -170,7 +170,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
     Defaults to ``None`` (same as Newton's default).
     """
 
-    sdf_hydroelastic_config: HydroelasticSDFCfg | None = None
+    sdf_hydroelastic_config: HydroelasticSDFCfg | None = config_field(None)
     """Configuration for SDF-based hydroelastic collision handling.
 
     If ``None``, hydroelastic contacts are disabled.
@@ -191,7 +191,7 @@ class NewtonCollisionPipelineCfg(ConfigMixin):
         """
         from newton.geometry import HydroelasticSDF
 
-        cfg_dict = self.to_dict()
+        cfg_dict = config_to_dict(self)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)

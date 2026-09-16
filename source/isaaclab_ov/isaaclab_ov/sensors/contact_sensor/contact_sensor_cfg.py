@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as _BaseContactSensorCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -16,4 +17,4 @@ if TYPE_CHECKING:
 class ContactSensorCfg(_BaseContactSensorCfg):
     """OVPhysX contact sensor configuration."""
 
-    class_type: type["ContactSensor"] | str = "{DIR}.contact_sensor:ContactSensor"
+    class_type: type["ContactSensor"] | str = config_field("{DIR}.contact_sensor:ContactSensor")

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from isaaclab.utils import config_field
+
 """Base classes for legacy retargeting.
 
 .. deprecated::
@@ -20,20 +22,18 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from isaaclab.utils import ConfigMixin
-
 
 @dataclass
-class RetargeterCfg(ConfigMixin):
+class RetargeterCfg:
     """Base configuration for hand tracking retargeters.
 
     .. deprecated::
         Use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop` instead.
     """
 
-    sim_device: str = "cpu"
+    sim_device: str = config_field("cpu")
     # Concrete retargeter class to construct for this config. Set by each retargeter module.
-    retargeter_type: type[RetargeterBase] | None = None
+    retargeter_type: type[RetargeterBase] | None = config_field(None)
 
 
 class RetargeterBase(ABC):

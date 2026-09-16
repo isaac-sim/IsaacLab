@@ -13,6 +13,8 @@ This script demonstrates fixed-base API for different robots.
 
 """
 
+from isaaclab.utils import replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -75,12 +77,12 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 1 with Franka Panda
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    franka = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot"))
+    franka = Articulation(replace_config(FRANKA_PANDA_CFG, prim_path="/World/Origin1/Robot"))
 
     # Origin 2 with Anymal C
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
+    robot_cfg = replace_config(ANYMAL_C_CFG, prim_path="/World/Origin2/Robot")
     robot_cfg.spawn.articulation_props.fix_root_link = True
     anymal_c = Articulation(robot_cfg)
 

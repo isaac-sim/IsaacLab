@@ -19,11 +19,12 @@ Use ``--grid_type fixed`` to compare against the larger fixed-grid fallback.
 from __future__ import annotations
 
 import argparse
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field
 
 
 class SnowballSpec(NamedTuple):
@@ -278,47 +279,53 @@ def create_scene_cfg():
         # This visible static plane belongs to the rigid entry, so MuJoCo can
         # resolve crate-ground contact without duplicating the ground shape in
         # the MPM model view.
-        ground = AssetBaseCfg(
-            prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(),
+        ground: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/Ground",
+                spawn=sim_utils.GroundPlaneCfg(),
+            )
         )
 
         # The co-located hidden kinematic slab belongs only to the MPM entry.
         # This mirrors the shared geometry without assigning one Newton shape
         # to two coupled solver entries.
-        mpm_ground = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/MPMGround",
-            spawn=sim_utils.CuboidCfg(
-                size=(12.0, 12.0, 0.10),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
-                    rigid_body_enabled=True,
-                    kinematic_enabled=True,
+        mpm_ground: Any = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/MPMGround",
+                spawn=sim_utils.CuboidCfg(
+                    size=(12.0, 12.0, 0.10),
+                    rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
+                        rigid_body_enabled=True,
+                        kinematic_enabled=True,
+                    ),
+                    collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                    physics_material=sim_utils.NewtonMaterialPropertiesCfg(
+                        static_friction=CRATE_FRICTION,
+                        dynamic_friction=CRATE_FRICTION,
+                    ),
+                    visible=False,
                 ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
-                physics_material=sim_utils.NewtonMaterialPropertiesCfg(
-                    static_friction=CRATE_FRICTION,
-                    dynamic_friction=CRATE_FRICTION,
-                ),
-                visible=False,
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+            )
         )
 
-        dome_light = AssetBaseCfg(
-            prim_path="/World/DomeLight",
-            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        dome_light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/DomeLight",
+                spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+            )
         )
 
-        crate_0 = crate_cfg(0)
-        crate_1 = crate_cfg(1)
-        crate_2 = crate_cfg(2)
-        crate_3 = crate_cfg(3)
-        crate_4 = crate_cfg(4)
-        crate_5 = crate_cfg(5)
+        crate_0: Any = config_field(crate_cfg(0))
+        crate_1: Any = config_field(crate_cfg(1))
+        crate_2: Any = config_field(crate_cfg(2))
+        crate_3: Any = config_field(crate_cfg(3))
+        crate_4: Any = config_field(crate_cfg(4))
+        crate_5: Any = config_field(crate_cfg(5))
 
-        snowball_first = snowball_cfg(SNOWBALLS[0])
-        snowball_second = snowball_cfg(SNOWBALLS[1])
-        snowball_third = snowball_cfg(SNOWBALLS[2])
+        snowball_first: Any = config_field(snowball_cfg(SNOWBALLS[0]))
+        snowball_second: Any = config_field(snowball_cfg(SNOWBALLS[1]))
+        snowball_third: Any = config_field(snowball_cfg(SNOWBALLS[2]))
 
     return SnowballSmashSceneCfg(num_envs=1, env_spacing=0.0)
 

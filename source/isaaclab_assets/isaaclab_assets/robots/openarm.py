@@ -29,6 +29,7 @@ Motor spec sheets:
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import copy_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 OPENARM_BI_CFG = ArticulationCfg(
@@ -152,7 +153,7 @@ OPENARM_UNI_CFG = ArticulationCfg(
 )
 """Configuration of OpenArm Unimanual robot."""
 
-OPENARM_BI_HIGH_PD_CFG = OPENARM_BI_CFG.copy()
+OPENARM_BI_HIGH_PD_CFG = copy_config(OPENARM_BI_CFG)
 OPENARM_BI_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 OPENARM_BI_HIGH_PD_CFG.actuators["openarm_arm"].stiffness = 400.0
 OPENARM_BI_HIGH_PD_CFG.actuators["openarm_arm"].damping = 80.0
@@ -163,7 +164,7 @@ OPENARM_BI_HIGH_PD_CFG.actuators["openarm_gripper"].damping = 1e2
 This configuration is useful for task-space control using differential IK.
 """
 
-OPENARM_UNI_HIGH_PD_CFG = OPENARM_UNI_CFG.copy()
+OPENARM_UNI_HIGH_PD_CFG = copy_config(OPENARM_UNI_CFG)
 OPENARM_UNI_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 OPENARM_UNI_HIGH_PD_CFG.actuators["openarm_arm"].stiffness = 400.0
 OPENARM_UNI_HIGH_PD_CFG.actuators["openarm_arm"].damping = 80.0

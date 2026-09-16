@@ -38,6 +38,10 @@ Prerequisites:
     3. Connect Inverse3 and VerseGrip devices
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -148,57 +152,71 @@ def apply_haply_to_robot_mapping(
 class FrankaHaplySceneCfg(InteractiveSceneCfg):
     """Configuration for Franka scene with Haply teleoperation and contact sensors."""
 
-    ground = AssetBaseCfg(
-        prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/defaultGroundPlane",
+            spawn=sim_utils.GroundPlaneCfg(),
+        )
     )
 
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
+    dome_light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/Light",
+            spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
+        )
     )
 
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            scale=(1.0, 1.0, 1.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
+    table: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+                scale=(1.0, 1.0, 1.0),
+            ),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
+        )
     )
 
-    robot_cfg: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot = robot_cfg.class_type(robot_cfg)
+    robot_cfg: ArticulationCfg = config_field(
+        replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
+    robot: Any = config_field(robot_cfg.class_type(robot_cfg))
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
 
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.06, 0.06, 0.06),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=0.5),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2), metallic=0.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.60, 0.00, 1.15)),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.06, 0.06, 0.06),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=0.5),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2), metallic=0.2),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.60, 0.00, 1.15)),
+        )
     )
 
-    left_finger_contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
-        update_period=0.0,
-        history_length=3,
-        debug_vis=True,
-        track_pose=True,
+    left_finger_contact_sensor: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+            update_period=0.0,
+            history_length=3,
+            debug_vis=True,
+            track_pose=True,
+        )
     )
 
-    right_finger_contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
-        update_period=0.0,
-        history_length=3,
-        debug_vis=True,
-        track_pose=True,
+    right_finger_contact_sensor: Any = config_field(
+        ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+            update_period=0.0,
+            history_length=3,
+            debug_vis=True,
+            track_pose=True,
+        )
     )
 
 

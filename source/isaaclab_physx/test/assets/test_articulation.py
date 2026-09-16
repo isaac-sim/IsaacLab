@@ -19,6 +19,7 @@ from isaaclab.test.utils.articulation_ordering import (
     PANDA_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
 )
+from isaaclab.utils import copy_config, replace_config
 
 HEADLESS = True
 
@@ -201,7 +202,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    articulation = Articulation(replace_config(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
 
     return articulation, translations
 
@@ -233,16 +234,18 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, enable_ri
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
-    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_[^/]*/Robot")
+    cfg = replace_config(copy_config(FRANKA_PANDA_HIGH_PD_CFG), prim_path="/World/Env_[^/]*/Robot")
     if zero_actuator_pd:
         cfg.actuators["panda_shoulder"].stiffness = 0.0
         cfg.actuators["panda_shoulder"].damping = 0.0
         cfg.actuators["panda_forearm"].stiffness = 0.0
         cfg.actuators["panda_forearm"].damping = 0.0
     if enable_rigid_body_gravity:
-        cfg = cfg.replace(
-            spawn=cfg.spawn.replace(
-                rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+        cfg = replace_config(
+            cfg,
+            spawn=replace_config(
+                cfg.spawn,
+                rigid_props=replace_config(cfg.spawn.rigid_props, disable_gravity=False),
             ),
         )
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
@@ -375,7 +378,8 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
     """Smoke-test non-identity joint/body ordering through a live PhysX articulation."""
-    articulation_cfg = FRANKA_PANDA_CFG.replace(
+    articulation_cfg = replace_config(
+        FRANKA_PANDA_CFG,
         prim_path="/World/Robot",
         joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
         body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
@@ -498,18 +502,21 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
     """Keep floating-base root writes invariant when public body order moves the root."""
-    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(
-        articulation_props=FRANKA_PANDA_CFG.spawn.articulation_props.replace(fix_root_link=False)
+    floating_spawn = replace_config(
+        FRANKA_PANDA_CFG.spawn,
+        articulation_props=replace_config(FRANKA_PANDA_CFG.spawn.articulation_props, fix_root_link=False),
     )
     identity = Articulation(
-        FRANKA_PANDA_CFG.replace(
+        replace_config(
+            FRANKA_PANDA_CFG,
             prim_path="/World/IdentityRobot",
             spawn=floating_spawn,
             body_ordering=None,
         )
     )
     ordered = Articulation(
-        FRANKA_PANDA_CFG.replace(
+        replace_config(
+            FRANKA_PANDA_CFG,
             prim_path="/World/OrderedRobot",
             spawn=floating_spawn,
             body_ordering=tuple(reversed(PANDA_BODY_NAMES)),
@@ -580,7 +587,9 @@ def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravit
     buffers must equal the backend-order view gathered through ``user_to_backend``.
     """
     body_ordering_arg = None if body_ordering == "identity" else PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
-    articulation = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Robot", body_ordering=body_ordering_arg))
+    articulation = Articulation(
+        replace_config(FRANKA_PANDA_CFG, prim_path="/World/Robot", body_ordering=body_ordering_arg)
+    )
     sim.reset()
     assert articulation.is_initialized
 
@@ -1032,7 +1041,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
+    articulation_cfg = copy_config(generate_articulation_cfg(articulation_type="anymal"))
     # Fix root link by making it kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -1092,7 +1101,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
+    articulation_cfg = copy_config(generate_articulation_cfg(articulation_type="panda"))
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
@@ -1143,7 +1152,7 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         num_articulations: Number of articulations to test
     """
     # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
+    articulation_cfg = copy_config(generate_articulation_cfg(articulation_type="panda"))
     articulation_cfg.init_state.joint_pos = {
         "panda_joint1": 10.0,
         "panda_joint[2, 4]": -20.0,
@@ -1167,7 +1176,7 @@ def test_out_of_range_default_joint_vel(sim, device):
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
     """
-    articulation_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+    articulation_cfg = replace_config(FRANKA_PANDA_CFG, prim_path="/World/Robot")
     articulation_cfg.init_state.joint_vel = {
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
@@ -2772,7 +2781,8 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # we set IS the joint torque applied — no PD spring-damper masks the
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
-    cfg = base_cfg.replace(
+    cfg = replace_config(
+        base_cfg,
         actuators={
             "all": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
@@ -2783,9 +2793,11 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     )
     # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
-    cfg = cfg.replace(
-        spawn=cfg.spawn.replace(
-            rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+    cfg = replace_config(
+        cfg,
+        spawn=replace_config(
+            cfg.spawn,
+            rigid_props=replace_config(cfg.spawn.rigid_props, disable_gravity=False),
         ),
     )
 

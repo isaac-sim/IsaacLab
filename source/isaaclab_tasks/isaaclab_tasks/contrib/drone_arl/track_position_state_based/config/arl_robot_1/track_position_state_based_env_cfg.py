@@ -5,6 +5,7 @@
 
 import math
 from dataclasses import MISSING, dataclass
+from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -18,7 +19,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -42,15 +43,17 @@ class ArlTrackPositionStateBasedSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a flying robot."""
 
     # robots
-    robot: MultirotorCfg = MISSING
+    robot: MultirotorCfg = config_field(MISSING)
 
     # lights
-    sky_light = AssetBaseCfg(
-        prim_path="/World/skyLight",
-        spawn=sim_utils.DomeLightCfg(
-            intensity=750.0,
-            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
-        ),
+    sky_light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/skyLight",
+            spawn=sim_utils.DomeLightCfg(
+                intensity=750.0,
+                texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+            ),
+        )
     )
 
 
@@ -60,46 +63,50 @@ class ArlTrackPositionStateBasedSceneCfg(InteractiveSceneCfg):
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
+class CommandsCfg:
     """Command specifications for the MDP."""
 
-    target_pose = DroneUniformPoseCommandCfg(
-        asset_name="robot",
-        body_name="base_link",
-        resampling_time_range=(10.0, 10.0),
-        debug_vis=True,
-        ranges=DroneUniformPoseCommandCfg.Ranges(
-            pos_x=(-0.0, 0.0),
-            pos_y=(-0.0, 0.0),
-            pos_z=(-0.0, 0.0),
-            roll=(-0.0, 0.0),
-            pitch=(-0.0, 0.0),
-            yaw=(-0.0, 0.0),
-        ),
+    target_pose: Any = config_field(
+        DroneUniformPoseCommandCfg(
+            asset_name="robot",
+            body_name="base_link",
+            resampling_time_range=(10.0, 10.0),
+            debug_vis=True,
+            ranges=DroneUniformPoseCommandCfg.Ranges(
+                pos_x=(-0.0, 0.0),
+                pos_y=(-0.0, 0.0),
+                pos_z=(-0.0, 0.0),
+                roll=(-0.0, 0.0),
+                pitch=(-0.0, 0.0),
+                yaw=(-0.0, 0.0),
+            ),
+        )
     )
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
-    thrust_command = mdp.ThrustActionCfg(
-        asset_name="robot",
-        scale=3.0,
-        offset=3.0,
-        preserve_order=False,
-        use_default_offset=False,
-        clip={
-            "back_left_prop": (0.0, 6.0),
-            "back_right_prop": (0.0, 6.0),
-            "front_left_prop": (0.0, 6.0),
-            "front_right_prop": (0.0, 6.0),
-        },
+    thrust_command: Any = config_field(
+        mdp.ThrustActionCfg(
+            asset_name="robot",
+            scale=3.0,
+            offset=3.0,
+            preserve_order=False,
+            use_default_offset=False,
+            clip={
+                "back_left_prop": (0.0, 6.0),
+                "back_right_prop": (0.0, 6.0),
+                "front_left_prop": (0.0, 6.0),
+                "front_right_prop": (0.0, 6.0),
+            },
+        )
     )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
@@ -107,98 +114,112 @@ class ObservationsCfg(ConfigMixin):
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_link_position = ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_orientation = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
+        base_link_position: Any = config_field(ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1)))
+        base_orientation: Any = config_field(ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1)))
+        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
+        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
+        last_action: Any = config_field(ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0)))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
     # reset
 
-    reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-1.0, 1.0),
-                "y": (-1.0, 1.0),
-                "z": (-1.0, 1.0),
-                "yaw": (-math.pi / 6.0, math.pi / 6.0),
-                "roll": (-math.pi / 6.0, math.pi / 6.0),
-                "pitch": (-math.pi / 6.0, math.pi / 6.0),
+    reset_base: Any = config_field(
+        EventTerm(
+            func=mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": (-1.0, 1.0),
+                    "y": (-1.0, 1.0),
+                    "z": (-1.0, 1.0),
+                    "yaw": (-math.pi / 6.0, math.pi / 6.0),
+                    "roll": (-math.pi / 6.0, math.pi / 6.0),
+                    "pitch": (-math.pi / 6.0, math.pi / 6.0),
+                },
+                "velocity_range": {
+                    "x": (-0.2, 0.2),
+                    "y": (-0.2, 0.2),
+                    "z": (-0.2, 0.2),
+                    "roll": (-0.2, 0.2),
+                    "pitch": (-0.2, 0.2),
+                    "yaw": (-0.2, 0.2),
+                },
             },
-            "velocity_range": {
-                "x": (-0.2, 0.2),
-                "y": (-0.2, 0.2),
-                "z": (-0.2, 0.2),
-                "roll": (-0.2, 0.2),
-                "pitch": (-0.2, 0.2),
-                "yaw": (-0.2, 0.2),
-            },
-        },
+        )
     )
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Reward terms for the MDP."""
 
-    distance_to_goal_exp = RewTerm(
-        func=distance_to_goal_exp,
-        weight=25.0,
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "std": 1.5,
-            "command_name": "target_pose",
-        },
+    distance_to_goal_exp: Any = config_field(
+        RewTerm(
+            func=distance_to_goal_exp,
+            weight=25.0,
+            params={
+                "asset_cfg": SceneEntityCfg("robot"),
+                "std": 1.5,
+                "command_name": "target_pose",
+            },
+        )
     )
-    flat_orientation_l2 = RewTerm(
-        func=mdp.flat_orientation_l2,
-        weight=1.0,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+    flat_orientation_l2: Any = config_field(
+        RewTerm(
+            func=mdp.flat_orientation_l2,
+            weight=1.0,
+            params={"asset_cfg": SceneEntityCfg("robot")},
+        )
     )
-    yaw_aligned = RewTerm(
-        func=yaw_aligned,
-        weight=2.0,
-        params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0},
+    yaw_aligned: Any = config_field(
+        RewTerm(
+            func=yaw_aligned,
+            weight=2.0,
+            params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0},
+        )
     )
-    lin_vel_xyz_exp = RewTerm(
-        func=lin_vel_xyz_exp,
-        weight=2.5,
-        params={"asset_cfg": SceneEntityCfg("robot"), "std": 2.0},
+    lin_vel_xyz_exp: Any = config_field(
+        RewTerm(
+            func=lin_vel_xyz_exp,
+            weight=2.5,
+            params={"asset_cfg": SceneEntityCfg("robot"), "std": 2.0},
+        )
     )
-    ang_vel_xyz_exp = RewTerm(
-        func=ang_vel_xyz_exp,
-        weight=10.0,
-        params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0},
+    ang_vel_xyz_exp: Any = config_field(
+        RewTerm(
+            func=ang_vel_xyz_exp,
+            weight=10.0,
+            params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0},
+        )
     )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
-    action_magnitude_l2 = RewTerm(func=mdp.action_l2, weight=-0.05)
+    action_rate_l2: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.05))
+    action_magnitude_l2: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.05))
 
-    termination_penalty = RewTerm(
-        func=mdp.is_terminated,
-        weight=-5.0,
+    termination_penalty: Any = config_field(
+        RewTerm(
+            func=mdp.is_terminated,
+            weight=-5.0,
+        )
     )
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    crash = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": -3.0})
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    crash: Any = config_field(DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": -3.0}))
 
 
 ##
@@ -211,15 +232,17 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the state-based drone pose-control environment."""
 
     # Scene settings
-    scene: ArlTrackPositionStateBasedSceneCfg = ArlTrackPositionStateBasedSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ArlTrackPositionStateBasedSceneCfg = config_field(
+        ArlTrackPositionStateBasedSceneCfg(num_envs=4096, env_spacing=2.5)
+    )
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
+    commands: CommandsCfg = config_field(CommandsCfg())
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: EventCfg = config_field(EventCfg())
 
     def __post_init__(self):
         """Post initialization."""

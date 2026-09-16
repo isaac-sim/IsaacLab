@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
+from isaaclab.utils import config_field
 
 
 @dataclass
@@ -26,26 +27,28 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
         setting from the base class is not supported by the new MJCF importer and is ignored.
     """
 
-    merge_mesh: bool = False
+    merge_mesh: bool = config_field(False)
     """Merge meshes where possible to optimize the model. Defaults to False."""
 
-    collision_from_visuals: bool = False
+    collision_from_visuals: bool = config_field(False)
     """Generate collision geometry from visual geometries. Defaults to False."""
 
-    collision_type: Literal["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"] = "Convex Hull"
+    collision_type: Literal["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"] = config_field(
+        "Convex Hull"
+    )
     """Type of collision geometry to use. Defaults to ``"Convex Hull"``.
 
     Supported values match the ``collision_type`` field of
     :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
     """
 
-    self_collision: bool = False
+    self_collision: bool = config_field(False)
     """Activate self-collisions between links of the articulation. Defaults to False."""
 
-    import_physics_scene: bool = False
+    import_physics_scene: bool = config_field(False)
     """Import the physics scene (time step per second, gravity, etc.) from the MJCF file. Defaults to False."""
 
-    fix_base: bool = False
+    fix_base: bool = config_field(False)
     """Add a fixed joint from the world to the root rigid-body link. Defaults to False.
 
     When enabled, :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` inserts a ``FixedJoint``
@@ -53,14 +56,14 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     appropriate ancestor prim so PhysX treats the articulation as fixed-base.
     """
 
-    link_density: float = 0.0
+    link_density: float = config_field(0.0)
     """Default density in ``kg/m^3`` for links whose ``"inertial"`` properties are missing.
     Defaults to 0.0.
 
     A value of ``0.0`` leaves density unchanged.
     """
 
-    robot_type: str = "Default"
+    robot_type: str = config_field("Default")
     """Robot type applied by the USD robot schema. Defaults to ``"Default"``.
 
     Supported types are: ``Default``, ``End Effector``, ``Manipulator``, ``Humanoid``, ``Wheeled``,
@@ -68,7 +71,7 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     Forwarded to :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
     """
 
-    override_gain_type: str | None = None
+    override_gain_type: str | None = config_field(None)
     """MuJoCo actuator gain type override (e.g. ``"fixed"``). Defaults to ``None``.
 
     ``None`` leaves the value parsed from the MJCF file unchanged. See
@@ -76,13 +79,13 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     the supported encodings.
     """
 
-    override_bias_type: str | None = None
+    override_bias_type: str | None = config_field(None)
     """MuJoCo actuator bias type override (e.g. ``"affine"``). Defaults to ``None``.
 
     ``None`` leaves the value parsed from the MJCF file unchanged.
     """
 
-    override_gain_prm: list[float] | None = None
+    override_gain_prm: list[float] | None = config_field(None)
     """MuJoCo actuator gain parameter array override. Defaults to ``None``.
 
     Mujoco models actuators using an affine transformation, which is a linear combination of the
@@ -95,14 +98,14 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     control: ``[kp, 0, 0, 0, 0, 0, 0, 0, 0, 0]``.
     """
 
-    override_bias_prm: list[float] | None = None
+    override_bias_prm: list[float] | None = config_field(None)
     """MuJoCo actuator bias parameter array override. Defaults to ``None``.
 
     ``None`` leaves the value parsed from the MJCF file unchanged. Example for position
     control: ``[0, -kp, -kd, 0, 0, 0, 0, 0, 0, 0]``.
     """
 
-    run_asset_transformer: bool = True
+    run_asset_transformer: bool = config_field(True)
     """Run the asset transformation profile to convert the flattened USD into a layered USD asset. Defaults to True.
 
     After running this profile, the USD asset will be a layered USD asset with the following structure:
@@ -118,10 +121,10 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
 
     """
 
-    run_multi_physics_conversion: bool = True
+    run_multi_physics_conversion: bool = config_field(True)
     """Enable to convert compatible MuJoCo attributes to PhysX attributes, such as actuator gains. Defaults to True."""
 
-    debug_mode: bool = False
+    debug_mode: bool = config_field(False)
     """Enable debug mode in the underlying MJCF importer. Defaults to False.
 
     When enabled, the importer writes intermediate conversion artifacts next to the output

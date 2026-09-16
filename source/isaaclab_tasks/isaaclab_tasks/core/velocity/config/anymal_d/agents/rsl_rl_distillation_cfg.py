@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import dataclass
+from typing import Any
+
+from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
@@ -15,47 +18,57 @@ from isaaclab_rl.rsl_rl import (
 
 @dataclass
 class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
-    num_steps_per_env = 120
-    max_iterations = 300
-    save_interval = 50
-    experiment_name = "anymal_d_flat"
-    obs_groups = {"student": ["policy"], "teacher": ["policy"]}
-    student = RslRlMLPModelCfg(
-        hidden_dims=[128, 128, 128],
-        activation="elu",
-        obs_normalization=False,
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.1),
+    num_steps_per_env: Any = config_field(120)
+    max_iterations: Any = config_field(300)
+    save_interval: Any = config_field(50)
+    experiment_name: Any = config_field("anymal_d_flat")
+    obs_groups: Any = config_field({"student": ["policy"], "teacher": ["policy"]})
+    student: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[128, 128, 128],
+            activation="elu",
+            obs_normalization=False,
+            distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.1),
+        )
     )
-    teacher = RslRlMLPModelCfg(
-        hidden_dims=[128, 128, 128],
-        activation="elu",
-        obs_normalization=False,
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.0),
+    teacher: Any = config_field(
+        RslRlMLPModelCfg(
+            hidden_dims=[128, 128, 128],
+            activation="elu",
+            obs_normalization=False,
+            distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.0),
+        )
     )
-    algorithm = RslRlDistillationAlgorithmCfg(
-        num_learning_epochs=2,
-        learning_rate=1.0e-3,
-        gradient_length=15,
+    algorithm: Any = config_field(
+        RslRlDistillationAlgorithmCfg(
+            num_learning_epochs=2,
+            learning_rate=1.0e-3,
+            gradient_length=15,
+        )
     )
 
 
 @dataclass
 class AnymalDFlatDistillationRunnerRecurrentCfg(AnymalDFlatDistillationRunnerCfg):
-    student = RslRlRNNModelCfg(
-        hidden_dims=[128, 128, 128],
-        activation="elu",
-        obs_normalization=False,
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.1),
-        rnn_type="lstm",
-        rnn_hidden_dim=256,
-        rnn_num_layers=1,
+    student: Any = config_field(
+        RslRlRNNModelCfg(
+            hidden_dims=[128, 128, 128],
+            activation="elu",
+            obs_normalization=False,
+            distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.1),
+            rnn_type="lstm",
+            rnn_hidden_dim=256,
+            rnn_num_layers=1,
+        )
     )
-    teacher = RslRlRNNModelCfg(
-        hidden_dims=[128, 128, 128],
-        activation="elu",
-        obs_normalization=False,
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.0),
-        rnn_type="lstm",
-        rnn_hidden_dim=256,
-        rnn_num_layers=1,
+    teacher: Any = config_field(
+        RslRlRNNModelCfg(
+            hidden_dims=[128, 128, 128],
+            activation="elu",
+            obs_normalization=False,
+            distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.0),
+            rnn_type="lstm",
+            rnn_hidden_dim=256,
+            rnn_num_layers=1,
+        )
     )

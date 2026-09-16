@@ -18,6 +18,7 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.utils import config_to_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -182,9 +183,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
             if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                runner = OnPolicyRunner(env, config_to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                runner = DistillationRunner(env, config_to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization

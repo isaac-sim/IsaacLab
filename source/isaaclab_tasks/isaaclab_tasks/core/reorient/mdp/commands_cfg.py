@@ -12,6 +12,7 @@ from dataclasses import MISSING, dataclass
 import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from .commands import ReorientCommand
@@ -24,14 +25,14 @@ class ReorientCommandCfg(CommandTermCfg):
     Please refer to the :class:`ReorientCommand` class for more details.
     """
 
-    class_type: type[ReorientCommand] = ReorientCommand
+    class_type: type[ReorientCommand] = config_field(ReorientCommand)
 
-    resampling_time_range: tuple[float, float] = (1e6, 1e6)  # no resampling based on time
+    resampling_time_range: tuple[float, float] = config_field((1e6, 1e6))  # no resampling based on time
 
-    asset_name: str = MISSING
+    asset_name: str = config_field(MISSING)
     """Name of the asset in the environment for which the commands are generated."""
 
-    init_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    init_pos_offset: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Position offset of the asset from its default position.
 
     This is used to account for the offset typically present in the object's default position
@@ -40,35 +41,37 @@ class ReorientCommandCfg(CommandTermCfg):
     is added to it to get the desired position of the object.
     """
 
-    make_quat_unique: bool = MISSING
+    make_quat_unique: bool = config_field(MISSING)
     """Whether to make the quaternion unique or not.
 
     If True, the quaternion is made unique by ensuring the real part is positive.
     """
 
-    fixed_marker_pos: tuple[float, float, float] | None = None
+    fixed_marker_pos: tuple[float, float, float] | None = config_field(None)
     """Fixed goal-marker position [m] in each environment, or ``None`` to follow the goal."""
 
-    orientation_success_threshold: float = MISSING
+    orientation_success_threshold: float = config_field(MISSING)
     """Threshold for the orientation error to consider the goal orientation to be reached."""
 
-    update_goal_on_success: bool = MISSING
+    update_goal_on_success: bool = config_field(MISSING)
     """Whether to update the goal orientation when the goal orientation is reached."""
 
-    marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    marker_pos_offset: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Position offset of the marker from the object's desired position.
 
     This is useful to position the marker at a height above the object's desired position.
     Otherwise, the marker may occlude the object in the visualization.
     """
 
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/Command/goal_marker",
-        markers={
-            "goal": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.0, 1.0, 1.0),
-            ),
-        },
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = config_field(
+        VisualizationMarkersCfg(
+            prim_path="/Visuals/Command/goal_marker",
+            markers={
+                "goal": sim_utils.UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+                    scale=(1.0, 1.0, 1.0),
+                ),
+            },
+        )
     )
     """The configuration for the goal pose visualization marker. Defaults to a DexCube marker."""

@@ -14,6 +14,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.utils import config_to_dict, replace_config, validate_config
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
@@ -38,7 +39,7 @@ def _load_reach_env_cfg(task: str, *presets: str):
 
 
 def _without_controller_dependent_cfg(cfg):
-    cfg_dict = cfg.to_dict()
+    cfg_dict = config_to_dict(cfg)
     cfg_dict.pop("actions")
     cfg_dict.pop("teleop_devices")
     for rigid_props in cfg_dict["scene"]["robot"]["spawn"]["rigid_props"]:
@@ -56,7 +57,7 @@ def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
 
     canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
     legacy_cfg = resolve_presets(legacy_cfg)
-    assert legacy_cfg.to_dict() == canonical_cfg.to_dict()
+    assert config_to_dict(legacy_cfg) == config_to_dict(canonical_cfg)
 
 
 _REACH_PRESET_CASES = [
@@ -87,7 +88,7 @@ _REACH_PRESET_CASES = [
 def test_reach_presets_resolve_supported_combinations(task, presets, action_type, physics_type):
     cfg = _load_reach_env_cfg(task, *presets)
 
-    cfg.validate()
+    validate_config(cfg)
     assert type(cfg.actions.arm_action).__name__ == action_type
     assert type(cfg.sim.physics).__name__ == physics_type
 
@@ -97,8 +98,8 @@ def test_reach_ur10_physics_presets_change_only_physics():
     physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
     newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
 
-    physx_cfg = physx.to_dict()
-    newton_cfg = newton.to_dict()
+    physx_cfg = config_to_dict(physx)
+    newton_cfg = config_to_dict(newton)
     physx_cfg["sim"].pop("physics")
     newton_cfg["sim"].pop("physics")
     assert physx_cfg == newton_cfg
@@ -111,7 +112,7 @@ def test_reach_action_presets_preserve_controller_independent_configuration():
     diffik_newton = _load_env_cfg("diffik", "newton_mjwarp")
     newton_ik = _load_env_cfg("newton_ik", "newton_mjwarp")
 
-    assert _load_env_cfg().actions.arm_action.to_dict() == joint_pos_newton.actions.arm_action.to_dict()
+    assert config_to_dict(_load_env_cfg().actions.arm_action) == config_to_dict(joint_pos_newton.actions.arm_action)
     assert _without_controller_dependent_cfg(joint_pos_physx) == _without_controller_dependent_cfg(diffik_physx)
     assert _without_controller_dependent_cfg(joint_pos_newton) == _without_controller_dependent_cfg(diffik_newton)
     assert _without_controller_dependent_cfg(joint_pos_newton) == _without_controller_dependent_cfg(newton_ik)
@@ -124,7 +125,7 @@ def test_reach_action_presets_preserve_controller_independent_configuration():
 def test_reach_relative_ik_presets_configure_six_dof_native_teleop_devices(action_preset, physics_preset):
     cfg = _load_env_cfg(action_preset, physics_preset)
 
-    cfg.validate()
+    validate_config(cfg)
     assert set(cfg.teleop_devices.devices) == {"keyboard", "gamepad", "spacemouse"}
     assert all(not device_cfg.gripper_term for device_cfg in cfg.teleop_devices.devices.values())
 
@@ -213,7 +214,7 @@ def test_reach_success_requires_position_and_orientation():
     assert torch.equal(succeeded, torch.tensor([True, False, False]))
     assert torch.equal(command._succeeded, succeeded)
 
-    command.cfg = command.cfg.replace(orientation_success_threshold=None)
+    command.cfg = replace_config(command.cfg, orientation_success_threshold=None)
     command._succeeded.zero_()
     position_only_succeeded = mdp.pose_command_success(env, **success.params)
 
@@ -233,7 +234,7 @@ def test_reach_osc_effort_actuator_keeps_menagerie_velocity_limit():
 def test_reach_osc_resolves_controller_preset_values_to_defaults():
     """The OSC action term replaces the arm-controller presets, so their side effects must not leak in."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
-    cfg.validate()
+    validate_config(cfg)
 
     physx_props = next(props for props in cfg.scene.robot.spawn.rigid_props if isinstance(props, PhysxRigidBodyCfg))
     mujoco_props = next(props for props in cfg.scene.robot.spawn.rigid_props if isinstance(props, MujocoRigidBodyCfg))
@@ -251,18 +252,18 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():
     """``presets=diffik_abs`` keeps resolving on the OSC task but warns and changes nothing."""
     default_cfg = _load_reach_env_cfg(_OSC_TASK, "ovphysx")
-    default_cfg.validate()
+    validate_config(default_cfg)
     alias_cfg = _load_reach_env_cfg(_OSC_TASK, "diffik_abs", "ovphysx")
 
     with pytest.warns(FutureWarning, match="presets=diffik_abs"):
-        alias_cfg.validate()
+        validate_config(alias_cfg)
 
     assert type(alias_cfg.rewards.action_magnitude.weight) is float
-    assert alias_cfg.to_dict() == default_cfg.to_dict()
+    assert config_to_dict(alias_cfg) == config_to_dict(default_cfg)
 
 
 def test_reach_newton_ik_rejects_physx():
     cfg = _load_env_cfg("newton_ik", "isaacsim_physx")
 
     with pytest.raises(ValueError, match="requires a Newton physics preset"):
-        cfg.validate()
+        validate_config(cfg)

@@ -19,6 +19,7 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab.utils import replace_config
 
 # Default arm + gripper joint pose
 _FRANKA_STACK_IK_REL_INIT_JOINT_POS: dict[str, float] = {
@@ -45,13 +46,15 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set robot-neutral reset events (default cube workspace matches the Franka layout).
         self.events = StackEventCfg()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(
+        self.scene.robot = replace_config(
+            FRANKA_PANDA_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(joint_pos=_FRANKA_STACK_IK_REL_INIT_JOINT_POS),
         )

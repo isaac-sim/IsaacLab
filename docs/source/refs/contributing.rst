@@ -516,12 +516,12 @@ to avoid importing it:
 
    from dataclasses import dataclass
 
-   from isaaclab.utils import ConfigMixin
+   from isaaclab.utils import config_field
    if typing.TYPE_CHECKING:
        from .sensor import Sensor
 
    @dataclass
-   class SensorCfg(ConfigMixin):
+   class SensorCfg:
        class_type: type[Sensor] | str = "{DIR}.sensor:Sensor"
 
 ``sensor.py`` — the implementation; may freely import heavyweight dependencies:

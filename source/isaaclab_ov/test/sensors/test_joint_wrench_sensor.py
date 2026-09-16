@@ -23,12 +23,15 @@ unlocked device so single-device runs finish cleanly.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import pytest
 import torch
 import warp as wp
 
 from pxr import Gf, UsdPhysics
+
+from isaaclab.utils import config_field, replace_config
 
 # OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
@@ -148,40 +151,40 @@ def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCf
 class _SingleJointSceneCfg(InteractiveSceneCfg):
     """Scene with a single-joint articulation and the joint-wrench sensor."""
 
-    env_spacing = 2.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_single_joint_articulation_cfg()
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    env_spacing: Any = config_field(2.0)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    robot: Any = config_field(_make_single_joint_articulation_cfg())
+    wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @dataclass
 class _CartpoleSceneCfg(InteractiveSceneCfg):
     """Scene with a cartpole (2-joint) articulation and the joint-wrench sensor."""
 
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_cartpole_articulation_cfg()
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    env_spacing: Any = config_field(4.0)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    robot: Any = config_field(_make_cartpole_articulation_cfg())
+    wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @dataclass
 class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
     """Cartpole with pole damping for steady-state physics validation tests."""
 
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_cartpole_articulation_cfg(pole_damping=10.0)
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    env_spacing: Any = config_field(4.0)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    robot: Any = config_field(_make_cartpole_articulation_cfg(pole_damping=10.0))
+    wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @dataclass
 class _NestedRootAntSceneCfg(InteractiveSceneCfg):
     """Ant USD asset whose articulation root is nested under the configured asset prim."""
 
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    env_spacing: Any = config_field(4.0)
+    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    robot: Any = config_field(replace_config(ANT_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @pytest.fixture

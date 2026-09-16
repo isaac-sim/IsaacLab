@@ -7,6 +7,10 @@
 This script checks if the app can be launched with non-headless app and start the simulation.
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -35,7 +39,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
 
 
 def run_simulator(

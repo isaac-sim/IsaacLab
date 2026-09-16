@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import argparse
 from functools import partial
+from typing import Any
 
 from isaaclab.benchmark._cli import parse_positive_int
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark the Newton FrameTransformer update path.")
 add_sensor_benchmark_args(
@@ -51,27 +53,31 @@ from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 class FrameTransformerBenchmarkSceneCfg(InteractiveSceneCfg):
     """Two kinematic rigid bodies and one FrameTransformer per environment."""
 
-    source = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Source",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+    source: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Source",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+        )
     )
-    target = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Target",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
+    target: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Target",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
+        )
     )
-    frame_transformer: FrameTransformerCfg = None
+    frame_transformer: FrameTransformerCfg = config_field(None)
 
 
 def main() -> None:

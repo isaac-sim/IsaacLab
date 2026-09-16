@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class CouplerEntryCfg(ConfigMixin):
+class CouplerEntryCfg:
     """Configuration for one named sub-solver and its model ownership.
 
     Bodies are selected by full Newton body-label regex.
@@ -35,10 +35,10 @@ class CouplerEntryCfg(ConfigMixin):
     additional shapes can be selected directly by their full labels.
     """
 
-    name: str = MISSING
+    name: str = config_field(MISSING)
     """Unique name used by coupling mappings to reference this entry."""
 
-    solver_cfg: NewtonSolverCfg = MISSING
+    solver_cfg: NewtonSolverCfg = config_field(MISSING)
     """Configuration used to construct this entry's Newton solver."""
 
     bodies: list[str] = field(default_factory=list)
@@ -51,29 +51,29 @@ class CouplerEntryCfg(ConfigMixin):
     particles: list[int] = field(default_factory=list)
     """Parent-model particle indices owned by this entry."""
 
-    all_particles: bool = False
+    all_particles: bool = config_field(False)
     """Whether this entry owns every particle in the parent model."""
 
-    include_child_joints: bool = True
+    include_child_joints: bool = config_field(True)
     """Whether fully selected child joints are owned by this entry.
 
     A joint is owned when its child body is selected and its parent is either
     the world or selected by the same entry.
     """
 
-    include_body_shapes: bool = True
+    include_body_shapes: bool = config_field(True)
     """Whether shapes attached to selected bodies are owned by this entry."""
 
-    include_static_shapes: bool = False
+    include_static_shapes: bool = config_field(False)
     """Whether this entry owns all shapes whose body index is ``-1``."""
 
     shape_label_patterns: list[str] = field(default_factory=list)
     """Regexes matched against full Newton shape labels for additional ownership."""
 
-    substeps: int = 1
+    substeps: int = config_field(1)
     """Number of equal substeps this entry runs inside one coupled step."""
 
-    in_place: bool = False
+    in_place: bool = config_field(False)
     """Whether this entry steps in-place instead of using a second state buffer.
 
     Use this only for solvers, such as implicit MPM, whose public stepping
@@ -83,13 +83,13 @@ class CouplerEntryCfg(ConfigMixin):
 
 
 @dataclass
-class CouplerProxyMappingCfg(ConfigMixin):
+class CouplerProxyMappingCfg:
     """Configuration for one directed virtual-proxy mapping."""
 
-    source: str = MISSING
+    source: str = config_field(MISSING)
     """Name of the entry that owns the source bodies."""
 
-    destination: str = MISSING
+    destination: str = config_field(MISSING)
     """Name of the entry that receives the proxy bodies."""
 
     bodies: list[str | int] = field(default_factory=list)
@@ -104,13 +104,13 @@ class CouplerProxyMappingCfg(ConfigMixin):
     particles: list[int] = field(default_factory=list)
     """Source particle indices exposed as proxies in the destination entry."""
 
-    mode: Literal["lagged", "staggered"] = "lagged"
+    mode: Literal["lagged", "staggered"] = config_field("lagged")
     """Proxy transfer mode passed to Newton's coupled-proxy solver."""
 
-    mass_scale: float = 1.0
+    mass_scale: float = config_field(1.0)
     """Scale applied to proxy body mass/inertia and particle mass in the destination view."""
 
-    collide_interval: int | None = None
+    collide_interval: int | None = config_field(None)
     """Proxy-local collision refresh interval.
 
     ``None`` refreshes contacts on every proxy pass. Explicit values must be
@@ -136,7 +136,7 @@ class CouplerCfg(NewtonSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupler:NewtonCouplerManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.coupler:NewtonCouplerManager")
     """Coupler implementation class."""
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)
@@ -153,7 +153,7 @@ class CouplerProxyCfg(CouplerCfg):
     proxies: list[CouplerProxyMappingCfg] = field(default_factory=list)
     """Directed proxy mappings between named solver entries."""
 
-    iterations: int = 1
+    iterations: int = config_field(1)
     """Number of proxy relaxation passes per coupled step."""
 
 
@@ -161,54 +161,54 @@ class CouplerProxyCfg(CouplerCfg):
 class CouplerAdmmCfg(CouplerCfg):
     """Configuration for Newton's linearized ADMM coupling."""
 
-    contact_pairs: list[tuple[str, str]] | None = None
+    contact_pairs: list[tuple[str, str]] | None = config_field(None)
     """Symmetric contact interfaces as ``(entry_name, entry_name)`` pairs.
 
     ``None`` asks Newton to detect every distinct entry pair automatically.
     An empty list disables ADMM contact coupling.
     """
 
-    iterations: int = 5
+    iterations: int = config_field(5)
     """Number of ADMM dual iterations per coupled step."""
 
-    rho: float = 1.0
+    rho: float = config_field(1.0)
     """ADMM penalty parameter [dimensionless]."""
 
-    gamma: float = 0.0
+    gamma: float = config_field(0.0)
     """Proximal mass scaling parameter [dimensionless]."""
 
-    baumgarte: float = 0.0
+    baumgarte: float = config_field(0.0)
     """Position-error correction fraction [dimensionless]."""
 
-    joint_stiffness: float = 1.0e4
+    joint_stiffness: float = config_field(1.0e4)
     """Translational cross-solver joint stiffness [N/m]."""
 
-    joint_damping: float = 0.0
+    joint_damping: float = config_field(0.0)
     """Translational cross-solver joint damping [N*s/m]."""
 
-    joint_angular_stiffness: float = 1.0e4
+    joint_angular_stiffness: float = config_field(1.0e4)
     """Angular cross-solver joint stiffness [N*m/rad]."""
 
-    joint_angular_damping: float = 0.0
+    joint_angular_damping: float = config_field(0.0)
     """Angular cross-solver joint damping [N*m*s/rad]."""
 
-    joint_proximal_bodies: bool = True
+    joint_proximal_bodies: bool = config_field(True)
     """Whether cross-solver joint neighbors remain visible as inertial proxies."""
 
-    joint_proximal_destination_entries: list[str] | None = None
+    joint_proximal_destination_entries: list[str] | None = config_field(None)
     """Optional entries that receive cross-solver joint proximal bodies."""
 
-    joint_proximal_mass_scale: float = 1.0
+    joint_proximal_mass_scale: float = config_field(1.0)
     """Mass scale applied to cross-solver joint proximal bodies."""
 
-    rigid_contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    rigid_contact_matching: Literal["disabled", "latest", "sticky"] = config_field("disabled")
     """Frame-to-frame matching mode for collision-detected rigid contacts."""
 
-    contact_matching_pos_threshold: float | None = None
+    contact_matching_pos_threshold: float | None = config_field(None)
     """Maximum midpoint distance for matching rigid contacts [m]."""
 
-    contact_matching_normal_dot_threshold: float | None = None
+    contact_matching_normal_dot_threshold: float | None = config_field(None)
     """Minimum normal dot product for matching rigid contacts."""
 
-    contact_matching_force_scale: float = 0.9
+    contact_matching_force_scale: float = config_field(0.9)
     """Scale applied to the previous ADMM dual when a rigid contact matches."""

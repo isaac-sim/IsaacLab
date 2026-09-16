@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .cable_object import CableObject
@@ -21,4 +22,4 @@ class CableObjectCfg(AssetBaseCfg):
     The inherited :attr:`init_state` sets the cable's spawn position and orientation.
     """
 
-    class_type: type[CableObject] | str = "{DIR}.cable_object:CableObject"
+    class_type: type[CableObject] | str = config_field("{DIR}.cable_object:CableObject")

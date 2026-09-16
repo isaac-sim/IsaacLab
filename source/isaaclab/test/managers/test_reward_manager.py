@@ -5,7 +5,10 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from typing import Any
+
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -20,7 +23,6 @@ import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -81,25 +83,29 @@ def test_config_equivalence(env):
 
     # create from config class
     @dataclass
-    class MyRewardManagerCfg(ConfigMixin):
+    class MyRewardManagerCfg:
         """Reward manager config with no type annotations."""
 
-        my_term = RewardTermCfg(func=grilled_chicken, weight=10.0)
-        your_term = RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
-        his_term = RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0})
+        my_term: Any = config_field(RewardTermCfg(func=grilled_chicken, weight=10.0))
+        your_term: Any = config_field(RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True}))
+        his_term: Any = config_field(
+            RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0})
+        )
 
     cfg = MyRewardManagerCfg()
     rew_man_from_cfg = RewardManager(cfg, env)
 
     # create from config class
     @dataclass
-    class MyRewardManagerAnnotatedCfg(ConfigMixin):
+    class MyRewardManagerAnnotatedCfg:
         """Reward manager config with type annotations."""
 
-        my_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken, weight=10.0)
-        your_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
-        his_term: RewardTermCfg = RewardTermCfg(
-            func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0}
+        my_term: RewardTermCfg = config_field(RewardTermCfg(func=grilled_chicken, weight=10.0))
+        your_term: RewardTermCfg = config_field(
+            RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
+        )
+        his_term: RewardTermCfg = config_field(
+            RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0})
         )
 
     cfg = MyRewardManagerAnnotatedCfg()

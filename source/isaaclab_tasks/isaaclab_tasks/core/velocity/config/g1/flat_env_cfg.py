@@ -13,7 +13,8 @@ from .rough_env_cfg import G1RoughEnvCfg
 @dataclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # physics
         newton_mjwarp = self.sim.physics.newton_mjwarp

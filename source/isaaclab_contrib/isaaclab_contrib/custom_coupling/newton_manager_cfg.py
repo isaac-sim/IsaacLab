@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg, VBDSolverCfg
 
+from isaaclab.utils import config_field
+
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
@@ -20,14 +22,16 @@ if TYPE_CHECKING:
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the custom MJWarp and VBD coupling manager."""
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+    class_type: type[NewtonManager] | str = config_field(
+        "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+    )
     """Manager class for the coupled solver."""
 
-    rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
+    rigid_solver_cfg: MJWarpSolverCfg = config_field(MJWarpSolverCfg())
     """MJWarp rigid-body solver configuration."""
 
-    soft_solver_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
+    soft_solver_cfg: VBDSolverCfg = config_field(VBDSolverCfg(integrate_with_external_rigid_solver=True))
     """VBD deformable solver configuration."""
 
-    coupling_mode: Literal["one_way", "two_way"] = "two_way"
+    coupling_mode: Literal["one_way", "two_way"] = config_field("two_way")
     """Coupling direction between the rigid and deformable solvers."""

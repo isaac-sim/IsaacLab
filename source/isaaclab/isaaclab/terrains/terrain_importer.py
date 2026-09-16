@@ -15,6 +15,7 @@ import trimesh
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.utils import config_to_dict, replace_config, validate_config
 
 from .utils import create_prim_from_mesh
 
@@ -69,7 +70,7 @@ class TerrainImporter:
             ValueError: If terrain type is 'usd' or 'plane' and no configuration provided for ``env_spacing``.
         """
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # store inputs
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
@@ -171,7 +172,7 @@ class TerrainImporter:
         if debug_vis:
             if not hasattr(self, "origin_visualizer"):
                 self.origin_visualizer = VisualizationMarkers(
-                    cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
+                    cfg=replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/TerrainOrigin")
                 )
                 if self.terrain_origins is not None:
                     self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
@@ -219,7 +220,7 @@ class TerrainImporter:
         # obtain ground plane color from the configured visual material
         color = None
         if self.cfg.visual_material is not None:
-            material = self.cfg.visual_material.to_dict()
+            material = config_to_dict(self.cfg.visual_material)
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:

@@ -244,7 +244,7 @@ Below is an example of a configuration class for domain randomization:
 .. code-block:: python
 
   @dataclass
-  class EventCfg(ConfigMixin):
+  class EventCfg:
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
@@ -295,7 +295,7 @@ to the base config class for the task and be assigned to the variable ``events``
 .. code-block:: python
 
   @dataclass
-  class MyTaskConfig(ConfigMixin):
+  class MyTaskConfig:
     events: EventCfg = EventCfg()
 
 
@@ -309,7 +309,7 @@ Action and observation noise configs must be added to the main task config using
 .. code-block:: python
 
   @dataclass
-  class MyTaskConfig(ConfigMixin):
+  class MyTaskConfig:
 
       # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
       action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
@@ -342,7 +342,7 @@ to specify an additive Gaussian distribution that adds the sampled noise to the 
 .. code-block:: python
 
   @dataclass
-  class MyTaskConfig(ConfigMixin):
+  class MyTaskConfig:
     action_noise_model: GaussianNoiseCfg = GaussianNoiseCfg(mean=0.0, std=0.05, operation="add")
 
 

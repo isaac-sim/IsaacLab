@@ -12,7 +12,7 @@ from typing import Dict, Literal, TypeVar  # noqa: UP035
 import gymnasium as gym
 import torch
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 ##
 # Deprecated: ViewerCfg
@@ -27,7 +27,7 @@ def _viewer_cfg_field_matches_default(value, default) -> bool:
 
 
 @dataclass
-class ViewerCfg(ConfigMixin):
+class ViewerCfg:
     """Configuration of the scene viewport camera.
 
     .. deprecated::
@@ -41,35 +41,35 @@ class ViewerCfg(ConfigMixin):
             sim_cfg = SimulationCfg(visualizer_cfgs=[KitVisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))])
     """
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    eye: tuple[float, float, float] = config_field((7.5, 7.5, 7.5))
     """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
 
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    lookat: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
 
-    cam_prim_path: str = "/OmniverseKit_Persp"
+    cam_prim_path: str = config_field("/OmniverseKit_Persp")
     """The camera prim path to record images from. Default is "/OmniverseKit_Persp"."""
 
-    resolution: tuple[int, int] = (1280, 720)
+    resolution: tuple[int, int] = config_field((1280, 720))
     """The resolution (width, height) of the camera. Default is (1280, 720)."""
 
-    origin_type: Literal["world", "env", "asset_root", "asset_body"] = "world"
+    origin_type: Literal["world", "env", "asset_root", "asset_body"] = config_field("world")
     """The frame in which the camera position (eye) and target (lookat) are defined. Default is "world"."""
 
-    env_index: int = 0
+    env_index: int = config_field(0)
     """The environment index for frame origin. Default is 0."""
 
-    asset_name: str | None = None
+    asset_name: str | None = config_field(None)
     """The asset name in the interactive scene for the frame origin. Default is None."""
 
-    body_name: str | None = None
+    body_name: str | None = config_field(None)
     """The name of the body in :attr:`asset_name` for the frame origin. Default is None."""
 
     def __post_init__(self) -> None:
         # Warn only when the user configured a non-default field so that bare ``ViewerCfg()``
         # usage (e.g. in task configs that haven't been migrated yet) stays silent.
         #
-        # ConfigMixin stores mutable defaults (tuples, lists) via default_factory rather than
+        # config_field stores mutable defaults (tuples, lists) via default_factory rather than
         # default, so we must check both to obtain the canonical default value.
         differing = []
         for f in fields(self):

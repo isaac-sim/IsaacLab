@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 if TYPE_CHECKING:
     from isaaclab.devices.openxr import XrCfg
 
@@ -15,7 +17,6 @@ from dataclasses import dataclass
 
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import ConfigMixin
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import AgentID, SpaceType, ViewerCfg
@@ -23,18 +24,18 @@ from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 @dataclass
-class DirectMARLEnvCfg(ConfigMixin):
+class DirectMARLEnvCfg:
     """Configuration for a MARL environment defined with the direct workflow.
 
     Please refer to the :class:`isaaclab.envs.direct_marl_env.DirectMARLEnv` class for more details.
     """
 
     # simulation settings
-    sim: SimulationCfg = SimulationCfg()
+    sim: SimulationCfg = config_field(SimulationCfg())
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
+    ui_window_class_type: type | str | None = config_field("isaaclab.envs.ui.base_env_window:BaseEnvWindow")
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.
@@ -46,7 +47,7 @@ class DirectMARLEnvCfg(ConfigMixin):
     """
 
     # general settings
-    seed: int | None = None
+    seed: int | None = config_field(None)
     """The seed for the random number generator. Defaults to None, in which case the seed is not set.
 
     Note:
@@ -54,14 +55,14 @@ class DirectMARLEnvCfg(ConfigMixin):
       creation is deterministic and behaves similarly across different runs.
     """
 
-    decimation: int = MISSING
+    decimation: int = config_field(MISSING)
     """Number of control action updates @ sim dt per policy dt.
 
     For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.
     This means that the control action is updated every 10 simulation steps.
     """
 
-    is_finite_horizon: bool = False
+    is_finite_horizon: bool = config_field(False)
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
 
@@ -83,7 +84,7 @@ class DirectMARLEnvCfg(ConfigMixin):
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
-    compute_final_obs: bool = False
+    compute_final_obs: bool = config_field(False)
     """Whether to capture the per-agent terminal observation before a Same-Step autoreset and expose it.
 
     Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectMARLEnv.metadata`), an agent whose
@@ -97,7 +98,7 @@ class DirectMARLEnvCfg(ConfigMixin):
     ``extras[agent]["final_obs"]`` is not populated, and the extra observation computation is skipped.
     """
 
-    episode_length_s: float = MISSING
+    episode_length_s: float = config_field(MISSING)
     """Duration of an episode (in seconds).
 
     Based on the decimation rate and physics time step, the episode length is calculated as:
@@ -111,19 +112,19 @@ class DirectMARLEnvCfg(ConfigMixin):
     """
 
     # environment settings
-    scene: InteractiveSceneCfg = MISSING
+    scene: InteractiveSceneCfg = config_field(MISSING)
     """Scene settings.
 
     Please refer to the :class:`isaaclab.scene.InteractiveSceneCfg` class for more details.
     """
 
-    events: object = None
+    events: object = config_field(None)
     """Event settings. Defaults to None, in which case no events are applied through the event manager.
 
     Please refer to the :class:`isaaclab.managers.EventManager` class for more details.
     """
 
-    observation_spaces: dict[AgentID, SpaceType] = MISSING
+    observation_spaces: dict[AgentID, SpaceType] = config_field(MISSING)
     """Observation space definition for each agent.
 
     The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
@@ -146,7 +147,7 @@ class DirectMARLEnvCfg(ConfigMixin):
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_observations: dict[AgentID, int] | None = None
+    num_observations: dict[AgentID, int] | None = config_field(None)
     """The dimension of the observation space for each agent.
 
     .. warning::
@@ -154,7 +155,7 @@ class DirectMARLEnvCfg(ConfigMixin):
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectMARLEnvCfg.observation_spaces` instead.
     """
 
-    state_space: SpaceType = MISSING
+    state_space: SpaceType = config_field(MISSING)
     """State space definition.
 
     The following values are supported:
@@ -184,7 +185,7 @@ class DirectMARLEnvCfg(ConfigMixin):
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_states: int | None = None
+    num_states: int | None = config_field(None)
     """The dimension of the state space from each environment instance.
 
     .. warning::
@@ -192,14 +193,14 @@ class DirectMARLEnvCfg(ConfigMixin):
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectMARLEnvCfg.state_space` instead.
     """
 
-    observation_noise_model: dict[AgentID, NoiseModelCfg | None] | None = None
+    observation_noise_model: dict[AgentID, NoiseModelCfg | None] | None = config_field(None)
     """The noise model to apply to the computed observations from the environment. Default is None,
     which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
-    action_spaces: dict[AgentID, SpaceType] = MISSING
+    action_spaces: dict[AgentID, SpaceType] = config_field(MISSING)
     """Action space definition for each agent.
 
     The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
@@ -222,7 +223,7 @@ class DirectMARLEnvCfg(ConfigMixin):
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_actions: dict[AgentID, int] | None = None
+    num_actions: dict[AgentID, int] | None = config_field(None)
     """The dimension of the action space for each agent.
 
     .. warning::
@@ -230,26 +231,26 @@ class DirectMARLEnvCfg(ConfigMixin):
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectMARLEnvCfg.action_spaces` instead.
     """
 
-    action_noise_model: dict[AgentID, NoiseModelCfg | None] | None = None
+    action_noise_model: dict[AgentID, NoiseModelCfg | None] | None = config_field(None)
     """The noise model applied to the actions provided to the environment. Default is None,
     which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
-    possible_agents: list[AgentID] = MISSING
+    possible_agents: list[AgentID] = config_field(MISSING)
     """A list of all possible agents the environment could generate.
 
     The contents of the list cannot be modified during the entire training process.
     """
 
-    xr: XrCfg | None = None
+    xr: XrCfg | None = config_field(None)
     """Configuration for viewing and interacting with the environment through an XR device."""
 
-    log_dir: str | None = None
+    log_dir: str | None = config_field(None)
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    viewer: ViewerCfg = ViewerCfg()
+    viewer: ViewerCfg = config_field(ViewerCfg())
     """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
     or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
 
@@ -261,7 +262,7 @@ class DirectMARLEnvCfg(ConfigMixin):
             env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
     """
 
-    video_recorders: list[VideoRecorderCfg] = []
+    video_recorders: list[VideoRecorderCfg] = config_field([])
     """Video recording streams. Each entry records from its configured source independently.
 
     Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list

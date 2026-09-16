@@ -13,6 +13,8 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 
 """
 
+from isaaclab.utils import replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -93,7 +95,7 @@ def design_scene() -> dict:
     cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
     # -- Robot
-    robot = Articulation(ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH))
+    robot = Articulation(replace_config(ANYMAL_C_CFG, prim_path=ROBOT_PRIM_PATH))
     # -- Sensors
     frame_transformer = define_sensor()
 
@@ -117,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # to step through each frame so the user can verify that the correct frame
     # is being visualized as the frame names are printing to console
     if not args_cli.headless:
-        cfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameVisualizerFromScript")
+        cfg = replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/FrameVisualizerFromScript")
         cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         transform_visualizer = VisualizationMarkers(cfg)
         # debug drawing for lines connecting the frame

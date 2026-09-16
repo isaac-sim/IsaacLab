@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 from isaaclab_tasks.contrib.nist.assembly_profile import (
@@ -40,47 +40,47 @@ from isaaclab_tasks.contrib.nist.assembly_profile import (
 
 
 @dataclass
-class UniformYawCfg(ConfigMixin):
+class UniformYawCfg:
     """Uniformly random yaw in ``[-pi, pi]``, no position noise."""
 
-    class_type: type = UniformYaw
+    class_type: type = config_field(UniformYaw)
     """Class of the sampler implementation."""
 
 
 @dataclass
-class DiscreteYawCfg(ConfigMixin):
+class DiscreteYawCfg:
     """Randomly chosen from a discrete set of yaw angles [rad], no position noise."""
 
-    class_type: type = DiscreteYaw
+    class_type: type = config_field(DiscreteYaw)
     """Class of the sampler implementation."""
 
-    yaws: list[float] | None = None
+    yaws: list[float] | None = config_field(None)
     """Yaw angles [rad] to sample from."""
 
 
 @dataclass
-class UniformPoseNoiseCfg(ConfigMixin):
+class UniformPoseNoiseCfg:
     """Uniform noise over user-defined position [m] and euler-angle [rad] ranges."""
 
-    class_type: type = UniformPoseNoise
+    class_type: type = config_field(UniformPoseNoise)
     """Class of the sampler implementation."""
 
-    x: tuple[float, float] = (0.0, 0.0)
+    x: tuple[float, float] = config_field((0.0, 0.0))
     """Position noise range along x [m]."""
 
-    y: tuple[float, float] = (0.0, 0.0)
+    y: tuple[float, float] = config_field((0.0, 0.0))
     """Position noise range along y [m]."""
 
-    z: tuple[float, float] = (0.0, 0.0)
+    z: tuple[float, float] = config_field((0.0, 0.0))
     """Position noise range along z [m]."""
 
-    roll: tuple[float, float] = (0.0, 0.0)
+    roll: tuple[float, float] = config_field((0.0, 0.0))
     """Roll noise range [rad]."""
 
-    pitch: tuple[float, float] = (0.0, 0.0)
+    pitch: tuple[float, float] = config_field((0.0, 0.0))
     """Pitch noise range [rad]."""
 
-    yaw: tuple[float, float] = (0.0, 0.0)
+    yaw: tuple[float, float] = config_field((0.0, 0.0))
     """Yaw noise range [rad]."""
 
 
@@ -90,67 +90,67 @@ class UniformPoseNoiseCfg(ConfigMixin):
 
 
 @dataclass
-class EndPointsSegmentCfg(ConfigMixin):
+class EndPointsSegmentCfg:
     """Segment defined by explicit start and end poses.
 
     See :class:`EndPointsSegment` for the runtime implementation.
     """
 
-    class_type: type = EndPointsSegment
+    class_type: type = config_field(EndPointsSegment)
     """Class of the segment implementation."""
 
-    fraction: tuple[float, float] = (0.0, 1.0)
+    fraction: tuple[float, float] = config_field((0.0, 1.0))
     """Fraction range ``(lo, hi)`` this segment covers. ``0`` is assembled."""
 
-    start_sampler: UniformYawCfg | DiscreteYawCfg | UniformPoseNoiseCfg | None = None
+    start_sampler: UniformYawCfg | DiscreteYawCfg | UniformPoseNoiseCfg | None = config_field(None)
     """Noise config applied on top of the interpolated pose. ``None`` means no noise."""
 
-    start_pose: Offset = Offset()
+    start_pose: Offset = config_field(Offset())
     """Offset at ``fraction[0]`` (assembled end) relative to the fixed asset."""
 
-    end_pose: Offset = Offset()
+    end_pose: Offset = config_field(Offset())
     """Offset at ``fraction[1]`` (disassembled end) relative to the fixed asset."""
 
-    revolutions: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    revolutions: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Extra full turns ``(roll, pitch, yaw)`` between the two endpoints."""
 
 
 @dataclass
-class IncrementalSegmentCfg(ConfigMixin):
+class IncrementalSegmentCfg:
     """Segment defined by start pose, travel distance, and rotation ratio.
 
     See :class:`IncrementalSegment` for the runtime implementation.
     """
 
-    class_type: type = IncrementalSegment
+    class_type: type = config_field(IncrementalSegment)
     """Class of the segment implementation."""
 
-    fraction: tuple[float, float] = (0.0, 1.0)
+    fraction: tuple[float, float] = config_field((0.0, 1.0))
     """Fraction range ``(lo, hi)`` this segment covers. ``0`` is assembled."""
 
-    start_sampler: UniformYawCfg | DiscreteYawCfg | UniformPoseNoiseCfg | None = None
+    start_sampler: UniformYawCfg | DiscreteYawCfg | UniformPoseNoiseCfg | None = config_field(None)
     """Noise config applied on top of the interpolated pose. ``None`` means no noise."""
 
-    start_pose: Offset = Offset()
+    start_pose: Offset = config_field(Offset())
     """Offset at ``fraction[0]`` (assembled end) relative to the fixed asset."""
 
-    distance: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    distance: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Linear travel vector from start to end [m]."""
 
-    ratio: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    ratio: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """Screw pitch per axis: meters of travel per radian [m/rad]. Zero means no rotation."""
 
 
 @dataclass
-class AssemblyProfileCfg(ConfigMixin):
+class AssemblyProfileCfg:
     """Complete assembly path as a list of contiguous segment configs.
 
     ``fraction=0`` means fully assembled; increasing fraction moves toward the
     disassembled state. See :class:`AssemblyProfile` for the runtime implementation.
     """
 
-    class_type: type = AssemblyProfile
+    class_type: type = config_field(AssemblyProfile)
     """Class of the profile implementation."""
 
-    segments: list[EndPointsSegmentCfg | IncrementalSegmentCfg] | None = None
+    segments: list[EndPointsSegmentCfg | IncrementalSegmentCfg] | None = config_field(None)
     """Ordered list of segment configs covering the full fraction range."""

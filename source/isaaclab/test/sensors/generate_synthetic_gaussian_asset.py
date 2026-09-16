@@ -21,7 +21,7 @@ import contextlib
 import math
 import os
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
@@ -34,6 +34,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -612,31 +613,37 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
     :func:`fresh_synthetic_gaussian_interactive_scene`.
     """
 
-    env_spacing: float = 2.0
+    env_spacing: float = config_field(2.0)
 
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        # Keep the background in the calibrated HDR range independently of the default plane's appearance.
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
+    terrain: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="plane",
+            # Keep the background in the calibrated HDR range independently of the default plane's appearance.
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
+        )
     )
 
-    gaussian = AssetBaseCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}",
-        spawn=sim_utils.UsdFileCfg(usd_path=""),  # filled in at runtime
+    gaussian: Any = config_field(
+        AssetBaseCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}",
+            spawn=sim_utils.UsdFileCfg(usd_path=""),  # filled in at runtime
+        )
     )
 
-    anchor = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Anchor",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+    anchor: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Anchor",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.01, 0.01, 0.01),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+        )
     )
 
 

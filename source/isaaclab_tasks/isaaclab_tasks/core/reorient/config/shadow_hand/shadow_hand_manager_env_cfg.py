@@ -6,13 +6,14 @@
 """Manager-based counterpart of the state-based Shadow Hand reorientation task."""
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
@@ -46,8 +47,8 @@ from isaaclab_assets.robots.shadow_hand import (
 class ShadowHandManagerSceneCfg(ReorientSceneBaseCfg):
     """The shared scene, holding the Shadow hand and its in-hand cube."""
 
-    robot: PresetCfg = ShadowHandRobotCfg()
-    object: RigidObjectCfg = CUBE_CFG
+    robot: PresetCfg = config_field(ShadowHandRobotCfg())
+    object: RigidObjectCfg = config_field(CUBE_CFG)
 
 
 @dataclass
@@ -59,14 +60,16 @@ class ShadowHandActionsCfg(ActionsCfg):
     joints. A joint term cannot reach a tendon, so those four need a term of their own.
     """
 
-    tendon_pos = mdp.FixedTendonPositionActionCfg(
-        asset_name="robot",
-        tendon_names=TENDON_NAMES,
-        # map the policy's [-1, 1] onto the tendon's commandable span
-        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
-        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
-        # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
-        clip={".*": TENDON_POSITION_LIMITS},
+    tendon_pos: Any = config_field(
+        mdp.FixedTendonPositionActionCfg(
+            asset_name="robot",
+            tendon_names=TENDON_NAMES,
+            # map the policy's [-1, 1] onto the tendon's commandable span
+            scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+            offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
+            # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
+            clip={".*": TENDON_POSITION_LIMITS},
+        )
     )
 
 
@@ -74,19 +77,20 @@ class ShadowHandActionsCfg(ActionsCfg):
 class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
-    fingertip_body_names = FINGERTIP_NAMES
-    actuated_joint_names = JOINT_NAMES
-    goal_orientation_threshold = 0.1
-    goal_marker_cfg = GOAL_OBJECT_CFG
-    decimation = 2
+    fingertip_body_names: Any = config_field(FINGERTIP_NAMES)
+    actuated_joint_names: Any = config_field(JOINT_NAMES)
+    goal_orientation_threshold: Any = config_field(0.1)
+    goal_marker_cfg: Any = config_field(GOAL_OBJECT_CFG)
+    decimation: Any = config_field(2)
 
-    actions: ShadowHandActionsCfg = ShadowHandActionsCfg()
-    scene: ShadowHandManagerSceneCfg = ShadowHandManagerSceneCfg()
+    actions: ShadowHandActionsCfg = config_field(ShadowHandActionsCfg())
+    scene: ShadowHandManagerSceneCfg = config_field(ShadowHandManagerSceneCfg())
     # ``presets=randomized`` adds the domain-randomization terms
-    events: ShadowHandManagerEventPresetCfg = ShadowHandManagerEventPresetCfg()
+    events: ShadowHandManagerEventPresetCfg = config_field(ShadowHandManagerEventPresetCfg())
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.sim.physics = PhysicsCfg()
 
 
@@ -99,32 +103,36 @@ class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 class ShadowHandAsymmetricSceneCfg(ShadowHandManagerSceneCfg):
     """Scene with the fingertip joint-wrench sensing the privileged critic reads."""
 
-    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    joint_wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @dataclass
-class ShadowHandAsymmetricObservationsCfg(ConfigMixin):
+class ShadowHandAsymmetricObservationsCfg:
     """A reduced actor observation paired with a privileged critic."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Only what a physical hand can measure."""
 
-        fingertip_pos = ObsTerm(
-            func=mdp.fingertip_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=FINGERTIP_NAMES)},
+        fingertip_pos: Any = config_field(
+            ObsTerm(
+                func=mdp.fingertip_pos,
+                params={"asset_cfg": SceneEntityCfg("robot", body_names=FINGERTIP_NAMES)},
+            )
         )
-        object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
-        goal_quat_diff = ObsTerm(
-            func=mdp.goal_quat_diff,
-            params={
-                "asset_cfg": SceneEntityCfg("object"),
-                "command_name": "object_pose",
-                "make_quat_unique": False,
-            },
+        object_pos: Any = config_field(ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")}))
+        goal_quat_diff: Any = config_field(
+            ObsTerm(
+                func=mdp.goal_quat_diff,
+                params={
+                    "asset_cfg": SceneEntityCfg("object"),
+                    "command_name": "object_pose",
+                    "make_quat_unique": False,
+                },
+            )
         )
         # No action_name: this hand splits its motors across a joint term and a tendon term.
-        last_action = ObsTerm(func=mdp.last_action)
+        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
 
         def __post_init__(self):
             self.concatenate_terms = True
@@ -133,29 +141,31 @@ class ShadowHandAsymmetricObservationsCfg(ConfigMixin):
     class CriticCfg(ReorientFullStateObsCfg):
         """The full state, plus contact sensing only the simulator can supply."""
 
-        fingertip_wrench = ObsTerm(
-            func=mdp.body_incoming_wrench,
-            scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
+        fingertip_wrench: Any = config_field(
+            ObsTerm(
+                func=mdp.body_incoming_wrench,
+                scale=10.0,
+                params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
+            )
         )
         # No action_name: this hand splits its motors across a joint term and a tendon term.
-        last_action = ObsTerm(func=mdp.last_action)
+        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
 
-    policy: PolicyCfg = PolicyCfg()
-    critic: CriticCfg = CriticCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
+    critic: CriticCfg = config_field(CriticCfg())
 
 
 @dataclass
 class ShadowHandAsymmetricEnvCfg(ShadowHandManagerEnvCfg):
     """The state task with a reduced actor and a privileged critic."""
 
-    scene: ShadowHandAsymmetricSceneCfg = ShadowHandAsymmetricSceneCfg()
-    observations: ShadowHandAsymmetricObservationsCfg = ShadowHandAsymmetricObservationsCfg()
+    scene: ShadowHandAsymmetricSceneCfg = config_field(ShadowHandAsymmetricSceneCfg())
+    observations: ShadowHandAsymmetricObservationsCfg = config_field(ShadowHandAsymmetricObservationsCfg())
 
 
 @dataclass
 class ShadowHandManagerEnvPresetCfg(PresetCfg):
     """``presets=asymmetric`` swaps in the reduced actor and its privileged critic."""
 
-    asymmetric = ShadowHandAsymmetricEnvCfg()
-    default = ShadowHandManagerEnvCfg()
+    asymmetric: Any = config_field(ShadowHandAsymmetricEnvCfg())
+    default: Any = config_field(ShadowHandManagerEnvCfg())

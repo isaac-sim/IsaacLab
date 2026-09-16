@@ -8,11 +8,11 @@ from __future__ import annotations
 from dataclasses import MISSING, dataclass
 from enum import StrEnum
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class AssetConverterBaseCfg(ConfigMixin):
+class AssetConverterBaseCfg:
     """The base configuration class for asset converters."""
 
     class PhysicsVariant(StrEnum):
@@ -30,17 +30,17 @@ class AssetConverterBaseCfg(ConfigMixin):
         NONE = "none"
         """No physics at all."""
 
-    asset_path: str = MISSING
+    asset_path: str = config_field(MISSING)
     """The absolute path to the asset file to convert into USD."""
 
-    usd_dir: str | None = None
+    usd_dir: str | None = config_field(None)
     """The output directory path to store the generated USD file. Defaults to None.
 
     If None, it is resolved as ``/tmp/IsaacLab/usd_{date}_{time}_{random}``, where
     the parameters in braces are runtime generated.
     """
 
-    usd_file_name: str | None = None
+    usd_file_name: str | None = config_field(None)
     """The name of the generated usd file. Defaults to None.
 
     If None, it is resolved from the asset file name. For example, if the asset file
@@ -50,13 +50,13 @@ class AssetConverterBaseCfg(ConfigMixin):
     ".usd" is appended to the file name.
     """
 
-    force_usd_conversion: bool = False
+    force_usd_conversion: bool = config_field(False)
     """Force the conversion of the asset file to usd. Defaults to False.
 
     If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.
     """
 
-    make_instanceable: bool = True
+    make_instanceable: bool = config_field(True)
     """Make the generated USD file instanceable. Defaults to True.
 
     Note:
@@ -65,7 +65,7 @@ class AssetConverterBaseCfg(ConfigMixin):
         `scene-graph instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`_.
     """
 
-    physics_variant: PhysicsVariant | str = PhysicsVariant.PHYSICS
+    physics_variant: PhysicsVariant | str = config_field(PhysicsVariant.PHYSICS)
     """The ``"Physics"`` variant to select on the generated USD file. Defaults to
     :attr:`PhysicsVariant.PHYSICS`.
 

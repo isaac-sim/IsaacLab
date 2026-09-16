@@ -4,10 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 from rsl_rl.modules.distribution import GaussianDistribution
 from torch.distributions import Normal
+
+from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -51,11 +54,11 @@ class UR10ParticlePushGaussianDistribution(GaussianDistribution):
 class UR10ParticlePushGaussianDistributionCfg(RslRlCNNModelCfg.GaussianDistributionCfg):
     """Smoothly bounded, per-joint exploration used by the push policy."""
 
-    class_name: str = (
+    class_name: str = config_field(
         "isaaclab_tasks.contrib.ur10_particle_push.agents.rsl_rl_ppo_cfg:UR10ParticlePushGaussianDistribution"
     )
-    init_std: float = 0.60
-    std_range: tuple[float, float] = (0.15, 0.65)
+    init_std: float = config_field(0.60)
+    std_range: tuple[float, float] = config_field((0.15, 0.65))
 
 
 @dataclass
@@ -63,61 +66,69 @@ class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO defaults for the deployable heightmap-and-proprioception policy."""
 
     # 72 policy steps span 1.2 s at 60 Hz.
-    num_steps_per_env = 72
-    max_iterations = 6000
-    save_interval = 50
-    experiment_name = "ur10_particle_push"
-    run_name = "single_pile_push"
+    num_steps_per_env: Any = config_field(72)
+    max_iterations: Any = config_field(6000)
+    save_interval: Any = config_field(50)
+    experiment_name: Any = config_field("ur10_particle_push")
+    run_name: Any = config_field("single_pile_push")
     # Keep the task usable offline by default. Distributed launch profiles select W&B explicitly
     # with ``--logger wandb`` and provide the project and credentials.
-    logger = "tensorboard"
-    wandb_project = "ur10-particle-push-mpm"
-    clip_actions = 1.0
-    obs_groups = {
-        "actor": ["policy", "heightmap"],
-        "critic": ["policy", "heightmap", "critic"],
-    }
-    actor = RslRlCNNModelCfg(
-        cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-            output_channels=[8, 16, 32, 32],
-            kernel_size=[5, 3, 3, 3],
-            stride=[2, 2, 2, 2],
-            padding="zeros",
-            activation="elu",
-        ),
-        hidden_dims=[256, 128, 64],
-        activation="elu",
-        # Both image and proprioceptive inputs are bounded at their source. Rank-local empirical
-        # normalizers would otherwise make distributed checkpoints depend on the saved rank.
-        obs_normalization=False,
-        distribution_cfg=UR10ParticlePushGaussianDistributionCfg(),
+    logger: Any = config_field("tensorboard")
+    wandb_project: Any = config_field("ur10-particle-push-mpm")
+    clip_actions: Any = config_field(1.0)
+    obs_groups: Any = config_field(
+        {
+            "actor": ["policy", "heightmap"],
+            "critic": ["policy", "heightmap", "critic"],
+        }
     )
-    critic = RslRlCNNModelCfg(
-        cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-            output_channels=[8, 16, 32, 32],
-            kernel_size=[5, 3, 3, 3],
-            stride=[2, 2, 2, 2],
-            padding="zeros",
+    actor: Any = config_field(
+        RslRlCNNModelCfg(
+            cnn_cfg=RslRlCNNModelCfg.CNNCfg(
+                output_channels=[8, 16, 32, 32],
+                kernel_size=[5, 3, 3, 3],
+                stride=[2, 2, 2, 2],
+                padding="zeros",
+                activation="elu",
+            ),
+            hidden_dims=[256, 128, 64],
             activation="elu",
-        ),
-        hidden_dims=[256, 128, 64],
-        activation="elu",
-        obs_normalization=False,
+            # Both image and proprioceptive inputs are bounded at their source. Rank-local empirical
+            # normalizers would otherwise make distributed checkpoints depend on the saved rank.
+            obs_normalization=False,
+            distribution_cfg=UR10ParticlePushGaussianDistributionCfg(),
+        )
     )
-    algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=1.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=1.0e-3,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1.5e-4,
-        schedule="fixed",
-        gamma=0.99 ** (1.0 / 6.0),
-        lam=0.95 ** (1.0 / 6.0),
-        desired_kl=0.01,
-        max_grad_norm=1.0,
-        # Keep actor and critic encoders independent: RSL-RL currently inserts shared
-        # parameters twice into PPO's optimizer, producing duplicate updates and warnings.
-        share_cnn_encoders=False,
+    critic: Any = config_field(
+        RslRlCNNModelCfg(
+            cnn_cfg=RslRlCNNModelCfg.CNNCfg(
+                output_channels=[8, 16, 32, 32],
+                kernel_size=[5, 3, 3, 3],
+                stride=[2, 2, 2, 2],
+                padding="zeros",
+                activation="elu",
+            ),
+            hidden_dims=[256, 128, 64],
+            activation="elu",
+            obs_normalization=False,
+        )
+    )
+    algorithm: Any = config_field(
+        RslRlPpoAlgorithmCfg(
+            value_loss_coef=1.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=1.0e-3,
+            num_learning_epochs=5,
+            num_mini_batches=4,
+            learning_rate=1.5e-4,
+            schedule="fixed",
+            gamma=0.99 ** (1.0 / 6.0),
+            lam=0.95 ** (1.0 / 6.0),
+            desired_kl=0.01,
+            max_grad_norm=1.0,
+            # Keep actor and critic encoders independent: RSL-RL currently inserts shared
+            # parameters twice into PPO's optimizer, producing duplicate updates and warnings.
+            share_cnn_encoders=False,
+        )
     )

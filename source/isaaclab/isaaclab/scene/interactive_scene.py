@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from isaaclab.utils import validate_config
+
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
 
@@ -141,7 +143,7 @@ class InteractiveScene:
             cfg: The configuration class for the scene.
         """
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # store inputs
         self.cfg = cfg
         # initialize scene elements

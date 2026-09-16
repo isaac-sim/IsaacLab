@@ -12,15 +12,17 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoug
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.unitree import UNITREE_GO1_CFG  # isort: skip
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class UnitreeGo1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # scene
-        self.scene.robot = UNITREE_GO1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(UNITREE_GO1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/trunk"
         # scale down the terrains because the robot is small
         self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)

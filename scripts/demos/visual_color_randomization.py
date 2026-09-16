@@ -27,8 +27,10 @@ other optical channels to RTX renderers.
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field, replace_config
 
 parser = argparse.ArgumentParser(description=__doc__, conflict_handler="resolve")
 parser.add_argument("--num_envs", type=int, default=512, help="Number of environments to spawn.")
@@ -53,7 +55,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import ConfigMixin
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
@@ -75,165 +76,200 @@ def _bindings(body: str, legs: str, feet: str) -> dict[str, str]:
 class VisualMaterialSceneCfg(InteractiveSceneCfg):
     """One of five styled ANYmal variants per environment and three materials per style."""
 
-    surface_body = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/surface_body",
-        spawn=sim_utils.PreviewSurfaceCfg(),
-        channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
+    surface_body: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/surface_body",
+            spawn=sim_utils.PreviewSurfaceCfg(),
+            channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
+        )
     )
-    surface_leg = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/surface_leg",
-        spawn=sim_utils.PreviewSurfaceCfg(),
-        channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
+    surface_leg: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/surface_leg",
+            spawn=sim_utils.PreviewSurfaceCfg(),
+            channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
+        )
     )
-    surface_foot = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/surface_foot",
-        spawn=sim_utils.PreviewSurfaceCfg(),
-        channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
+    surface_foot: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/surface_foot",
+            spawn=sim_utils.PreviewSurfaceCfg(),
+            channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
+        )
     )
-    glass_body = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/glass_body",
-        spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
-        channels=("color", "roughness", "ior"),
+    glass_body: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/glass_body",
+            spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
+            channels=("color", "roughness", "ior"),
+        )
     )
-    glass_leg = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/glass_leg",
-        spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
-        channels=("color", "roughness", "ior"),
+    glass_leg: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/glass_leg",
+            spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
+            channels=("color", "roughness", "ior"),
+        )
     )
-    glass_foot = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/glass_foot",
-        spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
-        channels=("color", "roughness", "ior"),
+    glass_foot: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/glass_foot",
+            spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
+            channels=("color", "roughness", "ior"),
+        )
     )
-    solid_body = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/solid_body",
-        spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.8, 0.3, 0.1)),
+    solid_body: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/solid_body",
+            spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.8, 0.3, 0.1)),
+        )
     )
-    solid_leg = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/solid_leg",
-        spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.2, 0.2, 0.7)),
+    solid_leg: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/solid_leg",
+            spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.2, 0.2, 0.7)),
+        )
     )
-    solid_foot = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/solid_foot",
-        spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.1, 0.6, 0.2), reflection_roughness_constant=0.9),
-    )
-
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                ANYMAL_C_CFG.spawn,
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./surface_body",
-                        "./surface_leg",
-                        "./surface_foot",
-                    )
-                ),
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./glass_body",
-                        "./glass_leg",
-                        "./glass_foot",
-                    )
-                ),
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./solid_body",
-                        "./solid_leg",
-                        "./solid_foot",
-                    )
-                ),
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./surface_body",
-                        "./solid_leg",
-                        "./glass_foot",
-                    )
-                ),
-            ],
-            random_choice=False,
-        ),
+    solid_foot: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/solid_foot",
+            spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.1, 0.6, 0.2), reflection_roughness_constant=0.9),
+        )
     )
 
-    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0)
+    robot: ArticulationCfg = config_field(
+        replace_config(
+            ANYMAL_C_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    ANYMAL_C_CFG.spawn,
+                    replace_config(
+                        ANYMAL_C_CFG.spawn,
+                        visual_material_bindings=_bindings(
+                            "./surface_body",
+                            "./surface_leg",
+                            "./surface_foot",
+                        ),
+                    ),
+                    replace_config(
+                        ANYMAL_C_CFG.spawn,
+                        visual_material_bindings=_bindings(
+                            "./glass_body",
+                            "./glass_leg",
+                            "./glass_foot",
+                        ),
+                    ),
+                    replace_config(
+                        ANYMAL_C_CFG.spawn,
+                        visual_material_bindings=_bindings(
+                            "./solid_body",
+                            "./solid_leg",
+                            "./solid_foot",
+                        ),
+                    ),
+                    replace_config(
+                        ANYMAL_C_CFG.spawn,
+                        visual_material_bindings=_bindings(
+                            "./surface_body",
+                            "./solid_leg",
+                            "./glass_foot",
+                        ),
+                    ),
+                ],
+                random_choice=False,
+            ),
+        )
+    )
+
+    ground: Any = config_field(AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg()))
+    light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0))
     )
 
 
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Hold the robot at its default pose."""
 
-    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
+    joint_pos: Any = config_field(
+        mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
+    )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Minimal policy observation group."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
 
         def __post_init__(self):
             self.concatenate_terms = True
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Randomize each style's three material assets independently."""
 
-    randomize_surface_style = EventTerm(
-        func=mdp.randomize_visual_material,
-        mode="reset",
-        params={
-            "materials": [
-                SceneEntityCfg("surface_body"),
-                SceneEntityCfg("surface_leg"),
-                SceneEntityCfg("surface_foot"),
-            ],
-            "channels": {
-                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)},
-                "roughness": (0.0, 1.0),
-                "metallic": (0.0, 1.0),
-                "emissive_color": ((0.0, 0.0, 0.0), (0.25, 0.25, 0.25)),
-                "opacity": (0.5, 1.0),
+    randomize_surface_style: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_visual_material,
+            mode="reset",
+            params={
+                "materials": [
+                    SceneEntityCfg("surface_body"),
+                    SceneEntityCfg("surface_leg"),
+                    SceneEntityCfg("surface_foot"),
+                ],
+                "channels": {
+                    "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)},
+                    "roughness": (0.0, 1.0),
+                    "metallic": (0.0, 1.0),
+                    "emissive_color": ((0.0, 0.0, 0.0), (0.25, 0.25, 0.25)),
+                    "opacity": (0.5, 1.0),
+                },
             },
-        },
+        )
     )
-    randomize_glass_style = EventTerm(
-        func=mdp.randomize_visual_material,
-        mode="reset",
-        params={
-            "materials": [SceneEntityCfg("glass_body"), SceneEntityCfg("glass_leg"), SceneEntityCfg("glass_foot")],
-            "channels": {
-                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)},
-                "roughness": (0.0, 0.8),
-                "ior": (1.1, 1.8),
+    randomize_glass_style: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_visual_material,
+            mode="reset",
+            params={
+                "materials": [SceneEntityCfg("glass_body"), SceneEntityCfg("glass_leg"), SceneEntityCfg("glass_foot")],
+                "channels": {
+                    "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)},
+                    "roughness": (0.0, 0.8),
+                    "ior": (1.1, 1.8),
+                },
             },
-        },
+        )
     )
-    randomize_solid_style = EventTerm(
-        func=mdp.randomize_visual_material,
-        mode="reset",
-        params={
-            "materials": [SceneEntityCfg("solid_body"), SceneEntityCfg("solid_leg"), SceneEntityCfg("solid_foot")],
-            "channels": {"color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}},
-        },
+    randomize_solid_style: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_visual_material,
+            mode="reset",
+            params={
+                "materials": [SceneEntityCfg("solid_body"), SceneEntityCfg("solid_leg"), SceneEntityCfg("solid_foot")],
+                "channels": {"color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}},
+            },
+        )
     )
-    randomize_parts_per_env = EventTerm(
-        func=mdp.randomize_visual_shape,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot", body_names=[f"{leg}_{link}" for leg in _LEGS for link in ("SHANK", "FOOT", "HIP", "THIGH")]
-            ),
-            "channels": {"color": ((0.05, 0.05, 0.05), (1.0, 1.0, 1.0))},
-        },
+    randomize_parts_per_env: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_visual_shape,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg(
+                    "robot", body_names=[f"{leg}_{link}" for leg in _LEGS for link in ("SHANK", "FOOT", "HIP", "THIGH")]
+                ),
+                "channels": {"color": ((0.05, 0.05, 0.05), (1.0, 1.0, 1.0))},
+            },
+        )
     )
 
 
@@ -241,10 +277,10 @@ class EventCfg(ConfigMixin):
 class VisualMaterialEnvCfg(ManagerBasedEnvCfg):
     """Manager-based environment for the visual-material demo."""
 
-    scene: VisualMaterialSceneCfg = VisualMaterialSceneCfg(num_envs=512, env_spacing=1.5)
-    actions: ActionsCfg = ActionsCfg()
-    observations: ObservationsCfg = ObservationsCfg()
-    events: EventCfg = EventCfg()
+    scene: VisualMaterialSceneCfg = config_field(VisualMaterialSceneCfg(num_envs=512, env_spacing=1.5))
+    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    events: EventCfg = config_field(EventCfg())
 
     def __post_init__(self):
         self.decimation = 4

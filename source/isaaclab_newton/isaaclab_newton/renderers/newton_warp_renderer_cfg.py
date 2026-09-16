@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .newton_warp_renderer import NewtonWarpRenderer
@@ -20,25 +21,25 @@ if TYPE_CHECKING:
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""
 
-    class_type: type[NewtonWarpRenderer] | str = "{DIR}.newton_warp_renderer:NewtonWarpRenderer"
+    class_type: type[NewtonWarpRenderer] | str = config_field("{DIR}.newton_warp_renderer:NewtonWarpRenderer")
     """Renderer implementation class."""
 
-    renderer_type: str = "newton_warp"
+    renderer_type: str = config_field("newton_warp")
     """Type identifier for Newton Warp renderer."""
 
-    enable_textures: bool = True
+    enable_textures: bool = config_field(True)
     """Enable texture-mapped rendering for meshes."""
 
-    enable_shadows: bool = False
+    enable_shadows: bool = config_field(False)
     """Enable shadow rays for directional lights."""
 
-    enable_ambient_lighting: bool = True
+    enable_ambient_lighting: bool = config_field(True)
     """Enable ambient lighting for the scene."""
 
-    enable_backface_culling: bool = False
+    enable_backface_culling: bool = config_field(False)
     """Cull back-facing triangles."""
 
-    max_distance: float = 1000.0
+    max_distance: float = config_field(1000.0)
     """Maximum ray distance [m].
 
     Used as the far clip when a camera does not provide a spawn configuration. When the camera's
@@ -47,7 +48,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     :meth:`~isaaclab_newton.renderers.NewtonWarpRenderer.create_render_data`).
     """
 
-    depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
+    depth_clipping_behavior: Literal["max", "zero", "none"] = config_field("none")
     """Clipping behavior for depth values beyond the far plane. Defaults to ``"none"``.
 
     Newton writes ``0.0`` for rays that miss all geometry or fall beyond the far plane, so the
@@ -59,10 +60,10 @@ class NewtonWarpRendererCfg(RendererCfg):
       :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`.
     """
 
-    create_default_light: bool = True
+    create_default_light: bool = config_field(True)
     """Create a default directional light source in the scene."""
 
-    semantic_filter: str | list[str] = "*:*"
+    semantic_filter: str | list[str] = config_field("*:*")
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and
     :attr:`instance_segmentation`. Defaults to ``"*:*"`` (all semantic types and labels).
 
@@ -80,7 +81,7 @@ class NewtonWarpRendererCfg(RendererCfg):
         mappings are reconstructed on the host from ``model.shape_label`` prim paths.
     """
 
-    colorize_semantic_segmentation: bool = True
+    colorize_semantic_segmentation: bool = config_field(True)
     """Whether to colorize the semantic segmentation image. Defaults to True.
 
     If True, :attr:`semantic_segmentation` is returned as an ``(N, H, W, 4) uint8`` RGBA image where each
@@ -89,7 +90,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     maps the id to its label.
     """
 
-    colorize_instance_segmentation: bool = True
+    colorize_instance_segmentation: bool = config_field(True)
     """Whether to colorize the semantic instance segmentation image. Defaults to True.
 
     If True, :attr:`instance_segmentation` is returned as an ``(N, H, W, 4) uint8`` RGBA image, else
@@ -97,7 +98,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     (id/color to prim path) and ``idToSemantics`` (id/color to semantic label).
     """
 
-    semantic_segmentation_mapping: dict = {}
+    semantic_segmentation_mapping: dict = config_field({})
     """Optional mapping from ``"type:label"`` to an explicit RGBA color tuple for
     :attr:`semantic_segmentation` when :attr:`colorize_semantic_segmentation` is True. Defaults to ``{}``.
 
@@ -106,14 +107,14 @@ class NewtonWarpRendererCfg(RendererCfg):
     from the mapping fall back to the deterministic palette shared with the RTX renderer.
     """
 
-    render_order: Literal["pixel_priority", "view_priority", "tiled"] = "tiled"
+    render_order: Literal["pixel_priority", "view_priority", "tiled"] = config_field("tiled")
     """Render traversal order for the Newton tiled camera."""
 
-    tile_rendering_width: int = 8
+    tile_rendering_width: int = config_field(8)
     """Tile width [px] for tiled rendering."""
 
-    tile_rendering_height: int = 8
+    tile_rendering_height: int = config_field(8)
     """Tile height [px] for tiled rendering."""
 
-    kernel_block_dim: int = 64
+    kernel_block_dim: int = config_field(64)
     """Thread block dimension forwarded to Newton."""

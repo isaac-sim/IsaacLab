@@ -23,6 +23,7 @@ import torch
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
+from isaaclab.utils import validate_config
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -74,7 +75,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     if args_cli.disable_fabric:
         env_cfg.sim.use_fabric = False
     try:
-        env_cfg.validate()
+        validate_config(env_cfg)
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 

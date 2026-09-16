@@ -15,6 +15,10 @@ hit the terrain (with sphere markers at the hit points), gray where they miss.
 
 """
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -62,28 +66,32 @@ WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
 class HeightfieldSceneCfg(InteractiveSceneCfg):
     """Wave heightfield with a floating sensor body."""
 
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground", terrain_type="generator", terrain_generator=WAVE_TERRAIN_CFG
+    terrain: Any = config_field(
+        TerrainImporterCfg(prim_path="/World/ground", terrain_type="generator", terrain_generator=WAVE_TERRAIN_CFG)
     )
 
-    body = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.4, 0.25, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.6, 0.1)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.5)),
+    body: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.4, 0.25, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.6, 0.1)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.5)),
+        )
     )
 
-    raycast = NewtonRaycastSensorCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        pattern_cfg=GridPatternCfg(resolution=0.25, size=(1.5, 1.0)),
-        ray_alignment="base",
-        global_world_only=True,
-        max_distance=10.0,
-        debug_vis=True,
+    raycast: Any = config_field(
+        NewtonRaycastSensorCfg(
+            prim_path="{ENV_REGEX_NS}/SensorBody",
+            pattern_cfg=GridPatternCfg(resolution=0.25, size=(1.5, 1.0)),
+            ray_alignment="base",
+            global_world_only=True,
+            max_distance=10.0,
+            debug_vis=True,
+        )
     )
 
 

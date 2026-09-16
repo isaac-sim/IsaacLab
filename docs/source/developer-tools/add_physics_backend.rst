@@ -137,7 +137,7 @@ manager class and holds backend-specific settings:
     # isaaclab_mybackend/physics/mybackend_manager_cfg.py
     from isaaclab.physics import PhysicsCfg
     from dataclasses import dataclass
-    from isaaclab.utils import ConfigMixin
+    from isaaclab.utils import config_field
     @dataclass
     class MyBackendCfg(PhysicsCfg):
         class_type = "{DIR}.mybackend_manager:MyBackendManager"

@@ -5,12 +5,14 @@
 
 import tempfile
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.utils import config_field
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
@@ -27,21 +29,21 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
     # MDP settings
-    terminations: TerminationsCfg = TerminationsCfg()
-    events = EventCfg()
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: Any = config_field(EventCfg())
 
     # Unused managers
-    commands = None
-    rewards = None
-    curriculum = None
+    commands: Any = config_field(None)
+    rewards: Any = config_field(None)
+    curriculum: Any = config_field(None)
 
     # Temporary directory for URDF files
-    temp_urdf_dir = tempfile.gettempdir()
+    temp_urdf_dir: Any = config_field(tempfile.gettempdir())
 
     def __post_init__(self):
         """Post initialization."""

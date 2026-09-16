@@ -18,9 +18,11 @@ from __future__ import annotations
 import argparse
 import traceback
 from functools import partial
+from typing import Any
 
 from isaaclab.app import AppLauncher
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args, rough_terrain_size
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark the standard PhysX RayCaster update path.")
 add_sensor_benchmark_args(
@@ -111,18 +113,20 @@ def _rough_terrain_cfg() -> TerrainGeneratorCfg:
 class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
     """Matched plane and rough-terrain ray-caster workloads."""
 
-    terrain = TerrainImporterCfg(
-        prim_path="/World/rough_ground",
-        terrain_type="generator",
-        terrain_generator=_rough_terrain_cfg(),
+    terrain: Any = config_field(
+        TerrainImporterCfg(
+            prim_path="/World/rough_ground",
+            terrain_type="generator",
+            terrain_generator=_rough_terrain_cfg(),
+        )
     )
-    plane_ground = AssetBaseCfg(prim_path="/World/plane_ground", spawn=sim_utils.GroundPlaneCfg())
-    plane_sensor_body = _sensor_body_cfg(
-        "{ENV_REGEX_NS}/PlaneSensorBody", position=(2.0 * _ROUGH_TERRAIN_SIZE, 0.0, 1.0)
+    plane_ground: Any = config_field(AssetBaseCfg(prim_path="/World/plane_ground", spawn=sim_utils.GroundPlaneCfg()))
+    plane_sensor_body: Any = config_field(
+        _sensor_body_cfg("{ENV_REGEX_NS}/PlaneSensorBody", position=(2.0 * _ROUGH_TERRAIN_SIZE, 0.0, 1.0))
     )
-    rough_sensor_body = _sensor_body_cfg("{ENV_REGEX_NS}/RoughSensorBody")
-    plane_ray_caster: RayCasterCfg | None = None
-    rough_ray_caster: RayCasterCfg | None = None
+    rough_sensor_body: Any = config_field(_sensor_body_cfg("{ENV_REGEX_NS}/RoughSensorBody"))
+    plane_ray_caster: RayCasterCfg | None = config_field(None)
+    rough_ray_caster: RayCasterCfg | None = config_field(None)
 
 
 def main() -> None:

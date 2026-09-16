@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
 
@@ -22,7 +23,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -60,77 +61,84 @@ _PARTITION_BOUNDS_MARKER_SPAWN_CFG = sim_utils.CuboidCfg(
 class PhysicsCfg(PresetCfg):
     """Newton proxy physics for rigid-cable coupling."""
 
-    newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
-        solver_cfg=CouplerProxyCfg(
-            entries=[
-                CouplerEntryCfg(
-                    name="rigid",
-                    solver_cfg=MJWarpSolverCfg(
-                        cone="elliptic",
-                        ls_iterations=20,
-                        integrator="implicitfast",
+    newton_mjwarp_vbd_proxy: NewtonCfg = config_field(
+        NewtonCfg(
+            solver_cfg=CouplerProxyCfg(
+                entries=[
+                    CouplerEntryCfg(
+                        name="rigid",
+                        solver_cfg=MJWarpSolverCfg(
+                            cone="elliptic",
+                            ls_iterations=20,
+                            integrator="implicitfast",
+                        ),
+                        bodies=[r"/World/envs/env_.*/Robot"],
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
-                ),
-                CouplerEntryCfg(
-                    name="cable",
-                    solver_cfg=VBDSolverCfg(iterations=10),
-                    bodies=[r"/World/envs/env_.*/Cable"],
-                    include_static_shapes=True,
-                ),
-            ],
-            proxies=[
-                CouplerProxyMappingCfg(
-                    source="rigid",
-                    destination="cable",
-                    bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
-                    ],
-                    collide_interval=1,
-                )
-            ],
-            iterations=1,
-        ),
-        default_shape_cfg=NewtonShapeCfg(
-            ke=2.5e3,
-            kd=100.0,
-            mu=10.0,
-        ),
-        num_substeps=4,
+                    CouplerEntryCfg(
+                        name="cable",
+                        solver_cfg=VBDSolverCfg(iterations=10),
+                        bodies=[r"/World/envs/env_.*/Cable"],
+                        include_static_shapes=True,
+                    ),
+                ],
+                proxies=[
+                    CouplerProxyMappingCfg(
+                        source="rigid",
+                        destination="cable",
+                        bodies=[
+                            r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
+                            r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        ],
+                        collide_interval=1,
+                    )
+                ],
+                iterations=1,
+            ),
+            default_shape_cfg=NewtonShapeCfg(
+                ke=2.5e3,
+                kd=100.0,
+                mu=10.0,
+            ),
+            num_substeps=4,
+        )
     )
 
-    default = newton_mjwarp_vbd_proxy
+    default: Any = config_field(newton_mjwarp_vbd_proxy)
 
 
 @dataclass
 class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka cable lifting environment."""
 
-    deformable: None = None
+    deformable: None = config_field(None)
 
-    table: AssetBaseCfg = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
-        spawn=TABLE_SPAWN_CFG.replace(
-            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
-        ),
+    table: AssetBaseCfg = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
+            spawn=replace_config(
+                TABLE_SPAWN_CFG,
+                physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
+            ),
+        )
     )
 
-    cable: CableObjectCfg = CableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cable",
-        spawn=sim_utils.CableCfg(
-            positions=[(0.03 * index, 0.0, 0.0) for index in range(_CABLE_SEGMENT_COUNT + 1)],
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
-            physics_material=sim_utils.CableMaterialCfg(
-                thickness=0.01,
-                density=1000.0,
-                stretch_stiffness=1.0e6,
-                bend_stiffness=1.0e5,
+    cable: CableObjectCfg = config_field(
+        CableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cable",
+            spawn=sim_utils.CableCfg(
+                positions=[(0.03 * index, 0.0, 0.0) for index in range(_CABLE_SEGMENT_COUNT + 1)],
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+                physics_material=sim_utils.CableMaterialCfg(
+                    thickness=0.01,
+                    density=1000.0,
+                    stretch_stiffness=1.0e6,
+                    bend_stiffness=1.0e5,
+                ),
+                collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
             ),
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
-        ),
-        init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
+            init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
+        )
     )
 
     # Workaround for OMPE-105749: Kit RTX never refreshes the bounding box of an animated
@@ -138,16 +146,20 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     # once it moves outside that extent. These two static cubes pin the partition to the full
     # workspace volume. FrankaCableEnvCfg drops them when partitioning is off, and they can go
     # altogether once Kit updates animated-curve bounding boxes.
-    partition_bounds_marker_min: AssetBaseCfg | None = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/PartitionBoundsMarkerMin",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=_PARTITION_BOUNDS_MIN),
-        spawn=_PARTITION_BOUNDS_MARKER_SPAWN_CFG,
+    partition_bounds_marker_min: AssetBaseCfg | None = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/PartitionBoundsMarkerMin",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=_PARTITION_BOUNDS_MIN),
+            spawn=_PARTITION_BOUNDS_MARKER_SPAWN_CFG,
+        )
     )
 
-    partition_bounds_marker_max: AssetBaseCfg | None = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/PartitionBoundsMarkerMax",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=_PARTITION_BOUNDS_MAX),
-        spawn=_PARTITION_BOUNDS_MARKER_SPAWN_CFG,
+    partition_bounds_marker_max: AssetBaseCfg | None = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/PartitionBoundsMarkerMax",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=_PARTITION_BOUNDS_MAX),
+            spawn=_PARTITION_BOUNDS_MARKER_SPAWN_CFG,
+        )
     )
 
 
@@ -155,62 +167,70 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
 class FrankaCableCameraSceneCfg(FrankaCableSceneCfg):
     """Franka cable scene with a base camera."""
 
-    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+    base_camera: CameraCfg = config_field(FRANKA_CAMERA_CFG)
 
 
 @dataclass
-class CommandsCfg(ConfigMixin):
+class CommandsCfg:
     """Goal position for cable segment 6 in the robot root frame."""
 
-    cable_pose = mdp.CableUniformPoseCommandCfg(
-        asset_name="robot",
-        object_name="cable",
-        segment_index=_CABLE_MIDDLE_SEGMENT_INDEX,
-        resampling_time_range=(5.0, 5.0),
-        debug_vis=True,
-        ranges=mdp.CableUniformPoseCommandCfg.Ranges(
-            pos_x=(0.4, 0.6),
-            pos_y=(-0.25, 0.25),
-            pos_z=(0.25, 0.5),
-            roll=(0.0, 0.0),
-            pitch=(0.0, 0.0),
-            yaw=(0.0, 0.0),
-        ),
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)), visible=True
-                ),
-                "success": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)), visible=True
-                ),
-            },
-        ),
+    cable_pose: Any = config_field(
+        mdp.CableUniformPoseCommandCfg(
+            asset_name="robot",
+            object_name="cable",
+            segment_index=_CABLE_MIDDLE_SEGMENT_INDEX,
+            resampling_time_range=(5.0, 5.0),
+            debug_vis=True,
+            ranges=mdp.CableUniformPoseCommandCfg.Ranges(
+                pos_x=(0.4, 0.6),
+                pos_y=(-0.25, 0.25),
+                pos_z=(0.25, 0.5),
+                roll=(0.0, 0.0),
+                pitch=(0.0, 0.0),
+                yaw=(0.0, 0.0),
+            ),
+            success_vis_asset_name="table",
+            success_visualizer_cfg=VisualizationMarkersCfg(
+                prim_path="/Visuals/SuccessMarkers",
+                markers={
+                    "failure": replace_config(
+                        TABLE_SPAWN_CFG,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
+                        visible=True,
+                    ),
+                    "success": replace_config(
+                        TABLE_SPAWN_CFG,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
+                        visible=True,
+                    ),
+                },
+            ),
+        )
     )
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Policy observations for cable lifting."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        cable_segment_positions = ObsTerm(
-            func=mdp.cable_segment_positions_in_robot_root_frame,
-            params={"asset_cfg": SceneEntityCfg("cable")},
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        cable_segment_positions: Any = config_field(
+            ObsTerm(
+                func=mdp.cable_segment_positions_in_robot_root_frame,
+                params={"asset_cfg": SceneEntityCfg("cable")},
+            )
         )
-        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
-        actions = ObsTerm(func=mdp.last_action)
+        target_position: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"}))
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
@@ -219,112 +239,130 @@ class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
 
     @dataclass
     class PolicyCfg(FrankaCameraObservationsCfg.PolicyCfg):
-        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
+        target_position: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"}))
 
     @dataclass
     class PerceptionCfg(ObsGroup):
-        cable_segment_positions = ObsTerm(
-            func=mdp.cable_segment_positions_in_robot_root_frame,
-            params={"asset_cfg": SceneEntityCfg("cable")},
+        cable_segment_positions: Any = config_field(
+            ObsTerm(
+                func=mdp.cable_segment_positions_in_robot_root_frame,
+                params={"asset_cfg": SceneEntityCfg("cable")},
+            )
         )
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    policy: PolicyCfg = PolicyCfg()
-    perception: PerceptionCfg = PerceptionCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
+    perception: PerceptionCfg = config_field(PerceptionCfg())
 
 
 @dataclass
 class EventCfg(FrankaSoftEventCfg):
     """Reset events for the Franka cable environment."""
 
-    reset_deformable: EventTerm | None = None
+    reset_deformable: EventTerm | None = config_field(None)
 
-    reset_cable = EventTerm(
-        func="isaaclab_tasks.core.lift.mdp.events:reset_cable_state_uniform",
-        mode="reset",
-        params={
-            "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
+    reset_cable: Any = config_field(
+        EventTerm(
+            func="isaaclab_tasks.core.lift.mdp.events:reset_cable_state_uniform",
+            mode="reset",
+            params={
+                "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
+                "asset_cfg": SceneEntityCfg("cable"),
+            },
+        )
     )
 
 
 @dataclass
-class RewardsCfg(ConfigMixin):
+class RewardsCfg:
     """Cable lifting rewards."""
 
-    reaching_cable = RewTerm(
-        func=mdp.cable_ee_distance,
-        params={
-            "std": 0.1,
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
-        weight=1.0,
+    reaching_cable: Any = config_field(
+        RewTerm(
+            func=mdp.cable_ee_distance,
+            params={
+                "std": 0.1,
+                "asset_cfg": SceneEntityCfg("cable"),
+            },
+            weight=1.0,
+        )
     )
 
-    lifting_cable = RewTerm(
-        func=mdp.cable_lifting,
-        params={
-            "std": 0.05,
-            "minimal_height": 0.0,
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
-        weight=5.0,
+    lifting_cable: Any = config_field(
+        RewTerm(
+            func=mdp.cable_lifting,
+            params={
+                "std": 0.05,
+                "minimal_height": 0.0,
+                "asset_cfg": SceneEntityCfg("cable"),
+            },
+            weight=5.0,
+        )
     )
 
-    cable_goal_tracking = RewTerm(
-        func=mdp.CableSegmentGoalDistance,
-        params={
-            "std": 0.3,
-            "command_name": "cable_pose",
-            "success_threshold": 0.05,
-            "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
-        weight=5.0,
+    cable_goal_tracking: Any = config_field(
+        RewTerm(
+            func=mdp.CableSegmentGoalDistance,
+            params={
+                "std": 0.3,
+                "command_name": "cable_pose",
+                "success_threshold": 0.05,
+                "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
+                "asset_cfg": SceneEntityCfg("cable"),
+            },
+            weight=5.0,
+        )
     )
 
-    success_bonus = RewTerm(
-        func=mdp.cable_segment_goal_reached,
-        params={
-            "command_name": "cable_pose",
-            "success_threshold": 0.05,
-            "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
-        weight=20.0,
+    success_bonus: Any = config_field(
+        RewTerm(
+            func=mdp.cable_segment_goal_reached,
+            params={
+                "command_name": "cable_pose",
+                "success_threshold": 0.05,
+                "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
+                "asset_cfg": SceneEntityCfg("cable"),
+            },
+            weight=20.0,
+        )
     )
 
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
+    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-1e-3))
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Time out and workspace bounds terminations."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
 
-    cable_out_of_bounds = DoneTerm(
-        func=mdp.cable_outside_bounds,
-        params={
-            "x_bounds": (0.0, 1.0),
-            "y_bounds": (-0.5, 0.5),
-            "z_bounds": (-0.02, 1.0),
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
+    cable_out_of_bounds: Any = config_field(
+        DoneTerm(
+            func=mdp.cable_outside_bounds,
+            params={
+                "x_bounds": (0.0, 1.0),
+                "y_bounds": (-0.5, 0.5),
+                "z_bounds": (-0.02, 1.0),
+                "asset_cfg": SceneEntityCfg("cable"),
+            },
+        )
     )
 
-    ee_below_table = DoneTerm(
-        func=mdp.ee_below_minimum,
-        params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
+    ee_below_table: Any = config_field(
+        DoneTerm(
+            func=mdp.ee_below_minimum,
+            params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
+        )
     )
 
-    joint_vel_out_of_limit = DoneTerm(
-        func=mdp.joint_vel_out_of_sim_limit,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+    joint_vel_out_of_limit: Any = config_field(
+        DoneTerm(
+            func=mdp.joint_vel_out_of_sim_limit,
+            params={"asset_cfg": SceneEntityCfg("robot")},
+        )
     )
 
 
@@ -332,15 +370,18 @@ class TerminationsCfg(ConfigMixin):
 class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment for lifting a 12-segment cable."""
 
-    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0, replicate_physics=True)
-    observations: ObservationsCfg = ObservationsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    scene: FrankaCableSceneCfg = config_field(
+        FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0, replicate_physics=True)
+    )
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    commands: CommandsCfg = config_field(CommandsCfg())
+    rewards: RewardsCfg = config_field(RewardsCfg())
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    events: EventCfg = config_field(EventCfg())
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.sim.physics = PhysicsCfg()
         # Close the gripper on the thin cable; the shared beam default only closes to 0.01 m.
         self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
@@ -356,9 +397,12 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
 class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
     """Visual Franka cable lifting environment."""
 
-    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
-    observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
+    scene: FrankaCableCameraSceneCfg = config_field(
+        FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
+    )
+    observations: FrankaCableCameraObservationsCfg = config_field(FrankaCableCameraObservationsCfg())
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.num_rerenders_on_reset = 2

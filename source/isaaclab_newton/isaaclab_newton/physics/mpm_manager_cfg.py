@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from isaaclab.utils import config_field
+
 from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
@@ -24,20 +26,20 @@ class MPMSolverCfg(NewtonSolverCfg):
     as colliders. It is not a rigid-body or articulation dynamics solver.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mpm_manager:NewtonMPMManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.mpm_manager:NewtonMPMManager")
     """Manager class for the implicit MPM solver."""
 
-    solver_type: str = "implicit_mpm"
+    solver_type: str = config_field("implicit_mpm")
     """Solver type. Can be "implicit_mpm"."""
 
     # numerics
-    max_iterations: int = 250
+    max_iterations: int = config_field(250)
     """Maximum number of iterations for the rheology solver."""
 
-    tolerance: float = 1.0e-4
+    tolerance: float = config_field(1.0e-4)
     """Tolerance for the rheology solver."""
 
-    solver: str | tuple[str, ...] = "auto"
+    solver: str | tuple[str, ...] = config_field("auto")
     """Rheology solver, or an ordered warm-start sequence of solvers.
 
     ``"auto"`` lets Newton pick the solver from the velocity basis (``"gs"`` for
@@ -46,10 +48,12 @@ class MPMSolverCfg(NewtonSolverCfg):
     tuple such as ``("cr", "gs")`` to warm-start solvers left-to-right.
     """
 
-    warmstart_mode: Literal["none", "auto", "particles", "grid", "smoothed"] = "auto"
+    warmstart_mode: Literal["none", "auto", "particles", "grid", "smoothed"] = config_field("auto")
     """Warm-start mode for the rheology solver."""
 
-    collider_velocity_mode: Literal["forward", "backward", "instantaneous", "finite_difference"] = "forward"
+    collider_velocity_mode: Literal["forward", "backward", "instantaneous", "finite_difference"] = config_field(
+        "forward"
+    )
     """Collider velocity computation mode.
 
     ``"instantaneous"`` is deprecated in favor of ``"forward"``, and
@@ -57,16 +61,16 @@ class MPMSolverCfg(NewtonSolverCfg):
     """
 
     # grid
-    voxel_size: float = 0.1
+    voxel_size: float = config_field(0.1)
     """Size of the MPM grid voxels [m]."""
 
-    grid_type: Literal["sparse", "dense", "fixed"] = "sparse"
+    grid_type: Literal["sparse", "dense", "fixed"] = config_field("sparse")
     """Type of grid to use."""
 
-    grid_padding: int = 0
+    grid_padding: int = config_field(0)
     """Number of empty cells to add around particles when allocating the grid."""
 
-    max_active_cell_count: int = -1
+    max_active_cell_count: int = config_field(-1)
     """Maximum active grid-cell count shared by all worlds.
 
     A positive value reserves persistent capacity for rebuildable sparse grids and bounds active
@@ -74,55 +78,55 @@ class MPMSolverCfg(NewtonSolverCfg):
     counts for the other grid types.
     """
 
-    max_leaf_node_count: int = -1
+    max_leaf_node_count: int = config_field(-1)
     """Maximum sparse-grid leaf-node count shared by all worlds.
 
     ``-1`` lets Newton derive the capacity from :attr:`max_active_cell_count`.
     """
 
-    max_lower_node_count: int = -1
+    max_lower_node_count: int = config_field(-1)
     """Maximum sparse-grid lower internal-node count shared by all worlds.
 
     ``-1`` lets Newton derive the capacity from the initial topology.
     """
 
-    max_upper_node_count: int = -1
+    max_upper_node_count: int = config_field(-1)
     """Maximum sparse-grid upper internal-node count shared by all worlds.
 
     ``-1`` lets Newton derive the capacity from the initial topology.
     """
 
-    separate_worlds: bool = False
+    separate_worlds: bool = config_field(False)
     """Whether each Newton world uses an independent local MPM grid environment."""
 
-    transfer_scheme: Literal["apic", "pic"] = "apic"
+    transfer_scheme: Literal["apic", "pic"] = config_field("apic")
     """Particle-grid transfer scheme."""
 
-    integration_scheme: Literal["pic", "gimp"] = "pic"
+    integration_scheme: Literal["pic", "gimp"] = config_field("pic")
     """Integration scheme controlling shape-function support."""
 
     # material / background
-    critical_fraction: float = 0.0
+    critical_fraction: float = config_field(0.0)
     """Dimensionless fraction under which the yield surface collapses."""
 
-    air_drag: float = 1.0
+    air_drag: float = config_field(1.0)
     """Numerical drag for background air."""
 
     # experimental
-    collider_normal_from_sdf_gradient: bool = False
+    collider_normal_from_sdf_gradient: bool = config_field(False)
     """Whether collider normals are computed from SDF gradients rather than closest points."""
 
-    collider_basis: str = "S2"
+    collider_basis: str = config_field("S2")
     """Collider basis function, such as ``"S2"`` or ``"Q1"``."""
 
-    strain_basis: str = "P0"
+    strain_basis: str = config_field("P0")
     """Strain basis function, such as ``"P0"``, ``"P1d"``, ``"Q1"``, or ``"Q1d"``."""
 
-    velocity_basis: str = "Q1"
+    velocity_basis: str = config_field("Q1")
     """Velocity basis function, such as ``"Q1"``, ``"B2"``, or ``"B3"``."""
 
     # collision handling (applied by the Isaac Lab manager, not the Newton solver config)
-    project_outside_colliders: bool = False
+    project_outside_colliders: bool = config_field(False)
     """Whether to hard-project particles out of collider interiors after each substep.
 
     When ``True``, :class:`~isaaclab_newton.physics.NewtonMPMManager` calls

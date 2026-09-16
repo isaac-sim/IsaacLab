@@ -19,47 +19,59 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort: skip
+from typing import Any
+
+from isaaclab.utils import config_field, replace_config
 
 
 @dataclass
 class CassieRewardsCfg(RewardsCfg):
-    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
-    feet_air_time = RewTerm(
-        func=mdp.feet_air_time_positive_biped,
-        weight=2.5,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
-            "command_name": "base_velocity",
-            "threshold": 0.3,
-        },
+    termination_penalty: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-200.0))
+    feet_air_time: Any = config_field(
+        RewTerm(
+            func=mdp.feet_air_time_positive_biped,
+            weight=2.5,
+            params={
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
+                "command_name": "base_velocity",
+                "threshold": 0.3,
+            },
+        )
     )
-    joint_deviation_hip = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["hip_abduction_.*", "hip_rotation_.*"])},
+    joint_deviation_hip: Any = config_field(
+        RewTerm(
+            func=mdp.joint_deviation_l1,
+            weight=-0.2,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["hip_abduction_.*", "hip_rotation_.*"])},
+        )
     )
-    joint_deviation_toes = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["toe_joint_.*"])},
+    joint_deviation_toes: Any = config_field(
+        RewTerm(
+            func=mdp.joint_deviation_l1,
+            weight=-0.2,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["toe_joint_.*"])},
+        )
     )
     # penalize toe joint limits
-    dof_pos_limits = RewTerm(
-        func=mdp.joint_pos_limits,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="toe_joint_.*")},
+    dof_pos_limits: Any = config_field(
+        RewTerm(
+            func=mdp.joint_pos_limits,
+            weight=-1.0,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names="toe_joint_.*")},
+        )
     )
 
 
 @dataclass
 class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    rewards: CassieRewardsCfg = CassieRewardsCfg()
+    rewards: CassieRewardsCfg = config_field(CassieRewardsCfg())
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # scene
-        self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(CASSIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
         # actions
         self.actions.joint_pos.scale = 0.5

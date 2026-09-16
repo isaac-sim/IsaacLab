@@ -18,7 +18,8 @@ class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
 
     def __post_init__(self):
         # Call parent post-init
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Override datagen config values for demonstration generation
         self.datagen_config.name = "demo_src_g1_locomanip_demo_task_D0"

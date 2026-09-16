@@ -108,7 +108,7 @@ Understand the new package boundaries first, then make environment configuration
 
          from dataclasses import dataclass
 
-         from isaaclab.utils import ConfigMixin
+         from isaaclab.utils import config_field
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
@@ -431,7 +431,7 @@ when no CLI override is given. Other fields are named presets selectable with
 
    from isaaclab.physics import PhysxAutoCfg
    from dataclasses import dataclass
-   from isaaclab.utils import ConfigMixin
+   from isaaclab.utils import config_field
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
@@ -546,7 +546,7 @@ We can provide a Newton-specific config such as:
 .. code-block:: python
 
    @dataclass
-   class EventCfg(ConfigMixin):
+   class EventCfg:
        """Full event config (PhysX-compatible)."""
        robot_physics_material = EventTerm(
            func=mdp.randomize_rigid_body_material,
@@ -560,7 +560,7 @@ We can provide a Newton-specific config such as:
 
 
    @dataclass
-   class _EnvNewtonEventCfg(ConfigMixin):
+   class _EnvNewtonEventCfg:
        """Newton-compatible events."""
        reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
        reset_robot_joints = EventTerm(

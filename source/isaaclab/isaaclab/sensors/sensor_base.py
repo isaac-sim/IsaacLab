@@ -27,6 +27,7 @@ from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
 from isaaclab.sim.utils.transforms import resolve_prim_pose
+from isaaclab.utils import copy_config, validate_config
 
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -57,13 +58,13 @@ class SensorBase(ABC):
             cfg: The configuration parameters for the sensor.
         """
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # expand the namespace macro for sensors built outside the scene, which has already
         # expanded it for the ones it collects
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
         self._source_cfg = cfg
-        self.cfg = cfg.copy()
+        self.cfg = copy_config(cfg)
         # flag for whether the sensor is initialized
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode

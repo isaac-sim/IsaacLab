@@ -22,7 +22,8 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Variables used by Isaac Manipulator for on robot inference
         # These parameters allow the ROS inference node to validate environment configuration,
@@ -121,7 +122,8 @@ class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Variables used by Isaac Manipulator for on robot inference
         # These parameters allow the ROS inference node to validate environment configuration,

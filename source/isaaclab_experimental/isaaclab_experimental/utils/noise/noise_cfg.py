@@ -9,17 +9,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING, dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import warp as wp
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from . import noise_model
 
 
 @dataclass
-class NoiseCfg(ConfigMixin):
+class NoiseCfg:
     """Configuration for a Warp-native noise term.
 
     Experimental fork of :class:`isaaclab.utils.noise.NoiseCfg` adapted for the
@@ -27,14 +27,14 @@ class NoiseCfg(ConfigMixin):
     ``wp.array`` buffer and return ``None``.
     """
 
-    func: Callable[[wp.array, NoiseCfg], None] = MISSING
+    func: Callable[[wp.array, NoiseCfg], None] = config_field(MISSING)
     """The function to be called for applying the noise.
 
     The function must take a ``wp.array`` as the first argument and the noise
     configuration as the second argument.  It operates **in-place** (no return value).
     """
 
-    operation: Literal["add", "scale", "abs"] = "add"
+    operation: Literal["add", "scale", "abs"] = config_field("add")
     """The operation to apply the noise on the data. Defaults to ``"add"``."""
 
 
@@ -42,9 +42,9 @@ class NoiseCfg(ConfigMixin):
 class ConstantNoiseCfg(NoiseCfg):
     """Configuration for a constant noise term (Warp-native)."""
 
-    func = noise_model.constant_noise
+    func: Any = config_field(noise_model.constant_noise)
 
-    bias: float = 0.0
+    bias: float = config_field(0.0)
     """The bias to add. Defaults to 0.0."""
 
 
@@ -52,11 +52,11 @@ class ConstantNoiseCfg(NoiseCfg):
 class UniformNoiseCfg(NoiseCfg):
     """Configuration for a uniform noise term (Warp-native)."""
 
-    func = noise_model.uniform_noise
+    func: Any = config_field(noise_model.uniform_noise)
 
-    n_min: float = -1.0
+    n_min: float = config_field(-1.0)
     """The minimum value of the noise. Defaults to -1.0."""
-    n_max: float = 1.0
+    n_max: float = config_field(1.0)
     """The maximum value of the noise. Defaults to 1.0."""
 
 
@@ -64,9 +64,9 @@ class UniformNoiseCfg(NoiseCfg):
 class GaussianNoiseCfg(NoiseCfg):
     """Configuration for a gaussian noise term (Warp-native)."""
 
-    func = noise_model.gaussian_noise
+    func: Any = config_field(noise_model.gaussian_noise)
 
-    mean: float = 0.0
+    mean: float = config_field(0.0)
     """The mean of the noise. Defaults to 0.0."""
-    std: float = 1.0
+    std: float = config_field(1.0)
     """The standard deviation of the noise. Defaults to 1.0."""

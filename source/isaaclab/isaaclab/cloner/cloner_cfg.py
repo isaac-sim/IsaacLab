@@ -10,7 +10,7 @@ from dataclasses import MISSING, dataclass
 
 import numpy as np
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 from .cloner_strategies import sequential
 
@@ -38,28 +38,28 @@ def expand_env_regex_ns(path_expr: str, env_template: str = DEFAULT_ENV_TEMPLATE
 
 
 @dataclass
-class InclusionSet(ConfigMixin):
+class InclusionSet:
     """Legal clone combination defined by explicitly listing active assets."""
 
-    assets: list[str] = MISSING
+    assets: list[str] = config_field(MISSING)
     """Scene asset names active in this clone combination."""
 
-    weight: int = 1
+    weight: int = config_field(1)
     """Relative sampling weight for this clone combination."""
 
 
 @dataclass
-class CloneCfg(ConfigMixin):
+class CloneCfg:
     """Configuration for environment replication.
 
     Holds the knobs :class:`~isaaclab.scene.InteractiveScene` forwards to
     :func:`~isaaclab.cloner.make_clone_plan` when building per-env layouts.
     """
 
-    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = config_field(sequential)
     """Function used to build prototype-to-environment mapping. Default is :func:`sequential`."""
 
-    clone_combinations: list[InclusionSet] = []
+    clone_combinations: list[InclusionSet] = config_field([])
     """Legal scene-asset combinations for heterogeneous clone planning.
 
     Each entry names the assets that are active in one legal combination.
@@ -67,14 +67,14 @@ class CloneCfg(ConfigMixin):
     empty list keeps the homogeneous/default behavior.
     """
 
-    clone_template: str = DEFAULT_ENV_TEMPLATE
+    clone_template: str = config_field(DEFAULT_ENV_TEMPLATE)
     """Path template for every replicated env prim, where ``{}`` is the environment index.
 
     The regex form used to expand ``{ENV_REGEX_NS}`` cfg macros is
     ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
     """
 
-    replicate_physics: bool = True
+    replicate_physics: bool = config_field(True)
     """Whether physics replication clones each environment. Default is True.
 
     If False, cloning is USD-only: the physics engine parses the per-env USD prims directly

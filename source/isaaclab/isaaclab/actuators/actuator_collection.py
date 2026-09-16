@@ -17,6 +17,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.utils import copy_config
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
@@ -83,7 +84,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._has_implicit_actuators = False
         self._launch_cache = _WarpLaunchCache(self.device)
 
-        resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
+        resolved_cfgs = {name: copy_config(cfg) for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)

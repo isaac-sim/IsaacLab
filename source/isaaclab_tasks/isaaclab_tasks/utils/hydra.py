@@ -39,7 +39,13 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import ConfigMixin, replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils import (
+    config_field,
+    config_to_dict,
+    replace_slices_with_strings,
+    replace_strings_with_slices,
+    update_config,
+)
 
 from .preset_target import PresetTarget
 
@@ -99,7 +105,7 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
 
 
 @dataclass
-class PresetCfg(ConfigMixin):
+class PresetCfg:
     """Base class for declarative preset definitions.
 
     Subclass this and define fields as preset options.
@@ -184,7 +190,7 @@ def preset(**options) -> PresetCfg:
     if "default" not in options:
         raise ValueError("preset() requires a 'default' keyword argument.")
     annotations = {k: type(v) if v is not None else object for k, v in options.items()}
-    ns = {"__annotations__": annotations, **options}
+    ns = {"__annotations__": annotations, **{key: config_field(value) for key, value in options.items()}}
     cls = dataclass(type("_Preset", (PresetCfg,), ns))
     return cls()
 
@@ -450,12 +456,12 @@ def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
     @hydra.main(config_path=None, config_name=task, version_base="1.3")
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
         hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        env_cfg.from_dict(hydra_cfg["env"])
+        update_config(env_cfg, hydra_cfg["env"])
         env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
         if isinstance(agent_cfg, dict) or agent_cfg is None:
             agent_cfg = hydra_cfg["agent"]
         else:
-            agent_cfg.from_dict(hydra_cfg["agent"])
+            update_config(agent_cfg, hydra_cfg["agent"])
         callback(env_cfg, agent_cfg)
 
     try:
@@ -713,8 +719,8 @@ def register_task(
 
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
-    agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
-    env_dict = env_cfg.to_dict()  # type: ignore[union-attr]
+    agent_dict = config_to_dict(agent_cfg) if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
+    env_dict = config_to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars
@@ -792,7 +798,7 @@ def apply_overrides(
         section_explicit = {path: name for path, name in explicit.items() if path == sec or path.startswith(sec + ".")}
         cfgs[sec] = _resolve_active_presets(cfgs[sec], global_presets, section_explicit, root_path=sec)
         hydra_cfg[sec] = (
-            cfgs[sec].to_dict()
+            config_to_dict(cfgs[sec])
             if hasattr(cfgs[sec], "to_dict")
             else dict(cfgs[sec])
             if isinstance(cfgs[sec], Mapping)

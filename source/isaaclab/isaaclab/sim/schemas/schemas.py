@@ -17,6 +17,7 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils import config_to_dict
 from isaaclab.utils.string import string_to_callable, to_camel_case
 
 from ..utils import (
@@ -1748,7 +1749,7 @@ def modify_fixed_tendon_properties(
         stage = get_current_stage()
 
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    values = cfg.to_dict()
+    values = config_to_dict(cfg)
     if tendon_prim.GetTypeName() != "MjcTendon":
         return _write_tendon_properties(tendon_prim, values, "PhysxTendonAxisRootAPI")
     for name in ("stiffness", "damping"):
@@ -1833,7 +1834,7 @@ def modify_spatial_tendon_properties(
     if stage is None:
         stage = get_current_stage()
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    return _write_tendon_properties(tendon_prim, cfg.to_dict(), "PhysxTendonAttachmentRootAPI")
+    return _write_tendon_properties(tendon_prim, config_to_dict(cfg), "PhysxTendonAttachmentRootAPI")
 
 
 """

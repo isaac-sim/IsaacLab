@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import torch
@@ -16,6 +17,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.datasets import EpisodeData
 from isaaclab.visualizers import VisualizerCfg
@@ -46,17 +48,19 @@ ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
 
 @dataclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
-    packing_table_2 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/PackingTable2",
-        init_state=AssetBaseCfg.InitialStateCfg(
-            pos=[-2, -3.55, -0.3],
-            # rot=[0, 0, 0, 1]),
-            rot=[0, 0, -0.3826834, 0.9238795],
-        ),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
+    packing_table_2: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/PackingTable2",
+            init_state=AssetBaseCfg.InitialStateCfg(
+                pos=[-2, -3.55, -0.3],
+                # rot=[0, 0, 0, 1]),
+                rot=[0, 0, -0.3826834, 0.9238795],
+            ),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            ),
+        )
     )
 
     def add_robot_pov_cam(self, height, width, use_nurec_renderer_settings: bool = False):
@@ -128,12 +132,14 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 
     @dataclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
-        robot_pov_cam = ObsTerm(
-            func=manip_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+        robot_pov_cam: Any = config_field(
+            ObsTerm(
+                func=manip_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+            )
         )
 
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
@@ -141,15 +147,15 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
     """Configuration for the G1 29DoF environment."""
 
     # Scene settings
-    scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=False
+    scene: G1LocomanipulationSDGSceneCfg = config_field(
+        G1LocomanipulationSDGSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
     )
-    recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
-    observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()
+    recorders: LocomanipulationSDGRecorderManagerCfg = config_field(LocomanipulationSDGRecorderManagerCfg())
+    observations: G1LocomanipulationSDGObservationsCfg = config_field(G1LocomanipulationSDGObservationsCfg())
 
-    background_usd_path: str | None = None
-    background_occupancy_yaml_file: str | None = None
-    high_res_video: bool = False
+    background_usd_path: str | None = config_field(None)
+    background_occupancy_yaml_file: str | None = config_field(None)
+    high_res_video: bool = config_field(False)
 
     def __post_init__(self):
         """Post initialization."""

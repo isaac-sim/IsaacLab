@@ -12,6 +12,7 @@ from pxr import Usd, UsdPhysics, UsdShade
 from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
 from isaaclab.sim.utils import clone
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils import validate_config
 from isaaclab.utils.string import string_to_callable
 
 from . import physics_materials_cfg
@@ -231,7 +232,7 @@ def spawn_deformable_body_material(
 
     """
     if isinstance(cfg, physics_materials_cfg.CableMaterialCfg):
-        cfg.validate()
+        validate_config(cfg)
 
     # get stage handle
     stage = get_current_stage()

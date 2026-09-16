@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from isaaclab_experimental.managers.manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
@@ -25,13 +27,13 @@ class JointActionCfg(ActionTermCfg):
     See :class:`JointAction` for more details.
     """
 
-    joint_names: list[str] = MISSING
+    joint_names: list[str] = config_field(MISSING)
     """List of joint names or regex expressions that the action will be mapped to."""
-    scale: float | dict[str, float] = 1.0
+    scale: float | dict[str, float] = config_field(1.0)
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-    offset: float | dict[str, float] = 0.0
+    offset: float | dict[str, float] = config_field(0.0)
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-    preserve_order: bool = False
+    preserve_order: bool = config_field(False)
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
 
@@ -42,9 +44,9 @@ class JointPositionActionCfg(JointActionCfg):
     See :class:`JointPositionAction` for more details.
     """
 
-    class_type: type[JointPositionAction] | str = "{DIR}.joint_actions:JointPositionAction"
+    class_type: type[JointPositionAction] | str = config_field("{DIR}.joint_actions:JointPositionAction")
 
-    use_default_offset: bool = True
+    use_default_offset: bool = config_field(True)
     """Whether to use default joint positions configured in the articulation asset as offset.
     Defaults to True.
 
@@ -60,4 +62,4 @@ class JointEffortActionCfg(JointActionCfg):
     See :class:`JointEffortAction` for more details.
     """
 
-    class_type: type[JointEffortAction] | str = "{DIR}.joint_actions:JointEffortAction"
+    class_type: type[JointEffortAction] | str = config_field("{DIR}.joint_actions:JointEffortAction")

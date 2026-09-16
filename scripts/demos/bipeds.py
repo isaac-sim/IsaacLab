@@ -21,6 +21,8 @@
 
 """
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -75,11 +77,11 @@ def design_scene(sim: "sim_utils.SimulationContext") -> tuple[list, torch.Tensor
     ).to(device=sim.device)
 
     # Robots
-    cassie_cfg = CASSIE_CFG.replace(prim_path="/World/Cassie")
+    cassie_cfg = replace_config(CASSIE_CFG, prim_path="/World/Cassie")
     cassie = cassie_cfg.class_type(cassie_cfg)
-    h1_cfg = H1_CFG.replace(prim_path="/World/H1")
+    h1_cfg = replace_config(H1_CFG, prim_path="/World/H1")
     h1 = h1_cfg.class_type(h1_cfg)
-    g1_cfg = G1_CFG.replace(prim_path="/World/G1")
+    g1_cfg = replace_config(G1_CFG, prim_path="/World/G1")
     g1 = g1_cfg.class_type(g1_cfg)
     robots = [cassie, h1, g1]
 

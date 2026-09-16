@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
@@ -31,41 +33,41 @@ class XPBDSolverCfg(NewtonSolverCfg):
 
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.xpbd_manager:NewtonXPBDManager"
+    class_type: type[NewtonManager] | str = config_field("{DIR}.xpbd_manager:NewtonXPBDManager")
     """Manager class for the XPBD solver."""
 
-    solver_type: str = "xpbd"
+    solver_type: str = config_field("xpbd")
     """Solver type. Can be "xpbd"."""
 
-    iterations: int = 2
+    iterations: int = config_field(2)
     """Number of solver iterations."""
 
-    soft_body_relaxation: float = 0.9
+    soft_body_relaxation: float = config_field(0.9)
     """Relaxation parameter for soft body simulation."""
 
-    soft_contact_relaxation: float = 0.9
+    soft_contact_relaxation: float = config_field(0.9)
     """Relaxation parameter for soft contact simulation."""
 
-    joint_linear_relaxation: float = 0.7
+    joint_linear_relaxation: float = config_field(0.7)
     """Relaxation parameter for joint linear simulation."""
 
-    joint_angular_relaxation: float = 0.4
+    joint_angular_relaxation: float = config_field(0.4)
     """Relaxation parameter for joint angular simulation."""
 
-    joint_linear_compliance: float = 0.0
+    joint_linear_compliance: float = config_field(0.0)
     """Compliance parameter for joint linear simulation."""
 
-    joint_angular_compliance: float = 0.0
+    joint_angular_compliance: float = config_field(0.0)
     """Compliance parameter for joint angular simulation."""
 
-    rigid_contact_relaxation: float = 0.8
+    rigid_contact_relaxation: float = config_field(0.8)
     """Relaxation parameter for rigid contact simulation."""
 
-    rigid_contact_con_weighting: bool = True
+    rigid_contact_con_weighting: bool = config_field(True)
     """Whether to use contact constraint weighting for rigid contact simulation."""
 
-    angular_damping: float = 0.0
+    angular_damping: float = config_field(0.0)
     """Angular damping parameter for rigid contact simulation."""
 
-    enable_restitution: bool = False
+    enable_restitution: bool = config_field(False)
     """Whether to enable restitution for rigid contact simulation."""

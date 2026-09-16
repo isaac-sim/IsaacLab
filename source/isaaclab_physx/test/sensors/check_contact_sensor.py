@@ -11,6 +11,8 @@ This script demonstrates how to use the contact sensor sensor in Isaac Lab.
     uv run python source/isaaclab/test/sensors/test_contact_sensor.py --num_robots 2
 """
 
+from isaaclab.utils import replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -95,7 +97,7 @@ def main():
     # Design props
     design_scene()
     # Spawn things into the scene
-    robot_cfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.activate_contact_sensors = True
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor

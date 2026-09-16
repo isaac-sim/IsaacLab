@@ -12,6 +12,7 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.from_files import UsdFileCfg
+from isaaclab.utils import replace_config
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
@@ -147,7 +148,7 @@ def spawn_multi_usd_file(
     # create multi asset configuration of USD files
     multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[], spawn_paths=cfg.spawn_paths)
     for usd_path in usd_paths:
-        usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
+        usd_cfg = replace_config(usd_template_cfg, usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)
 
     # propagate the contact sensor settings

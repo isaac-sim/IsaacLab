@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field, copy_config, replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pick and Place.")
@@ -65,69 +67,75 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     """
 
     # env
-    decimation = 4
-    episode_length_s = 240.0
-    action_space = 4
-    observation_space = 6
-    state_space = 0
+    decimation: Any = config_field(4)
+    episode_length_s: Any = config_field(240.0)
+    action_space: Any = config_field(4)
+    observation_space: Any = config_field(6)
+    state_space: Any = config_field(0)
 
     # Simulation cfg. Surface grippers are currently only supported on CPU.
     # Surface grippers also require scene query support to function.
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        device="cpu",
-        render_interval=decimation,
-        use_fabric=True,
-        enable_scene_query_support=True,
+    sim: SimulationCfg = config_field(
+        SimulationCfg(
+            dt=1 / 60,
+            device="cpu",
+            render_interval=decimation,
+            use_fabric=True,
+            enable_scene_query_support=True,
+        )
     )
-    debug_vis = True
+    debug_vis: Any = config_field(True)
 
     # robot
-    robot_cfg: ArticulationCfg = PICK_AND_PLACE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    x_dof_name = "x_axis"
-    y_dof_name = "y_axis"
-    z_dof_name = "z_axis"
+    robot_cfg: ArticulationCfg = config_field(replace_config(PICK_AND_PLACE_CFG, prim_path="/World/envs/env_.*/Robot"))
+    x_dof_name: Any = config_field("x_axis")
+    y_dof_name: Any = config_field("y_axis")
+    z_dof_name: Any = config_field("z_axis")
 
     # We add a cube to pick-up
-    cube_cfg: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Robot/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.4, 0.4, 0.4),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.0, 0.8)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
+    cube_cfg: RigidObjectCfg = config_field(
+        RigidObjectCfg(
+            prim_path="/World/envs/env_.*/Robot/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.4, 0.4, 0.4),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.0, 0.8)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(),
+        )
     )
 
     # Surface Gripper, the prim_expr need to point to a unique surface gripper per environment.
-    gripper = SurfaceGripperCfg(
-        prim_path="/World/envs/env_.*/Robot/picker_head/SurfaceGripper",
-        max_grip_distance=0.1,
-        shear_force_limit=500.0,
-        coaxial_force_limit=500.0,
-        retry_interval=0.2,
+    gripper: Any = config_field(
+        SurfaceGripperCfg(
+            prim_path="/World/envs/env_.*/Robot/picker_head/SurfaceGripper",
+            max_grip_distance=0.1,
+            shear_force_limit=500.0,
+            coaxial_force_limit=500.0,
+            retry_interval=0.2,
+        )
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True))
 
     # reset logic
     # Initial position of the robot
-    initial_x_pos_range = [-2.0, 2.0]
-    initial_y_pos_range = [-2.0, 2.0]
-    initial_z_pos_range = [0.0, 0.5]
+    initial_x_pos_range: Any = config_field([-2.0, 2.0])
+    initial_y_pos_range: Any = config_field([-2.0, 2.0])
+    initial_z_pos_range: Any = config_field([0.0, 0.5])
 
     # Initial position of the cube
-    initial_object_x_pos_range = [-2.0, 2.0]
-    initial_object_y_pos_range = [-2.0, -0.5]
-    initial_object_z_pos = 0.2
+    initial_object_x_pos_range: Any = config_field([-2.0, 2.0])
+    initial_object_y_pos_range: Any = config_field([-2.0, -0.5])
+    initial_object_z_pos: Any = config_field(0.2)
 
     # Target position of the cube
-    target_x_pos_range = [-2.0, 2.0]
-    target_y_pos_range = [2.0, 0.5]
-    target_z_pos = 0.2
+    target_x_pos_range: Any = config_field([-2.0, 2.0])
+    target_y_pos_range: Any = config_field([2.0, 0.5])
+    target_z_pos: Any = config_field(0.2)
 
 
 class PickAndPlaceEnv(DirectRLEnv):
@@ -410,7 +418,7 @@ class PickAndPlaceEnv(DirectRLEnv):
         # create markers if necessary for the first tome
         if debug_vis:
             if not hasattr(self, "goal_pos_visualizer"):
-                marker_cfg = SPHERE_MARKER_CFG.copy()
+                marker_cfg = copy_config(SPHERE_MARKER_CFG)
                 marker_cfg.markers["sphere"].radius = 0.25
                 # -- goal pose
                 marker_cfg.prim_path = "/Visuals/Command/goal_position"

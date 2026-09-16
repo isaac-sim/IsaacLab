@@ -20,6 +20,7 @@ from isaaclab_tasks.utils import preset
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.so101 import SO101_CFG  # isort: skip
+from isaaclab.utils import replace_config
 
 # Default arm + gripper joint pose [rad].
 # NOTE: kept mid-range (elbow/wrist bent) to avoid the boundary singularity of a fully
@@ -64,7 +65,8 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         # Expand the USD-authored actuator defaults to every Newton articulation clone.
         self.scene.replicate_physics = True
         self.sim.physics.newton_mjwarp.solver_cfg.nconmax = 600
@@ -89,9 +91,11 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
 
         # Set SO-101 as robot. Seat the base on the table-top and face it toward the cube
         # workspace (see ``_SO101_MOUNT_Z`` / ``_SO101_BASE_SEAT_ROT``).
-        self.scene.robot = SO101_CFG.replace(
+        self.scene.robot = replace_config(
+            SO101_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=SO101_CFG.spawn.replace(
+            spawn=replace_config(
+                SO101_CFG.spawn,
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
@@ -101,7 +105,7 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
                         physx="physx",
                         newton_mjwarp="physics",
                     ),
-                }
+                },
             ),
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=_SO101_BASE_SEAT_POS,

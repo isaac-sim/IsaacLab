@@ -5,6 +5,8 @@
 
 from dataclasses import MISSING, dataclass
 
+from isaaclab.utils import config_field
+
 from .lee_controller_base_cfg import LeeControllerBaseCfg
 from .lee_position_control import LeePosController
 
@@ -18,10 +20,10 @@ class LeePosControllerCfg(LeeControllerBaseCfg):
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
     """
 
-    class_type: type = LeePosController
+    class_type: type = config_field(LeePosController)
     """The class type for the position controller."""
 
-    K_pos_range: tuple[tuple[float, float, float], tuple[float, float, float]] = MISSING
+    K_pos_range: tuple[tuple[float, float, float], tuple[float, float, float]] = config_field(MISSING)
     """Position error proportional gain range about body axes [unitless].
 
     This is a tuple of two tuples containing the minimum and maximum gains for each axis (x, y, z).
@@ -31,7 +33,7 @@ class LeePosControllerCfg(LeeControllerBaseCfg):
         ((3.0, 3.0, 2.0), (4.0, 4.0, 2.5)) for ARL Robot 1
     """
 
-    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = MISSING
+    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = config_field(MISSING)
     """Velocity error proportional gain range about body axes [unitless].
 
     This is a tuple of two tuples containing the minimum and maximum gains for each axis (x, y, z).

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab.sim import schemas
@@ -20,20 +21,20 @@ if TYPE_CHECKING:
 class ShapeCfg(RigidObjectSpawnerCfg):
     """Configuration parameters for a USD Geometry or Geom prim."""
 
-    visual_material_path: str = "material"
+    visual_material_path: str = config_field("material")
     """Path to the visual material to use for the prim. Defaults to "material".
 
     If the path is relative, then it will be relative to the prim's path.
     This parameter is ignored if `visual_material` is not None.
     """
-    visual_material: materials.VisualMaterialCfg | None = None
+    visual_material: materials.VisualMaterialCfg | None = config_field(None)
     """Visual material properties.
 
     Note:
         If None, then no visual material will be added.
     """
 
-    physics_material_path: str = "material"
+    physics_material_path: str = config_field("material")
     """Path to the physics material to use for the prim. Defaults to "material".
 
     If the path is relative, then it will be relative to the prim's path.
@@ -44,7 +45,7 @@ class ShapeCfg(RigidObjectSpawnerCfg):
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
         | None
-    ) = None
+    ) = config_field(None)
     """Physics material properties.
 
     Since shapes are rigid-only spawners, this slot accepts the rigid material base class or
@@ -63,9 +64,9 @@ class SphereCfg(ShapeCfg):
     See :meth:`spawn_sphere` for more information.
     """
 
-    func: Callable | str = "{DIR}.shapes:spawn_sphere"
+    func: Callable | str = config_field("{DIR}.shapes:spawn_sphere")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the sphere (in m)."""
 
 
@@ -76,9 +77,9 @@ class CuboidCfg(ShapeCfg):
     See :meth:`spawn_cuboid` for more information.
     """
 
-    func: Callable | str = "{DIR}.shapes:spawn_cuboid"
+    func: Callable | str = config_field("{DIR}.shapes:spawn_cuboid")
 
-    size: tuple[float, float, float] = MISSING
+    size: tuple[float, float, float] = config_field(MISSING)
     """Size of the cuboid."""
 
 
@@ -89,13 +90,13 @@ class CylinderCfg(ShapeCfg):
     See :meth:`spawn_cylinder` for more information.
     """
 
-    func: Callable | str = "{DIR}.shapes:spawn_cylinder"
+    func: Callable | str = config_field("{DIR}.shapes:spawn_cylinder")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the cylinder (in m)."""
-    height: float = MISSING
+    height: float = config_field(MISSING)
     """Height of the cylinder (in m)."""
-    axis: Literal["X", "Y", "Z"] = "Z"
+    axis: Literal["X", "Y", "Z"] = config_field("Z")
     """Axis of the cylinder. Defaults to "Z"."""
 
 
@@ -106,13 +107,13 @@ class CapsuleCfg(ShapeCfg):
     See :meth:`spawn_capsule` for more information.
     """
 
-    func: Callable | str = "{DIR}.shapes:spawn_capsule"
+    func: Callable | str = config_field("{DIR}.shapes:spawn_capsule")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the capsule (in m)."""
-    height: float = MISSING
+    height: float = config_field(MISSING)
     """Height of the capsule (in m)."""
-    axis: Literal["X", "Y", "Z"] = "Z"
+    axis: Literal["X", "Y", "Z"] = config_field("Z")
     """Axis of the capsule. Defaults to "Z"."""
 
 
@@ -123,13 +124,13 @@ class ConeCfg(ShapeCfg):
     See :meth:`spawn_cone` for more information.
     """
 
-    func: Callable | str = "{DIR}.shapes:spawn_cone"
+    func: Callable | str = config_field("{DIR}.shapes:spawn_cone")
 
-    radius: float = MISSING
+    radius: float = config_field(MISSING)
     """Radius of the cone (in m)."""
-    height: float = MISSING
+    height: float = config_field(MISSING)
     """Height of the v (in m)."""
-    axis: Literal["X", "Y", "Z"] = "Z"
+    axis: Literal["X", "Y", "Z"] = config_field("Z")
     """Axis of the cone. Defaults to "Z"."""
 
 
@@ -137,26 +138,26 @@ class ConeCfg(ShapeCfg):
 class CableCfg(SpawnerCfg):
     """Configuration parameters for an open linear cable."""
 
-    func: Callable | str = "{DIR}.shapes:spawn_cable"
-    visual_material_path: str = "material"
+    func: Callable | str = config_field("{DIR}.shapes:spawn_cable")
+    visual_material_path: str = config_field("material")
     """Path to the visual material, relative to the cable geometry prim."""
 
-    visual_material: materials.VisualMaterialCfg | None = None
+    visual_material: materials.VisualMaterialCfg | None = config_field(None)
     """Visual material properties."""
 
-    positions: Sequence[tuple[float, float, float]] = MISSING
+    positions: Sequence[tuple[float, float, float]] = config_field(MISSING)
     """Control points in the cable-local frame [m].
 
     Requires at least three finite points with consecutive points separated by more than 1e-8 m.
     """
 
-    physics_material_path: str = "physics_material"
+    physics_material_path: str = config_field("physics_material")
     """Path to the physics material, relative to the cable geometry prim."""
 
-    physics_material: materials.CableMaterialCfg = MISSING
+    physics_material: materials.CableMaterialCfg = config_field(MISSING)
     """Cable physics material."""
 
     collision_props: (
         schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
-    ) = None
+    ) = config_field(None)
     """Collision properties applied to the cable geometry."""

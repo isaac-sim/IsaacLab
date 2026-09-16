@@ -6,6 +6,8 @@
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
@@ -24,7 +26,7 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
         The PD control is handled implicitly by the simulation.
     """
 
-    class_type: type["ImplicitActuator"] | str = "{DIR}.actuator_pd:ImplicitActuator"
+    class_type: type["ImplicitActuator"] | str = config_field("{DIR}.actuator_pd:ImplicitActuator")
 
 
 """
@@ -36,16 +38,16 @@ Explicit Actuator Models.
 class IdealPDActuatorCfg(ActuatorBaseCfg):
     """Configuration for an ideal PD actuator."""
 
-    class_type: type["IdealPDActuator"] | str = "{DIR}.actuator_pd:IdealPDActuator"
+    class_type: type["IdealPDActuator"] | str = config_field("{DIR}.actuator_pd:IdealPDActuator")
 
 
 @dataclass
 class DCMotorCfg(IdealPDActuatorCfg):
     """Configuration for direct control (DC) motor actuator model."""
 
-    class_type: type["DCMotor"] | str = "{DIR}.actuator_pd:DCMotor"
+    class_type: type["DCMotor"] | str = config_field("{DIR}.actuator_pd:DCMotor")
 
-    saturation_effort: dict[str, float] | float = MISSING
+    saturation_effort: dict[str, float] | float = config_field(MISSING)
     """Peak motor force/torque of the electric DC motor [N or N·m, depending on joint type].
 
     The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
@@ -58,12 +60,12 @@ class DCMotorCfg(IdealPDActuatorCfg):
 class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     """Configuration for a delayed PD actuator."""
 
-    class_type: type["DelayedPDActuator"] | str = "{DIR}.actuator_pd:DelayedPDActuator"
+    class_type: type["DelayedPDActuator"] | str = config_field("{DIR}.actuator_pd:DelayedPDActuator")
 
-    min_delay: int = 0
+    min_delay: int = config_field(0)
     """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
-    max_delay: int = 0
+    max_delay: int = config_field(0)
     """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
 
@@ -77,9 +79,9 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
         the output torques.
     """
 
-    class_type: type["RemotizedPDActuator"] | str = "{DIR}.actuator_pd:RemotizedPDActuator"
+    class_type: type["RemotizedPDActuator"] | str = config_field("{DIR}.actuator_pd:RemotizedPDActuator")
 
-    joint_parameter_lookup: list[list[float]] = MISSING
+    joint_parameter_lookup: list[list[float]] = config_field(MISSING)
     """Joint parameter lookup table. Shape is (num_lookup_points, 3).
 
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),

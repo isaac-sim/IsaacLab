@@ -26,7 +26,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     SpatialTendonFragment,
     _deprecate_field_alias,
 )
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
@@ -40,18 +40,18 @@ class OmniPhysicsDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    deformable_body_enabled: bool | None = None
+    deformable_body_enabled: bool | None = config_field(None)
     """Enables deformable body."""
 
-    kinematic_enabled: bool = False
+    kinematic_enabled: bool = config_field(False)
     """Enables kinematic body. Defaults to False, which means that the body is not kinematic."""
 
-    mass: float | None = None
+    mass: float | None = config_field(None)
     """The material mass [kg]. Defaults to None, in which case the material density is used to compute the mass."""
 
 
 @dataclass
-class PhysXDeformableBodyPropertiesCfg(ConfigMixin):
+class PhysXDeformableBodyPropertiesCfg:
     """PhysX-specific properties for a deformable body.
 
     These properties are set with the prefix ``physxDeformableBody:<property_name>``
@@ -63,51 +63,51 @@ class PhysXDeformableBodyPropertiesCfg(ConfigMixin):
     _usd_applied_schema: ClassVar[str | None] = "PhysxBaseDeformableBodyAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    solver_position_iteration_count: int = 16
+    solver_position_iteration_count: int = config_field(16)
     """Number of the solver positional iterations per step. Range is [1,255], default to 16."""
 
-    linear_damping: float | None = None
+    linear_damping: float | None = config_field(None)
     """Linear damping coefficient, in units of [1/s] and constrained to the range [0, inf)."""
 
-    max_linear_velocity: float | None = None
+    max_linear_velocity: float | None = config_field(None)
     """Maximum allowable linear velocity for the deformable body, in units of distance/second and constrained to the
     range [0, inf). A negative value allows the simulation to choose suitable a per vertex value dynamically,
     currently only supported for surface deformables. This can help prevent surface-surface intersections."""
 
-    settling_damping: float | None = None
+    settling_damping: float | None = config_field(None)
     """Additional damping applied when a vertex's velocity falls below :attr:`settling_threshold`.
     Specified in units of [1/s] and constrained to the range [0, inf)."""
 
-    settling_threshold: float | None = None
+    settling_threshold: float | None = config_field(None)
     """Velocity threshold below which :attr:`settling_damping` is applied in addition to standard damping.
     Specified in units of distance/second and constrained to the range [0, inf)."""
 
-    sleep_threshold: float | None = None
+    sleep_threshold: float | None = config_field(None)
     """Velocity threshold below which a vertex becomes a candidate for sleeping.
     Specified in units of distance/seconds and constrained to the range [0, inf)."""
 
-    max_depenetration_velocity: float | None = None
+    max_depenetration_velocity: float | None = config_field(None)
     """Maximum velocity that the solver may apply to resolve intersections.
     Specified in units of distance/seconds and constrained to the range [0, inf)."""
 
-    self_collision: bool | None = None
+    self_collision: bool | None = config_field(None)
     """Enables self-collisions for the deformable body, preventing self-intersections."""
 
-    self_collision_filter_distance: float | None = None
+    self_collision_filter_distance: float | None = config_field(None)
     r"""Distance below which self-collision is disabled [m].
 
     The default value of -inf indicates that the simulation selects a suitable value.
     Constrained to range [:attr:`~isaaclab.sim.schemas.CollisionBaseCfg.rest_offset` \* 2, inf].
     """
 
-    enable_speculative_c_c_d: bool | None = None
+    enable_speculative_c_c_d: bool | None = config_field(None)
     """Enables dynamic adjustment of contact offset based on velocity (speculative continuous collision detection)."""
 
-    disable_gravity: bool | None = None
+    disable_gravity: bool | None = config_field(None)
     """Disables gravity for the deformable body."""
 
     # specific to surface deformables
-    collision_pair_update_frequency: int | None = None
+    collision_pair_update_frequency: int | None = config_field(None)
     """Determines how often surface-to-surface collision pairs are updated during each time step.
     Increasing this value results in more frequent updates to the contact pairs, which provides better contact points.
 
@@ -119,7 +119,7 @@ class PhysXDeformableBodyPropertiesCfg(ConfigMixin):
     Valid range: [1, :attr:`solver_position_iteration_count`].
     """
 
-    collision_iteration_multiplier: float | None = None
+    collision_iteration_multiplier: float | None = config_field(None)
     """Determines how many collision subiterations are used in each solver iteration.
     By default, collision constraints are applied once per solver iteration.
     Increasing this value applies collision constraints more frequently within each solver iteration.
@@ -174,7 +174,8 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -198,40 +199,40 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxRigidBodyAPI"
     _usd_namespace: ClassVar[str | None] = "physxRigidBody"
 
-    linear_damping: float | None = None
+    linear_damping: float | None = config_field(None)
     """Linear damping for the body."""
 
-    angular_damping: float | None = None
+    angular_damping: float | None = config_field(None)
     """Angular damping for the body."""
 
-    max_linear_velocity: float | None = None
+    max_linear_velocity: float | None = config_field(None)
     """Maximum linear velocity for rigid bodies (in m/s)."""
 
-    max_angular_velocity: float | None = None
+    max_angular_velocity: float | None = config_field(None)
     """Maximum angular velocity for rigid bodies (in deg/s)."""
 
-    max_depenetration_velocity: float | None = None
+    max_depenetration_velocity: float | None = config_field(None)
     """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""
 
-    max_contact_impulse: float | None = None
+    max_contact_impulse: float | None = config_field(None)
     """The limit on the impulse that may be applied at a contact."""
 
-    enable_gyroscopic_forces: bool | None = None
+    enable_gyroscopic_forces: bool | None = config_field(None)
     """Enables computation of gyroscopic forces on the rigid body."""
 
-    retain_accelerations: bool | None = None
+    retain_accelerations: bool | None = config_field(None)
     """Carries over forces/accelerations over sub-steps."""
 
-    solver_position_iteration_count: int | None = None
+    solver_position_iteration_count: int | None = config_field(None)
     """Solver position iteration counts for the body."""
 
-    solver_velocity_iteration_count: int | None = None
+    solver_velocity_iteration_count: int | None = config_field(None)
     """Solver velocity iteration counts for the body."""
 
-    sleep_threshold: float | None = None
+    sleep_threshold: float | None = config_field(None)
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
 
-    stabilization_threshold: float | None = None
+    stabilization_threshold: float | None = config_field(None)
     """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
 
 
@@ -249,43 +250,43 @@ class PhysxRigidBodyCfg(RigidBodyFragment):
     _usd_namespace: ClassVar[str | None] = "physxRigidBody"
     _usd_applied_schema: ClassVar[str | None] = "PhysxRigidBodyAPI"
 
-    linear_damping: float | None = None
+    linear_damping: float | None = config_field(None)
     """Linear damping coefficient for the body [1/s]."""
 
-    angular_damping: float | None = None
+    angular_damping: float | None = config_field(None)
     """Angular damping coefficient for the body [1/s]."""
 
-    max_linear_velocity: float | None = None
+    max_linear_velocity: float | None = config_field(None)
     """Maximum linear velocity for the body [m/s]."""
 
-    max_angular_velocity: float | None = None
+    max_angular_velocity: float | None = config_field(None)
     """Maximum angular velocity for the body [deg/s]."""
 
-    max_depenetration_velocity: float | None = None
+    max_depenetration_velocity: float | None = config_field(None)
     """Maximum depenetration velocity permitted to be introduced by the solver [m/s]."""
 
-    max_contact_impulse: float | None = None
+    max_contact_impulse: float | None = config_field(None)
     """The limit on the impulse that may be applied at a contact [N·s]."""
 
-    enable_gyroscopic_forces: bool | None = None
+    enable_gyroscopic_forces: bool | None = config_field(None)
     """Enables computation of gyroscopic forces on the rigid body."""
 
-    retain_accelerations: bool | None = None
+    retain_accelerations: bool | None = config_field(None)
     """Carries over forces/accelerations over sub-steps."""
 
-    solver_position_iteration_count: int | None = None
+    solver_position_iteration_count: int | None = config_field(None)
     """Solver position iteration counts for the body."""
 
-    solver_velocity_iteration_count: int | None = None
+    solver_velocity_iteration_count: int | None = config_field(None)
     """Solver velocity iteration counts for the body."""
 
-    sleep_threshold: float | None = None
+    sleep_threshold: float | None = config_field(None)
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
 
-    stabilization_threshold: float | None = None
+    stabilization_threshold: float | None = config_field(None)
     """Mass-normalized kinetic energy threshold below which an actor may participate in stabilization [m²/s²]."""
 
-    disable_gravity: bool | None = None
+    disable_gravity: bool | None = config_field(None)
     """Disable gravity for the body.
 
     PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True excludes the
@@ -313,7 +314,8 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -333,14 +335,14 @@ class PhysxJointCfg(JointDriveFragment):
     _usd_applied_schema: ClassVar[str | None] = "PhysxJointAPI"
     # Override the generic applier: ``max_joint_velocity`` needs joint-type-aware rad->deg
     # conversion for angular joints, which ``apply_namespaced`` cannot do.
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_physx_joint"
+    func: Callable | str = config_field("isaaclab_physx.sim.schemas:apply_physx_joint")
 
     def __post_init__(self):
         # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (the USD attr is
         # ``maxJointVelocity``). Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
         _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
 
-    max_joint_velocity: float | None = None
+    max_joint_velocity: float | None = config_field(None)
     """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
 
     Notes:
@@ -355,7 +357,7 @@ class PhysxJointCfg(JointDriveFragment):
         :func:`~isaaclab.sim.schemas.modify_joint_drive_properties`.
     """
 
-    max_velocity: float | None = None
+    max_velocity: float | None = config_field(None)
     """Deprecated alias for :attr:`max_joint_velocity`.
 
     .. deprecated:: 4.6.25
@@ -411,7 +413,8 @@ class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -433,7 +436,7 @@ class PhysxCollisionCfg(CollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physxCollision"
     _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
 
-    contact_offset: float | None = None
+    contact_offset: float | None = config_field(None)
     """Contact offset for the collision shape [m].
 
     The collision detector generates contact points as soon as two shapes get closer than the sum
@@ -444,7 +447,7 @@ class PhysxCollisionCfg(CollisionFragment):
     its PhysX-bridge resolver.
     """
 
-    rest_offset: float | None = None
+    rest_offset: float | None = config_field(None)
     """Rest offset for the collision shape [m].
 
     The rest offset quantifies how close a shape gets to others at rest. At rest, the distance
@@ -455,14 +458,14 @@ class PhysxCollisionCfg(CollisionFragment):
     PhysX-bridge resolver.
     """
 
-    torsional_patch_radius: float | None = None
+    torsional_patch_radius: float | None = config_field(None)
     """Radius of the contact patch for applying torsional friction [m].
 
     It is used to approximate rotational friction introduced by the compression of contacting
     surfaces. If the radius is zero, no torsional friction is applied.
     """
 
-    min_torsional_patch_radius: float | None = None
+    min_torsional_patch_radius: float | None = config_field(None)
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
@@ -490,14 +493,14 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
     _usd_namespace: ClassVar[str | None] = "physxCollision"
 
-    torsional_patch_radius: float | None = None
+    torsional_patch_radius: float | None = config_field(None)
     """Radius of the contact patch for applying torsional friction [m].
 
     It is used to approximate rotational friction introduced by the compression of contacting surfaces.
     If the radius is zero, no torsional friction is applied.
     """
 
-    min_torsional_patch_radius: float | None = None
+    min_torsional_patch_radius: float | None = config_field(None)
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
@@ -528,7 +531,7 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxArticulationAPI"
     _usd_namespace: ClassVar[str | None] = "physxArticulation"
 
-    enabled_self_collisions: bool | None = None
+    enabled_self_collisions: bool | None = config_field(None)
     """Whether self-collisions between bodies in the same articulation are enabled.
 
     The conceptual quantity exists in two USD namespaces simultaneously:
@@ -545,16 +548,16 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     ``newton:*`` namespace.
     """
 
-    solver_position_iteration_count: int | None = None
+    solver_position_iteration_count: int | None = config_field(None)
     """Solver position iteration counts for the body."""
 
-    solver_velocity_iteration_count: int | None = None
+    solver_velocity_iteration_count: int | None = config_field(None)
     """Solver velocity iteration counts for the body."""
 
-    sleep_threshold: float | None = None
+    sleep_threshold: float | None = config_field(None)
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
 
-    stabilization_threshold: float | None = None
+    stabilization_threshold: float | None = config_field(None)
     """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
 
 
@@ -574,14 +577,14 @@ class PhysxArticulationCfg(ArticulationRootFragment):
     _usd_namespace: ClassVar[str | None] = "physxArticulation"
     _usd_applied_schema: ClassVar[str | None] = "PhysxArticulationAPI"
 
-    articulation_enabled: bool | None = None
+    articulation_enabled: bool | None = config_field(None)
     """Whether to enable or disable the articulation.
 
     PhysX honors this per-articulation at sim time via ``physxArticulation:articulationEnabled``:
     setting False makes PhysX skip the articulation in its solver passes.
     """
 
-    enabled_self_collisions: bool | None = None
+    enabled_self_collisions: bool | None = config_field(None)
     """Whether self-collisions between bodies in the same articulation are enabled.
 
     Written to ``physxArticulation:enabledSelfCollisions``. The Newton-native counterpart is
@@ -589,16 +592,16 @@ class PhysxArticulationCfg(ArticulationRootFragment):
     (``newton:selfCollisionEnabled``).
     """
 
-    solver_position_iteration_count: int | None = None
+    solver_position_iteration_count: int | None = config_field(None)
     """Solver position iteration counts for the articulation."""
 
-    solver_velocity_iteration_count: int | None = None
+    solver_velocity_iteration_count: int | None = config_field(None)
     """Solver velocity iteration counts for the articulation."""
 
-    sleep_threshold: float | None = None
+    sleep_threshold: float | None = config_field(None)
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
 
-    stabilization_threshold: float | None = None
+    stabilization_threshold: float | None = config_field(None)
     """Mass-normalized kinetic energy threshold below which an articulation may participate in
     stabilization [m²/s²]."""
 
@@ -629,7 +632,8 @@ class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -652,7 +656,8 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 # -------------------------------------------------------------------------------------
@@ -679,13 +684,13 @@ class PhysxConvexHullCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physxConvexHullCollision"
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
 
-    mesh_approximation_name: str = "convexHull"
+    mesh_approximation_name: str = config_field("convexHull")
     """Name of mesh collision approximation method. Default: "convexHull"."""
 
-    hull_vertex_limit: int | None = None
+    hull_vertex_limit: int | None = config_field(None)
     """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
 
-    min_thickness: float | None = None
+    min_thickness: float | None = config_field(None)
     """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
 
 
@@ -703,25 +708,25 @@ class PhysxConvexDecompositionCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physxConvexDecompositionCollision"
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
 
-    mesh_approximation_name: str = "convexDecomposition"
+    mesh_approximation_name: str = config_field("convexDecomposition")
     """Name of mesh collision approximation method. Default: "convexDecomposition"."""
 
-    hull_vertex_limit: int | None = None
+    hull_vertex_limit: int | None = config_field(None)
     """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
 
-    max_convex_hulls: int | None = None
+    max_convex_hulls: int | None = config_field(None)
     """Maximum of convex hulls created during convex decomposition [dimensionless]. Default value is 32."""
 
-    min_thickness: float | None = None
+    min_thickness: float | None = config_field(None)
     """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
 
-    voxel_resolution: int | None = None
+    voxel_resolution: int | None = config_field(None)
     """Voxel resolution used for convex decomposition [dimensionless]. Defaults to 500,000 voxels."""
 
-    error_percentage: float | None = None
+    error_percentage: float | None = config_field(None)
     """Convex decomposition error percentage parameter [%]. Defaults to 10 percent."""
 
-    shrink_wrap: bool | None = None
+    shrink_wrap: bool | None = config_field(None)
     """Attempts to adjust the convex hull points so that they are projected onto the surface of the
     original graphics mesh. Defaults to False.
     """
@@ -739,10 +744,10 @@ class PhysxTriangleMeshCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physxTriangleMeshCollision"
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
 
-    mesh_approximation_name: str = "none"
+    mesh_approximation_name: str = config_field("none")
     """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
 
-    weld_tolerance: float | None = None
+    weld_tolerance: float | None = config_field(None)
     """Mesh weld tolerance controlling the distance at which vertices are welded [m].
 
     Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
@@ -764,13 +769,13 @@ class PhysxTriangleMeshSimplificationCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physxTriangleMeshSimplificationCollision"
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
 
-    mesh_approximation_name: str = "meshSimplification"
+    mesh_approximation_name: str = config_field("meshSimplification")
     """Name of mesh collision approximation method. Default: "meshSimplification"."""
 
-    simplification_metric: float | None = None
+    simplification_metric: float | None = config_field(None)
     """Mesh simplification accuracy [dimensionless]. Defaults to 0.55."""
 
-    weld_tolerance: float | None = None
+    weld_tolerance: float | None = config_field(None)
     """Mesh weld tolerance controlling the distance at which vertices are welded [m].
 
     Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
@@ -792,28 +797,28 @@ class PhysxSDFMeshCfg(MeshCollisionFragment):
     _usd_namespace: ClassVar[str | None] = "physxSDFMeshCollision"
     _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
 
-    mesh_approximation_name: str = "sdf"
+    mesh_approximation_name: str = config_field("sdf")
     """Name of mesh collision approximation method. Default: "sdf"."""
 
-    sdf_margin: float | None = None
+    sdf_margin: float | None = config_field(None)
     """Margin to increase the size of the SDF relative to the mesh bounding-box diagonal [dimensionless].
 
     Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, inf).
     """
 
-    sdf_narrow_band_thickness: float | None = None
+    sdf_narrow_band_thickness: float | None = config_field(None)
     """Size of the narrow band around the mesh surface with high-resolution SDF samples [dimensionless].
 
     Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, 1].
     """
 
-    sdf_resolution: int | None = None
+    sdf_resolution: int | None = config_field(None)
     """Uniform SDF sampling resolution (largest AABB extent divided by this value) [dimensionless].
 
     Default value is 256. Range: (1, inf).
     """
 
-    sdf_subgrid_resolution: int | None = None
+    sdf_subgrid_resolution: int | None = config_field(None)
     """Subgrid resolution enabling SDF sparsity; ``0`` selects a dense SDF [dimensionless].
 
     Default value is 6. Range: [0, inf).
@@ -838,15 +843,15 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
     _usd_namespace: ClassVar[str | None] = "physxConvexHullCollision"
 
-    mesh_approximation_name: str = "convexHull"
+    mesh_approximation_name: str = config_field("convexHull")
     """Name of mesh collision approximation method. Default: "convexHull"."""
 
-    hull_vertex_limit: int | None = None
+    hull_vertex_limit: int | None = config_field(None)
     """Convex hull vertex limit used for convex hull cooking.
 
     Defaults to 64.
     """
-    min_thickness: float | None = None
+    min_thickness: float | None = config_field(None)
     """Convex hull min thickness.
 
     Range: [0, inf). Units are distance. Default value is 0.001.
@@ -866,34 +871,34 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
     _usd_namespace: ClassVar[str | None] = "physxConvexDecompositionCollision"
 
-    mesh_approximation_name: str = "convexDecomposition"
+    mesh_approximation_name: str = config_field("convexDecomposition")
     """Name of mesh collision approximation method. Default: "convexDecomposition"."""
 
-    hull_vertex_limit: int | None = None
+    hull_vertex_limit: int | None = config_field(None)
     """Convex hull vertex limit used for convex hull cooking.
 
     Defaults to 64.
     """
-    max_convex_hulls: int | None = None
+    max_convex_hulls: int | None = config_field(None)
     """Maximum of convex hulls created during convex decomposition.
     Default value is 32.
     """
-    min_thickness: float | None = None
+    min_thickness: float | None = config_field(None)
     """Convex hull min thickness.
 
     Range: [0, inf). Units are distance. Default value is 0.001.
     """
-    voxel_resolution: int | None = None
+    voxel_resolution: int | None = config_field(None)
     """Voxel resolution used for convex decomposition.
 
     Defaults to 500,000 voxels.
     """
-    error_percentage: float | None = None
+    error_percentage: float | None = config_field(None)
     """Convex decomposition error percentage parameter.
 
     Defaults to 10 percent. Units are percent.
     """
-    shrink_wrap: bool | None = None
+    shrink_wrap: bool | None = config_field(None)
     """Attempts to adjust the convex hull points so that they are projected onto the surface of the original graphics
     mesh.
 
@@ -916,10 +921,10 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
     _usd_namespace: ClassVar[str | None] = "physxTriangleMeshCollision"
 
-    mesh_approximation_name: str = "none"
+    mesh_approximation_name: str = config_field("none")
     """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
 
-    weld_tolerance: float | None = None
+    weld_tolerance: float | None = config_field(None)
     """Mesh weld tolerance, controls the distance at which vertices are welded.
 
     Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
@@ -940,15 +945,15 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
     _usd_namespace: ClassVar[str | None] = "physxTriangleMeshSimplificationCollision"
 
-    mesh_approximation_name: str = "meshSimplification"
+    mesh_approximation_name: str = config_field("meshSimplification")
     """Name of mesh collision approximation method. Default: "meshSimplification"."""
 
-    simplification_metric: float | None = None
+    simplification_metric: float | None = config_field(None)
     """Mesh simplification accuracy.
 
     Defaults to 0.55.
     """
-    weld_tolerance: float | None = None
+    weld_tolerance: float | None = config_field(None)
     """Mesh weld tolerance, controls the distance at which vertices are welded.
 
     Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
@@ -974,10 +979,10 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
     _usd_namespace: ClassVar[str | None] = "physxSDFMeshCollision"
 
-    mesh_approximation_name: str = "sdf"
+    mesh_approximation_name: str = config_field("sdf")
     """Name of mesh collision approximation method. Default: "sdf"."""
 
-    sdf_margin: float | None = None
+    sdf_margin: float | None = config_field(None)
     """Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.
 
     A sdf margin value of 0.01 means the sdf boundary will be enlarged in any direction by 1% of the mesh's bounding
@@ -987,7 +992,7 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     Default value is 0.01.
     Range: [0, inf) Units: dimensionless
     """
-    sdf_narrow_band_thickness: float | None = None
+    sdf_narrow_band_thickness: float | None = config_field(None)
     """Size of the narrow band around the mesh surface where high resolution SDF samples are available.
 
     Outside of the narrow band, only low resolution samples are stored. Representing the narrow band thickness as a
@@ -997,7 +1002,7 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     Default value is 0.01.
     Range: [0, 1] Units: dimensionless
     """
-    sdf_resolution: int | None = None
+    sdf_resolution: int | None = config_field(None)
     """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh,
     divided by the resolution.
 
@@ -1007,7 +1012,7 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     Default value is 256.
     Range: (1, inf)
     """
-    sdf_subgrid_resolution: int | None = None
+    sdf_subgrid_resolution: int | None = config_field(None)
     """A positive subgrid resolution enables sparsity on signed-distance-fields (SDF) while a value of 0 leads to the
     usage of a dense SDF.
 
@@ -1040,7 +1045,8 @@ class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -1059,7 +1065,8 @@ class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -1078,7 +1085,8 @@ class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -1097,7 +1105,8 @@ class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -1116,7 +1125,8 @@ class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPro
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -1135,11 +1145,12 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
-class PhysxFixedTendonPropertiesCfg(ConfigMixin):
+class PhysxFixedTendonPropertiesCfg:
     """PhysX fixed-tendon properties for an articulation.
 
     Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
@@ -1155,32 +1166,32 @@ class PhysxFixedTendonPropertiesCfg(ConfigMixin):
         the properties and leave the rest as-is.
     """
 
-    tendon_enabled: bool | None = None
+    tendon_enabled: bool | None = config_field(None)
     """Whether to enable or disable the tendon."""
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Spring stiffness term acting on the tendon's length."""
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """The damping term acting on both the tendon length and the tendon-length limits."""
 
-    limit_stiffness: float | None = None
+    limit_stiffness: float | None = config_field(None)
     """Limit stiffness term acting on the tendon's length limits."""
 
-    offset: float | None = None
+    offset: float | None = config_field(None)
     """Length offset term for the tendon.
 
     It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
     to actuate the tendon by shortening or lengthening it.
     """
 
-    rest_length: float | None = None
+    rest_length: float | None = config_field(None)
     """Spring rest length of the tendon [m]."""
 
-    lower_limit: float | None = None
+    lower_limit: float | None = config_field(None)
     """Lower limit of the tendon's length [m]."""
 
-    upper_limit: float | None = None
+    upper_limit: float | None = config_field(None)
     """Upper limit of the tendon's length [m]."""
 
 
@@ -1202,11 +1213,12 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
-class PhysxSpatialTendonPropertiesCfg(ConfigMixin):
+class PhysxSpatialTendonPropertiesCfg:
     """PhysX spatial-tendon properties for an articulation.
 
     Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
@@ -1222,19 +1234,19 @@ class PhysxSpatialTendonPropertiesCfg(ConfigMixin):
         the properties and leave the rest as-is.
     """
 
-    tendon_enabled: bool | None = None
+    tendon_enabled: bool | None = config_field(None)
     """Whether to enable or disable the tendon."""
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Spring stiffness term acting on the tendon's length."""
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """The damping term acting on both the tendon length and the tendon-length limits."""
 
-    limit_stiffness: float | None = None
+    limit_stiffness: float | None = config_field(None)
     """Limit stiffness term acting on the tendon's length limits."""
 
-    offset: float | None = None
+    offset: float | None = config_field(None)
     """Length offset term for the tendon.
 
     It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
@@ -1260,7 +1272,8 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
 
 @dataclass
@@ -1278,37 +1291,37 @@ class PhysxTendonAxisRootCfg(FixedTendonFragment):
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
-    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+    func: Callable | str = config_field("isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema")
 
-    instance_names: str | list[str] | None = None
+    instance_names: str | list[str] | None = config_field(None)
     """Existing tendon instances to tune; ``None`` selects all root instances."""
 
-    tendon_enabled: bool | None = None
+    tendon_enabled: bool | None = config_field(None)
     """Whether to enable or disable the tendon."""
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Spring stiffness term acting on the tendon's length [N/m]."""
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
 
-    limit_stiffness: float | None = None
+    limit_stiffness: float | None = config_field(None)
     """Limit stiffness term acting on the tendon's length limits [N/m]."""
 
-    offset: float | None = None
+    offset: float | None = config_field(None)
     """Length offset term for the tendon [m].
 
     It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
     to actuate the tendon by shortening or lengthening it.
     """
 
-    rest_length: float | None = None
+    rest_length: float | None = config_field(None)
     """Spring rest length of the tendon [m]."""
 
-    lower_limit: float | None = None
+    lower_limit: float | None = config_field(None)
     """Lower limit of the tendon's length [m]."""
 
-    upper_limit: float | None = None
+    upper_limit: float | None = config_field(None)
     """Upper limit of the tendon's length [m]."""
 
 
@@ -1327,18 +1340,18 @@ class PhysxTendonAxisCfg(FixedTendonFragment):
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisAPI"
-    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+    func: Callable | str = config_field("isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema")
 
-    instance_names: str | list[str] | None = None
+    instance_names: str | list[str] | None = config_field(None)
     """Existing tendon-axis instances to tune; ``None`` selects all axis instances."""
 
-    gearing: list[float] | None = None
+    gearing: list[float] | None = config_field(None)
     """Joint gearing per entry in :attr:`joint_axis` [unitless or m/deg, depending on joint axis]."""
 
-    force_coefficient: list[float] | None = None
+    force_coefficient: list[float] | None = config_field(None)
     """Joint force coefficient per entry in :attr:`joint_axis` [unitless or m, depending on joint axis]."""
 
-    joint_axis: list[Literal["transX", "transY", "transZ", "rotX", "rotY", "rotZ"]] | None = None
+    joint_axis: list[Literal["transX", "transY", "transZ", "rotX", "rotY", "rotZ"]] | None = config_field(None)
     """Joint axes corresponding to :attr:`gearing` and :attr:`force_coefficient`."""
 
 
@@ -1358,24 +1371,24 @@ class PhysxTendonAttachmentRootCfg(SpatialTendonFragment):
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
-    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+    func: Callable | str = config_field("isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema")
 
-    instance_names: str | list[str] | None = None
+    instance_names: str | list[str] | None = config_field(None)
     """Existing spatial-tendon instances to tune; ``None`` selects all attachment roots."""
 
-    tendon_enabled: bool | None = None
+    tendon_enabled: bool | None = config_field(None)
     """Whether to enable or disable the tendon."""
 
-    stiffness: float | None = None
+    stiffness: float | None = config_field(None)
     """Spring stiffness term acting on the tendon's length [N/m]."""
 
-    damping: float | None = None
+    damping: float | None = config_field(None)
     """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
 
-    limit_stiffness: float | None = None
+    limit_stiffness: float | None = config_field(None)
     """Limit stiffness term acting on the tendon's length limits [N/m]."""
 
-    offset: float | None = None
+    offset: float | None = config_field(None)
     """Length offset term for the tendon [m].
 
     It defines an amount to be added to the accumulated length computed for the tendon. This allows the application

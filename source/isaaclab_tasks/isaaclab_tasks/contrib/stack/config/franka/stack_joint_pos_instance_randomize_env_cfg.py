@@ -14,7 +14,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -28,40 +28,47 @@ from isaaclab_tasks.contrib.stack.stack_instance_randomize_env_cfg import (
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from typing import Any
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="startup",
-        params={
-            "default_pose": [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.0400, 0.0400],
-        },
+    init_franka_arm_pose: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.set_default_joint_pose,
+            mode="startup",
+            params={
+                "default_pose": [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.0400, 0.0400],
+            },
+        )
     )
 
-    randomize_franka_joint_state = EventTerm(
-        func=franka_stack_events.randomize_joint_by_gaussian_offset,
-        mode="reset",
-        params={
-            "mean": 0.0,
-            "std": 0.02,
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
+    randomize_franka_joint_state: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_joint_by_gaussian_offset,
+            mode="reset",
+            params={
+                "mean": 0.0,
+                "std": 0.02,
+                "asset_cfg": SceneEntityCfg("robot"),
+            },
+        )
     )
 
-    randomize_cubes_in_focus = EventTerm(
-        func=franka_stack_events.randomize_rigid_objects_in_focus,
-        mode="reset",
-        params={
-            "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
-            "out_focus_state": torch.tensor([10.0, 10.0, 10.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-            "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
-            "min_separation": 0.1,
-        },
+    randomize_cubes_in_focus: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_rigid_objects_in_focus,
+            mode="reset",
+            params={
+                "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
+                "out_focus_state": torch.tensor([10.0, 10.0, 10.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+                "min_separation": 0.1,
+            },
+        )
     )
 
 
@@ -69,13 +76,14 @@ class EventCfg(ConfigMixin):
 class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set events
         self.events = EventCfg()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -171,7 +179,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
         self.scene.cube_3 = RigidObjectCollectionCfg(rigid_objects=cube_3_config_dict)
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg = copy_config(FRAME_MARKER_CFG)
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(

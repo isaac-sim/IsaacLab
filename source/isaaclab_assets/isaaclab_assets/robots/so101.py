@@ -25,6 +25,7 @@ configuration retains the gains previously tuned for IK tracking.
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import copy_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -72,7 +73,7 @@ Newton MJWarp backend. Preset-aware multi-backend tasks select ``physx`` when us
 """
 
 
-SO101_HIGH_PD_CFG = SO101_CFG.copy()
+SO101_HIGH_PD_CFG = copy_config(SO101_CFG)
 SO101_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 SO101_HIGH_PD_CFG.actuators = {
     "arm": ImplicitActuatorCfg(

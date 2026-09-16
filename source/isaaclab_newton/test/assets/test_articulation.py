@@ -19,6 +19,7 @@ from isaaclab.test.utils.articulation_ordering import (
     PANDA_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
 )
+from isaaclab.utils import copy_config, replace_config
 
 HEADLESS = True
 
@@ -422,7 +423,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    articulation = Articulation(replace_config(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
 
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
@@ -462,7 +463,7 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_g
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
-    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_[^/]*/Robot")
+    cfg = replace_config(copy_config(FRANKA_PANDA_HIGH_PD_CFG), prim_path="/World/Env_[^/]*/Robot")
     if zero_actuator_pd:
         cfg.actuators["panda_shoulder"].stiffness = 0.0
         cfg.actuators["panda_shoulder"].damping = 0.0
@@ -981,7 +982,8 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
     sim, articulation_type, use_newton_actuators, device
 ):
     """Map selected public joint IDs to Newton-controller columns."""
-    articulation_cfg = generate_articulation_cfg("anymal").replace(
+    articulation_cfg = replace_config(
+        generate_articulation_cfg("anymal"),
         actuators={
             "legs": IdealPDActuatorCfg(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
@@ -1040,8 +1042,9 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
     sim, num_articulations, device, gravity_enabled, articulation_type, state_kind
 ):
     """Refresh ordered body state after a root write at the current simulation timestamp."""
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
-        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES
+    articulation_cfg = replace_config(
+        generate_articulation_cfg(articulation_type=articulation_type),
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
@@ -1090,7 +1093,8 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     """Rebind public state to recreated Newton arrays and invalidate ordered caches."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     if ordering_mode == "reversed":
-        articulation_cfg = articulation_cfg.replace(
+        articulation_cfg = replace_config(
+            articulation_cfg,
             joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
             body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
         )
@@ -1298,7 +1302,8 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     Rebind must NOT resync the actuator-owned values from freshly rebuilt (here: sentinel) solver gains.
     ``none`` is the identity-ordering control that must pass with or without the fix.
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+    articulation_cfg = replace_config(
+        generate_articulation_cfg(articulation_type=articulation_type),
         actuators={
             "legs": IdealPDActuatorCfg(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
@@ -1309,7 +1314,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
         },
     )
     if ordering_mode == "reversed":
-        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
+        articulation_cfg = replace_config(articulation_cfg, joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
     assert articulation.is_initialized
@@ -1377,7 +1382,8 @@ def test_newton_post_step_hook_publishes_ordered_state_inside_step(
     Ships the eager-mode invariant variant: CUDA-graph capture is not reliably reachable
     from this CPU test harness, and this invariant directly proves the in-step republish.
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+    articulation_cfg = replace_config(
+        generate_articulation_cfg(articulation_type=articulation_type),
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
         body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
@@ -1425,7 +1431,8 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
     after the articulation is gone. ``_clear_callbacks`` must remove exactly that
     callback and leave any other registered callback untouched.
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+    articulation_cfg = replace_config(
+        generate_articulation_cfg(articulation_type=articulation_type),
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
         body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
@@ -1465,11 +1472,12 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
     sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators, ordering_mode, monkeypatch
 ):
     """Gather joint targets only when non-identity joint ordering is active."""
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+    articulation_cfg = replace_config(
+        generate_articulation_cfg(articulation_type=articulation_type),
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
     )
     if ordering_mode == "reversed":
-        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
+        articulation_cfg = replace_config(articulation_cfg, joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
     assert articulation.is_initialized
@@ -2012,7 +2020,7 @@ def test_initialization_floating_base_made_fixed_base(
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
+    articulation_cfg = copy_config(generate_articulation_cfg(articulation_type=articulation_type))
     # Fix root link by making it kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -2066,7 +2074,7 @@ def test_initialization_fixed_base_made_floating_base(
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
+    articulation_cfg = copy_config(generate_articulation_cfg(articulation_type=articulation_type))
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
@@ -2109,7 +2117,7 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         num_articulations: Number of articulations to test
     """
     # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
+    articulation_cfg = copy_config(generate_articulation_cfg(articulation_type=articulation_type))
     articulation_cfg.init_state.joint_pos = {
         "panda_joint1": 10.0,
         "panda_joint[2, 4]": -20.0,
@@ -2134,7 +2142,7 @@ def test_out_of_range_default_joint_vel(sim, device, articulation_type):
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
     """
-    articulation_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+    articulation_cfg = replace_config(FRANKA_PANDA_CFG, prim_path="/World/Robot")
     articulation_cfg.init_state.joint_vel = {
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
@@ -4088,8 +4096,8 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     # per-articulation shape gate without that pre-existing quirk.
     num_per_type = 1
 
-    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_[^/]*/Robot")
-    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_[^/]*/Robot")
+    franka_cfg = replace_config(FRANKA_PANDA_CFG, prim_path="/World/Env_franka_[^/]*/Robot")
+    anymal_cfg = replace_config(ANYMAL_C_CFG, prim_path="/World/Env_anymal_[^/]*/Robot")
 
     for i in range(num_per_type):
         sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))
@@ -4320,7 +4328,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     if ordering_mode == "reversed":
         joint_names = PANDA_JOINT_NAMES if articulation_type == "panda" else ANYMAL_C_PHYSX_JOINT_NAMES
-        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(joint_names)))
+        articulation_cfg = replace_config(articulation_cfg, joint_ordering=tuple(reversed(joint_names)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
@@ -4501,7 +4509,8 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # we set IS the joint torque applied — no PD spring-damper masks the
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
-    cfg = base_cfg.replace(
+    cfg = replace_config(
+        base_cfg,
         actuators={
             "all": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
@@ -4512,9 +4521,11 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     )
     # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
-    cfg = cfg.replace(
-        spawn=cfg.spawn.replace(
-            rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+    cfg = replace_config(
+        cfg,
+        spawn=replace_config(
+            cfg.spawn,
+            rigid_props=replace_config(cfg.spawn.rigid_props, disable_gravity=False),
         ),
     )
 

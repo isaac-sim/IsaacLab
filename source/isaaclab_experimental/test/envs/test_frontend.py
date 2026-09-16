@@ -45,7 +45,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 # ======================================================================
 # Fixtures: fake stable/warp symbols and configuration dataclass trees.
@@ -82,48 +82,48 @@ _WarpActionCls.__module__ = "isaaclab_experimental.envs.mdp"
 
 
 @dataclass
-class _PolicyObsGroup(ConfigMixin):
+class _PolicyObsGroup:
     """Stand-in for a per-task ObservationsCfg sub-group (e.g. PolicyCfg)."""
 
-    o1: ObservationTermCfg | None = None
-    o2: ObservationTermCfg | None = None
+    o1: ObservationTermCfg | None = config_field(None)
+    o2: ObservationTermCfg | None = config_field(None)
 
 
 @dataclass
-class _ExtraObsGroup(ConfigMixin):
+class _ExtraObsGroup:
     """A second obs group (named arbitrarily) to exercise multi-group walks."""
 
-    o3: ObservationTermCfg | None = None
+    o3: ObservationTermCfg | None = config_field(None)
 
 
 @dataclass
-class _ObservationsCfg(ConfigMixin):
-    policy: _PolicyObsGroup | None = None
-    perception: _ExtraObsGroup | None = None
+class _ObservationsCfg:
+    policy: _PolicyObsGroup | None = config_field(None)
+    perception: _ExtraObsGroup | None = config_field(None)
 
 
 @dataclass
-class _RewardsCfg(ConfigMixin):
-    r1: RewardTermCfg | None = None
-    r2: RewardTermCfg | None = None
+class _RewardsCfg:
+    r1: RewardTermCfg | None = config_field(None)
+    r2: RewardTermCfg | None = config_field(None)
 
 
 @dataclass
-class _EventsCfg(ConfigMixin):
-    e1: EventTermCfg | None = None
+class _EventsCfg:
+    e1: EventTermCfg | None = config_field(None)
 
 
 @dataclass
-class _CurriculumCfg(ConfigMixin):
-    c1: EventTermCfg | None = None
+class _CurriculumCfg:
+    c1: EventTermCfg | None = config_field(None)
 
 
 @dataclass
-class _CfgFixture(ConfigMixin):
-    observations: _ObservationsCfg | None = None
-    rewards: _RewardsCfg | None = None
-    events: _EventsCfg | None = None
-    curriculum: _CurriculumCfg | None = None
+class _CfgFixture:
+    observations: _ObservationsCfg | None = config_field(None)
+    rewards: _RewardsCfg | None = config_field(None)
+    events: _EventsCfg | None = config_field(None)
+    curriculum: _CurriculumCfg | None = config_field(None)
 
 
 def _term(func=None, params: dict | None = None) -> RewardTermCfg:
@@ -297,14 +297,14 @@ def test_walk_terms_descends_into_dict_groups():
 
 
 @dataclass
-class _GroupWithNestedClass(ConfigMixin):
+class _GroupWithNestedClass:
     """Mirrors the real ``ObservationsCfg.PolicyCfg`` nested-class pattern."""
 
     @dataclass
-    class TemplateCfg(ConfigMixin):
-        t1: ObservationTermCfg | None = None
+    class TemplateCfg:
+        t1: ObservationTermCfg | None = config_field(None)
 
-    o1: ObservationTermCfg | None = None
+    o1: ObservationTermCfg | None = config_field(None)
 
 
 def test_walk_terms_ignores_nested_class_objects():

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner import add as clone_add
-from isaaclab.utils import ConfigMixin, find_unique_string_name
+from isaaclab.utils import config_field, find_unique_string_name, replace_config
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBaseCfg
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class InteractiveSceneCfg(ConfigMixin):
+class InteractiveSceneCfg:
     """Configuration for the interactive scene.
 
     The users can inherit from this class to add entities to their scene. This is then parsed by the
@@ -79,30 +79,30 @@ class InteractiveSceneCfg(ConfigMixin):
 
     """
 
-    class_type: type[InteractiveScene] | str = "{DIR}.interactive_scene:InteractiveScene"
+    class_type: type[InteractiveScene] | str = config_field("{DIR}.interactive_scene:InteractiveScene")
     """The class to use for the interactive scene.
 
     Defaults to :class:`isaaclab.scene.InteractiveScene`.
     """
 
-    num_envs: int = MISSING
+    num_envs: int = config_field(MISSING)
     """Number of environment instances handled by the scene."""
 
-    env_spacing: float = MISSING
+    env_spacing: float = config_field(MISSING)
     """Spacing between environments.
 
     This is the default distance between environment origins in the scene. Used only when the
     number of environments is greater than one.
     """
 
-    lazy_sensor_update: bool = True
+    lazy_sensor_update: bool = config_field(True)
     """Whether to update sensors only when they are accessed. Default is True.
 
     If true, the sensor data is only updated when their attribute ``data`` is accessed. Otherwise, the sensor
     data is updated every time sensors are updated.
     """
 
-    replicate_physics: bool = True
+    replicate_physics: bool = config_field(True)
     """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
 
     If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
@@ -127,7 +127,7 @@ class InteractiveSceneCfg(ConfigMixin):
         explicitly.
     """
 
-    filter_collisions: bool = True
+    filter_collisions: bool = config_field(True)
     """Enable/disable collision filtering between cloned environments. Default is True.
 
     If True, collisions will not occur between cloned environments.
@@ -140,14 +140,14 @@ class InteractiveSceneCfg(ConfigMixin):
         ``scene.filter_collisions()``.
     """
 
-    clone_in_fabric: bool = False
+    clone_in_fabric: bool = config_field(False)
     """Deprecated legacy Fabric cloning flag. Default is False.
 
     Queued replication no longer forwards this flag to the PhysX replicator;
     ``useFabricForReplication`` is always ``False``.
     """
 
-    clone_cfg: CloneCfg = CloneCfg()
+    clone_cfg: CloneCfg = config_field(CloneCfg())
     """Clone execution and legal scene-combination configuration."""
 
 
@@ -217,7 +217,9 @@ def add(
         else:
             target_name = find_unique_string_name(source_name, lambda name: name not in used_names)
             if cfg.prim_path in paths:
-                cfg = cfg.replace(prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
+                cfg = replace_config(
+                    cfg, prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths)
+                )
             setattr(target, target_name, cfg)
             used_names.add(target_name)
             paths.add(cfg.prim_path)

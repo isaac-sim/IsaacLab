@@ -17,7 +17,7 @@ from isaaclab_tasks.contrib.deploy.reach.reach_env_cfg import ReachEnvCfg
 # Pre-defined configs
 ##
 from isaaclab_assets import FLEXIV_RIZON4S_CFG  # isort: skip
-
+from isaaclab.utils import replace_config
 
 ##
 # Environment configuration
@@ -28,7 +28,8 @@ from isaaclab_assets import FLEXIV_RIZON4S_CFG  # isort: skip
 class Rizon4sReachEnvCfg(ReachEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         self.events.robot_joint_stiffness_and_damping.params["asset_cfg"].joint_names = [
             "joint[1-2]",
@@ -38,14 +39,14 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
         self.events.joint_friction.params["asset_cfg"].joint_names = ["joint[1-2]", "joint[3-4]", "joint[5-7]"]
 
         # switch robot to Flexiv Rizon 4s
-        self.scene.robot = FLEXIV_RIZON4S_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(FLEXIV_RIZON4S_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Configure the end-effector frame relative to base frame for Rizon 4s
         self.rewards.end_effector_keypoint_tracking.params["asset_cfg"] = SceneEntityCfg("ee_frame_wrt_base_frame")
         self.rewards.end_effector_keypoint_tracking_exp.params["asset_cfg"] = SceneEntityCfg("ee_frame_wrt_base_frame")
         self.scene.ee_frame_wrt_base_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_link",
-            visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
+            visualizer_cfg=replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/FrameTransformer"),
             source_frame_offset=OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

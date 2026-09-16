@@ -23,7 +23,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
-from isaaclab.utils import ConfigMixin, modifiers
+from isaaclab.utils import config_field, config_to_dict, modifiers, update_config
 
 pytestmark = pytest.mark.integration
 
@@ -72,20 +72,20 @@ def reset_dummy2_to_zero(env, env_ids: torch.Tensor):
 
 
 @dataclass
-class OpaqueCfg(ConfigMixin):
+class OpaqueCfg:
     """Configuration that is outside ``ManagerBase`` ownership."""
 
-    func: str = f"{__name__}:reset_dummy2_to_zero"
+    func: str = config_field(f"{__name__}:reset_dummy2_to_zero")
 
 
 @dataclass
 class NestedFieldTermCfg(ManagerTermBaseCfg):
     """Manager term with owned and opaque fields outside ``params``."""
 
-    nested_term: ManagerTermBaseCfg = ManagerTermBaseCfg(func=increment_dummy1_by_one)
-    modifier: modifiers.ModifierCfg = modifiers.ModifierCfg(func=increment_dummy1_by_one)
-    metadata: dict[str, str] = {"func": f"{__name__}:reset_dummy2_to_zero"}
-    opaque: OpaqueCfg = OpaqueCfg()
+    nested_term: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(func=increment_dummy1_by_one))
+    modifier: modifiers.ModifierCfg = config_field(modifiers.ModifierCfg(func=increment_dummy1_by_one))
+    metadata: dict[str, str] = config_field({"func": f"{__name__}:reset_dummy2_to_zero"})
+    opaque: OpaqueCfg = config_field(OpaqueCfg())
 
 
 class reset_dummy2_to_zero_class(ManagerTermBase):
@@ -242,7 +242,7 @@ def test_resolution_walks_declared_term_fields_outside_params(env):
         func=increment_dummy1_by_one,
         nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
     )
-    outer_cfg.from_dict(outer_cfg.to_dict())
+    update_config(outer_cfg, config_to_dict(outer_cfg))
     cfg = {"outer": outer_cfg}
     manager = SimpleManager(cfg, env)
 

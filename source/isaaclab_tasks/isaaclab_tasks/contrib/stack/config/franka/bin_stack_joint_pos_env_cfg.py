@@ -14,7 +14,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -26,64 +26,75 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import StackEnvCfg
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from typing import Any
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        # mode="startup",
-        mode="reset",
-        params={
-            "default_pose": [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.0400, 0.0400],
-        },
+    init_franka_arm_pose: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.set_default_joint_pose,
+            # mode="startup",
+            mode="reset",
+            params={
+                "default_pose": [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.0400, 0.0400],
+            },
+        )
     )
 
-    randomize_franka_joint_state = EventTerm(
-        func=franka_stack_events.randomize_joint_by_gaussian_offset,
-        mode="reset",
-        params={
-            "mean": 0.0,
-            "std": 0.02,
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
+    randomize_franka_joint_state: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_joint_by_gaussian_offset,
+            mode="reset",
+            params={
+                "mean": 0.0,
+                "std": 0.02,
+                "asset_cfg": SceneEntityCfg("robot"),
+            },
+        )
     )
 
     # Reset blue bin position
-    reset_blue_bin_pose = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            # Keep bin at fixed position - no randomization
-            "pose_range": {"x": (0.4, 0.4), "y": (0.0, 0.0), "z": (0.0203, 0.0203), "yaw": (0.0, 0.0)},
-            "min_separation": 0.0,
-            "asset_cfgs": [SceneEntityCfg("blue_sorting_bin")],
-        },
+    reset_blue_bin_pose: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                # Keep bin at fixed position - no randomization
+                "pose_range": {"x": (0.4, 0.4), "y": (0.0, 0.0), "z": (0.0203, 0.0203), "yaw": (0.0, 0.0)},
+                "min_separation": 0.0,
+                "asset_cfgs": [SceneEntityCfg("blue_sorting_bin")],
+            },
+        )
     )
 
     # Reset cube 1 to initial position (inside the bin)
-    reset_cube_1_pose = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {"x": (0.4, 0.4), "y": (0.0, 0.0), "z": (0.0203, 0.0203), "yaw": (0.0, 0.0)},
-            "min_separation": 0.0,
-            "asset_cfgs": [SceneEntityCfg("cube_1")],
-        },
+    reset_cube_1_pose: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {"x": (0.4, 0.4), "y": (0.0, 0.0), "z": (0.0203, 0.0203), "yaw": (0.0, 0.0)},
+                "min_separation": 0.0,
+                "asset_cfgs": [SceneEntityCfg("cube_1")],
+            },
+        )
     )
 
     # Reset cube 2 and 3 to initial position (outside the bin, to the left and right)
-    reset_cube_pose = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {"x": (0.65, 0.70), "y": (-0.18, 0.18), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
-            "min_separation": 0.1,
-            "asset_cfgs": [SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
-        },
+    reset_cube_pose: Any = config_field(
+        EventTerm(
+            func=franka_stack_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_range": {"x": (0.65, 0.70), "y": (-0.18, 0.18), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
+                "min_separation": 0.1,
+                "asset_cfgs": [SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
+            },
+        )
     )
 
 
@@ -91,13 +102,14 @@ class EventCfg(ConfigMixin):
 class FrankaBinStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set events
         self.events = EventCfg()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Add semantics to table
@@ -177,7 +189,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg = copy_config(FRAME_MARKER_CFG)
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(

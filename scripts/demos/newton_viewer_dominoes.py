@@ -17,6 +17,7 @@ import argparse
 from pathlib import Path
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import config_field, replace_config
 
 parser = argparse.ArgumentParser(description="NVIDIA-logo domino dragging demo (XPBD).")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
@@ -94,28 +95,32 @@ def _trigger_cfg() -> RigidObjectCfg:
 class DominoSceneCfg(InteractiveSceneCfg):
     """White floor, saved domino poses, and the trigger slab."""
 
-    floor: AssetBaseCfg = AssetBaseCfg(
-        prim_path="/World/Floor",
-        spawn=sim_utils.CuboidCfg(
-            size=(LOGO_FOOTPRINT[0] + 4.0, LOGO_FOOTPRINT[1] + 4.0, 0.10),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                static_friction=1.0,
-                dynamic_friction=1.0,
-                restitution=0.15,
+    floor: AssetBaseCfg = config_field(
+        AssetBaseCfg(
+            prim_path="/World/Floor",
+            spawn=sim_utils.CuboidCfg(
+                size=(LOGO_FOOTPRINT[0] + 4.0, LOGO_FOOTPRINT[1] + 4.0, 0.10),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                physics_material=sim_utils.RigidBodyMaterialCfg(
+                    static_friction=1.0,
+                    dynamic_friction=1.0,
+                    restitution=0.15,
+                ),
             ),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+        )
     )
-    dominoes: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
-        rigid_objects={
-            f"domino_{index:04d}": _domino_cfg(position, orientation).replace(
-                prim_path=f"/World/Dominoes/Domino{index:04d}"
-            )
-            for index, (position, orientation) in enumerate(LOGO_DOMINO_POSES)
-        }
+    dominoes: RigidObjectCollectionCfg = config_field(
+        RigidObjectCollectionCfg(
+            rigid_objects={
+                f"domino_{index:04d}": replace_config(
+                    _domino_cfg(position, orientation), prim_path=f"/World/Dominoes/Domino{index:04d}"
+                )
+                for index, (position, orientation) in enumerate(LOGO_DOMINO_POSES)
+            }
+        )
     )
-    trigger: RigidObjectCfg = _trigger_cfg()
+    trigger: RigidObjectCfg = config_field(_trigger_cfg())
 
 
 def _apply_display_colors() -> None:

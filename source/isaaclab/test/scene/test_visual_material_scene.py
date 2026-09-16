@@ -5,6 +5,10 @@
 
 """Scene-level regression test for cloned visual materials and bindings."""
 
+from typing import Any
+
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -31,41 +35,49 @@ pytestmark = pytest.mark.integration
 @dataclass
 class _VisualMaterialSceneCfg(InteractiveSceneCfg):
     # Deliberately declared first: nested materials must wait for the heterogeneous Robot prototypes.
-    warm = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/warm",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
+    warm: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/warm",
+            spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
+        )
     )
-    cool = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/cool",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.8)),
+    cool: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/cool",
+            spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.8)),
+        )
     )
-    shared = VisualMaterialCfg(
-        prim_path="/World/shared",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.8, 0.1)),
+    shared: Any = config_field(
+        VisualMaterialCfg(
+            prim_path="/World/shared",
+            spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.8, 0.1)),
+        )
     )
-    robot = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.UsdFileCfg(
-                    usd_path="",
-                    scale=(0.8, 0.8, 0.8),
-                    visual_material_bindings={"body": "warm"},
-                ),
-                sim_utils.UsdFileCfg(
-                    usd_path="",
-                    scale=(1.2, 1.2, 1.2),
-                    visual_material_bindings={"body": "./cool"},
-                ),
-                sim_utils.UsdFileCfg(
-                    usd_path="",
-                    scale=(1.4, 1.4, 1.4),
-                    visual_material_bindings={"body": "/World/shared"},
-                ),
-            ],
-            random_choice=False,
-        ),
-        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
+    robot: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    sim_utils.UsdFileCfg(
+                        usd_path="",
+                        scale=(0.8, 0.8, 0.8),
+                        visual_material_bindings={"body": "warm"},
+                    ),
+                    sim_utils.UsdFileCfg(
+                        usd_path="",
+                        scale=(1.2, 1.2, 1.2),
+                        visual_material_bindings={"body": "./cool"},
+                    ),
+                    sim_utils.UsdFileCfg(
+                        usd_path="",
+                        scale=(1.4, 1.4, 1.4),
+                        visual_material_bindings={"body": "/World/shared"},
+                    ),
+                ],
+                random_choice=False,
+            ),
+            cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
+        )
     )
 
 

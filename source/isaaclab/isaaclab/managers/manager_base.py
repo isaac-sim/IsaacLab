@@ -41,15 +41,15 @@ class ManagerTermBase(ABC):
 
         from dataclasses import dataclass
 
-        from isaaclab.utils import ConfigMixin
+        from isaaclab.utils import config_field
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 
         @dataclass
-        class MyManagerCfg(ConfigMixin):
-            my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
-            my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
-            my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+        class MyManagerCfg:
+            my_term_1: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(...))
+            my_term_2: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(...))
+            my_term_3: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(...))
 
 
         # define manager instance

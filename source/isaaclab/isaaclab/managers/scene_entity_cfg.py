@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
@@ -18,21 +18,21 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class SceneEntityCfg(ConfigMixin):
+class SceneEntityCfg:
     """Configuration for a scene entity that is used by the manager's term.
 
     This class is used to specify the name of the scene entity that is queried from the
     :class:`InteractiveScene` and passed to the manager's term function.
     """
 
-    name: str = MISSING
+    name: str = config_field(MISSING)
     """The name of the scene entity.
 
     This is the name defined in the scene configuration file. See the :class:`InteractiveSceneCfg`
     class for more details.
     """
 
-    joint_names: str | list[str] | None = None
+    joint_names: str | list[str] | None = config_field(None)
     """The names of the joints from the scene entity. Defaults to None.
 
     The names can be either joint names or a regular expression matching the joint names.
@@ -41,7 +41,7 @@ class SceneEntityCfg(ConfigMixin):
     function as a list of joint indices under :attr:`joint_ids`.
     """
 
-    joint_ids: list[int] | slice = slice(None)
+    joint_ids: list[int] | slice = config_field(slice(None))
     """The indices of the joints from the asset required by the term. Defaults to slice(None), which means
     all the joints in the asset (if present).
 
@@ -49,7 +49,7 @@ class SceneEntityCfg(ConfigMixin):
     manager.
     """
 
-    fixed_tendon_names: str | list[str] | None = None
+    fixed_tendon_names: str | list[str] | None = config_field(None)
     """The names of the fixed tendons from the scene entity. Defaults to None.
 
     The names can be either joint names or a regular expression matching the joint names.
@@ -58,7 +58,7 @@ class SceneEntityCfg(ConfigMixin):
     function as a list of fixed tendon indices under :attr:`fixed_tendon_ids`.
     """
 
-    fixed_tendon_ids: list[int] | slice = slice(None)
+    fixed_tendon_ids: list[int] | slice = config_field(slice(None))
     """The indices of the fixed tendons from the asset required by the term. Defaults to slice(None), which means
     all the fixed tendons in the asset (if present).
 
@@ -66,7 +66,7 @@ class SceneEntityCfg(ConfigMixin):
     manager.
     """
 
-    body_names: str | list[str] | None = None
+    body_names: str | list[str] | None = config_field(None)
     """The names of the bodies from the asset required by the term. Defaults to None.
 
     The names can be either body names or a regular expression matching the body names.
@@ -75,7 +75,7 @@ class SceneEntityCfg(ConfigMixin):
     function as a list of body indices under :attr:`body_ids`.
     """
 
-    body_ids: list[int] | slice = slice(None)
+    body_ids: list[int] | slice = config_field(slice(None))
     """The indices of the bodies from the asset required by the term. Defaults to slice(None), which means
     all the bodies in the asset.
 
@@ -83,7 +83,7 @@ class SceneEntityCfg(ConfigMixin):
     manager.
     """
 
-    object_collection_names: str | list[str] | None = None
+    object_collection_names: str | list[str] | None = config_field(None)
     """The names of the objects in the rigid object collection required by the term. Defaults to None.
 
     The names can be either names or a regular expression matching the object names in the collection.
@@ -92,14 +92,14 @@ class SceneEntityCfg(ConfigMixin):
     function as a list of object indices under :attr:`object_collection_ids`.
     """
 
-    object_collection_ids: list[int] | slice = slice(None)
+    object_collection_ids: list[int] | slice = config_field(slice(None))
     """The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),
     which means all the objects in the collection.
 
     If :attr:`object_collection_names` is specified, this is filled in automatically on initialization of the manager.
     """
 
-    preserve_order: bool = False
+    preserve_order: bool = config_field(False)
     """Whether to preserve indices ordering to match with that in the specified joint, body, or object collection names.
     Defaults to False.
 

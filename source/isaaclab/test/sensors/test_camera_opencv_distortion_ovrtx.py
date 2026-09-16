@@ -23,9 +23,12 @@ Notes:
 from __future__ import annotations
 
 import importlib.util
+from typing import Any
 
 import numpy as np
 import pytest
+
+from isaaclab.utils import config_field
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -79,22 +82,26 @@ if not _MISSING_MODULES:
     class _DistortionSceneCfg(InteractiveSceneCfg):
         """The grid-textured ground plane, a dome light and an off-screen anchor body for Newton."""
 
-        ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-        dome_light = AssetBaseCfg(
-            prim_path="/World/DomeLight",
-            spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9)),
+        ground: Any = config_field(AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg()))
+        dome_light: Any = config_field(
+            AssetBaseCfg(
+                prim_path="/World/DomeLight",
+                spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9)),
+            )
         )
-        anchor = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Anchor",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.01, 0.01, 0.01),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                physics_material=sim_utils.RigidBodyMaterialCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+        anchor: Any = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Anchor",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.01, 0.01, 0.01),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                    physics_material=sim_utils.RigidBodyMaterialCfg(),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+            )
         )
 
 

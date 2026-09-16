@@ -14,7 +14,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field, replace_config
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
@@ -29,7 +29,7 @@ from isaaclab_tasks.contrib.deploy.mdp.noise_models import (
 # Pre-defined configs
 ##
 from isaaclab_assets import FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort: skip
-
+from typing import Any
 
 ##
 # Gripper-specific helper functions
@@ -82,105 +82,121 @@ def set_finger_joint_pos_grav(
 
 
 @dataclass
-class EventCfg(ConfigMixin):
+class EventCfg:
     """Configuration for events."""
 
-    small_gear_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    medium_gear_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    large_gear_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    gear_base_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
-            "static_friction_range": (0.0, 0.0),
-            "dynamic_friction_range": (0.0, 0.0),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*finger.*"),
-            "static_friction_range": (3.0, 3.0),
-            "dynamic_friction_range": (3.0, 3.0),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
-
-    randomize_gear_type = EventTerm(
-        func=gear_assembly_events.randomize_gear_type,
-        mode="reset",
-        params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
-    )
-
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
-    randomize_gears_and_base_pose = EventTerm(
-        func=gear_assembly_events.randomize_gears_and_base_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": [-0.1, 0.1],
-                "y": [-0.25, 0.25],
-                "z": [-0.1, 0.1],
-                "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
-                "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
-                "yaw": [-math.pi / 6, math.pi / 6],  # 30 degree
+    small_gear_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
             },
-            "gear_pos_range": {
-                "x": [-0.02, 0.02],
-                "y": [-0.02, 0.02],
-                "z": [0.0575, 0.0775],
-            },
-            "velocity_range": {},
-        },
+        )
     )
 
-    set_robot_to_grasp_pose = EventTerm(
-        func=gear_assembly_events.set_robot_to_grasp_pose,
-        mode="reset",
-        params={
-            "robot_asset_cfg": SceneEntityCfg("robot"),
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-        },
+    medium_gear_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    large_gear_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
+                "static_friction_range": (0.75, 0.75),
+                "dynamic_friction_range": (0.75, 0.75),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    gear_base_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
+                "static_friction_range": (0.0, 0.0),
+                "dynamic_friction_range": (0.0, 0.0),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    robot_physics_material: Any = config_field(
+        EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=".*finger.*"),
+                "static_friction_range": (3.0, 3.0),
+                "dynamic_friction_range": (3.0, 3.0),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 16,
+            },
+        )
+    )
+
+    randomize_gear_type: Any = config_field(
+        EventTerm(
+            func=gear_assembly_events.randomize_gear_type,
+            mode="reset",
+            params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
+        )
+    )
+
+    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+
+    randomize_gears_and_base_pose: Any = config_field(
+        EventTerm(
+            func=gear_assembly_events.randomize_gears_and_base_pose,
+            mode="reset",
+            params={
+                "pose_range": {
+                    "x": [-0.1, 0.1],
+                    "y": [-0.25, 0.25],
+                    "z": [-0.1, 0.1],
+                    "roll": [-math.pi / 90, math.pi / 90],  # 2 degree
+                    "pitch": [-math.pi / 90, math.pi / 90],  # 2 degree
+                    "yaw": [-math.pi / 6, math.pi / 6],  # 30 degree
+                },
+                "gear_pos_range": {
+                    "x": [-0.02, 0.02],
+                    "y": [-0.02, 0.02],
+                    "z": [0.0575, 0.0775],
+                },
+                "velocity_range": {},
+            },
+        )
+    )
+
+    set_robot_to_grasp_pose: Any = config_field(
+        EventTerm(
+            func=gear_assembly_events.set_robot_to_grasp_pose,
+            mode="reset",
+            params={
+                "robot_asset_cfg": SceneEntityCfg("robot"),
+                "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
+            },
+        )
     )
 
 
@@ -192,11 +208,12 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     Flexiv Grav parallel gripper for gear manipulation tasks.
     """
 
-    ee_grasp_weight_ramp_steps: int = 512_000
+    ee_grasp_weight_ramp_steps: int = config_field(512_000)
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Flexiv-specific observation noise overrides
         self.observations.policy.gear_shaft_pos.noise = ResetSampledConstantNoiseModelCfg(
@@ -279,9 +296,11 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         )
 
         # Switch robot to Flexiv Rizon 4s with Grav gripper
-        self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
+        self.scene.robot = replace_config(
+            FLEXIV_RIZON4S_GRAV_GRIPPER_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
+            spawn=replace_config(
+                FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,

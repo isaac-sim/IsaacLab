@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from isaaclab.utils import replace_config
+
 from .keyboard_gen_cfg import KeyboardSpawnerCfg
 from .keyboard_geometry import base_profile_visuals, generate_keyboard
 
@@ -29,8 +31,8 @@ class _TypingKeyboardPool:
 
 
 _BASE_SPAWNER = KeyboardSpawnerCfg(family="ansi_full", topology_mode="exact", partition_dof=_PARTITION_DOF)
-_SPAWNERS_SINGLE = tuple(_BASE_SPAWNER.replace(seed=seed) for seed in range(_KEYBOARD_VARIANTS))
-_SPAWNERS_PARTITIONED = tuple(cfg.replace(partition_mode="fixed_dof") for cfg in _SPAWNERS_SINGLE)
+_SPAWNERS_SINGLE = tuple(replace_config(_BASE_SPAWNER, seed=seed) for seed in range(_KEYBOARD_VARIANTS))
+_SPAWNERS_PARTITIONED = tuple(replace_config(cfg, partition_mode="fixed_dof") for cfg in _SPAWNERS_SINGLE)
 _KEYBOARDS = tuple(generate_keyboard(cfg) for cfg in _SPAWNERS_SINGLE)
 
 for keyboard in _KEYBOARDS:

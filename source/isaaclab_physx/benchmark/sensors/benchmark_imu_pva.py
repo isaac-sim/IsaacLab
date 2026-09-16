@@ -17,9 +17,11 @@ from __future__ import annotations
 import argparse
 import traceback
 from functools import partial
+from typing import Any
 
 from isaaclab.app import AppLauncher
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
+from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark a PhysX IMU or PVA sensor update path.")
 add_sensor_benchmark_args(
@@ -59,16 +61,18 @@ from isaaclab.sensors import ImuCfg, PvaCfg
 class ImuPvaBenchmarkSceneCfg(InteractiveSceneCfg):
     """One kinematic rigid body and one selected sensor per environment."""
 
-    body = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Body",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+    body: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Body",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+        )
     )
-    imu: ImuCfg | None = None
-    pva: PvaCfg | None = None
+    imu: ImuCfg | None = config_field(None)
+    pva: PvaCfg | None = config_field(None)
 
 
 def main() -> None:

@@ -9,6 +9,7 @@ from dataclasses import MISSING, dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
+from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab_tasks.contrib.nist.utils.collision_analyzer import CollisionAnalyzer
@@ -24,22 +25,22 @@ class CollisionAnalyzerCfg(ManagerTermBaseCfg):
     sampled points are at least :attr:`min_dist` away from every obstacle.
     """
 
-    func: type[CollisionAnalyzer] | str = "{DIR}.collision_analyzer:CollisionAnalyzer"
+    func: type[CollisionAnalyzer] | str = config_field("{DIR}.collision_analyzer:CollisionAnalyzer")
     """The callable class to instantiate from this configuration."""
 
-    num_points: int = 32
+    num_points: int = config_field(32)
     """Number of surface points sampled per rigid body of the asset."""
 
-    max_dist: float = 0.5
+    max_dist: float = config_field(0.5)
     """Upper clamp for signed-distance queries [m]. Points farther than this
     from any obstacle surface are clamped to this value."""
 
-    min_dist: float = 0.0
+    min_dist: float = config_field(0.0)
     """Minimum clearance threshold [m]. An environment is collision-free only
     when every sampled point has a signed distance >= this value."""
 
-    asset_cfg: SceneEntityCfg = MISSING
+    asset_cfg: SceneEntityCfg = config_field(MISSING)
     """Scene entity whose bodies are sampled for collision checking."""
 
-    obstacle_cfgs: list[SceneEntityCfg] = MISSING
+    obstacle_cfgs: list[SceneEntityCfg] = config_field(MISSING)
     """Scene entities treated as obstacles to check against."""

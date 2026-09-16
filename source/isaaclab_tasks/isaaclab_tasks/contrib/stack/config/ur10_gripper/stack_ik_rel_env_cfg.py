@@ -21,7 +21,8 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
 
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set actions for the specific robot type (UR10 LONG SUCTION)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
@@ -53,7 +54,8 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
 class UR10ShortSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ShortSuctionCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Set actions for the specific robot type (UR10 SHORT SUCTION)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

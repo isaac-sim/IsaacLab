@@ -8,6 +8,8 @@
 ##
 from dataclasses import dataclass
 
+from isaaclab.utils import replace_config
+
 from isaaclab_tasks.contrib.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import (
     NavigationVelocityFloatingObstacleEnvCfg,
 )
@@ -19,9 +21,10 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 class FloatingObstacleEnvCfg(NavigationVelocityFloatingObstacleEnvCfg):
     def __post_init__(self):
         # post init of parent
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         # switch robot to arl_robot_1
-        self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(ARL_ROBOT_1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
     def play_mode(self):

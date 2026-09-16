@@ -9,11 +9,11 @@ from collections.abc import Callable
 from dataclasses import MISSING, dataclass
 from typing import Any
 
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 
 
 @dataclass
-class ModifierCfg(ConfigMixin):
+class ModifierCfg:
     """Configuration parameters for Warp-native modifiers.
 
     Experimental fork of :class:`isaaclab.utils.modifiers.ModifierCfg` adapted for the
@@ -21,7 +21,7 @@ class ModifierCfg(ConfigMixin):
     ``wp.array`` buffer and return ``None``.
     """
 
-    func: Callable[..., None] = MISSING
+    func: Callable[..., None] = config_field(MISSING)
     """Function or callable class used by modifier.
 
     The function must take a ``wp.array`` as the first argument and operate on it
@@ -32,7 +32,7 @@ class ModifierCfg(ConfigMixin):
     class should inherit from :class:`ModifierBase` and implement the required methods.
     """
 
-    params: dict[str, Any] = dict()
+    params: dict[str, Any] = config_field(dict())
     """The parameters to be passed to the function or callable class as keyword arguments.
 
     Defaults to an empty dictionary.

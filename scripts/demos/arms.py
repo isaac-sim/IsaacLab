@@ -21,6 +21,8 @@
 
 """
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -94,7 +96,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
     cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
-    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg = replace_config(FRANKA_PANDA_CFG, prim_path="/World/Origin1/Robot")
     franka_arm_cfg.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
     franka_panda = franka_arm_cfg.class_type(franka_arm_cfg)
@@ -107,7 +109,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     )
     cfg.func("/World/Origin2/Table", cfg, translation=(0.0, 0.0, 1.03))
     # -- Robot
-    ur10_cfg = UR10_CFG.replace(prim_path="/World/Origin2/Robot")
+    ur10_cfg = replace_config(UR10_CFG, prim_path="/World/Origin2/Robot")
     ur10_cfg.init_state.pos = (0.0, 0.0, 1.03)
     ur10 = ur10_cfg.class_type(ur10_cfg)
 
@@ -117,7 +119,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/ThorlabsTable/table_instanceable.usd")
     cfg.func("/World/Origin3/Table", cfg, translation=(0.0, 0.0, 0.8))
     # -- Robot
-    kinova_arm_cfg = KINOVA_JACO2_N7S300_CFG.replace(prim_path="/World/Origin3/Robot")
+    kinova_arm_cfg = replace_config(KINOVA_JACO2_N7S300_CFG, prim_path="/World/Origin3/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
     kinova_j2n7s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
@@ -127,7 +129,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/ThorlabsTable/table_instanceable.usd")
     cfg.func("/World/Origin4/Table", cfg, translation=(0.0, 0.0, 0.8))
     # -- Robot
-    kinova_arm_cfg = KINOVA_JACO2_N6S300_CFG.replace(prim_path="/World/Origin4/Robot")
+    kinova_arm_cfg = replace_config(KINOVA_JACO2_N6S300_CFG, prim_path="/World/Origin4/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
     kinova_j2n6s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
@@ -137,7 +139,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
     cfg.func("/World/Origin5/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
-    kinova_arm_cfg = KINOVA_GEN3_N7_CFG.replace(prim_path="/World/Origin5/Robot")
+    kinova_arm_cfg = replace_config(KINOVA_GEN3_N7_CFG, prim_path="/World/Origin5/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
     kinova_gen3n7 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
@@ -149,7 +151,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     )
     cfg.func("/World/Origin6/Table", cfg, translation=(0.0, 0.0, 1.03))
     # -- Robot
-    sawyer_arm_cfg = SAWYER_CFG.replace(prim_path="/World/Origin6/Robot")
+    sawyer_arm_cfg = replace_config(SAWYER_CFG, prim_path="/World/Origin6/Robot")
     sawyer_arm_cfg.init_state.pos = (0.0, 0.0, 1.03)
     sawyer = sawyer_arm_cfg.class_type(sawyer_arm_cfg)
 

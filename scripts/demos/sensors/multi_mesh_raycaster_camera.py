@@ -20,8 +20,10 @@
 """
 
 import argparse
+from typing import Any
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field, replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the multi-mesh raycaster sensor.")
@@ -82,7 +84,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 if args_cli.asset_type == "allegro_hand":
-    asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace_config(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
@@ -105,11 +107,11 @@ if args_cli.asset_type == "allegro_hand":
             width=240,
         ),
         debug_vis=not args_cli.headless,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "anymal_d":
-    asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace_config(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
@@ -129,7 +131,7 @@ elif args_cli.asset_type == "anymal_d":
             width=240,
         ),
         debug_vis=not args_cli.headless,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "objects":
@@ -188,7 +190,7 @@ elif args_cli.asset_type == "objects":
             width=240,
         ),
         debug_vis=not args_cli.headless,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace_config(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
@@ -199,23 +201,25 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the asset."""
 
     # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/Ground",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
-            scale=(1, 1, 1),
-        ),
+    ground: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/Ground",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+                scale=(1, 1, 1),
+            ),
+        )
     )
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    dome_light: Any = config_field(
+        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
     )
 
     # asset
-    asset = asset_cfg
+    asset: Any = config_field(asset_cfg)
     # ray caster
-    ray_caster = ray_caster_cfg
+    ray_caster: Any = config_field(ray_caster_cfg)
 
 
 def randomize_shape_color(prim_path_expr: str):

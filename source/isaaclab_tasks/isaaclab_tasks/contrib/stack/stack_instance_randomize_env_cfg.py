@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING, dataclass
+from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -16,7 +17,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import ConfigMixin
+from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import mdp
@@ -33,28 +34,34 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     """
 
     # robots: will be populated by agent env cfg
-    robot: ArticulationCfg = MISSING
+    robot: ArticulationCfg = config_field(MISSING)
     # end-effector sensor: will be populated by agent env cfg
-    ee_frame: FrameTransformerCfg = MISSING
+    ee_frame: FrameTransformerCfg = config_field(MISSING)
 
     # Table
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
-        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+    table: Any = config_field(
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
+            spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        )
     )
 
     # plane
-    plane = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
-        spawn=GroundPlaneCfg(),
+    plane: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/GroundPlane",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
+            spawn=GroundPlaneCfg(),
+        )
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    light: Any = config_field(
+        AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        )
     )
 
 
@@ -62,45 +69,45 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 # MDP settings
 ##
 @dataclass
-class ActionsCfg(ConfigMixin):
+class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
+    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
 
 
 @dataclass
-class ObservationsCfg(ConfigMixin):
+class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @dataclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp.last_action)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object = ObsTerm(func=mdp.instance_randomize_object_obs)
-        cube_positions = ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame)
-        cube_orientations = ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame)
-        eef_pos = ObsTerm(func=mdp.ee_frame_pos)
-        eef_quat = ObsTerm(func=mdp.ee_frame_quat)
-        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        object: Any = config_field(ObsTerm(func=mdp.instance_randomize_object_obs))
+        cube_positions: Any = config_field(ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame))
+        cube_orientations: Any = config_field(ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame))
+        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pos))
+        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_quat))
+        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = config_field(PolicyCfg())
 
 
 @dataclass
-class TerminationsCfg(ConfigMixin):
+class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
 
 
 @dataclass
@@ -108,18 +115,18 @@ class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
+    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False))
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
+    observations: ObservationsCfg = config_field(ObservationsCfg())
+    actions: ActionsCfg = config_field(ActionsCfg())
     # MDP settings
-    terminations: TerminationsCfg = TerminationsCfg()
+    terminations: TerminationsCfg = config_field(TerminationsCfg())
 
     # Unused managers
-    commands = None
-    rewards = None
-    events = None
-    curriculum = None
+    commands: Any = config_field(None)
+    rewards: Any = config_field(None)
+    events: Any = config_field(None)
+    curriculum: Any = config_field(None)
 
     def __post_init__(self):
         """Post initialization."""

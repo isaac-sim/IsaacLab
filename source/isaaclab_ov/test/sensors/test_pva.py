@@ -22,10 +22,14 @@ Nucleus or ``omni.client`` loader state.
 
 from __future__ import annotations
 
+from typing import Any
+
 # ---------------------------------------------------------------------------
 # Wheel gate: skip the whole file if the ovphysx wheel is missing or too old.
 # ---------------------------------------------------------------------------
 import pytest
+
+from isaaclab.utils import config_field
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 _TT_module = pytest.importorskip(
@@ -152,17 +156,19 @@ def _make_pva(prim_path: str, offset: PvaCfg.OffsetCfg | None = None) -> Pva:
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
+    cube: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+            spawn=sim_utils.CuboidCfg(
+                size=(0.25, 0.25, 0.25),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+        )
     )
-    pva_cube: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/cube")
+    pva_cube: PvaCfg = config_field(PvaCfg(prim_path="{ENV_REGEX_NS}/cube"))
 
 
 # ---------------------------------------------------------------------------

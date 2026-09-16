@@ -33,6 +33,7 @@ from isaaclab.benchmark.schema import (
     Versions,
 )
 from isaaclab.benchmark.serialize import write_bundle_file
+from isaaclab.utils import replace_config
 
 pytestmark = pytest.mark.benchmark
 
@@ -171,9 +172,9 @@ def test_environment_step_timing_rejects_incomplete_measurement_modes():
     assert timing is not None
 
     with pytest.raises(ValueError, match="host_return timing cannot contain"):
-        dataclasses.replace(timing, measurement_mode="host_return")
+        replace_config(dataclasses, timing, measurement_mode="host_return")
     with pytest.raises(ValueError, match="requires a complete simulation breakdown"):
-        dataclasses.replace(timing, simulation_step_time_s=None)
+        replace_config(dataclasses, timing, simulation_step_time_s=None)
 
 
 @pytest.mark.parametrize("field", ["environment_step_time_s", "environment_step_fps"])
@@ -198,13 +199,14 @@ def test_environment_step_timing_rejects_inconsistent_partition():
     assert timing is not None
 
     with pytest.raises(ValueError, match="must equal simulation plus outside-simulation time"):
-        dataclasses.replace(
+        replace_config(
+            dataclasses,
             timing,
             outside_simulation_step_time_s=MeanStd(mean=0.02, std=0.005, peak=0.04),
             outside_simulation_step_fraction=0.25,
         )
     with pytest.raises(ValueError, match="must match the aggregate timing ratio"):
-        dataclasses.replace(timing, outside_simulation_step_fraction=0.3)
+        replace_config(dataclasses, timing, outside_simulation_step_fraction=0.3)
 
 
 def test_runtime_bundle_round_trip(tmp_path):
@@ -227,7 +229,8 @@ def test_runtime_bundle_round_trip(tmp_path):
 
 
 def test_training_bundle_without_series(tmp_path):
-    bundle = dataclasses.replace(
+    bundle = replace_config(
+        dataclasses,
         _minimal_training_bundle(),
         learning=Learning(
             ema_alpha=0.05,
@@ -336,7 +339,8 @@ def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
 
 def test_extra_field_round_trips(tmp_path):
     """The free-form `extra` mapping round-trips with scalar values; defaults to None."""
-    bundle = dataclasses.replace(
+    bundle = replace_config(
+        dataclasses,
         _minimal_training_bundle(),
         extra={"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2},
     )
@@ -366,7 +370,7 @@ def test_run_config_presets_round_trip(tmp_path):
     assert RunConfig(physics_backend="physx").presets == []
     cfg = RunConfig(physics_backend="newton_mjwarp", rendering_backend="ovrtx", presets=["rgb", "ovrtx"])
     base = _minimal_training_bundle()
-    bundle = dataclasses.replace(base, run=dataclasses.replace(base.run, config=cfg))
+    bundle = replace_config(dataclasses, base, run=replace_config(dataclasses, base.run, config=cfg))
     path = os.path.join(tmp_path, "training.json")
     write_bundle_file(bundle, path)
     with open(path) as f:

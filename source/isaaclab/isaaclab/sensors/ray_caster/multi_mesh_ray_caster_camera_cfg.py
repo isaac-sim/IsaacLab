@@ -9,6 +9,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 from .ray_caster_camera_cfg import RayCasterCameraCfg
 
@@ -23,10 +25,13 @@ logger = logging.getLogger(__name__)
 class MultiMeshRayCasterCameraCfg(RayCasterCameraCfg, MultiMeshRayCasterCfg):
     """Configuration for the multi-mesh ray-cast camera sensor."""
 
-    class_type: type["MultiMeshRayCasterCamera"] | str = "{DIR}.multi_mesh_ray_caster_camera:MultiMeshRayCasterCamera"
+    class_type: type["MultiMeshRayCasterCamera"] | str = config_field(
+        "{DIR}.multi_mesh_ray_caster_camera:MultiMeshRayCasterCamera"
+    )
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # Camera only supports 'base' ray alignment. Ensure this is set correctly.
         if self.ray_alignment != "base":

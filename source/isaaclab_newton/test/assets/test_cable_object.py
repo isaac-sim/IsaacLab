@@ -6,10 +6,13 @@
 import gc
 import weakref
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import torch
 import warp as wp
+
+from isaaclab.utils import config_field
 
 pytest.importorskip("newton")
 
@@ -33,31 +36,35 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 
 @dataclass
 class _CableSceneCfg(InteractiveSceneCfg):
-    cable = CableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cable",
-        spawn=CableCfg(
-            positions=((0.0, 0.0, 1.0), (0.0, 0.2, 1.0), (0.0, 0.4, 1.0), (0.0, 0.6, 1.0)),
-            physics_material=CableMaterialCfg(
-                thickness=0.02,
-                density=500.0,
-                stretch_stiffness=1.0e5,
-                bend_stiffness=1.0e3,
+    cable: Any = config_field(
+        CableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cable",
+            spawn=CableCfg(
+                positions=((0.0, 0.0, 1.0), (0.0, 0.2, 1.0), (0.0, 0.4, 1.0), (0.0, 0.6, 1.0)),
+                physics_material=CableMaterialCfg(
+                    thickness=0.02,
+                    density=500.0,
+                    stretch_stiffness=1.0e5,
+                    bend_stiffness=1.0e3,
+                ),
             ),
-        ),
+        )
     )
 
 
 @dataclass
 class _ProxyCableSceneCfg(_CableSceneCfg):
-    rigid = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Rigid",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyBaseCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
+    rigid: Any = config_field(
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Rigid",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.RigidBodyBaseCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionBaseCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
+        )
     )
 
 

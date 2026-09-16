@@ -29,6 +29,8 @@ optional arguments:
                               (default: 10)
 """
 
+from isaaclab.utils import replace_config
+
 """Launch Isaac Sim Simulator first."""
 
 # Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
@@ -356,7 +358,7 @@ def create_environment_config(
     # terms that reference "success" can still resolve it during initialization.
     success_term = getattr(env_cfg.terminations, "success", None)
     if success_term is not None:
-        env_cfg.terminations.success = success_term.replace(func=_never_terminate, params={})
+        env_cfg.terminations.success = replace_config(success_term, func=_never_terminate, params={})
     else:
         logger.warning(
             "No success termination term was found in the environment."

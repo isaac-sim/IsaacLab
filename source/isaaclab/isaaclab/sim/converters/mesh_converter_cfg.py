@@ -7,13 +7,14 @@ from dataclasses import dataclass
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from isaaclab.sim.schemas import schemas_cfg
+from isaaclab.utils import config_field
 
 
 @dataclass
 class MeshConverterCfg(AssetConverterBaseCfg):
     """The configuration class for MeshConverter."""
 
-    mass_props: dict[str, list[schemas_cfg.MassFragment]] | schemas_cfg.MassPropertiesCfg | None = None
+    mass_props: dict[str, list[schemas_cfg.MassFragment]] | schemas_cfg.MassPropertiesCfg | None = config_field(None)
     """Mass properties to apply to the USD. Defaults to None.
 
     Accepts either a mapping from target pattern to a list of
@@ -27,7 +28,9 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         If None, then no mass properties will be added.
     """
 
-    rigid_props: dict[str, list[schemas_cfg.RigidBodyFragment]] | schemas_cfg.RigidBodyBaseCfg | None = None
+    rigid_props: dict[str, list[schemas_cfg.RigidBodyFragment]] | schemas_cfg.RigidBodyBaseCfg | None = config_field(
+        None
+    )
     """Rigid body properties to apply to the USD. Defaults to None.
 
     Accepts either a mapping from target pattern to a list of
@@ -41,7 +44,9 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         If None, then no rigid body properties will be added.
     """
 
-    collision_props: dict[str, list[schemas_cfg.CollisionFragment]] | schemas_cfg.CollisionPropertiesCfg | None = None
+    collision_props: dict[str, list[schemas_cfg.CollisionFragment]] | schemas_cfg.CollisionPropertiesCfg | None = (
+        config_field(None)
+    )
     """Collision properties to apply to the USD. Defaults to None.
 
     Accepts either a mapping from target pattern to a list of
@@ -59,7 +64,7 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         | schemas_cfg.MeshCollisionFragment
         | list[schemas_cfg.MeshCollisionFragment]
         | None
-    ) = None
+    ) = config_field(None)
     """Mesh approximation properties to apply to all collision meshes in the USD.
 
     Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` or
@@ -74,11 +79,11 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         If None, then no mesh approximation properties will be added.
     """
 
-    translation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    translation: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
     """The translation of the mesh to the origin. Defaults to (0.0, 0.0, 0.0)."""
 
-    rotation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    rotation: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
     """The rotation of the mesh in quaternion format (x, y, z, w). Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    scale: tuple[float, float, float] = config_field((1.0, 1.0, 1.0))
     """The scale of the mesh. Defaults to (1.0, 1.0, 1.0)."""

@@ -208,7 +208,7 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
             env_cfg_source = (task_dir / f"{env_cfg_filename}.py").read_text()
             assert "self.amp_observation_space = spaces.Box" in env_source
             assert "def collect_reference_motions(" in env_source
-            assert "compute_final_obs = True" in env_cfg_source
+            assert "compute_final_obs: bool = True" in env_cfg_source
 
         _unregister(task_id)
 

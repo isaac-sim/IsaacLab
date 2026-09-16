@@ -14,6 +14,8 @@ from typing import Any
 
 import pytest
 
+from isaaclab.utils import replace_config
+
 SEED: int = 42
 random.seed(SEED)
 
@@ -126,7 +128,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
 
     goal_pose_visualizer = None
     if not headless:
-        marker_cfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/goal_pose")
+        marker_cfg = replace_config(FRAME_MARKER_CFG, prim_path="/World/Visuals/goal_pose")
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         goal_pose_visualizer = VisualizationMarkers(marker_cfg)
 

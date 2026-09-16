@@ -65,6 +65,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.utils import replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -713,7 +714,8 @@ class AnymalDTileCaptureCfg(AnymalDFlatEnvCfg):
     """AnymalD flat-terrain configuration with a tile-capture visualizer and recorder."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _hero_configure_capture(self)
 
 
@@ -1378,10 +1380,13 @@ def _main_hero(seed: int = 42) -> None:
 
 # Restricts the H1 showcase terrain to the ascending pyramid-stairs sub-terrain only, so every
 # spawned robot lands on a staircase (see _showcase_frame_wide_camera_from_env_origins).
-_SHOWCASE_STAIRS_TERRAINS_CFG = dataclasses.replace(
+_SHOWCASE_STAIRS_TERRAINS_CFG = replace_config(
+    dataclasses,
     ROUGH_TERRAINS_CFG,
     sub_terrains={
-        "pyramid_stairs": dataclasses.replace(ROUGH_TERRAINS_CFG.sub_terrains["pyramid_stairs"], proportion=1.0),
+        "pyramid_stairs": replace_config(
+            dataclasses, ROUGH_TERRAINS_CFG.sub_terrains["pyramid_stairs"], proportion=1.0
+        ),
     },
 )
 
@@ -1621,7 +1626,8 @@ class AllegroReorientShowcaseCfg(AllegroHandManagerEnvCfg):
     """Allegro cube reorientation configuration with the Newton GL showcase visualizer."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _showcase_configure_capture(self, "newton_gl")
         # ReorientManagerEnvBaseCfg never overrides GroundPlaneCfg.color, which defaults to
         # black; fix it just for this capture rather than editing the real task.
@@ -1634,7 +1640,8 @@ class FrankaReachShowcaseCfg(FrankaReachEnvCfg):
     """Franka reach configuration with the Kit showcase visualizer."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _showcase_configure_capture(self, "kit")
         # No _add_floor_overlay: Kit isn't affected by the floor bug, and the task's mounting
         # table sits at z=0, so an overlay here would hide it (confirmed by testing).
@@ -1646,7 +1653,8 @@ class H1RoughShowcaseCfg(H1RoughEnvCfg):
     """H1 stairs-only rough-terrain locomotion configuration with the Newton RTX showcase visualizer."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _showcase_configure_capture(self, "newton_rtx")
         self.scene.terrain.terrain_generator = _SHOWCASE_STAIRS_TERRAINS_CFG
         self.events.frame_wide_camera = EventTermCfg(func=_showcase_frame_wide_camera_from_env_origins, mode="reset")
@@ -1657,7 +1665,8 @@ class ShadowHandReorientShowcaseCfg(ShadowHandEnvCfg):
     """Shadow Hand cube reorientation configuration with the Rerun showcase visualizer."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _showcase_configure_capture(self, "rerun")
         self.scene.env_spacing = _SHOWCASE_SHADOW_HAND_ENV_SPACING
         _add_floor_overlay(self)
@@ -1668,7 +1677,8 @@ class KukaAllegroLiftShowcaseCfg(KukaAllegroLiftEnvCfg):
     """Kuka Allegro cube lift configuration with the Viser showcase visualizer."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         _showcase_configure_capture(self, "viser")
         self.scene.env_spacing = _SHOWCASE_KUKA_ALLEGRO_LIFT_ENV_SPACING
         _add_floor_overlay(self)
@@ -2268,7 +2278,8 @@ class AnymalDStreamingShowcaseCfg(AnymalDRoughEnvCfg):
     """AnymalD rough-terrain locomotion configuration with the Kit streaming-view demo visualizer."""
 
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         self.sim.visualizer_cfgs = [_streaming_make_kit_visualizer_cfg()]
         if os.environ.get("STREAMING_WINDOWED") == "1":
             self.events.step_pacer = EventTermCfg(

@@ -6,10 +6,13 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import numpy as np
 import pytest
 import torch
+
+from isaaclab.utils import config_field
 
 newton = pytest.importorskip("newton")
 
@@ -97,15 +100,17 @@ def test_mpm_points_emission_records_constant_offsets_per_env():
 def test_mpm_object_initializes_from_interactive_scene():
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        media = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(
-                lower=(0.0, 0.0, 0.0),
-                upper=(0.1, 0.1, 0.1),
-                voxel_size=0.1,
-                particle_placement="cell_center",
-                visible=False,
-            ),
+        media: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Sand",
+                spawn=MPMGridCfg(
+                    lower=(0.0, 0.0, 0.0),
+                    upper=(0.1, 0.1, 0.1),
+                    voxel_size=0.1,
+                    particle_placement="cell_center",
+                    visible=False,
+                ),
+            )
         )
 
     sim_cfg = SimulationCfg(
@@ -144,22 +149,26 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
 
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        collider = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/KinematicBox",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.1, 0.1, 0.1),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
-                    rigid_body_enabled=True,
-                    kinematic_enabled=True,
-                    disable_gravity=True,
+        collider: Any = config_field(
+            RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/KinematicBox",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.1, 0.1, 0.1),
+                    rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
+                        rigid_body_enabled=True,
+                        kinematic_enabled=True,
+                        disable_gravity=True,
+                    ),
+                    collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
                 ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
+            )
         )
-        media = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(lower=(-0.05, -0.05, 0.3), upper=(0.05, 0.05, 0.4), voxel_size=0.05),
+        media: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Sand",
+                spawn=MPMGridCfg(lower=(-0.05, -0.05, 0.3), upper=(0.05, 0.05, 0.4), voxel_size=0.05),
+            )
         )
 
     sim_cfg = SimulationCfg(
@@ -193,14 +202,16 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
 def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        media = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(
-                lower=(0.0, 0.0, 0.0),
-                upper=(0.1, 0.1, 0.1),
-                voxel_size=0.1,
-                visual_color=(0.1, 0.2, 0.3),
-            ),
+        media: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Sand",
+                spawn=MPMGridCfg(
+                    lower=(0.0, 0.0, 0.0),
+                    upper=(0.1, 0.1, 0.1),
+                    voxel_size=0.1,
+                    visual_color=(0.1, 0.2, 0.3),
+                ),
+            )
         )
 
     sim_cfg = SimulationCfg(
@@ -243,14 +254,16 @@ def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
 def test_mpm_usd_points_follow_particle_state(monkeypatch):
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        media = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(
-                lower=(0.0, 0.0, 0.1),
-                upper=(0.1, 0.1, 0.2),
-                voxel_size=0.05,
-                visual_color=(0.1, 0.2, 0.3),
-            ),
+        media: Any = config_field(
+            MPMObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Sand",
+                spawn=MPMGridCfg(
+                    lower=(0.0, 0.0, 0.1),
+                    upper=(0.1, 0.1, 0.2),
+                    voxel_size=0.05,
+                    visual_color=(0.1, 0.2, 0.3),
+                ),
+            )
         )
 
     sim_cfg = SimulationCfg(

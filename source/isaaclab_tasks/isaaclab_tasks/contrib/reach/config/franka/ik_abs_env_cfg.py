@@ -16,5 +16,6 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
     """Compatibility configuration that selects the canonical absolute DiffIK preset."""
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
         resolve_presets(self, selected=("diffik_abs", "isaacsim_physx"))

@@ -12,18 +12,20 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoug
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG  # isort: skip
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
-        super().__post_init__()
+        if parent_post_init := getattr(super(), "__post_init__", None):
+            parent_post_init()
 
         # simulation
         # execute the DC motor actuators through the backend-native path
         self.sim.use_newton_actuators = True
         # scene
-        self.scene.robot = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace_config(UNITREE_GO2_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"
         # scale down the terrains because the robot is small
         terrains = self.scene.terrain.terrain_generator.sub_terrains

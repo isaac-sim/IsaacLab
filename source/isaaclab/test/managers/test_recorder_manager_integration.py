@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -45,10 +46,10 @@ class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     class DummyStepRecorderTermCfg(RecorderTermCfg):
         """Configuration for the dummy step recorder term."""
 
-        class_type: type[RecorderTerm] = DummyStepRecorderTerm
+        class_type: type[RecorderTerm] = config_field(DummyStepRecorderTerm)
 
-    record_step_term: DummyStepRecorderTermCfg = DummyStepRecorderTermCfg()
-    dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_ALL
+    record_step_term: DummyStepRecorderTermCfg = config_field(DummyStepRecorderTermCfg())
+    dataset_export_mode: DatasetExportMode = config_field(DatasetExportMode.EXPORT_ALL)
 
 
 def get_dataset_shapes(file_path: Path) -> dict[str, tuple[int, ...]]:

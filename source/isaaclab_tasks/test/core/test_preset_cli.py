@@ -22,6 +22,8 @@ import sys
 
 import pytest
 
+from isaaclab.utils import config_field
+
 
 def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="train.py", add_help=False)
@@ -258,15 +260,15 @@ def test_bucket_variants_routes_by_target_match():
 
     @dataclass
     class _PhysVariant(PhysicsCfg):
-        class_type: str = "mock"
+        class_type: str = config_field("mock")
 
     @dataclass
     class _PhysWrapper(PhysicsCfg):
         # Mirrors NewtonCfg's "wrapper holds an inner solver" shape: still
         # subclasses PhysicsCfg, so the base-class isinstance check still
         # buckets it correctly regardless of any nested member type.
-        class_type: str = "mock_wrapper"
-        inner: object = None
+        class_type: str = config_field("mock_wrapper")
+        inner: object = config_field(None)
 
     @dataclass
     class _RendVariant(RendererCfg):
@@ -382,35 +384,34 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils import ConfigMixin
 
     from isaaclab_tasks.utils.hydra import preset
 
     @dataclass
     class _HelpPhysCfg(PhysicsCfg):
-        class_type: str = "mock"
+        class_type: str = config_field("mock")
 
     @dataclass
     class _HelpRendCfg(RendererCfg):
         pass
 
     @dataclass
-    class _EmptyCfg(ConfigMixin):
+    class _EmptyCfg:
         pass
 
     @dataclass
-    class _PhysOnlyCfg(ConfigMixin):
-        physics: object = preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg())
+    class _PhysOnlyCfg:
+        physics: object = config_field(preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg()))
 
     @dataclass
-    class _DomainOnlyCfg(ConfigMixin):
-        weight: object = preset(default=1.0, light=0.5, heavy=2.0)
+    class _DomainOnlyCfg:
+        weight: object = config_field(preset(default=1.0, light=0.5, heavy=2.0))
 
     @dataclass
-    class _MixedCfg(ConfigMixin):
-        physics: object = preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg())
-        renderer: object = preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg())
-        weight: object = preset(default=1.0, light=0.5, heavy=2.0)
+    class _MixedCfg:
+        physics: object = config_field(preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg()))
+        renderer: object = config_field(preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg()))
+        weight: object = config_field(preset(default=1.0, light=0.5, heavy=2.0))
 
     builders = {
         "empty": _EmptyCfg,

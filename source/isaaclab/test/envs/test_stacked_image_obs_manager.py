@@ -12,6 +12,8 @@ are required.
 
 from __future__ import annotations
 
+from isaaclab.utils import config_field
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -30,7 +32,6 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.envs.mdp.observations import stacked_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import ConfigMixin
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -71,15 +72,17 @@ def env_with_sim():
 
 def _make_cfg(frame_stack: int):
     @dataclass
-    class ObsCfg(ConfigMixin):
+    class ObsCfg:
         @dataclass
         class PolicyCfg(ObservationGroupCfg):
-            img: ObservationTermCfg = ObservationTermCfg(
-                func=stacked_image,
-                params={"frame_stack": frame_stack},
+            img: ObservationTermCfg = config_field(
+                ObservationTermCfg(
+                    func=stacked_image,
+                    params={"frame_stack": frame_stack},
+                )
             )
 
-        policy: ObservationGroupCfg = PolicyCfg()
+        policy: ObservationGroupCfg = config_field(PolicyCfg())
 
     return ObsCfg()
 

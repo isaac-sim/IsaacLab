@@ -21,6 +21,8 @@
 
 """
 
+from isaaclab.utils import replace_config
+
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
@@ -92,7 +94,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 1 with Allegro Hand
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    allegro_cfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
+    allegro_cfg = replace_config(ALLEGRO_HAND_CFG, prim_path="/World/Origin1/Robot")
     allegro = allegro_cfg.class_type(allegro_cfg)
 
     # Origin 2 with Shadow Hand
@@ -100,9 +102,11 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     shadow_hand_cfg = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
     # Pose for this side-by-side scene; the asset's own pose is the reorientation task's.
-    shadow_hand_cfg = shadow_hand_cfg.replace(
+    shadow_hand_cfg = replace_config(
+        shadow_hand_cfg,
         prim_path="/World/Origin2/Robot",
-        init_state=shadow_hand_cfg.init_state.replace(
+        init_state=replace_config(
+            shadow_hand_cfg.init_state,
             pos=(0.0, 0.2, 0.5),
             rot=(0.52296271, -0.47593067, 0.47593067, 0.52296271),
         ),

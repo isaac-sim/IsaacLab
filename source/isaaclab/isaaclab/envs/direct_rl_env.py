@@ -23,6 +23,7 @@ from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils import validate_config
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -85,7 +86,7 @@ class DirectRLEnv(gym.Env):
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode

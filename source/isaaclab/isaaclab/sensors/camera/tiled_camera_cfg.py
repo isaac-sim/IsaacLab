@@ -7,6 +7,8 @@ import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from isaaclab.utils import config_field
+
 from .camera_cfg import CameraCfg
 
 if TYPE_CHECKING:
@@ -23,7 +25,7 @@ class TiledCameraCfg(CameraCfg):
         rendering optimizations via the same renderer abstraction.
     """
 
-    class_type: type["TiledCamera"] | str = "{DIR}.tiled_camera:TiledCamera"
+    class_type: type["TiledCamera"] | str = config_field("{DIR}.tiled_camera:TiledCamera")
 
     def __post_init__(self):
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)

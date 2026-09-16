@@ -9,8 +9,10 @@
 """Launch Isaac Sim Simulator first."""
 
 from collections.abc import Sequence
+from typing import Any
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -27,7 +29,6 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import ConfigMixin
 
 pytestmark = pytest.mark.integration
 
@@ -125,24 +126,30 @@ def test_config_equivalence(env):
 
     # create from config class
     @dataclass
-    class MyEventManagerCfg(ConfigMixin):
+    class MyEventManagerCfg:
         """Event manager config with no type annotations."""
 
-        term_1 = EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))
-        term_2 = EventTermCfg(func=reset_dummy1_to_zero, mode="reset")
-        term_3 = EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10})
+        term_1: Any = config_field(
+            EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))
+        )
+        term_2: Any = config_field(EventTermCfg(func=reset_dummy1_to_zero, mode="reset"))
+        term_3: Any = config_field(EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10}))
 
     cfg = MyEventManagerCfg()
     event_man_from_cfg = EventManager(cfg, env)
 
     # create from config class
     @dataclass
-    class MyEventManagerAnnotatedCfg(ConfigMixin):
+    class MyEventManagerAnnotatedCfg:
         """Event manager config with type annotations."""
 
-        term_1: EventTermCfg = EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))
-        term_2: EventTermCfg = EventTermCfg(func=reset_dummy1_to_zero, mode="reset")
-        term_3: EventTermCfg = EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10})
+        term_1: EventTermCfg = config_field(
+            EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1))
+        )
+        term_2: EventTermCfg = config_field(EventTermCfg(func=reset_dummy1_to_zero, mode="reset"))
+        term_3: EventTermCfg = config_field(
+            EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10})
+        )
 
     cfg = MyEventManagerAnnotatedCfg()
     event_man_from_annotated_cfg = EventManager(cfg, env)

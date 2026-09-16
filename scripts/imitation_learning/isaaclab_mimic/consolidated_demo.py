@@ -10,8 +10,10 @@ Script to record teleoperated demos and run mimic dataset generation in real-tim
 # Launching Isaac Sim Simulator first.
 
 import argparse
+from typing import Any
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import config_field
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -122,7 +124,7 @@ class PreStepDatagenInfoRecorder(RecorderTerm):
 class PreStepDatagenInfoRecorderCfg(RecorderTermCfg):
     """Configuration for the datagen info recorder term."""
 
-    class_type: type[RecorderTerm] = PreStepDatagenInfoRecorder
+    class_type: type[RecorderTerm] = config_field(PreStepDatagenInfoRecorder)
 
 
 class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
@@ -136,15 +138,15 @@ class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
 class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
     """Configuration for the step subtask terms observation recorder term."""
 
-    class_type: type[RecorderTerm] = PreStepSubtaskTermsObservationsRecorder
+    class_type: type[RecorderTerm] = config_field(PreStepSubtaskTermsObservationsRecorder)
 
 
 @dataclass
 class MimicRecorderManagerCfg(ActionStateRecorderManagerCfg):
     """Mimic specific recorder terms."""
 
-    record_pre_step_datagen_info = PreStepDatagenInfoRecorderCfg()
-    record_pre_step_subtask_term_signals = PreStepSubtaskTermsObservationsRecorderCfg()
+    record_pre_step_datagen_info: Any = config_field(PreStepDatagenInfoRecorderCfg())
+    record_pre_step_subtask_term_signals: Any = config_field(PreStepSubtaskTermsObservationsRecorderCfg())
 
 
 class RateLimiter:

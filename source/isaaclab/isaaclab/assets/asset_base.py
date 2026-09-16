@@ -21,6 +21,7 @@ from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils import copy_config, validate_config
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
@@ -97,7 +98,7 @@ class AssetBase(ABC):
             RuntimeError: If no prims found at input prim path or prim path expression.
         """
         # check that the config is valid
-        cfg.validate()
+        validate_config(cfg)
         # expand the namespace macro before the cfg is queued, so the clone plan keys its rows
         # by a real path expression. The scene has already done this for the assets it collects;
         # this covers the ones a direct environment builds itself.
@@ -106,7 +107,7 @@ class AssetBase(ABC):
         # cfg identity the scene collected; contexts and policy resolve at replication time
         queue_replication(cfg)
         # store inputs
-        self.cfg = cfg.copy()
+        self.cfg = copy_config(cfg)
         # Resolve shape-check flag once: True means checks are active.
         # cfg.disable_shape_checks: None -> follow __debug__
         # True -> force disable checks; False -> force enable checks.
