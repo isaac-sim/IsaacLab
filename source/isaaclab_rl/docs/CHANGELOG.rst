@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.16.3 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated legacy RSL-RL configurations. They will no longer be supported in Isaac Lab 3.1; migrate to the current
+  RSL-RL configuration schema.
+
+
 0.16.2 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~~
 
