@@ -931,8 +931,7 @@ jobs:
   performance-smoke:
     name: "performance-smoke (${{ matrix.name }})"
     runs-on: [self-hosted, gpu]
-    # Three independent samples, each with two attempts, plus image/cache setup.
-    # Each attempt is bounded individually by `timeout` to prevent starving retry.
+    # Each attempt is bounded by `timeout` within the job's overall budget.
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
@@ -947,55 +946,55 @@ jobs:
         - name: cartpole-physx
           task: Isaac-Cartpole-Direct
           num_envs: 4096
-          job_timeout_minutes: 70
+          job_timeout_minutes: 30
           bench_timeout_s: 600
           args: ""
         - name: cartpole-newton
           task: Isaac-Cartpole-Direct
           num_envs: 4096
-          job_timeout_minutes: 70
+          job_timeout_minutes: 30
           bench_timeout_s: 600
           args: physics=newton_mjwarp
         - name: gear-mesh-physx
           task: IsaacContrib-Factory-GearMesh-Direct
           num_envs: 512
-          job_timeout_minutes: 100
+          job_timeout_minutes: 40
           bench_timeout_s: 900
           args: ""
         - name: shadow-camera-physx-rtx
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          job_timeout_minutes: 130
+          job_timeout_minutes: 50
           bench_timeout_s: 1200
           args: renderer=isaacsim_rtx
         - name: shadow-camera-physx-newton-renderer
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          job_timeout_minutes: 130
+          job_timeout_minutes: 50
           bench_timeout_s: 1200
           args: renderer=newton_renderer
         - name: shadow-camera-newton-rtx
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          job_timeout_minutes: 130
+          job_timeout_minutes: 50
           bench_timeout_s: 1200
           args: physics=newton_mjwarp renderer=isaacsim_rtx
         - name: shadow-camera-newton-renderer
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
-          job_timeout_minutes: 130
+          job_timeout_minutes: 50
           bench_timeout_s: 1200
           args: physics=newton_mjwarp renderer=newton_renderer
         - name: g1-physx
           task: Isaac-Velocity-Flat-G1
           num_envs: 512
-          job_timeout_minutes: 82
+          job_timeout_minutes: 34
           bench_timeout_s: 720
           args: ""
         - name: g1-newton
           task: Isaac-Velocity-Flat-G1
           num_envs: 512
-          job_timeout_minutes: 82
+          job_timeout_minutes: 34
           bench_timeout_s: 720
           args: physics=newton_mjwarp
     steps:
