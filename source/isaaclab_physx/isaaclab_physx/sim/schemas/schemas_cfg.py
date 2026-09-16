@@ -361,7 +361,7 @@ class PhysxJointCfg(JointDriveFragment):
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
         maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
         alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
-        removed in 4.0.
+        removed in 5.0.
     """
 
 

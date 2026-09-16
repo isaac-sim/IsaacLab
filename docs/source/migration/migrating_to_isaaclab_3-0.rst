@@ -266,7 +266,7 @@ For the full design, see :ref:`schema-cfgs`.
 **Class moves and renames**
 
 The following 2.x class names are kept as deprecated aliases. They forward to
-the new location and will be removed in 4.0.
+the new location and will be removed in 5.0.
 
 .. list-table::
    :header-rows: 1
@@ -301,7 +301,7 @@ the new location and will be removed in 4.0.
 **Code migration**
 
 Existing 2.x code continues to work via the deprecation aliases (with a
-``DeprecationWarning``; removed in 4.0):
+``DeprecationWarning``; removed in 5.0):
 
 .. code-block:: python
 
@@ -334,7 +334,7 @@ fields on :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (so
 in ``__post_init__`` with a ``DeprecationWarning``. Setting **both** the old
 and new field on the same instance is silent — the canonical (new) field
 wins; the old field's value is discarded after the warning. Both aliases are
-scheduled for removal in 4.0.
+scheduled for removal in 5.0.
 
 .. list-table::
    :header-rows: 1
@@ -350,7 +350,7 @@ scheduled for removal in 4.0.
      - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
-Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 5.0):
 
 .. code-block:: python
 
@@ -824,7 +824,7 @@ removed in a future release.
 
 Actuator configurations now use joint-qualified names for solver limits. Update active
 configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` through the 3.x release line and will be removed in 4.0.
+``DeprecationWarning`` through the 3.x release line and will be removed in 5.0.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
