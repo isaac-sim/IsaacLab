@@ -56,18 +56,29 @@ class TestSecurityDependencies(unittest.TestCase):
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
 
-    def test_runtime_images_ship_neither_git_nor_git_lfs(self):
+    def test_images_ship_no_git_lfs(self):
         # Half the pair is the dangerous state: ``git-lfs install --system`` sets
         # ``filter.lfs.required=true``, so a git without the filter fails on an LFS tree.
         for name in ("Dockerfile.base", "Dockerfile.kitless"):
             with self.subTest(dockerfile=name):
                 text = (REPO_ROOT / "docker" / name).read_text(encoding="utf-8")
-                runtime = text[text.index("FROM", text.index("AS builder")) :] if "AS builder" in text else text
-                instructions = [row for row in runtime.splitlines() if not row.lstrip().startswith("#")]
-                for line in instructions:
-                    with self.subTest(line=line):
-                        self.assertNotEqual(line.strip().rstrip("\\").strip(), "git")
+                for line in text.splitlines():
+                    if not line.lstrip().startswith("#"):
                         self.assertNotIn("git-lfs", line)
+
+    def test_kitless_runtime_stage_ships_no_git(self):
+        text = (REPO_ROOT / "docker/Dockerfile.kitless").read_text(encoding="utf-8")
+        runtime = text[text.index("FROM", text.index("AS builder")) :]
+        for line in runtime.splitlines():
+            if not line.lstrip().startswith("#"):
+                self.assertNotEqual(line.strip().rstrip("\\").strip(), "git")
+
+    def test_base_image_purges_its_build_only_git(self):
+        # Single-stage: it resolves the ``git+https://`` requirements in place, so git has to
+        # be installed, and the purge is what keeps it out of the runtime filesystem.
+        text = (REPO_ROOT / "docker/Dockerfile.base").read_text(encoding="utf-8")
+        self.assertIn("apt-get purge -y git", text)
+        self.assertLess(text.index("apt-get purge -y git"), text.index("USER isaaclab"))
 
     def test_kitless_builder_keeps_git_for_vcs_dependencies(self):
         # rl-games and robomimic resolve over ``git+https://`` during the builder stage.

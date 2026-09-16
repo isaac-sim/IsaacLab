@@ -63,6 +63,7 @@ RUN apt-get update && \
     ncurses-term \
     cmake \
     curl \
+    git \
     wget
 
 # Install the Carbonite environment shim that serializes glibc environment
@@ -156,12 +157,17 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt $
 # robomimic and moviepy declare imageio-ffmpeg for optional video helpers. Its bundled
 # FFmpeg binary stays out of the distributed image; users who enable video recording install
 # MoviePy and its video backend explicitly.
+#
+# git is build-only here: this single-stage image resolves the ``git+https://`` requirements
+# in place, so it is purged with the last sync that needs it and never reaches the runtime
+# filesystem. Git LFS is not installed at all -- see the note in Dockerfile.kitless.
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd ${ISAACLAB_PATH} && \
     uv sync --frozen --inexact ${IMAGE_EXTRAS} \
       --no-install-package imageio-ffmpeg && \
     find ${VIRTUAL_ENV} \! -user isaaclab \
-      -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
+      -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} + && \
+    apt-get purge -y git && apt-get -y autoremove && rm -rf /var/lib/apt/lists/*
 
 # Isaac Sim's prebundled packages sit on PYTHONPATH ahead of the venv for launch paths that
 # never import isaaclab (``runheadless.sh``, ``isaac-sim.streaming.sh``), so its torch would
