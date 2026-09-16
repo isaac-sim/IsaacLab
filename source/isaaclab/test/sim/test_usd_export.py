@@ -287,8 +287,10 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
     stage = _stage()
     body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(body)
+    body.CreateAttribute("physics:mass", Sdf.ValueTypeNames.Float, custom=False).Set(2.5)
     writer = UsdWriter(stage)
     writer.write_properties("/Body", None, Base(), row=0)
+    assert body.HasAPI(UsdPhysics.MassAPI)
     assert body.GetAttribute("physics:mass").Get() == 2.5
     writer.write_properties("/Body", None, Derived(), row=0)
     assert body.GetAttribute("custom:mass").Get() == 2.5

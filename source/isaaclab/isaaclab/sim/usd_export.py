@@ -422,6 +422,7 @@ class UsdWriter:
         if not prim:
             raise RuntimeError(f"Missing export prim {path}.")
         name = target.attribute.format(axis=axis)
+        needs_schema = False
         if target.schema:
             schema, _, instance = target.schema.format(axis=axis).partition(":")
             schema_type = Usd.SchemaRegistry.GetTypeFromSchemaTypeName(schema)
@@ -434,6 +435,7 @@ class UsdWriter:
                 if name not in names:
                     raise NotImplementedError(f"{name} is not an attribute of {target.schema}.")
                 if Usd.SchemaRegistry.IsAppliedAPISchema(schema_type):
+                    needs_schema = not (prim.HasAPI(api, instance) if multiple else prim.HasAPI(api))
                     if author:
                         applied = api.Apply(prim, instance) if multiple else api.Apply(prim)
                         if not applied:
@@ -453,7 +455,8 @@ class UsdWriter:
                 attr = prim.CreateAttribute(name, value_type, custom=False)
         if author and not attr:
             raise NotImplementedError(f"No declared USD attribute/type for {path}.{name}.")
-        return attr
+        # An attribute without its required API is not an effective physics opinion.
+        return Usd.Attribute() if needs_schema and not author else attr
 
     def write_fixed_root_frames(self) -> None:
         """Update world anchors moved by fixed-base default root-pose initialization."""
