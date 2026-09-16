@@ -57,26 +57,12 @@ class JointImpedanceController:
         self._dof_pos_offset = torch.zeros(self.num_robots, self.num_dof, device=self._device)
         # -- limits
         self._dof_pos_limits = dof_pos_limits
-        # -- positional gains
-        self._p_gains = torch.zeros(self.num_robots, self.num_dof, device=self._device)
-        self._p_gains[:] = torch.tensor(self.cfg.stiffness, device=self._device)
-        # -- velocity gains
-        self._d_gains = torch.zeros(self.num_robots, self.num_dof, device=self._device)
-        self._d_gains[:] = 2 * torch.sqrt(self._p_gains) * torch.tensor(self.cfg.damping_ratio, device=self._device)
         # -- position offsets
         if self.cfg.dof_pos_offset is not None:
             self._dof_pos_offset[:] = torch.tensor(self.cfg.dof_pos_offset, device=self._device)
-        # -- position gain limits
-        self._p_gains_limits = torch.zeros_like(self._dof_pos_limits)
-        self._p_gains_limits[..., 0] = self.cfg.stiffness_limits[0]
-        self._p_gains_limits[..., 1] = self.cfg.stiffness_limits[1]
-        # -- damping ratio limits
-        self._damping_ratio_limits = torch.zeros_like(self._dof_pos_limits)
-        self._damping_ratio_limits[..., 0] = self.cfg.damping_ratio_limits[0]
-        self._damping_ratio_limits[..., 1] = self.cfg.damping_ratio_limits[1]
-
-        # Initialize Newton ports and transfer the gain schedule to their Torch views.
         self._initialize_controller()
+        self._p_gains[:] = torch.tensor(self.cfg.stiffness, device=self._device)
+        self._d_gains[:] = 2 * self._p_gains.sqrt() * torch.tensor(self.cfg.damping_ratio, device=self._device)
 
     """
     Properties.
@@ -130,7 +116,7 @@ class JointImpedanceController:
             # split input command
             dof_pos_command, stiffness = torch.tensor_split(command, 2, dim=-1)
             # format command
-            stiffness = stiffness.clip_(min=self._p_gains_limits[..., 0], max=self._p_gains_limits[..., 1])
+            stiffness = stiffness.clip_(min=self.cfg.stiffness_limits[0], max=self.cfg.stiffness_limits[1])
             # joint positions + stiffness
             self._dof_pos_target[:] = dof_pos_command
             self._p_gains[:] = stiffness
@@ -139,9 +125,9 @@ class JointImpedanceController:
             # split input command
             dof_pos_command, stiffness, damping_ratio = torch.tensor_split(command, 3, dim=-1)
             # format command
-            stiffness = stiffness.clip_(min=self._p_gains_limits[..., 0], max=self._p_gains_limits[..., 1])
+            stiffness = stiffness.clip_(min=self.cfg.stiffness_limits[0], max=self.cfg.stiffness_limits[1])
             damping_ratio = damping_ratio.clip_(
-                min=self._damping_ratio_limits[..., 0], max=self._damping_ratio_limits[..., 1]
+                min=self.cfg.damping_ratio_limits[0], max=self.cfg.damping_ratio_limits[1]
             )
             # joint positions + stiffness + damping
             self._dof_pos_target[:] = dof_pos_command
@@ -182,18 +168,20 @@ class JointImpedanceController:
         desired_dof_pos = desired_dof_pos.clip(min=self._dof_pos_limits[..., 0], max=self._dof_pos_limits[..., 1])
 
         # -- Newton input ports
-        self._joint_q_des.copy_(desired_dof_pos)
-        self._joint_q.copy_(dof_pos)
-        self._joint_qd.copy_(dof_vel)
+        wp.to_torch(self._controller_input.joint_q_des).view(self.num_robots, self.num_dof).copy_(desired_dof_pos)
+        wp.to_torch(self._controller_input.joint_q).view(self.num_robots, self.num_dof).copy_(dof_pos)
+        wp.to_torch(self._controller_input.joint_qd).view(self.num_robots, self.num_dof).copy_(dof_vel)
         if self.cfg.inertial_compensation:
-            self._mass_matrix.copy_(mass_matrix)
+            wp.to_torch(self._controller_input.mass_matrix).copy_(mass_matrix)
         if self.cfg.gravity_compensation:
-            self._gravity.copy_(gravity)
+            wp.to_torch(self._controller_input.gravity_force).view(self.num_robots, self.num_dof).copy_(gravity)
 
         # -- solve and return an independent snapshot (dt is unused)
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
-        return self._joint_f.to(
-            dtype=torch.promote_types(torch.float32, torch.promote_types(dof_pos.dtype, dof_vel.dtype)), copy=True
+        return (
+            wp.to_torch(self._controller_output.joint_f)
+            .view(self.num_robots, self.num_dof)
+            .to(dtype=torch.promote_types(torch.float32, torch.promote_types(dof_pos.dtype, dof_vel.dtype)), copy=True)
         )
 
     """
@@ -204,14 +192,10 @@ class JointImpedanceController:
         """Construct Newton ports and expose their arrays as Torch views."""
         from newton.controllers import ControllerJointImpedanceModelFree
 
-        num_robots, num_dof = self.num_robots, self.num_dof
-
         # -- construct Newton controller and ports
-        controlled_dofs_per_robot = wp.full(num_robots, num_dof, dtype=wp.int32, device=self._device)
-
         # Gains remain live inputs for variable impedance modes.
         self._controller = ControllerJointImpedanceModelFree(
-            controlled_dofs_per_robot=controlled_dofs_per_robot,
+            controlled_dofs_per_robot=wp.full(self.num_robots, self.num_dof, dtype=wp.int32, device=self._device),
             stiffness=None,
             damping=None,
             use_gravity_compensation=self.cfg.gravity_compensation,
@@ -223,19 +207,5 @@ class JointImpedanceController:
         self._controller_input = self._controller.input()
         self._controller_output = self._controller.output()
 
-        # -- Torch views of Newton-owned arrays
-        inputs = self._controller_input
-        self._joint_q = wp.to_torch(inputs.joint_q).view(num_robots, num_dof)
-        self._joint_qd = wp.to_torch(inputs.joint_qd).view(num_robots, num_dof)
-        self._joint_q_des = wp.to_torch(inputs.joint_q_des).view(num_robots, num_dof)
-        # Newton initializes the desired velocity port to zero.
-        p_gains = wp.to_torch(inputs.stiffness).view(num_robots, num_dof)
-        d_gains = wp.to_torch(inputs.damping).view(num_robots, num_dof)
-        p_gains.copy_(self._p_gains)
-        d_gains.copy_(self._d_gains)
-        self._p_gains, self._d_gains = p_gains, d_gains
-        if self.cfg.gravity_compensation:
-            self._gravity = wp.to_torch(inputs.gravity_force).view(num_robots, num_dof)
-        if self.cfg.inertial_compensation:
-            self._mass_matrix = wp.to_torch(inputs.mass_matrix)
-        self._joint_f = wp.to_torch(self._controller_output.joint_f).view(num_robots, num_dof)
+        self._p_gains = wp.to_torch(self._controller_input.stiffness).view(self.num_robots, self.num_dof)
+        self._d_gains = wp.to_torch(self._controller_input.damping).view(self.num_robots, self.num_dof)

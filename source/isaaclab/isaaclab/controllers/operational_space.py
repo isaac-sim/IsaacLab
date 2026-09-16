@@ -70,8 +70,7 @@ class OperationalSpaceController:
                 raise ValueError(f"Invalid control command: {command_type}.")
         self.target_dim = sum(self.target_list)
 
-        # resolve which laws the Newton backend has to be built with; the target types are static
-        # configuration, so the backend's feature set never changes over the controller's lifetime
+        # Newton features are fixed at construction.
         self._wrench_control = "wrench_abs" in self.cfg.target_types
         self._wrench_feedback = self._wrench_control and self.cfg.contact_wrench_stiffness_task is not None
         self._nullspace_control = self.cfg.nullspace_control == "position"
@@ -120,26 +119,8 @@ class OperationalSpaceController:
             self._contact_wrench_p_gains_task *= self._selection_axes_force_task
         else:
             self._contact_wrench_p_gains_task = None
-        # -- position gain limits
-        self._motion_p_gains_limits = torch.zeros(self.num_envs, 6, 2, device=self._device)
-        self._motion_p_gains_limits[..., 0], self._motion_p_gains_limits[..., 1] = (
-            self.cfg.motion_stiffness_limits_task[0],
-            self.cfg.motion_stiffness_limits_task[1],
-        )
-        # -- damping ratio limits
-        self._motion_damping_ratio_limits = torch.zeros_like(self._motion_p_gains_limits)
-        self._motion_damping_ratio_limits[..., 0], self._motion_damping_ratio_limits[..., 1] = (
-            self.cfg.motion_damping_ratio_limits_task[0],
-            self.cfg.motion_damping_ratio_limits_task[1],
-        )
-
-        # -- buffers for null-space control gains
-        self._nullspace_p_gain = torch.tensor(self.cfg.nullspace_stiffness, dtype=torch.float, device=self._device)
-        self._nullspace_d_gain = (
-            2
-            * torch.sqrt(self._nullspace_p_gain)
-            * torch.tensor(self.cfg.nullspace_damping_ratio, dtype=torch.float, device=self._device)
-        )
+        self._nullspace_p_gain = self.cfg.nullspace_stiffness
+        self._nullspace_d_gain = 2 * self._nullspace_p_gain**0.5 * self.cfg.nullspace_damping_ratio
 
         # the Newton backend is built on the first ``compute`` call, once the Jacobian reveals the
         # number of controlled DOFs
@@ -233,7 +214,7 @@ class OperationalSpaceController:
             task_space_command, stiffness = torch.split(command, [self.target_dim, 6], dim=-1)
             # format command
             stiffness = stiffness.clip_(
-                min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
+                min=self.cfg.motion_stiffness_limits_task[0], max=self.cfg.motion_stiffness_limits_task[1]
             )
             # task space targets + stiffness
             self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
@@ -244,10 +225,10 @@ class OperationalSpaceController:
             task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
             # format command
             stiffness = stiffness.clip_(
-                min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
+                min=self.cfg.motion_stiffness_limits_task[0], max=self.cfg.motion_stiffness_limits_task[1]
             )
             damping_ratio = damping_ratio.clip_(
-                min=self._motion_damping_ratio_limits[..., 0], max=self._motion_damping_ratio_limits[..., 1]
+                min=self.cfg.motion_damping_ratio_limits_task[0], max=self.cfg.motion_damping_ratio_limits_task[1]
             )
             # task space targets + stiffness + damping
             self._task_space_target_task[:] = task_space_command
@@ -424,58 +405,59 @@ class OperationalSpaceController:
             self._initialize_controller(num_DoF)
 
         # -- Newton input ports
-        self._jacobian.copy_(jacobian_b)
+        wp.to_torch(self._controller_input.jacobian_tool_world).copy_(jacobian_b)
         if self.cfg.inertial_dynamics_decoupling:
-            self._mass_matrix.copy_(mass_matrix)
+            wp.to_torch(self._controller_input.mass_matrix).copy_(mass_matrix)
         if self.cfg.gravity_compensation:
-            self._gravity.copy_(gravity)
+            wp.to_torch(self._controller_input.gravity_force).view(self.num_envs, num_DoF).copy_(gravity)
         if current_ee_pose_b is not None:
-            self._tool_pose.copy_(current_ee_pose_b)
+            wp.to_torch(self._controller_input.tool_pose_world).copy_(current_ee_pose_b)
         else:
-            self._tool_pose.zero_()
-            self._tool_pose[:, 6] = 1.0
+            wp.to_torch(self._controller_input.tool_pose_world).zero_()
+            wp.to_torch(self._controller_input.tool_pose_world)[:, 6] = 1.0
         if current_ee_vel_b is not None:
-            self._tool_twist.copy_(current_ee_vel_b)
+            wp.to_torch(self._controller_input.tool_twist_world).copy_(current_ee_vel_b)
         else:
-            self._tool_twist.zero_()
+            wp.to_torch(self._controller_input.tool_twist_world).zero_()
 
         # -- motion target (zero gains suppress uncommanded motion)
-        inputs = self._controller_input
         if self.desired_ee_pose_task is not None:
-            self._desired_pose.copy_(self.desired_ee_pose_task)
-            inputs.motion_stiffness = self._motion_stiffness_port
-            inputs.motion_damping = self._motion_damping_port
+            wp.to_torch(self._controller_input.desired_tool_pose_operational).copy_(self.desired_ee_pose_task)
+            self._controller_input.motion_stiffness = self._motion_stiffness_port
+            self._controller_input.motion_damping = self._motion_damping_port
         else:
-            self._desired_pose.zero_()
-            self._desired_pose[:, 6] = 1.0
-            inputs.motion_stiffness = self._zero_spatial
-            inputs.motion_damping = self._zero_spatial
+            wp.to_torch(self._controller_input.desired_tool_pose_operational).zero_()
+            wp.to_torch(self._controller_input.desired_tool_pose_operational)[:, 6] = 1.0
+            self._controller_input.motion_stiffness = self._zero_spatial
+            self._controller_input.motion_damping = self._zero_spatial
 
         # -- wrench target and feedback, expressed in the root frame
         if self._wrench_control:
             if self.desired_ee_wrench_b is not None:
-                self._desired_wrench.copy_(self.desired_ee_wrench_b)
+                wp.to_torch(self._controller_input.desired_wrench_world).copy_(self.desired_ee_wrench_b)
                 if self._wrench_feedback:
-                    self._measured_wrench[:, :3] = current_ee_force_b
+                    wp.to_torch(self._controller_input.measured_wrench_world)[:, :3] = current_ee_force_b
                     # Moments are unmeasured: matching the target keeps them open loop.
-                    self._measured_wrench[:, 3:] = self.desired_ee_wrench_b[:, 3:]
+                    wp.to_torch(self._controller_input.measured_wrench_world)[:, 3:] = self.desired_ee_wrench_b[:, 3:]
             else:
-                self._desired_wrench.zero_()
+                wp.to_torch(self._controller_input.desired_wrench_world).zero_()
                 if self._wrench_feedback:
-                    self._measured_wrench.zero_()
+                    wp.to_torch(self._controller_input.measured_wrench_world).zero_()
 
         # -- null-space posture target (desired velocity remains zero)
         if self._nullspace_control:
-            self._joint_pos.copy_(current_joint_pos)
-            self._joint_vel.copy_(current_joint_vel)
+            wp.to_torch(self._controller_input.joint_q).view(self.num_envs, num_DoF).copy_(current_joint_pos)
+            wp.to_torch(self._controller_input.joint_qd).view(self.num_envs, num_DoF).copy_(current_joint_vel)
             if nullspace_joint_pos_target is None:
-                self._nullspace_target.zero_()
+                wp.to_torch(self._controller_input.joint_q_des_null).view(self.num_envs, num_DoF).zero_()
             else:
-                self._nullspace_target.copy_(nullspace_joint_pos_target)
+                wp.to_torch(self._controller_input.joint_q_des_null).view(self.num_envs, num_DoF).copy_(
+                    nullspace_joint_pos_target
+                )
 
         # -- solve and return an independent snapshot (dt is unused)
-        self._controller.step(inputs=inputs, outputs=self._controller_output, dt=0.0)
-        return self._joint_efforts.clone()
+        self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
+        return wp.to_torch(self._controller_output.joint_f).view(self.num_envs, num_DoF).clone()
 
     """
     Internal helpers.
@@ -485,14 +467,10 @@ class OperationalSpaceController:
         """Construct Newton ports once the Jacobian reveals the controlled joint count."""
         from newton.controllers import ControllerOperationalSpaceModelFree
 
-        num_envs = self.num_envs
-
         # -- construct Newton controller and ports
-        controlled_dofs_per_robot = wp.full(num_envs, num_dof, dtype=wp.int32, device=self._device)
-
         # Live gains support variable impedance; Newton accepts selection axes only with wrench control.
         self._controller = ControllerOperationalSpaceModelFree(
-            controlled_dofs_per_robot=controlled_dofs_per_robot,
+            controlled_dofs_per_robot=wp.full(self.num_envs, num_dof, dtype=wp.int32, device=self._device),
             motion_stiffness=None,
             motion_damping=None,
             operational_frame_pose_world=None,
@@ -513,43 +491,23 @@ class OperationalSpaceController:
                 else None
             ),
             use_null_space_control=self._nullspace_control,
-            null_space_stiffness=float(self._nullspace_p_gain) if self._nullspace_control else None,
-            null_space_damping=float(self._nullspace_d_gain) if self._nullspace_control else None,
+            null_space_stiffness=self._nullspace_p_gain if self._nullspace_control else None,
+            null_space_damping=self._nullspace_d_gain if self._nullspace_control else None,
             device=self._device,
         )
         self._controller_input = self._controller.input()
         self._controller_output = self._controller.output()
         self._num_dof = num_dof
 
-        # -- Torch views of Newton-owned arrays
-        inputs = self._controller_input
-        self._jacobian = wp.to_torch(inputs.jacobian_tool_world)
-        self._tool_pose = wp.to_torch(inputs.tool_pose_world)
-        self._tool_twist = wp.to_torch(inputs.tool_twist_world)
-        self._desired_pose = wp.to_torch(inputs.desired_tool_pose_operational)
-        if self.cfg.inertial_dynamics_decoupling:
-            self._mass_matrix = wp.to_torch(inputs.mass_matrix)
-        if self.cfg.gravity_compensation:
-            self._gravity = wp.to_torch(inputs.gravity_force).view(num_envs, num_dof)
-        if self._wrench_control:
-            self._desired_wrench = wp.to_torch(inputs.desired_wrench_world)
-        if self._wrench_feedback:
-            self._measured_wrench = wp.to_torch(inputs.measured_wrench_world)
-        if self._nullspace_control:
-            self._joint_pos = wp.to_torch(inputs.joint_q).view(num_envs, num_dof)
-            self._joint_vel = wp.to_torch(inputs.joint_qd).view(num_envs, num_dof)
-            self._nullspace_target = wp.to_torch(inputs.joint_q_des_null).view(num_envs, num_dof)
-        self._joint_efforts = wp.to_torch(self._controller_output.joint_f).view(num_envs, num_dof)
-
         # -- transfer the command frame and gain schedule; set_command updates these views in place
-        task_frame = wp.to_torch(inputs.operational_frame_pose_world)
+        task_frame = wp.to_torch(self._controller_input.operational_frame_pose_world)
         task_frame.copy_(self._task_frame_pose_b)
         self._task_frame_pose_b = task_frame
-        self._motion_stiffness_port = inputs.motion_stiffness
-        self._motion_damping_port = inputs.motion_damping
-        p_gains = wp.to_torch(inputs.motion_stiffness)
-        d_gains = wp.to_torch(inputs.motion_damping)
+        self._motion_stiffness_port = self._controller_input.motion_stiffness
+        self._motion_damping_port = self._controller_input.motion_damping
+        p_gains = wp.to_torch(self._controller_input.motion_stiffness)
+        d_gains = wp.to_torch(self._controller_input.motion_damping)
         p_gains.copy_(self._motion_p_gains_task)
         d_gains.copy_(self._motion_d_gains_task)
         self._motion_p_gains_task, self._motion_d_gains_task = p_gains, d_gains
-        self._zero_spatial = wp.zeros(num_envs, dtype=wp.spatial_vector, device=self._device)
+        self._zero_spatial = wp.zeros(self.num_envs, dtype=wp.spatial_vector, device=self._device)

@@ -293,26 +293,6 @@ def test_joint_limit_count_is_checked_when_controller_initializes():
         controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)
 
 
-@pytest.mark.parametrize(
-    ("argument", "value", "error"),
-    [
-        ("ee_pos", torch.zeros(_NUM_ENVS, 2), ValueError),
-        ("jacobian", torch.zeros(_NUM_ENVS, 5, _NUM_JOINTS), ValueError),
-        ("joint_pos", torch.zeros(_NUM_ENVS - 1, _NUM_JOINTS), ValueError),
-    ],
-)
-def test_compute_validates_bridge_inputs(argument: str, value: torch.Tensor, error: type[Exception]):
-    """Invalid input shapes fail before reaching Warp."""
-    controller = _make_controller("dls")
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
-    jacobian = _well_conditioned_jacobian("cpu")
-    controller.set_command(command)
-    inputs = {"ee_pos": ee_pos, "ee_quat": ee_quat, "jacobian": jacobian, "joint_pos": joint_pos}
-    inputs[argument] = value
-    with pytest.raises(error):
-        controller.compute(**inputs)
-
-
 def test_compute_rejects_integral_out_buffer():
     """The additive output-buffer API requires a floating-point destination."""
     controller = _make_controller("dls")
@@ -321,16 +301,6 @@ def test_compute_rejects_integral_out_buffer():
     out = torch.empty_like(joint_pos, dtype=torch.int64)
     with pytest.raises(TypeError, match="out to be a floating-point tensor"):
         controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos, out=out)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for a device mismatch")
-def test_compute_rejects_tensors_on_a_different_device():
-    """Per-step tensors must reside on the controller device."""
-    controller = _make_controller("trans", device="cuda:0")
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cuda:0")
-    controller.set_command(command)
-    with pytest.raises(ValueError, match="Expected ee_pos on cuda:0"):
-        controller.compute(ee_pos.cpu(), ee_quat, _well_conditioned_jacobian("cuda:0"), joint_pos)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for Warp graph capture")

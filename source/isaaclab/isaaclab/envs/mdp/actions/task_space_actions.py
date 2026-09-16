@@ -284,7 +284,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # Retain an explicit copy even though the base property currently fills the owned buffer itself. Custom
         # action terms may override ``jacobian_b`` with a view into engine data, which must never be mutated below.
         self._jacobian_b[:] = self.jacobian_b
-        jacobian_b = self._jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
             # Modify the jacobian to account for the offset
@@ -292,14 +291,16 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
             #        = (v_J_ee + w_J_ee x r_link_ee ) * q
             #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), jacobian_b[:, 3:, :]
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
             )
             # -- rotational part
             # w_link = R_link_ee @ w_ee
-            jacobian_b[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), jacobian_b[:, 3:, :])
+            self._jacobian_b[:, 3:, :] = torch.bmm(
+                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            )
 
-        return jacobian_b
+        return self._jacobian_b
 
 
 class OperationalSpaceControllerAction(ActionTerm):
