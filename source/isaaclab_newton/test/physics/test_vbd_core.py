@@ -100,14 +100,14 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     class Builder:
         def __init__(self):
             self.imports = []
-            self.color_calls = 0
+            self.color_calls = []
 
         def add_usd(self, stage, *, root_path=None, ignore_paths=(), schema_resolvers=()):
             self.imports.append((root_path, list(ignore_paths)))
             return {"path_shape_map": {}}
 
-        def color(self):
-            self.color_calls += 1
+        def color(self, *, include_bending):
+            self.color_calls.append(include_bending)
 
     children = [
         SimpleNamespace(
@@ -179,7 +179,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     else:
         assert builders[0].imports == [(None, ["/World/terrain", *deformable_paths])]
         assert hook_calls == [0]
-    assert builders[0].color_calls == 1
+    assert builders[0].color_calls == [True]
 
 
 def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
@@ -189,8 +189,8 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
     events = []
 
     class Builder:
-        def color(self):
-            events.append("color")
+        def color(self, *, include_bending):
+            events.append(("color", include_bending))
 
     monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
     monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
@@ -198,7 +198,7 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
 
     physics.NewtonVBDManager.start_simulation()
 
-    assert events == ["color", "start"]
+    assert events == [("color", True), "start"]
 
 
 @pytest.mark.parametrize("external_rigid_solver", [False, True])
@@ -217,6 +217,48 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
 
     assert NewtonManager._solver is solver
     assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
+
+
+def test_vbd_rigid_solver_cfg_is_forwarded(monkeypatch):
+    """Public rigid VBD options are forwarded to Newton's solver constructor."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    vbd_module = importlib.import_module("isaaclab_newton.physics.vbd_manager")
+    received = {}
+
+    class Solver:
+        def __init__(
+            self,
+            model,
+            *,
+            rigid_compliant_alm,
+            rigid_body_contact_buffer_size,
+            rigid_joint_linear_ke,
+            rigid_joint_angular_ke,
+            rigid_joint_linear_kd,
+            rigid_joint_angular_kd,
+        ):
+            received.update(locals())
+
+    monkeypatch.setattr(vbd_module, "SolverVBD", Solver)
+    cfg = physics.VBDSolverCfg(
+        rigid_compliant_alm=True,
+        rigid_body_contact_buffer_size=128,
+        rigid_joint_linear_ke=2.0e5,
+        rigid_joint_angular_ke=3.0e5,
+        rigid_joint_linear_kd=20.0,
+        rigid_joint_angular_kd=30.0,
+    )
+
+    result = physics.NewtonVBDManager._create_solver("model", cfg)
+
+    assert isinstance(result, Solver)
+    assert received["model"] == "model"
+    assert received["rigid_compliant_alm"] is True
+    assert received["rigid_body_contact_buffer_size"] == 128
+    assert received["rigid_joint_linear_ke"] == 2.0e5
+    assert received["rigid_joint_angular_ke"] == 3.0e5
+    assert received["rigid_joint_linear_kd"] == 20.0
+    assert received["rigid_joint_angular_kd"] == 30.0
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

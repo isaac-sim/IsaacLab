@@ -61,6 +61,8 @@ class DeformableRegistryEntry:
     edge_ke: float = 5.0
     edge_kd: float = 1e-2
     particle_radius: float = 0.008
+    color: tuple[float, float, float] | None = None
+    opacity: float | None = None
     # Tet params
     k_mu: float = 1e5
     k_lambda: float = 1e5
@@ -151,6 +153,8 @@ def add_deformable_entry_to_builder(
             edge_ke=entry.edge_ke,
             edge_kd=entry.edge_kd,
             particle_radius=entry.particle_radius,
+            color=entry.color,
+            opacity=entry.opacity,
         )
     else:
         raise ValueError(
@@ -835,6 +839,10 @@ class DeformableObject(BaseDeformableObject):
         edge_ke = _get_material_attr("newton:edgeKe", DeformableRegistryEntry.edge_ke)
         edge_kd = _get_material_attr("newton:edgeKd", DeformableRegistryEntry.edge_kd)
 
+        visual_material = getattr(self.cfg.spawn, "visual_material", None)
+        color = getattr(visual_material, "diffuse_color", None)
+        opacity = getattr(visual_material, "opacity", None)
+
         entry = DeformableRegistryEntry(
             prim_path=self.cfg.prim_path,
             sim_mesh_prim_path=sim_mesh_prim_path,
@@ -851,6 +859,8 @@ class DeformableObject(BaseDeformableObject):
             edge_ke=edge_ke,
             edge_kd=edge_kd,
             particle_radius=particle_radius,
+            color=color,
+            opacity=opacity,
             k_mu=k_mu,
             k_lambda=k_lambda,
             k_damp=k_damp,
