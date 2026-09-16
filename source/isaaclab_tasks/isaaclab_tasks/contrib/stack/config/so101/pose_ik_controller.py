@@ -95,7 +95,6 @@ class SO101PoseIKController(DifferentialIKController):
         ee_quat: torch.Tensor,
         jacobian: torch.Tensor,
         joint_pos: torch.Tensor,
-        out: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Compute joint targets with orientation restricted to the configured wrist joints.
 
@@ -104,4 +103,4 @@ class SO101PoseIKController(DifferentialIKController):
         if self._ori_joint_mask is not None:
             jacobian = jacobian.clone()
             jacobian[:, 3:6, :] *= self._ori_joint_mask.view(1, 1, -1)
-        return super().compute(ee_pos, ee_quat, jacobian, joint_pos, out=out)
+        return super().compute(ee_pos, ee_quat, jacobian, joint_pos)

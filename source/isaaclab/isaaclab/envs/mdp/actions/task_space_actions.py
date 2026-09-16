@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -90,10 +89,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._ik_controller = self.cfg.controller.class_type(
             cfg=self.cfg.controller.replace(num_joints=self._num_joints), num_envs=self.num_envs, device=self.device
         )
-        # ``out`` is additive to the public controller API. Keep action terms compatible with custom controllers
-        # that override the historical four-argument ``compute`` method, while selecting the allocation-free path
-        # once at construction for controllers that accept it.
-        self._ik_compute_accepts_out = self._compute_accepts_out(self._ik_controller)
         # joint limits are injected lazily on the first apply (asset data is populated by then) so
         # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
         self._limits_injected = False
@@ -104,8 +99,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # owned buffer; _compute_frame_jacobian mutates this, not the data-layer view.
         self._jacobian_b = torch.zeros(self.num_envs, 6, len(self._jacobi_joint_ids), device=self.device)
-        # owned controller output buffer; passing it to compute avoids a per-step result allocation.
-        self._joint_pos_des = torch.zeros(self.num_envs, self._num_joints, device=self.device)
 
         # save the scale as tensors
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
@@ -219,14 +212,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
-            if self._ik_compute_accepts_out:
-                self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos, out=self._joint_pos_des)
-            else:
-                self._joint_pos_des.copy_(self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos))
+            joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
         else:
-            self._joint_pos_des.copy_(joint_pos)
+            joint_pos_des = joint_pos
         # set the joint position command
-        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
@@ -234,25 +224,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     """
     Helper functions.
     """
-
-    @staticmethod
-    def _compute_accepts_out(controller: object) -> bool:
-        """Return whether a controller's bound ``compute`` method accepts ``out``.
-
-        Args:
-            controller: Controller instance to inspect.
-
-        Returns:
-            Whether ``compute`` declares ``out`` or accepts arbitrary keyword arguments. Returns ``False`` when
-            the callable does not expose a Python signature.
-        """
-        try:
-            parameters = inspect.signature(controller.compute).parameters
-        except (TypeError, ValueError):
-            return False
-        return "out" in parameters or any(
-            parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()
-        )
 
     def _compute_frame_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the target frame in the root frame.

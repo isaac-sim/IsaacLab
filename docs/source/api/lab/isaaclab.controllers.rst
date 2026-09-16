@@ -21,8 +21,7 @@ Newton controller integration
 ``DifferentialIKController``, ``JointImpedanceController``, and ``OperationalSpaceController``
 use Newton's model-free controller APIs. They accept Torch tensors independently of the simulation
 backend. Isaac Lab resolves commands and gain schedules, copies inputs into persistent float32
-buffers, and invokes Newton's ``step()`` method. Returned tensors are independent snapshots;
-``DifferentialIKController.compute(out=...)`` can instead fill a caller-owned buffer.
+buffers, and invokes Newton's ``step()`` method. Returned tensors are independent snapshots.
 
 DiffIK and OSC require ``cfg.num_joints`` before construction, fixing the selected joint count
 for that controller's lifetime. Standalone callers must set this field. Action terms fill a copy

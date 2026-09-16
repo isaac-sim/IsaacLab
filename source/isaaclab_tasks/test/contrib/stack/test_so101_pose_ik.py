@@ -82,9 +82,7 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
     base.set_command(cmd)
     joint_pos = torch.zeros(1, _NUM_JOINTS)
-    out = torch.empty_like(joint_pos)
-    result = c.compute(ee_pos, ee_quat, jac, joint_pos, out=out)
-    assert result is out
+    result = c.compute(ee_pos, ee_quat, jac, joint_pos)
     torch.testing.assert_close(result, base.compute(ee_pos, ee_quat, task_jac, joint_pos))
     torch.testing.assert_close(jac, original_jac)
 

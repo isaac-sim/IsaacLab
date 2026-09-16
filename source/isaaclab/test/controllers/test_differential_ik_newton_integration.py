@@ -208,31 +208,28 @@ def test_command_and_bridge_buffers_keep_stable_addresses():
     jacobian = _well_conditioned_jacobian("cpu")
     target_pos_ptr = controller.ee_pos_des.data_ptr()
     target_quat_ptr = controller.ee_quat_des.data_ptr()
-    out = torch.empty_like(joint_pos)
 
     controller.set_command(command)
-    first_output = controller.compute(ee_pos, ee_quat, jacobian, joint_pos, out=out)
+    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     pointers = (
         controller._controller_input.tool_pose_world.ptr,
         controller._controller_input.jacobian_tool_world.ptr,
         controller._controller_input.joint_q.ptr,
-        first_output.data_ptr(),
     )
 
     controller.set_command(command.clone())
-    second_output = controller.compute(ee_pos.clone(), ee_quat.clone(), jacobian.clone(), joint_pos.clone(), out=out)
+    controller.compute(ee_pos.clone(), ee_quat.clone(), jacobian.clone(), joint_pos.clone())
     assert controller.ee_pos_des.data_ptr() == target_pos_ptr
     assert controller.ee_quat_des.data_ptr() == target_quat_ptr
     assert pointers == (
         controller._controller_input.tool_pose_world.ptr,
         controller._controller_input.jacobian_tool_world.ptr,
         controller._controller_input.joint_q.ptr,
-        second_output.data_ptr(),
     )
 
 
-def test_default_output_is_a_snapshot_and_out_is_caller_owned():
-    """Default results remain independent while the additive out path returns the caller's buffer."""
+def test_output_is_an_independent_snapshot():
+    """Returned results remain independent of later calls and caller mutations."""
     controller = _make_controller("trans")
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
     jacobian = _well_conditioned_jacobian("cpu")
@@ -245,10 +242,9 @@ def test_default_output_is_a_snapshot_and_out_is_caller_owned():
     assert first.data_ptr() != second.data_ptr()
     torch.testing.assert_close(first, first_snapshot)
 
-    out = torch.empty_like(joint_pos)
-    result = controller.compute(ee_pos, ee_quat, jacobian, joint_pos, out=out)
-    assert result is out
-    assert out.data_ptr() != joint_pos.data_ptr()
+    assert first.data_ptr() != joint_pos.data_ptr()
+    second.zero_()
+    torch.testing.assert_close(first, first_snapshot)
 
 
 @pytest.mark.parametrize("use_relative_mode", [False, True])
@@ -261,12 +257,6 @@ def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary(use_r
 
     result = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     assert result.dtype == torch.float64
-
-    out = torch.empty_like(joint_pos, dtype=torch.float16)
-    returned = controller.compute(ee_pos, ee_quat, jacobian, joint_pos, out=out)
-    assert returned is out
-    assert returned.dtype == torch.float16
-    torch.testing.assert_close(returned.float(), result.float(), atol=5.0e-4, rtol=5.0e-4)
 
 
 @pytest.mark.parametrize("device", ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else []))
@@ -299,16 +289,6 @@ def test_joint_limit_count_matches_initialized_controller():
         controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
 
 
-def test_compute_rejects_integral_out_buffer():
-    """The additive output-buffer API requires a floating-point destination."""
-    controller = _make_controller("dls")
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
-    controller.set_command(command)
-    out = torch.empty_like(joint_pos, dtype=torch.int64)
-    with pytest.raises(TypeError, match="out to be a floating-point tensor"):
-        controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos, out=out)
-
-
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for Warp graph capture")
 @pytest.mark.parametrize("use_relative_mode", [False, True])
 def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
@@ -321,12 +301,11 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
     controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     wp.synchronize_device(device)
 
-    out = torch.empty_like(joint_pos)
     stream = torch.cuda.Stream()
     stream.wait_stream(torch.cuda.current_stream())
     with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
         with wp.ScopedCapture(device=device) as capture:
-            controller.compute(ee_pos, ee_quat, jacobian, joint_pos, out=out)
+            result = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
         controller.set_command(
             torch.zeros(_NUM_ENVS, 6, device=device) if use_relative_mode else torch.cat((ee_pos, ee_quat), dim=-1),
             ee_pos,
@@ -334,7 +313,7 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
         )
         wp.capture_launch(capture.graph)
     wp.synchronize_device(device)
-    torch.testing.assert_close(out, joint_pos)
+    torch.testing.assert_close(result, joint_pos)
 
 
 def test_requires_joint_count_in_config():

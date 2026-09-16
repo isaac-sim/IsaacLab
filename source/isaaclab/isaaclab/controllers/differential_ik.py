@@ -222,7 +222,6 @@ class DifferentialIKController:
         ee_quat: torch.Tensor,
         jacobian: torch.Tensor,
         joint_pos: torch.Tensor,
-        out: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Computes the target joint positions that will yield the desired end effector pose.
 
@@ -232,23 +231,14 @@ class DifferentialIKController:
             jacobian: The geometric Jacobian in shape (N, 6, num_joints). Its linear rows map joint velocities
                 to [m/s], and its angular rows map joint velocities to [rad/s].
             joint_pos: The current joint positions [m or rad, depending on joint type] in shape (N, num_joints).
-            out: Optional joint-position output buffer [m or rad, depending on joint type] in shape
-                (N, num_joints). When provided, the result is copied into and returned from this buffer. This
-                avoids the allocation used for the default snapshot return.
 
         Returns:
-            Target joint positions [m or rad, depending on joint type] in shape (N, num_joints). With ``out=None``,
-            this is a newly allocated snapshot that remains unchanged by later calls. Otherwise, the supplied
-            ``out`` buffer is returned.
-
-        Raises:
-            TypeError: If ``out`` is not floating-point.
+            Target joint positions [m or rad, depending on joint type] in shape (N, num_joints).
+            The returned tensor is an independent snapshot that remains unchanged by later calls.
         """
         # -- fixed topology and output contract
         if joint_pos.shape[1] != self._num_joints:
             raise ValueError(f"Expected {self._num_joints} controlled joints, got {joint_pos.shape[1]}.")
-        if out is not None and not out.is_floating_point():
-            raise TypeError(f"Expected out to be a floating-point tensor, got {out.dtype}.")
         # -- Newton input ports
         self._task_jacobian.copy_(jacobian)
         self._joint_pos.copy_(joint_pos)
@@ -257,11 +247,8 @@ class DifferentialIKController:
         # -- solve and return
         # A unit time step preserves q_target = q + delta_q.
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=1.0)
-        if out is None:
-            output_dtype = joint_pos.dtype if joint_pos.is_floating_point() else torch.float32
-            return self._joint_pos_des.to(dtype=output_dtype, copy=True)
-        out.copy_(self._joint_pos_des)
-        return out
+        output_dtype = joint_pos.dtype if joint_pos.is_floating_point() else torch.float32
+        return self._joint_pos_des.to(dtype=output_dtype, copy=True)
 
     """
     Helper functions.
