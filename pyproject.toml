@@ -57,7 +57,7 @@ dependencies = [
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
     "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
-    "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.1
+    "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
     "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
@@ -148,7 +148,7 @@ sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 
 rl-games = [
-    "aiohttp>=3.12.14",
+    "aiohttp==3.14.1",  # match isaacsim-kernel 6.1
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@5cf4f9ff07e9a01bbefd167cf19b6804b294b51c",
     "gym",
     "standard-distutils",
