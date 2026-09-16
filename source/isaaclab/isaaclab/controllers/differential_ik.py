@@ -33,8 +33,7 @@ class DifferentialIKController:
     :math:`\Delta \mathbf{x}` is the desired change in pose, and :math:`\mathbf{q}_{\text{current}}`
     is the current joint positions.
 
-    Newton's model-free controller evaluates the IK solve in float32. Command resolution stays in Isaac Lab;
-    subclasses can restrict Jacobian columns through :meth:`_compute_task_jacobian`.
+    Newton's model-free controller evaluates the IK solve in float32. Command resolution stays in Isaac Lab.
 
     To deal with singularity in Jacobian, the following methods are supported for computing inverse of the Jacobian:
 
@@ -155,7 +154,6 @@ class DifferentialIKController:
             ValueError: If the command type is ``position_rel`` and :attr:`ee_pos` is None.
             ValueError: If the command type is ``pose_rel`` and either :attr:`ee_pos` or :attr:`ee_quat` is None.
             ValueError: If an input has an unexpected shape or device.
-            TypeError: If an input is not a :class:`torch.Tensor`.
         """
         self._validate_tensor(command, "command", (self.num_envs, self.action_dim))
         # store command
@@ -216,7 +214,6 @@ class DifferentialIKController:
 
         Raises:
             ValueError: If the limits have different lengths or an unexpected number of joints.
-            TypeError: If either limit is not a :class:`torch.Tensor`.
         """
         self._validate_tensor(lower, "lower", (None,), check_device=False)
         self._validate_tensor(upper, "upper", (None,), check_device=False)
@@ -265,8 +262,9 @@ class DifferentialIKController:
 
         Raises:
             ValueError: If an input has an unexpected shape or device.
-            TypeError: If an input is not a :class:`torch.Tensor`, or if ``out`` is not floating-point.
+            TypeError: If ``out`` is not floating-point.
         """
+        # -- input contract
         self._validate_tensor(joint_pos, "joint_pos", (self.num_envs, None))
         num_joints = joint_pos.shape[1]
         self._validate_tensor(ee_pos, "ee_pos", (self.num_envs, 3))
@@ -276,19 +274,15 @@ class DifferentialIKController:
             self._validate_tensor(out, "out", (self.num_envs, num_joints))
             if not out.is_floating_point():
                 raise TypeError(f"Expected out to be a floating-point tensor, got {out.dtype}.")
-        # The historical Torch implementation accepted integral tensors through implicit promotion. Preserve that
-        # public behavior while normalizing all inputs to the Newton controller's float32 bridge.
-        ee_pos_float = ee_pos.to(dtype=torch.float32)
-        ee_quat_float = ee_quat.to(dtype=torch.float32)
-        jacobian_float = jacobian.to(dtype=torch.float32)
-        joint_pos_float = joint_pos.to(dtype=torch.float32)
+        # -- Newton input ports
         self._initialize_controller(num_joints)
-        self._task_jacobian.copy_(self._compute_task_jacobian(jacobian_float))
-        self._joint_pos.copy_(joint_pos_float)
-        self._tool_pose[:, :3] = ee_pos_float
-        self._tool_pose[:, 3:] = ee_quat_float
+        self._task_jacobian.copy_(jacobian)
+        self._joint_pos.copy_(joint_pos)
+        self._tool_pose[:, :3] = ee_pos
+        self._tool_pose[:, 3:] = ee_quat
         self._desired_tool_pose[:, :3] = self.ee_pos_des
         self._desired_tool_pose[:, 3:] = self.ee_quat_des
+        # -- solve and return
         # A unit time step preserves q_target = q + delta_q.
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=1.0)
         if out is None:
@@ -309,20 +303,7 @@ class DifferentialIKController:
         *,
         check_device: bool = True,
     ) -> None:
-        """Validate a tensor before it crosses the stable Torch/Warp bridge.
-
-        Args:
-            tensor: Tensor to validate.
-            name: Argument name used in error messages.
-            expected_shape: Required shape, with ``None`` for a dimension whose size is unconstrained.
-            check_device: Whether to require the controller device.
-
-        Raises:
-            ValueError: If the tensor has an unexpected shape or device.
-            TypeError: If the value is not a :class:`torch.Tensor`.
-        """
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(f"Expected {name} to be a torch.Tensor, got {type(tensor).__name__}.")
+        """Reject shape broadcasting and implicit device transfers at the input boundary."""
         if check_device and tensor.device != self._torch_device:
             raise ValueError(f"Expected {name} on {self._torch_device}, got {tensor.device}.")
         if tensor.ndim != len(expected_shape) or any(
@@ -340,6 +321,7 @@ class DifferentialIKController:
             return
         if self._joint_pos_lower is not None and self._joint_pos_lower.shape[0] != num_joints:
             raise ValueError(f"Expected limits for {num_joints} joints, got {self._joint_pos_lower.shape[0]}.")
+        # -- translate Isaac Lab solver configuration
         method_map = {
             "pinv": DifferentialIKMethod.PSEUDO_INVERSE,
             "svd": DifferentialIKMethod.TRUNCATED_SVD,
@@ -364,6 +346,7 @@ class DifferentialIKController:
         )
         method = "dls" if fixed_adaptive else self.cfg.ik_method
         self._use_joint_limits = self.cfg.joint_limit_avoidance_gain > 0.0 and self._joint_pos_lower is not None
+        # -- construct Newton controller and ports
         self._controller = ControllerDifferentialIKModelFree(
             controlled_dofs_per_robot=wp.full(self.num_envs, num_joints, dtype=wp.int32, device=self._device),
             axis_weight=wp.spatial_vector(*axis_weight),
@@ -391,16 +374,9 @@ class DifferentialIKController:
         self._num_joints = num_joints
         self._controller_input = self._controller.input()
         self._controller_output = self._controller.output()
-        self._task_jacobian = torch.zeros(self.num_envs, 6, num_joints, device=self._device)
-        self._joint_pos = torch.zeros(self.num_envs, num_joints, device=self._device)
-        self._tool_pose = torch.zeros(self.num_envs, 7, device=self._device)
-        self._desired_tool_pose = torch.zeros_like(self._tool_pose)
-        self._controller_input.jacobian_tool_world = wp.from_torch(self._task_jacobian)
-        self._controller_input.joint_q = wp.from_torch(self._joint_pos.view(-1))
-        self._controller_input.tool_pose_world = wp.from_torch(self._tool_pose, dtype=wp.transform)
-        self._controller_input.desired_tool_pose_world = wp.from_torch(self._desired_tool_pose, dtype=wp.transform)
+        # -- Torch views of Newton-owned arrays
+        self._task_jacobian = wp.to_torch(self._controller_input.jacobian_tool_world)
+        self._joint_pos = wp.to_torch(self._controller_input.joint_q).view(self.num_envs, num_joints)
+        self._tool_pose = wp.to_torch(self._controller_input.tool_pose_world)
+        self._desired_tool_pose = wp.to_torch(self._controller_input.desired_tool_pose_world)
         self._joint_pos_des = wp.to_torch(self._controller_output.joint_q_target).view(self.num_envs, num_joints)
-
-    def _compute_task_jacobian(self, jacobian: torch.Tensor) -> torch.Tensor:
-        """Return the geometric Jacobian, allowing subclasses to restrict task columns before solving."""
-        return jacobian

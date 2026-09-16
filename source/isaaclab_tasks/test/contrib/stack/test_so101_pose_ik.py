@@ -19,6 +19,8 @@ import math
 import pytest
 import torch
 
+from isaaclab.controllers.differential_ik import DifferentialIKController
+
 from isaaclab_tasks.contrib.stack.config.so101.pose_ik_controller import (
     SO101PoseIKController,
     SO101PoseIKControllerCfg,
@@ -71,31 +73,31 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     c = _make_controller(orientation_weight=1.0)
     c.set_orientation_joint_mask(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0]))  # wrist joints only
     c.set_command(cmd)
-    task_jac = c._compute_task_jacobian(jac)
+    original_jac = jac.clone()
+    task_jac = jac.clone()
+    task_jac[:, 3:, :3] = 0.0
 
-    # position rows keep every joint (unchanged from the raw Jacobian linear block)
-    torch.testing.assert_close(task_jac[:, :3, :], jac[:, 0:3, :])
-    # orientation rows: masked-out joints (cols 0..2) zeroed; allowed wrist joints (cols 3,4) kept
-    torch.testing.assert_close(task_jac[:, 3:6, 0:3], torch.zeros(1, 3, 3))
-    torch.testing.assert_close(task_jac[:, 3:6, 3:5], jac[:, 3:6, 3:5])
-
-    # the mask limits which joints reduce the orientation error; it does not alter the error
-    base = _make_controller(orientation_weight=1.0)
+    # Reference: the base solver receives a Jacobian with only wrist orientation columns.
+    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
     base.set_command(cmd)
     joint_pos = torch.zeros(1, _NUM_JOINTS)
-    torch.testing.assert_close(
-        c.compute(ee_pos, ee_quat, jac, joint_pos),
-        base.compute(ee_pos, ee_quat, task_jac, joint_pos),
-    )
+    out = torch.empty_like(joint_pos)
+    result = c.compute(ee_pos, ee_quat, jac, joint_pos, out=out)
+    assert result is out
+    torch.testing.assert_close(result, base.compute(ee_pos, ee_quat, task_jac, joint_pos))
+    torch.testing.assert_close(jac, original_jac)
 
 
 def test_mask_none_leaves_orientation_unmasked():
-    """Without a mask, the SO-101 pose task matches the (orientation-weighted) core task."""
+    """Without a mask, the SO-101 controller matches the base solver."""
     jac = torch.arange(6 * _NUM_JOINTS, dtype=torch.float32).reshape(1, 6, _NUM_JOINTS)
     c = _make_controller(orientation_weight=1.0)
-    c.set_command(torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([1.0, 0.0, 0.0], 0.5)]))
-    task_jac = c._compute_task_jacobian(jac)
-    torch.testing.assert_close(task_jac, jac)
+    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
+    command = torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([1.0, 0.0, 0.0], 0.5)])
+    c.set_command(command)
+    base.set_command(command)
+    inputs = (torch.zeros(1, 3), torch.tensor([_ID_QUAT]), jac, torch.zeros(1, _NUM_JOINTS))
+    torch.testing.assert_close(c.compute(*inputs), base.compute(*inputs))
 
 
 def test_compute_returns_joint_targets_shape():

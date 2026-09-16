@@ -75,7 +75,7 @@ class JointImpedanceController:
         self._damping_ratio_limits[..., 0] = self.cfg.damping_ratio_limits[0]
         self._damping_ratio_limits[..., 1] = self.cfg.damping_ratio_limits[1]
 
-        # build the Newton controller backend and the persistent Torch/Warp bridge buffers
+        # Initialize Newton ports and transfer the gain schedule to their Torch views.
         self._initialize_controller()
 
     """
@@ -171,7 +171,7 @@ class JointImpedanceController:
         Returns:
             The target joint torques commands.
         """
-        # resolve the command type into an absolute desired joint position
+        # -- command preparation
         if self.cfg.command_type == "p_abs":
             desired_dof_pos = self._dof_pos_target + self._dof_pos_offset
         elif self.cfg.command_type == "p_rel":
@@ -181,7 +181,7 @@ class JointImpedanceController:
         # clamp the desired position to the joint limits before handing it to the solver
         desired_dof_pos = desired_dof_pos.clip(min=self._dof_pos_limits[..., 0], max=self._dof_pos_limits[..., 1])
 
-        # fill the persistent bridge buffers in place so the Warp views observe the new data
+        # -- Newton input ports
         self._joint_q_des.copy_(desired_dof_pos)
         self._joint_q.copy_(dof_pos)
         self._joint_qd.copy_(dof_vel)
@@ -190,8 +190,7 @@ class JointImpedanceController:
         if self.cfg.gravity_compensation:
             self._gravity.copy_(gravity)
 
-        # evaluate the impedance law on the Newton backend and return an independent torque snapshot;
-        # ``dt`` is unused by the impedance law and is accepted only for API symmetry
+        # -- solve and return an independent snapshot (dt is unused)
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
         return self._joint_f.to(
             dtype=torch.promote_types(torch.float32, torch.promote_types(dof_pos.dtype, dof_vel.dtype)), copy=True
@@ -202,19 +201,15 @@ class JointImpedanceController:
     """
 
     def _initialize_controller(self) -> None:
-        """Construct the Newton controller and wire the persistent Torch/Warp bridge buffers.
-
-        The import is deferred to construction so importing this module never requires Newton; only
-        instantiating the controller does.
-        """
+        """Construct Newton ports and expose their arrays as Torch views."""
         from newton.controllers import ControllerJointImpedanceModelFree
 
         num_robots, num_dof = self.num_robots, self.num_dof
 
-        # homogeneous fleet: every robot contributes the same number of controlled DOFs
+        # -- construct Newton controller and ports
         controlled_dofs_per_robot = wp.full(num_robots, num_dof, dtype=wp.int32, device=self._device)
 
-        # ``None`` keeps the gains as live input ports (updated per-step for the variable impedance modes)
+        # Gains remain live inputs for variable impedance modes.
         self._controller = ControllerJointImpedanceModelFree(
             controlled_dofs_per_robot=controlled_dofs_per_robot,
             stiffness=None,
@@ -228,27 +223,19 @@ class JointImpedanceController:
         self._controller_input = self._controller.input()
         self._controller_output = self._controller.output()
 
-        # persistent bridge buffers: 2-D Torch tensors flattened into the controller's 1-D DOF ports
-        self._joint_q = torch.zeros(num_robots, num_dof, device=self._device)
-        self._joint_qd = torch.zeros(num_robots, num_dof, device=self._device)
-        self._joint_q_des = torch.zeros(num_robots, num_dof, device=self._device)
-        # desired velocity is always zero (Isaac Lab regulates about zero joint velocity)
-        self._joint_qd_des = torch.zeros(num_robots, num_dof, device=self._device)
-        self._controller_input.joint_q = wp.from_torch(self._joint_q.view(-1))
-        self._controller_input.joint_qd = wp.from_torch(self._joint_qd.view(-1))
-        self._controller_input.joint_q_des = wp.from_torch(self._joint_q_des.view(-1))
-        self._controller_input.joint_qd_des = wp.from_torch(self._joint_qd_des.view(-1))
-
-        # gains bind directly to the schedule buffers so ``set_command`` updates propagate in place
-        self._controller_input.stiffness = wp.from_torch(self._p_gains.view(-1))
-        self._controller_input.damping = wp.from_torch(self._d_gains.view(-1))
-
+        # -- Torch views of Newton-owned arrays
+        inputs = self._controller_input
+        self._joint_q = wp.to_torch(inputs.joint_q).view(num_robots, num_dof)
+        self._joint_qd = wp.to_torch(inputs.joint_qd).view(num_robots, num_dof)
+        self._joint_q_des = wp.to_torch(inputs.joint_q_des).view(num_robots, num_dof)
+        # Newton initializes the desired velocity port to zero.
+        p_gains = wp.to_torch(inputs.stiffness).view(num_robots, num_dof)
+        d_gains = wp.to_torch(inputs.damping).view(num_robots, num_dof)
+        p_gains.copy_(self._p_gains)
+        d_gains.copy_(self._d_gains)
+        self._p_gains, self._d_gains = p_gains, d_gains
         if self.cfg.gravity_compensation:
-            self._gravity = torch.zeros(num_robots, num_dof, device=self._device)
-            self._controller_input.gravity_force = wp.from_torch(self._gravity.view(-1))
+            self._gravity = wp.to_torch(inputs.gravity_force).view(num_robots, num_dof)
         if self.cfg.inertial_compensation:
-            self._mass_matrix = torch.zeros(num_robots, num_dof, num_dof, device=self._device)
-            self._controller_input.mass_matrix = wp.from_torch(self._mass_matrix)
-
-        # torque output aliases the controller's flat output port, reshaped to (num_robots, num_dof)
+            self._mass_matrix = wp.to_torch(inputs.mass_matrix)
         self._joint_f = wp.to_torch(self._controller_output.joint_f).view(num_robots, num_dof)
