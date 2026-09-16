@@ -506,7 +506,9 @@ class BaseArticulation(AssetBase):
             axis = paths.joint_axes.get(row)
             if axis is None:
                 raise NotImplementedError(f"Unsupported driven joint {path} ({prim.GetTypeName()}).")
-            writer.write_properties(path, axis, data, row=row, fields=self.actuators.usd_override_fields(row))
+            writer.write_properties(
+                path, axis, data, row=row, fields=self.actuators.usd_override_fields(row, env_index=writer.env_index)
+            )
 
     @abstractmethod
     def reset(
