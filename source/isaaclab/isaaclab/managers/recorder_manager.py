@@ -9,7 +9,7 @@ from __future__ import annotations
 import enum
 import os
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 import warp as wp
@@ -71,6 +71,9 @@ class RecorderTerm(ManagerTermBase):
           and before the action is applied by the action manager.
     * Post-step recording: This callback is invoked at the end of `env.step()` when all the managers are processed.
     """
+
+    requires_post_step_observation: ClassVar[bool] = True
+    """Whether fresh observations are required before invoking :meth:`record_post_step`."""
 
     def __init__(self, cfg: RecorderTermCfg, env: ManagerBasedEnv):
         """Initialize the recorder term.
@@ -231,6 +234,14 @@ class RecorderManager(ManagerBase):
     def active_terms(self) -> list[str]:
         """Name of active recorder terms."""
         return self._term_names
+
+    @property
+    def requires_post_step_observation(self) -> bool:
+        """Whether any active post-step recorder term requires fresh observations."""
+        return any(
+            term.__class__.record_post_step is not RecorderTerm.record_post_step and term.requires_post_step_observation
+            for term in self._terms.values()
+        )
 
     @property
     def exported_successful_episode_count(self, env_id=None) -> int:

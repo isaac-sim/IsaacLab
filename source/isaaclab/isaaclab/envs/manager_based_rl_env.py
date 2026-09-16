@@ -254,10 +254,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        if len(self.recorder_manager.active_terms) > 0:
+        if self.recorder_manager.requires_post_step_observation:
             # update observations for recording if needed
             self.obs_buf = self.observation_manager.compute()
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import ClassVar
 
 import torch
 
@@ -27,6 +28,8 @@ class InitialStateRecorder(RecorderTerm):
 class PostStepStatesRecorder(RecorderTerm):
     """Recorder term that records the state of the environment at the end of each step."""
 
+    requires_post_step_observation: ClassVar[bool] = False
+
     def record_post_step(self):
         return "states", self._env.scene.get_state(is_relative=True)
 
@@ -47,6 +50,8 @@ class PreStepFlatPolicyObservationsRecorder(RecorderTerm):
 
 class PostStepProcessedActionsRecorder(RecorderTerm):
     """Recorder term that records processed actions at the end of each step."""
+
+    requires_post_step_observation: ClassVar[bool] = False
 
     def record_post_step(self):
         processed_actions = None
