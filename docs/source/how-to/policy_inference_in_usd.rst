@@ -110,7 +110,7 @@ We can then load the warehouse asset and run inference on the H1 robot using the
         ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt physics=newton_mjwarp --viz newton_gl
 
 
-.. figure:: ../_static/tutorials/tutorial_policy_inference_newton.png
+.. figure:: ../_static/tutorials/tutorial_policy_inference_in_usd.jpg
     :align: center
     :figwidth: 100%
     :alt: H1 policy running in a warehouse USD scene
