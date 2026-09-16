@@ -60,6 +60,7 @@ RUN apt-get update && \
     ncurses-term \
     cmake \
     git \
+    curl \
     wget
 
 # Install the Carbonite environment shim that serializes glibc environment
