@@ -187,17 +187,17 @@ def test_reach_default_preset_does_not_configure_se3_teleop_devices():
     assert cfg.teleop_devices.devices == {}
 
 
-def test_reach_success_requires_position_and_orientation():
+def test_reach_tracks_success_without_terminating():
     cfg = _load_env_cfg()
-    success = cfg.terminations.success
 
     assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
     assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-    assert success.func is mdp.pose_command_success
-    assert success.params == {"command_name": "ee_pose"}
-    assert cfg.rewards.success.func.__name__ == "is_terminated_term"
-    assert cfg.rewards.success.weight == pytest.approx(10.0)
-    assert cfg.rewards.success.params == {"term_keys": ["success"]}
+    assert not hasattr(cfg.terminations, "success")
+    assert cfg.terminations.time_out.func is mdp.time_out
+    assert not hasattr(cfg.rewards, "success")
+    assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
+    assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
+    assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
 
     angles = torch.tensor([0.19, 0.19, 0.21])
     body_quaternions = torch.zeros(3, 1, 4)
@@ -221,20 +221,14 @@ def test_reach_success_requires_position_and_orientation():
     command._track_success = True
     command._succeeded = torch.zeros(3, dtype=torch.bool)
 
-    class CommandManager:
-        def get_term(self, name):
-            assert name == "ee_pose"
-            return command
-
-    env = SimpleNamespace(command_manager=CommandManager())
-    succeeded = mdp.pose_command_success(env, **success.params)
+    succeeded = command.compute_success()
 
     assert torch.equal(succeeded, torch.tensor([True, False, False]))
     assert torch.equal(command._succeeded, succeeded)
 
     command.cfg = command.cfg.replace(orientation_success_threshold=None)
     command._succeeded.zero_()
-    position_only_succeeded = mdp.pose_command_success(env, **success.params)
+    position_only_succeeded = command.compute_success()
 
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
