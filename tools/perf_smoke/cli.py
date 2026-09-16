@@ -41,8 +41,8 @@ def _load_json(path: Path, name: str) -> dict:
     except OSError as exc:
         # A bad path should surface as a gate error.
         raise metrics_mod.PerfSmokeError(f"{name} could not be read: {path} ({exc})") from exc
-    except json.JSONDecodeError as exc:
-        raise metrics_mod.PerfSmokeError(f"{name} is not valid JSON: {exc}") from exc
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise metrics_mod.PerfSmokeError(f"{name} is not valid UTF-8 JSON: {exc}") from exc
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
@@ -73,7 +73,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
             else:
                 rows = store_mod.read(key.hash, compare_mod.MAX_BASELINE_SAMPLES)
                 # The storage key is a truncation of the contract digest; need a full match.
-                history = [row.metrics for row in rows if contract_mod.from_dict(row.contract).matches(key)]
+                expected_contract = key.as_dict()
+                history = [row.metrics for row in rows if row.contract == expected_contract]
                 report = compare_mod.compare(
                     key,
                     measurements,

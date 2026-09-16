@@ -1043,10 +1043,20 @@ jobs:
         # World-writable so the in-container user (uid 1000) can populate the cache
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
 
+        container=""
+        cleanup_container() {
+          if [ -n "$container" ]; then
+            docker rm -f "$container" >/dev/null 2>&1 || true
+          fi
+        }
+        trap cleanup_container EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+
         run_attempt() {
           local attempt="$1"
-          local container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${sample}-${attempt}"
-          docker rm -f "$container" >/dev/null 2>&1 || true
+          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${sample}-${attempt}"
+          cleanup_container
           timeout "${BENCH_TIMEOUT_S}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e OMNI_KIT_ACCEPT_EULA=yes \
             -e ACCEPT_EULA=Y \
@@ -1069,7 +1079,8 @@ jobs:
               $BENCHMARK_ARGS"
           local status=$?
           docker cp "$container:/tmp/benchmark-output/." "benchmark-output/sample-${sample}/" 2>/dev/null || true
-          docker rm -f "$container" >/dev/null 2>&1 || true
+          cleanup_container
+          container=""
           local -a bundles
           mapfile -t bundles < <(find "benchmark-output/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
           if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then

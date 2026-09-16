@@ -118,7 +118,9 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
         fail = number(override["fail_regression_pct"], f"per_task_regression_pct.{task}.fail_regression_pct")
     if not 0 <= warn <= fail < 100:
         raise PerfSmokeError(f"regression percentages must satisfy 0 <= warn <= fail < 100 for {task}")
-    advisory_only = bool(override.get("advisory_only", False))
+    advisory_only = override.get("advisory_only", False)
+    if not isinstance(advisory_only, bool):
+        raise PerfSmokeError(f"per_task_regression_pct.{task}.advisory_only must be a boolean")
 
     floors = _clean(root.get("hard_floor_fps", {}), "hard_floor_fps")
     by_task = _clean(floors.get(gpu_model, {}), f"hard_floor_fps.{gpu_model}")

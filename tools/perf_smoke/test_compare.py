@@ -107,9 +107,14 @@ class TestAsvComparison(unittest.TestCase):
         self.assertEqual(self.evaluate([0] * 3, [100] * 3).verdict, compare.SKIP)
 
     def test_invalid_policy_is_rejected(self):
-        self.policy["defaults"]["fail_regression_pct"] = 100
-        with self.assertRaises(PerfSmokeError):
-            self.evaluate([100] * 3, [80] * 3)
+        for policy in (
+            {"defaults": {"fail_regression_pct": 100}},
+            {"per_task_regression_pct": {"task": {"advisory_only": "false"}}},
+        ):
+            with self.subTest(policy=policy):
+                self.policy = policy
+                with self.assertRaises(PerfSmokeError):
+                    self.evaluate([100] * 3, [80] * 3)
 
     def test_cli_filters_contracts_and_preserves_failure_in_aggregate(self):
         matching = BaselineRow(self.contract.as_dict(), self.contract.hash, _measurement(100), "commit", "date", "run")
@@ -144,11 +149,15 @@ class TestAsvComparison(unittest.TestCase):
                 self.assertEqual(cli.main(["aggregate", "--comparison_dir", directory]), 1)
 
     def test_cli_infrastructure_errors_and_missing_credentials_do_not_gate(self):
-        for configured, expected in ((False, compare.SKIP), (True, compare.ERROR)):
-            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as directory:
+        for configured, contents, expected in (
+            (False, b"{}", compare.SKIP),
+            (True, b"{}", compare.ERROR),
+            (True, b"\xff", compare.ERROR),
+        ):
+            with self.subTest(configured=configured, contents=contents), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 bundle = root / "bundle.json"
-                bundle.write_text("{}")
+                bundle.write_bytes(contents)
                 output = root / "comparison.json"
                 with (
                     contextlib.redirect_stdout(io.StringIO()),
