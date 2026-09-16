@@ -87,29 +87,29 @@ FRANKA_PANDA_MENAGERIE_CFG.actuators = {
         joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
         stiffness=None,
         damping=None,
-        viscous_friction=0.0,
+        viscous_friction={"panda_joint[1-4]": 40.0, "panda_joint[5-7]": 2.0},
     ),
     "panda_hand": ImplicitActuatorCfg(
         joint_names_expr=["panda_finger_joint1"],
         joint_effort_limit=200.0,
         stiffness=None,
         damping=None,
-        viscous_friction=0.0,
+        viscous_friction=10.0,
     ),
     "panda_finger2_passive": ImplicitActuatorCfg(
         joint_names_expr=["panda_finger_joint2"],
         joint_effort_limit=200.0,
         stiffness=0.0,
         damping=0.0,
-        viscous_friction=0.0,
+        viscous_friction=10.0,
     ),
 }
 """Configuration of the MuJoCo Menagerie-derived Franka Emika Panda robot.
 
 The converted model has different inertial and drive authoring from the legacy asset used by
 :attr:`FRANKA_PANDA_CFG`. Explicit solver properties keep its actuator contract consistent across
-physics payloads. Only the leading finger has an active drive; the authored mimic constraint moves
-the passive follower.
+physics payloads, including the passive joint damping authored in the MuJoCo payload. Only the
+leading finger has an active drive; the authored mimic constraint moves the passive follower.
 """
 
 

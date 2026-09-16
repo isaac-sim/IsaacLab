@@ -27,6 +27,17 @@ def _matches_environment_path(pattern: str, path: str) -> bool:
     return re.fullmatch(pattern.replace("{ENV_REGEX_NS}", _ENV_ROOT), path) is not None
 
 
+def _assert_menagerie_passive_damping(cfg) -> None:
+    """All task actuator overrides preserve the damping identified by the source model."""
+    actuators = cfg.scene.robot.actuators
+    assert actuators["panda_arm"].viscous_friction == {
+        "panda_joint[1-4]": 40.0,
+        "panda_joint[5-7]": 2.0,
+    }
+    assert actuators["panda_hand"].viscous_friction == 10.0
+    assert actuators["panda_finger2_passive"].viscous_friction == 10.0
+
+
 @pytest.mark.parametrize(
     "task",
     [
@@ -53,7 +64,7 @@ def test_rigid_franka_tasks_use_validated_collider_lods(
 
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
     assert cfg.scene.robot.spawn.variants == expected_variants
-    assert all(actuator.viscous_friction == 0.0 for actuator in cfg.scene.robot.actuators.values())
+    _assert_menagerie_passive_damping(cfg)
 
 
 def test_lift_auto_physx_uses_ovphysx_compatible_object_setup() -> None:
@@ -89,7 +100,7 @@ def test_deformable_franka_tasks_use_gripper_only_colliders(task: str, selected_
     expected_physics = "physx" if selected_presets[0] == "isaacsim_physx" else "mujoco"
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "gripper_only"}
-    assert all(actuator.viscous_friction == 0.0 for actuator in cfg.scene.robot.actuators.values())
+    _assert_menagerie_passive_damping(cfg)
 
 
 def test_franka_cabinet_frame_paths_match_menagerie_hierarchy() -> None:

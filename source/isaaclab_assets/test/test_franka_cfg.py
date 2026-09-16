@@ -21,14 +21,14 @@ def test_franka_menagerie_actuators_define_backend_invariant_properties() -> Non
     follower = FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_finger2_passive"]
 
     assert arm.joint_effort_limit == {"panda_joint[1-4]": 100.0, "panda_joint[5-7]": 12.0}
-    assert arm.viscous_friction == 0.0
+    assert arm.viscous_friction == {"panda_joint[1-4]": 40.0, "panda_joint[5-7]": 2.0}
     assert hand.joint_names_expr == ["panda_finger_joint1"]
     assert hand.joint_effort_limit == 200.0
     assert hand.stiffness is None
     assert hand.damping is None
-    assert hand.viscous_friction == 0.0
+    assert hand.viscous_friction == 10.0
     assert follower.joint_names_expr == ["panda_finger_joint2"]
     assert follower.joint_effort_limit == 200.0
     assert follower.stiffness == 0.0
     assert follower.damping == 0.0
-    assert follower.viscous_friction == 0.0
+    assert follower.viscous_friction == 10.0
