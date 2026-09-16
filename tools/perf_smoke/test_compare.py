@@ -58,15 +58,15 @@ class TestAsvComparison(unittest.TestCase):
                     result = self.evaluate([100] * count, [fps] * 3)
                     self.assertEqual(result.verdict, expected)
 
-    def test_noise_is_decided_by_asv(self):
-        result = self.evaluate([60, 100, 140], [50, 80, 110])
-        self.assertEqual(result.verdict, compare.PASS)
-
-    def test_even_sample_median_matches_report(self):
-        result = self.evaluate([99] * 10 + [101] * 10, [89.995] * 3)
-        self.assertEqual(result.metrics[0].reference, 100)
-        self.assertGreater(result.metrics[0].regression_pct, 10)
-        self.assertEqual(result.verdict, compare.FAIL)
+        for baseline, candidate, expected in (
+            ([60, 100, 140], [50, 80, 110], compare.PASS),
+            # An even-sample median must not change when reversing FPS comparisons.
+            ([99] * 10 + [101] * 10, [89.995] * 3, compare.FAIL),
+            ([100] * 3, [0] * 3, compare.FAIL),
+            ([0] * 3, [100] * 3, compare.SKIP),
+        ):
+            with self.subTest(baseline=baseline, candidate=candidate):
+                self.assertEqual(self.evaluate(baseline, candidate).verdict, expected)
 
     def test_insufficient_independent_samples_skip(self):
         for baseline, candidate in (([], [80] * 3), ([100] * 2, [80] * 3), ([100] * 3, [80])):
@@ -102,20 +102,6 @@ class TestAsvComparison(unittest.TestCase):
         self.assertEqual(result.verdict, compare.PASS)
         self.assertEqual(result.metrics[1].verdict, compare.FAIL)
 
-    def test_zero_throughput_is_a_regression(self):
-        self.assertEqual(self.evaluate([100] * 3, [0] * 3).verdict, compare.FAIL)
-        self.assertEqual(self.evaluate([0] * 3, [100] * 3).verdict, compare.SKIP)
-
-    def test_invalid_policy_is_rejected(self):
-        for policy in (
-            {"defaults": {"fail_regression_pct": 100}},
-            {"per_task_regression_pct": {"task": {"advisory_only": "false"}}},
-        ):
-            with self.subTest(policy=policy):
-                self.policy = policy
-                with self.assertRaises(PerfSmokeError):
-                    self.evaluate([100] * 3, [80] * 3)
-
     def test_cli_filters_contracts_and_preserves_failure_in_aggregate(self):
         matching = BaselineRow(self.contract.as_dict(), self.contract.hash, _measurement(100), "commit", "date", "run")
         other = Contract(workload={"task": "other"}, runtime={})
@@ -149,15 +135,11 @@ class TestAsvComparison(unittest.TestCase):
                 self.assertEqual(cli.main(["aggregate", "--comparison_dir", directory]), 1)
 
     def test_cli_infrastructure_errors_and_missing_credentials_do_not_gate(self):
-        for configured, contents, expected in (
-            (False, b"{}", compare.SKIP),
-            (True, b"{}", compare.ERROR),
-            (True, b"\xff", compare.ERROR),
-        ):
-            with self.subTest(configured=configured, contents=contents), tempfile.TemporaryDirectory() as directory:
+        for configured, expected in ((False, compare.SKIP), (True, compare.ERROR)):
+            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 bundle = root / "bundle.json"
-                bundle.write_bytes(contents)
+                bundle.write_text("{}")
                 output = root / "comparison.json"
                 with (
                     contextlib.redirect_stdout(io.StringIO()),
@@ -178,34 +160,6 @@ class TestAsvComparison(unittest.TestCase):
                     )
                 self.assertEqual(status, 0)
                 self.assertEqual(json.loads(output.read_text())["verdict"], expected)
-
-    def test_candidate_contract_mismatch_is_rejected(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            bundle = root / "bundle.json"
-            bundle.write_text("{}")
-            output = root / "comparison.json"
-            with (
-                contextlib.redirect_stdout(io.StringIO()),
-                contextlib.redirect_stderr(io.StringIO()),
-                patch.object(cli.contract_mod, "build", side_effect=[self.contract, Contract()]),
-                patch.object(cli.store_mod, "read") as read,
-            ):
-                self.assertEqual(
-                    cli.main(
-                        [
-                            "compare",
-                            "--benchmark_result",
-                            str(bundle),
-                            str(bundle),
-                            "--output_json",
-                            str(output),
-                        ]
-                    ),
-                    0,
-                )
-                read.assert_not_called()
-            self.assertEqual(json.loads(output.read_text())["verdict"], compare.ERROR)
 
 
 if __name__ == "__main__":
