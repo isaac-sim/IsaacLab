@@ -9,7 +9,7 @@
 import numpy as np
 from newton.usd import PrimType, SchemaResolverNewton
 
-from isaaclab.assets.physics_properties import UsdAttribute, source_units, usd_field
+from isaaclab.assets.physics_properties import UsdAttribute, property_metadata, source_units, usd_field, usd_fields
 
 
 class NewtonContactData:
@@ -17,6 +17,32 @@ class NewtonContactData:
 
     def __init__(self, model):
         self.model = model
+
+    @classmethod
+    def restore_fixed_configuration(cls, prim, builder, row: int) -> None:
+        """Restore declared contacts on geometry constructed outside native USD import."""
+        from pxr import UsdGeom, UsdPhysics, UsdShade
+
+        from isaaclab.sim.usd_units import UnitConverter, UsdPhysicsUnits
+
+        material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
+        for name, declarations in usd_fields(cls).items():
+            scope = property_metadata(cls, name, "_usd_field")[2]
+            owner = material.GetPrim() if scope == "material" else prim
+            if not owner:
+                continue
+            for declaration in declarations:
+                value = owner.GetAttribute(declaration.attribute).Get()
+                if value is None:
+                    continue
+                value = UnitConverter.convert(
+                    value,
+                    UsdPhysicsUnits.for_attribute(owner, declaration, None),
+                    property_metadata(cls, name, "_source_units"),
+                    length=UsdGeom.GetStageMetersPerUnit(prim.GetStage()),
+                    mass=UsdPhysics.GetStageKilogramsPerUnit(prim.GetStage()),
+                )
+                getattr(builder, name)[row] = float(value)
 
     @property
     @source_units("m")

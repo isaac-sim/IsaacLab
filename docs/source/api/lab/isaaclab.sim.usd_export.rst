@@ -124,8 +124,22 @@ solver settings. For cables, request ``return_deformable_results=True`` from ``a
 and call ``CableObject.restore_fixed_configuration(stage, builder,
 info.get("path_cable_map", {}))`` before finalization to restore contact supplements
 that native curve import does not read. No duplicate deployment model/solver loader is
-provided. Source terrain meshes remain in USD; a consumer's heightfield substitution
-requires separate validation.
+provided. Source terrain meshes remain in USD. Newton's native USD reader does not
+interpret the terrain heightfield marker. A consumer matching Isaac Lab's terrain
+representation can reuse its existing geometry adapter before ``add_usd``::
+
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.assets.physics_properties import NewtonContactData
+
+    terrain_paths = NewtonManager._inject_terrain_heightfields(stage, builder, root_paths=("/",))
+    for row, shape_path in enumerate(builder.shape_label):
+        NewtonContactData.restore_fixed_configuration(stage.GetPrimAtPath(shape_path), builder, row)
+    # Pass ignore_paths=terrain_paths to add_usd to avoid importing the terrain twice.
+
+This reuses normal terrain construction and reads contacts from the data declarations;
+it does not depend on solver metadata. It is
+an Isaac Lab adapter, not a native Newton/USD heightfield schema. Loading the mesh directly
+is a different geometry representation and needs its own physical-semantics validation.
 
 Set ``include_solver_settings=True`` on ``scene.export_to_usd`` to request available
 Newton MJWarp settings. Other Newton solvers still export scene/assets; VBD, XPBD,

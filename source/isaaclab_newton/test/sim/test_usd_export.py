@@ -15,6 +15,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 def _load(path: str, device="cpu", solver_name="mujoco") -> tuple[newton.Model, dict]:
     """Use native USD import; cable supplements are read by their existing asset owner."""
     from isaaclab_newton.assets.cable_object.cable_object import CableObject
+    from isaaclab_newton.assets.physics_properties import NewtonContactData
+    from isaaclab_newton.physics import NewtonManager
     from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
     builder = newton.ModelBuilder()
@@ -26,10 +28,15 @@ def _load(path: str, device="cpu", solver_name="mujoco") -> tuple[newton.Model, 
     }[solver_name]
     solver_type.register_custom_attributes(builder)
     stage = Usd.Stage.Open(path)
+    # Reuse the normal terrain adapter where native USD import has no heightfield support.
+    terrain_paths = NewtonManager._inject_terrain_heightfields(stage, builder, root_paths=("/",))
+    for row, shape_path in enumerate(builder.shape_label):
+        NewtonContactData.restore_fixed_configuration(stage.GetPrimAtPath(shape_path), builder, row)
     info = builder.add_usd(
         path,
         schema_resolvers=[SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()],
         return_deformable_results=True,
+        ignore_paths=terrain_paths,
         **stage.GetRootLayer().customLayerData.get("isaaclab:newtonImportOptions", {}),
     )
     CableObject.restore_fixed_configuration(stage, builder, info.get("path_cable_map", {}))
@@ -603,6 +610,13 @@ def test_fixed_contact_materials_preserve_distinct_collider_values(bound, monkey
             NewtonManager.author_fixed_configuration(UsdWriter(stage), scene)
         return
     NewtonManager.author_fixed_configuration(UsdWriter(stage), scene)
+    from isaaclab_newton.assets.physics_properties import NewtonContactData
+
+    restored = SimpleNamespace(**{name: [float("nan")] * 2 for name in values})
+    for row, prim in enumerate(shapes):
+        NewtonContactData.restore_fixed_configuration(prim, restored, row)
+    for name, expected in values.items():
+        np.testing.assert_allclose(getattr(restored, name), expected, rtol=1e-6)
     for i, prim in enumerate(shapes):
         material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
         assert material.GetPrim().GetAttribute("newton:contactStiffness").Get() == values["shape_material_ke"][i]
