@@ -341,6 +341,7 @@ def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> 
 def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
     """Captured compute observes updated targets and gains; reset starts a new capture lifetime."""
     device = "cuda:0"
+    wp.init()
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
         controller = OperationalSpaceController(
