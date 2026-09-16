@@ -8,6 +8,8 @@ Fixed
   kitless OvPhysX fast replication path.
 * Fixed absolute differential-IK Reach actions to cover the configured Cartesian command workspace.
 * Fixed Franka operational-space control to retain the asset's solver limits and joint properties.
+* Fixed Franka deformable camera observations to use stationary RGB normalization compatible with
+  pretrained visual policies.
 * Restored symmetric point-cloud noise in the Lift and Reorient ADR curriculum.
 * Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training.
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.

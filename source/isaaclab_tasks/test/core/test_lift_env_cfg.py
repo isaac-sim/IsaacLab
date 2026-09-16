@@ -79,9 +79,14 @@ def test_rigid_lift_regularizes_action_rate_and_joint_velocity() -> None:
 
 def test_camera_normalization_is_stationary() -> None:
     """RGB and depth normalization must not depend on per-frame statistics."""
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaCameraObservationsCfg
+
     rgb = torch.tensor([0.0, 127.5, 255.0])
     depth = torch.tensor([0.0, 2.0])
+    image_term = FrankaCameraObservationsCfg.BaseImageCfg().image
 
+    assert image_term.func is mdp.vision_camera
+    assert set(image_term.params) == {"sensor_cfg"}
     assert torch.allclose(mdp.vision_camera._rgb_norm(None, rgb), torch.tensor([-0.5, 0.0, 0.5]))
     assert torch.allclose(mdp.vision_camera._depth_norm(None, depth), torch.tanh(depth / 2) - 0.5)
 

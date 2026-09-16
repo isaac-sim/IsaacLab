@@ -26,7 +26,6 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs import mdp as env_mdp
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -460,13 +459,8 @@ class FrankaCameraObservationsCfg:
     @configclass
     class BaseImageCfg(ObsGroup):
         image = ObsTerm(
-            func=env_mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("base_camera"),
-                "data_type": "rgb",
-                "normalize": True,
-                "permute": True,
-            },
+            func=mdp.vision_camera,
+            params={"sensor_cfg": SceneEntityCfg("base_camera")},
         )
 
     policy: PolicyCfg = PolicyCfg()
