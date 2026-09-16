@@ -359,6 +359,8 @@
         "Isaac-Velocity-Rough-G1": "velocity-rough-g1-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Lift-KukaAllegro": "lift-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
     };
+    const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
+    const failedPreviewVideos = new Set();
 
     const updateTaskControls = () => {
         const task = selectedTask();
@@ -461,11 +463,19 @@
         const videoName = fields.rl.value === "rsl_rl" && fields.physics.value === "newton_mjwarp"
             ? previewVideos[state.task]
             : undefined;
-        const previewImageName = previewImageFor(selectedTask()).split("/").pop();
-        previewImage.src = new URL(`../../_images/${previewImageName}`, window.location.href).href;
+        const videoUrl = videoName
+            ? new URL(`../../_static/tasks/previews/${videoName}`, window.location.href).href
+            : undefined;
+        previewImage.src = new URL(previewImageFor(selectedTask()), previewImageBaseUrl).href;
         previewImage.alt = `${state.task} preview`;
-        if (videoName) {
-            const videoUrl = new URL(`../../_static/${videoName}`, window.location.href).href;
+        if (videoUrl && !failedPreviewVideos.has(videoUrl)) {
+            previewVideo.onerror = () => {
+                if (previewVideo.src === videoUrl) {
+                    failedPreviewVideos.add(videoUrl);
+                    previewVideo.hidden = true;
+                    previewImage.hidden = false;
+                }
+            };
             if (previewVideo.src !== videoUrl) {
                 previewVideo.src = videoUrl;
             }
@@ -474,6 +484,7 @@
             previewImage.hidden = true;
             previewVideo.play().catch(() => {});
         } else {
+            previewVideo.onerror = null;
             previewVideo.pause();
             previewVideo.hidden = true;
             previewImage.hidden = false;
