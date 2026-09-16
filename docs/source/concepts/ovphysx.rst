@@ -85,7 +85,7 @@ supported.
 Installation
 ------------
 
-The public ``ovphysx`` extra remains pinned to OvPhysX 0.5.11. Install it from
+The ``ovphysx`` extra is pinned to OvPhysX 0.6.3. Install it from
 the repository root with:
 
 .. code-block:: bash
