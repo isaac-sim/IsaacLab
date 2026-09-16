@@ -71,8 +71,8 @@ dependencies = [
     # OpenUSD (kit-less mode). Use the same provider required by the URDF and MJCF importer
     # packages so another complete ``pxr`` runtime cannot co-install with it. Two providers in
     # one environment overwrite each other's files, and removing either then breaks ``pxr``.
-    # usd-exchange 2.3.0 vendors USD 25.5, matching the supported Isaac Sim wheel stack.
-    "usd-exchange==2.3.0",
+    # usd-exchange provides OpenUSD 26.8; do not install a second pxr provider.
+    "usd-exchange==3.0.0",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -408,6 +408,8 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Torch is pinned in project.dependencies and routes through [tool.uv.sources].
 override-dependencies = [
+    # The isolated importers still pin 2.3.0; use the same USD provider throughout the workspace.
+    "usd-exchange==3.0.0",
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",

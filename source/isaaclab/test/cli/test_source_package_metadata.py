@@ -32,7 +32,7 @@ def test_isaaclab_uses_one_standalone_usd_provider(source_checkout_root: Path):
         if dependency.startswith("usd-core") or dependency.startswith("usd-exchange")
     ]
 
-    assert usd_providers == ["usd-exchange==2.3.0"]
+    assert usd_providers == ["usd-exchange==3.0.0"]
 
 
 def test_resolved_environment_has_no_second_usd_provider(source_checkout_root: Path):

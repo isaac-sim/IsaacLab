@@ -51,6 +51,26 @@ def test_fixed_export_selection_preserves_parameter_resolution(stiffness):
         assert collection.usd_override_fields(row) == (frozenset() if stiffness is None else {"joint_stiffness"})
 
 
+@pytest.mark.parametrize("armature", [0.1, {"joint_0": 0.1}])
+def test_fixed_export_selection_excludes_imported_values(armature):
+    control = FakeActuatorControl()
+    control._current_joint_properties["armature"][:] = torch.tensor([[0.1, 0.1, 0], [0.2, 0.1, 0]])
+    collection = ActuatorCollection(
+        {"drive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=None, armature=armature)},
+        control,
+    )
+    expected = [0.1, 0, 0] if isinstance(armature, dict) else [0.1, 0.1, 0.1]
+    torch.testing.assert_close(
+        control.written_properties[0][0]["armature"], torch.tensor([expected, expected], dtype=torch.float32)
+    )
+    changed = {1} if isinstance(armature, dict) else {2}
+    assert collection.usd_override_fields(1) == ({"joint_armature"} if isinstance(armature, dict) else set())
+    for env_index in range(2):
+        for joint_id in range(3):
+            expected_fields = {"joint_armature"} if joint_id in changed or (env_index == 1 and joint_id == 0) else set()
+            assert collection.usd_override_fields(joint_id, env_index=env_index) == expected_fields
+
+
 class SelectorRecordingActuator(ImplicitActuator):
     """Custom actuator that records the selector supplied to :meth:`compute`."""
 
