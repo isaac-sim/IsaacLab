@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -47,9 +48,14 @@ def _load_json(path: Path, name: str) -> dict:
 def _cmd_compare(args: argparse.Namespace) -> int:
     # Split into compare and measure stages such that measurements are preserved.
     try:
-        bundle = _load_json(args.benchmark_result, "benchmark result")
-        key = contract_mod.build(bundle)
-        measured = metrics_mod.extract(bundle)
+        bundles = [_load_json(path, "benchmark result") for path in args.benchmark_result]
+        key = contract_mod.build(bundles[0])
+        if any(not contract_mod.build(bundle).matches(key) for bundle in bundles[1:]):
+            raise metrics_mod.PerfSmokeError("candidate runs have different runtime contracts")
+        measurements = [metrics_mod.extract(bundle) for bundle in bundles]
+        measured = {
+            metric.name: statistics.median(row[metric.name] for row in measurements) for metric in metrics_mod.METRICS
+        }
     except metrics_mod.PerfSmokeError as exc:
         report = compare_mod.errored(str(exc), label=args.label)
         print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
@@ -69,9 +75,16 @@ def _cmd_compare(args: argparse.Namespace) -> int:
                 # The storage key is a truncation of the contract digest; need a full match.
                 history = [row.metrics for row in rows if contract_mod.from_dict(row.contract).matches(key)]
                 report = compare_mod.compare(
-                    key, measured, history, thresholds, min_samples=args.min_samples, label=args.label
+                    key,
+                    measured,
+                    history,
+                    thresholds,
+                    min_samples=args.min_samples,
+                    label=args.label,
+                    measurements=measurements,
+                    asv_dir=args.output_json.parent / "asv",
                 )
-        except metrics_mod.PerfSmokeError as exc:
+        except (metrics_mod.PerfSmokeError, OSError) as exc:
             report = compare_mod.unresolved(key, measured, compare_mod.ERROR, str(exc), label=args.label)
             print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
 
@@ -144,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     compare_parser = subparsers.add_parser("compare", help="compare a benchmark against the baseline store")
-    compare_parser.add_argument("--benchmark_result", type=Path, required=True)
+    compare_parser.add_argument("--benchmark_result", type=Path, nargs="+", required=True)
     compare_parser.add_argument("--thresholds", type=Path, default=_DEFAULT_THRESHOLDS)
     compare_parser.add_argument("--output_json", type=Path, required=True)
     compare_parser.add_argument("--min_samples", type=int, default=compare_mod.MIN_BASELINE_SAMPLES)

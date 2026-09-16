@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "project": "IsaacLab performance smoke",
+  "repo": "../..",
+  "results_dir": "../../benchmark-output/asv"
+}

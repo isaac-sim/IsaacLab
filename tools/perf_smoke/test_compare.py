@@ -1,0 +1,216 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Host-only integration tests exercising the real ASV comparison engine."""
+
+import contextlib
+import io
+import json
+import statistics
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from asv.results import iter_results
+
+from . import cli, compare, report
+from .contract import Contract
+from .metrics import PerfSmokeError
+from .store import BaselineRow
+
+
+def _measurement(fps: float, startup: float = 10.0) -> dict[str, float]:
+    return {"total_fps": fps, "startup_time_s": startup, "gpu_mem_peak_gb": 2.0, "ram_peak_gb": 4.0}
+
+
+class TestAsvComparison(unittest.TestCase):
+    """Check the ASV adapter and the policies retained around it."""
+
+    def setUp(self):
+        self.contract = Contract(
+            workload={"task": "task", "physics_backend": "physx", "render_backend": None},
+            runtime={"gpu_model": "l40s"},
+        )
+        self.policy = {"defaults": {"warn_regression_pct": 5, "fail_regression_pct": 10}}
+
+    def evaluate(self, baseline, candidate, **kwargs):
+        measurements = [_measurement(value) for value in candidate]
+        measured = _measurement(statistics.median(candidate))
+        return compare.compare(
+            self.contract,
+            measured,
+            [_measurement(value) for value in baseline],
+            self.policy,
+            measurements=measurements,
+            **kwargs,
+        )
+
+    def test_relative_regressions_and_improvement(self):
+        # Three baseline samples exercise the CI fallback; twenty permit ASV's
+        # Mann–Whitney test. FPS equality also checks the reciprocal factor.
+        for count in (3, 20):
+            for fps, expected in (
+                (100, compare.PASS),
+                (120, compare.PASS),
+                (95, compare.PASS),
+                (93, compare.WARN),
+                (90, compare.WARN),
+                (80, compare.FAIL),
+            ):
+                with self.subTest(count=count, fps=fps):
+                    result = self.evaluate([100] * count, [fps] * 3)
+                    self.assertEqual(result.verdict, expected)
+                    self.assertIn("total_fps", result.metrics[0].asv_table)
+
+    def test_noise_is_decided_by_asv(self):
+        result = self.evaluate([60, 100, 140], [50, 80, 110])
+        self.assertEqual(result.verdict, compare.PASS)
+        self.assertIn("~", result.metrics[0].asv_table)
+
+    def test_insufficient_independent_samples_skip(self):
+        for baseline, candidate in (([], [80] * 3), ([100] * 2, [80] * 3), ([100] * 3, [80])):
+            with self.subTest(baseline=baseline, candidate=candidate):
+                self.assertEqual(self.evaluate(baseline, candidate).verdict, compare.SKIP)
+
+    def test_hard_floor_gates_without_history_even_for_advisory_task(self):
+        self.policy.update(
+            {
+                "per_task_regression_pct": {"task": {"advisory_only": True}},
+                "hard_floor_fps": {"l40s": {"task": {"physx": 50}}},
+            }
+        )
+        result = self.evaluate([], [0, 100, 100])
+        self.assertEqual(result.verdict, compare.FAIL)
+        self.assertIn("hard floor", result.metrics[0].note)
+        self.assertIn("hard floor", result.message)
+
+    def test_advisory_task_does_not_gate(self):
+        self.policy["per_task_regression_pct"] = {"task": {"advisory_only": True}}
+        result = self.evaluate([100] * 3, [80] * 3)
+        self.assertEqual(result.verdict, compare.SKIP)
+        self.assertEqual(result.metrics[0].verdict, compare.FAIL)
+
+    def test_higher_is_worse_metrics_are_advisory(self):
+        measurements = [_measurement(100, startup=20)] * 3
+        result = compare.compare(
+            self.contract,
+            measurements[0],
+            [_measurement(100)] * 3,
+            self.policy,
+            measurements=measurements,
+        )
+        self.assertEqual(result.verdict, compare.PASS)
+        self.assertEqual(result.metrics[1].verdict, compare.FAIL)
+
+    def test_zero_throughput_is_not_silently_a_pass(self):
+        for baseline, candidate in (([100] * 3, [0, 100, 100]), ([0, 100, 100], [100] * 3)):
+            with self.subTest(baseline=baseline, candidate=candidate):
+                self.assertEqual(self.evaluate(baseline, candidate).verdict, compare.SKIP)
+
+    def test_native_asv_artifacts_retain_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.evaluate([100] * 3, [80] * 3, asv_dir=Path(directory))
+            saved = {item.commit_hash: item for item in iter_results(directory)}
+            self.assertEqual(set(saved), {"baseline", "candidate"})
+            self.assertEqual(saved["candidate"].get_result_samples("total_fps", []), [[1 / 80] * 3])
+            self.assertTrue((Path(directory) / "benchmarks.json").exists())
+            self.assertIn("ASV comparisons", report.render(result))
+
+    def test_invalid_policy_is_rejected(self):
+        self.policy["defaults"]["fail_regression_pct"] = 100
+        with self.assertRaises(PerfSmokeError):
+            self.evaluate([100] * 3, [80] * 3)
+
+    def test_cli_filters_contracts_and_preserves_failure_in_aggregate(self):
+        matching = BaselineRow(self.contract.as_dict(), self.contract.hash, _measurement(100), "commit", "date", "run")
+        other = Contract(workload={"task": "other"}, runtime={})
+        mismatched = BaselineRow(other.as_dict(), self.contract.hash, _measurement(1), "commit", "date", "run")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "bundle.json"
+            bundle.write_text("{}")
+            output = root / "combination" / "comparison.json"
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                patch.object(cli.contract_mod, "build", return_value=self.contract),
+                patch.object(cli.metrics_mod, "extract", return_value=_measurement(80)),
+                patch.object(cli.store_mod, "is_configured", return_value=True),
+                patch.object(cli.store_mod, "read", return_value=[matching] * 3 + [mismatched] * 10),
+            ):
+                status = cli.main(
+                    [
+                        "compare",
+                        "--benchmark_result",
+                        str(bundle),
+                        str(bundle),
+                        str(bundle),
+                        "--output_json",
+                        str(output),
+                    ]
+                )
+            self.assertEqual(status, 1)
+            self.assertEqual(json.loads(output.read_text())["verdict"], compare.FAIL)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(["aggregate", "--comparison_dir", directory]), 1)
+
+    def test_cli_infrastructure_errors_and_missing_credentials_do_not_gate(self):
+        for configured, expected in ((False, compare.SKIP), (True, compare.ERROR)):
+            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                bundle = root / "bundle.json"
+                bundle.write_text("{}")
+                output = root / "comparison.json"
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                    patch.object(cli.contract_mod, "build", return_value=self.contract),
+                    patch.object(cli.metrics_mod, "extract", return_value=_measurement(80)),
+                    patch.object(cli.store_mod, "is_configured", return_value=configured),
+                    patch.object(cli.store_mod, "read", side_effect=PerfSmokeError("unavailable")),
+                ):
+                    status = cli.main(
+                        [
+                            "compare",
+                            "--benchmark_result",
+                            str(bundle),
+                            "--output_json",
+                            str(output),
+                        ]
+                    )
+                self.assertEqual(status, 0)
+                self.assertEqual(json.loads(output.read_text())["verdict"], expected)
+
+    def test_candidate_contract_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "bundle.json"
+            bundle.write_text("{}")
+            output = root / "comparison.json"
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
+                patch.object(cli.contract_mod, "build", side_effect=[self.contract, Contract()]),
+                patch.object(cli.store_mod, "read") as read,
+            ):
+                self.assertEqual(
+                    cli.main(
+                        [
+                            "compare",
+                            "--benchmark_result",
+                            str(bundle),
+                            str(bundle),
+                            "--output_json",
+                            str(output),
+                        ]
+                    ),
+                    0,
+                )
+                read.assert_not_called()
+            self.assertEqual(json.loads(output.read_text())["verdict"], compare.ERROR)
+
+
+if __name__ == "__main__":
+    unittest.main()
