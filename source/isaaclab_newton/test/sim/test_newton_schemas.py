@@ -435,81 +435,71 @@ def test_newton_legacy_cfg_authors_contact_attrs(setup_sim):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.isaacsim_ci
-def test_newton_rigid_body_disable_gravity_routes_to_physx_namespace(setup_sim):
-    """``disable_gravity`` is a PhysX-consumed field inherited from the base cfg. Setting it on
-    the Newton cfg must author ``physxRigidBody:disableGravity``, not a bare ``physics:*``
-    attribute that no backend reads."""
-    stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/nrb_dg", prim_type="Cube")
-    schemas.define_rigid_body_properties("/World/nrb_dg", NewtonRigidBodyPropertiesCfg(disable_gravity=True))
-    prim = stage.GetPrimAtPath("/World/nrb_dg")
-    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
-    assert not prim.GetAttribute("physics:disableGravity").IsValid()
+# Fields declared on the solver-common bases are consumed by PhysX, so the Newton cfgs must
+# route them to their PhysX namespaces rather than authoring a bare ``physics:*`` attribute that
+# no backend reads. Each case is (writer, cfg, expected attributes, attributes that must not exist).
+_FIELD_ROUTING_CASES = [
+    pytest.param(
+        schemas.define_rigid_body_properties,
+        lambda: NewtonRigidBodyPropertiesCfg(disable_gravity=True),
+        {"physxRigidBody:disableGravity": True},
+        ("physics:disableGravity",),
+        id="newton_rigid_body",
+    ),
+    pytest.param(
+        schemas.define_rigid_body_properties,
+        lambda: MujocoRigidBodyPropertiesCfg(disable_gravity=True, gravcomp=0.5),
+        {"physxRigidBody:disableGravity": True, "mjc:gravcomp": 0.5},
+        ("physics:disableGravity",),
+        id="mujoco_rigid_body_keeps_own_namespace",
+    ),
+    pytest.param(
+        schemas.define_collision_properties,
+        lambda: NewtonCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.01),
+        {"physxCollision:contactOffset": 0.02, "physxCollision:restOffset": 0.01},
+        ("physics:contactOffset", "physics:restOffset"),
+        id="newton_collision",
+    ),
+    pytest.param(
+        schemas.define_collision_properties,
+        lambda: NewtonSDFCollisionPropertiesCfg(contact_offset=0.02),
+        {"physxCollision:contactOffset": 0.02},
+        ("physics:contactOffset",),
+        id="newton_sdf_collision",
+    ),
+    pytest.param(
+        schemas.define_mesh_collision_properties,
+        lambda: NewtonMeshCollisionPropertiesCfg(
+            mesh_approximation_name="convexHull", contact_offset=0.02, rest_offset=0.01
+        ),
+        {"physxCollision:contactOffset": 0.02, "physxCollision:restOffset": 0.01},
+        ("physics:contactOffset", "physics:restOffset"),
+        # the only multiply-inherited cfg, so the single-inheritance cases above leave the
+        # resolution order between its two bases untested
+        id="newton_mesh_collision_multiple_inheritance",
+    ),
+]
 
 
 @pytest.mark.isaacsim_ci
-def test_mujoco_rigid_body_disable_gravity_routes_to_physx_namespace(setup_sim):
-    """The MuJoCo rigid-body cfg inherits ``disable_gravity`` and must route it like its parents,
-    while its own ``gravcomp`` keeps its ``mjc:*`` namespace."""
+@pytest.mark.parametrize("writer, make_cfg, expected, unexpected", _FIELD_ROUTING_CASES)
+def test_inherited_fields_route_to_their_owning_namespace(setup_sim, request, writer, make_cfg, expected, unexpected):
+    """Fields inherited from a solver-common base must land in the namespace that owns them."""
     stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/mrb_dg", prim_type="Cube")
-    schemas.define_rigid_body_properties(
-        "/World/mrb_dg", MujocoRigidBodyPropertiesCfg(disable_gravity=True, gravcomp=0.5)
-    )
-    prim = stage.GetPrimAtPath("/World/mrb_dg")
-    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
-    assert prim.GetAttribute("mjc:gravcomp").Get() == pytest.approx(0.5)
-    assert not prim.GetAttribute("physics:disableGravity").IsValid()
+    prim_path = f"/World/routing_{request.node.callspec.id}"
+    sim_utils.create_prim(prim_path, prim_type="Cube")
 
+    writer(prim_path, make_cfg())
 
-@pytest.mark.isaacsim_ci
-def test_newton_collision_offsets_route_to_physx_namespace(setup_sim):
-    """``contact_offset``/``rest_offset`` are PhysX-consumed fields inherited from the base cfg
-    and must author ``physxCollision:*`` attributes on Newton collision cfgs."""
-    stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/ncol_off", prim_type="Cube")
-    schemas.define_collision_properties(
-        "/World/ncol_off", NewtonCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.01)
-    )
-    prim = stage.GetPrimAtPath("/World/ncol_off")
-    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
-    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
-    assert not prim.GetAttribute("physics:contactOffset").IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_newton_sdf_collision_offsets_route_to_physx_namespace(setup_sim):
-    """The deepest Newton collision subclass must inherit the same PhysX routing for the
-    offset fields as its parents."""
-    stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/nsdf_off", prim_type="Cube")
-    schemas.define_collision_properties("/World/nsdf_off", NewtonSDFCollisionPropertiesCfg(contact_offset=0.02))
-    prim = stage.GetPrimAtPath("/World/nsdf_off")
-    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
-    assert not prim.GetAttribute("physics:contactOffset").IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_newton_mesh_collision_offsets_route_to_physx_namespace(setup_sim):
-    """``NewtonMeshCollisionPropertiesCfg`` inherits from two bases, only one of which carries
-    the offset routing, so the resolution order decides where the fields land.
-
-    Unlike its siblings this cfg is the only multiply-inherited one
-    (``NewtonCollisionPropertiesCfg`` plus ``MeshCollisionBaseCfg``), so the single-inheritance
-    offset tests above leave this path uncovered.
-    """
-    stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/nmesh_off", prim_type="Cube")
-    schemas.define_mesh_collision_properties(
-        "/World/nmesh_off",
-        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull", contact_offset=0.02, rest_offset=0.01),
-    )
-    prim = stage.GetPrimAtPath("/World/nmesh_off")
-    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
-    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
-    assert not prim.GetAttribute("physics:contactOffset").IsValid()
-    assert not prim.GetAttribute("physics:restOffset").IsValid()
+    prim = stage.GetPrimAtPath(prim_path)
+    for name, value in expected.items():
+        actual = prim.GetAttribute(name).Get()
+        if isinstance(value, bool):
+            assert actual is value, name
+        else:
+            assert actual == pytest.approx(value), name
+    for name in unexpected:
+        assert not prim.GetAttribute(name).IsValid(), name
 
 
 @pytest.mark.isaacsim_ci
