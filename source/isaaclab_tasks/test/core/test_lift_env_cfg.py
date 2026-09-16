@@ -13,11 +13,13 @@ import torch
 from isaaclab.managers import CommandTerm
 
 from isaaclab_tasks.core.lift import mdp
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.utils.hydra import resolve_presets
 
 
 class _MarkerSpy:
@@ -36,6 +38,24 @@ class _FakeScene(dict):
         super().__init__(assets)
         self._ALL_INDICES = environment_ids
         self.env_origins = torch.zeros((len(environment_ids), 3))
+
+
+@pytest.mark.parametrize(
+    ("selected_presets", "expected_physics"),
+    [
+        ((), "mujoco"),
+        (("newton_mjwarp_vbd_proxy",), "mujoco"),
+        (("isaacsim_physx",), "physx"),
+        (("physx",), "physx"),
+    ],
+)
+def test_franka_soft_robot_physics_variant_matches_backend(
+    selected_presets: tuple[str, ...], expected_physics: str
+) -> None:
+    """The Franka USD physics payload must match the selected simulation backend."""
+    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
+
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
 
 
 def test_camera_normalization_is_stationary() -> None:

@@ -7,6 +7,7 @@
 
 import io
 import os
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -71,6 +72,24 @@ class TestSecurityDependencies(unittest.TestCase):
         action = REPO_ROOT / ".github/actions/_lib/compute-deps-hash/action.yml"
         self.assertIn("docker/scripts/install_git_lfs.sh", action.read_text(encoding="utf-8"))
 
+    def test_contract_workflows_use_hash_locked_dependencies(self):
+        requirements = REPO_ROOT / "docker/test/requirements.txt"
+        self.assertTrue(requirements.is_file())
+        for name in ("build.yaml", "kitless-docker.yml"):
+            with self.subTest(workflow=name):
+                text = (REPO_ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
+                self.assertIn("uv pip sync --require-hashes --only-binary :all:", text)
+                self.assertIn("docker/test/requirements.txt", text)
+                self.assertNotIn("--with pytest", text)
+                self.assertIn('"${contract_env}/bin/python" -m pytest', text)
+
+    def test_curobo_avoids_get_pip_bootstrap(self):
+        text = (REPO_ROOT / "docker/Dockerfile.curobo").read_text(encoding="utf-8")
+        self.assertNotIn("raw.githubusercontent.com/pypa/get-pip", text)
+        self.assertNotIn('python3 "${bootstrap_dir}/get-pip.py"', text)
+        self.assertNotIn("site-packages/pip*", text)
+        self.assertIn("uv sync --frozen --inexact", text)
+
 
 class TestGitLfsInstaller(unittest.TestCase):
     """Exercise the shell installer with no network, root writes or package-manager changes."""
@@ -101,10 +120,10 @@ class TestGitLfsInstaller(unittest.TestCase):
         self._command("dpkg", 'echo "$TEST_ARCH"')
         self._command("dpkg-query", '[ "$TEST_INSTALLED" = yes ] && printf "install ok installed"')
         self._command(
-            "wget",
+            "curl",
             """
 printf 'download %s\\n' "$*" >> "$FIXTURE_ROOT/events"
-while [ "$1" != -O ]; do shift; done
+while [ "$1" != --output ]; do shift; done
 cp "$FIXTURE_ROOT/fixture.tar.gz" "$2"
 """,
         )
@@ -160,6 +179,20 @@ cat >> "$FIXTURE_ROOT/checksums"
         events = (self.root / "events").read_text()
         self.assertNotIn("remove ", events)
         self.assertNotIn("install ", events)
+
+    def test_both_downloads_only_allow_https_redirects(self):
+        result = self._run()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        downloads = [line for line in (self.root / "events").read_text().splitlines() if line.startswith("download ")]
+        self.assertEqual(len(downloads), 2)
+        for download in downloads:
+            with self.subTest(download=download):
+                args = shlex.split(download)
+                self.assertIn("--fail", args)
+                self.assertIn("--location", args)
+                for option in ("--proto", "--proto-redir"):
+                    self.assertIn(option, args)
+                    self.assertEqual(args[args.index(option) + 1], "=https")
 
     def test_unsupported_architecture_fails_before_downloading(self):
         self.env["TEST_ARCH"] = "s390x"
