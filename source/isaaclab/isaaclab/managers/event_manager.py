@@ -248,22 +248,21 @@ class EventManager(ManagerBase):
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
-                # resolve the environment indices
-                if env_ids is None:
-                    env_ids = slice(None)
+                # resolve the environment indices for internal bookkeeping
+                resolved_env_ids = slice(None) if env_ids is None else env_ids
 
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
-                    self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
-                    self._reset_term_last_triggered_once[index][env_ids] = True
+                    self._reset_term_last_triggered_step_id[index][resolved_env_ids] = global_env_step_count
+                    self._reset_term_last_triggered_once[index][resolved_env_ids] = True
 
                     # call the event term with the environment indices
                     term_cfg.func(self._env, env_ids, **term_cfg.params)
                 else:
                     # extract last reset step for this term
-                    last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
-                    triggered_at_least_once = self._reset_term_last_triggered_once[index][env_ids]
+                    last_triggered_step = self._reset_term_last_triggered_step_id[index][resolved_env_ids]
+                    triggered_at_least_once = self._reset_term_last_triggered_once[index][resolved_env_ids]
                     # compute the steps since last reset
                     steps_since_triggered = global_env_step_count - last_triggered_step
 
@@ -274,10 +273,10 @@ class EventManager(ManagerBase):
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
 
                     # select the valid environment indices based on the trigger
-                    if env_ids == slice(None):
+                    if resolved_env_ids == slice(None):
                         valid_env_ids = valid_trigger.nonzero().flatten()
                     else:
-                        valid_env_ids = env_ids[valid_trigger]
+                        valid_env_ids = resolved_env_ids[valid_trigger]
 
                     # reset the last reset step for each environment to the current env step count
                     if len(valid_env_ids) > 0:
