@@ -88,7 +88,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # create the differential IK controller
         self._ik_controller = self.cfg.controller.class_type(
-            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
+            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device, num_joints=self._num_joints
         )
         # ``out`` is additive to the public controller API. Keep action terms compatible with custom controllers
         # that override the historical four-argument ``compute`` method, while selecting the allocation-free path
@@ -405,7 +405,9 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._task_frame_pose_b = None
 
         # create the operational space controller
-        self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
+        self._osc = OperationalSpaceController(
+            cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device, num_joints=self._num_DoF
+        )
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)

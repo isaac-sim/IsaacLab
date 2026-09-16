@@ -36,7 +36,7 @@ def _make_controller(
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
     )
-    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
+    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device, num_joints=_NUM_JOINTS)
 
 
 def _well_conditioned_jacobian(device: str) -> torch.Tensor:
@@ -291,14 +291,11 @@ def test_joint_limits_accept_float64_cpu_tensors_before_and_after_initialization
     torch.testing.assert_close(controller._joint_pos_upper.cpu(), torch.full((_NUM_JOINTS,), 1.5))
 
 
-def test_joint_limit_count_is_checked_when_controller_initializes():
-    """Limits supplied before the joint count is known must match the first compute call."""
+def test_joint_limit_count_matches_initialized_controller():
+    """The setter rejects limits that do not match the fixed joint count."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2)
-    controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
-    controller.set_command(command)
     with pytest.raises(ValueError, match="limits for 7 joints"):
-        controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)
+        controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
 
 
 def test_compute_rejects_integral_out_buffer():

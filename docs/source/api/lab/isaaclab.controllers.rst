@@ -24,14 +24,15 @@ backend. Isaac Lab resolves commands and gain schedules, copies inputs into pers
 buffers, and invokes Newton's ``step()`` method. Returned tensors are independent snapshots;
 ``DifferentialIKController.compute(out=...)`` can instead fill a caller-owned buffer.
 
-The controller constructors retain their existing arguments. DiffIK and OSC infer the fixed
-joint count on the first ``compute()`` call and initialize Newton once. Call ``set_joint_pos_limits()``
-to supply or update DiffIK limits as before. When avoidance is configured, supplying limits for the
-first time after a solve rebuilds Newton to enable that feature; ordinary limit updates do not.
+DiffIK and OSC require ``num_joints=`` at construction, fixing the selected joint count for
+that controller's lifetime. Update direct callers and custom subclasses to supply this count;
+action terms supply it automatically. Newton and its ports are initialized in the constructor.
+Use a separate controller for a different joint count.
 
-For CUDA capture, warm up ``compute()`` after setting commands and any joint limits. Commands can
-then update existing target storage. Recapture OSC after ``reset()`` and DiffIK after first enabling
-joint-limit avoidance on an already initialized backend.
+DiffIK retains ``set_joint_pos_limits()``. When avoidance is configured, the first supplied
+limits rebuild Newton to enable that feature; subsequent limit updates reuse the backend.
+For CUDA capture, supply commands and limits and warm up ``compute()`` before capture.
+Recapture after first enabling joint-limit avoidance or after OSC ``reset()``.
 
 Newton 1.6.0 is required. Float64 inputs do not provide float64 solver precision. Applications that
 require double-precision control laws must retain the previous implementation.

@@ -55,24 +55,24 @@ class DifferentialIKController:
 
     """
 
-    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str):
+    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str, *, num_joints: int):
         """Initialize the controller.
 
         Args:
             cfg: The configuration for the controller.
             num_envs: The number of environments.
             device: The device to use for computations.
+            num_joints: Fixed number of controlled joints.
         """
         # store inputs
         self.cfg = cfg
         self.num_envs = num_envs
         self._device = device
-        self._controller = None
-        self._num_joints = None
+        self._num_joints = num_joints
         self._use_joint_limits = False
         self._joint_pos_lower = None
         self._joint_pos_upper = None
-        # Own command storage before the joint count is known, then bind it to Newton once.
+        # Share persistent command storage with Newton, including after enabling limit avoidance.
         self._desired_pose = torch.zeros(self.num_envs, 7, dtype=torch.float32, device=self._device)
         self.ee_pos_des = self._desired_pose[:, :3]
         self.ee_quat_des = self._desired_pose[:, 3:]
@@ -90,6 +90,7 @@ class DifferentialIKController:
             )
         # -- identity quaternion (x, y, z, w), the last-resort fallback for a degenerate command
         self._identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self._device).repeat(self.num_envs, 1)
+        self._initialize_controller()
 
     """
     Properties.
@@ -186,7 +187,7 @@ class DifferentialIKController:
         Only used when
         :attr:`~isaaclab.controllers.differential_ik_cfg.DifferentialIKControllerCfg.joint_limit_avoidance_gain`
         is positive. Limits can be supplied before or after the first compute call. Supplying
-        them for the first time after compute enables Newton's fixed avoidance feature by rebuilding
+        them for the first time enables Newton's fixed avoidance feature by rebuilding
         the backend; recapture CUDA graphs after that transition. Subsequent updates retain it.
 
         Args:
@@ -198,18 +199,18 @@ class DifferentialIKController:
         """
         if lower.shape != upper.shape:
             raise ValueError(f"Expected matching lower and upper limit shapes, got {lower.shape} and {upper.shape}.")
-        if self._num_joints is not None and lower.shape != (self._num_joints,):
+        if lower.shape != (self._num_joints,):
             raise ValueError(f"Expected limits for {self._num_joints} joints, got {lower.shape}.")
         self._joint_pos_lower = lower.to(device=self._device, dtype=torch.float32)
         self._joint_pos_upper = upper.to(device=self._device, dtype=torch.float32)
-        if self._controller is not None and self.cfg.joint_limit_avoidance_gain > 0.0:
+        if self.cfg.joint_limit_avoidance_gain > 0.0:
             if self._use_joint_limits:
                 self._controller.set_joint_limits(
                     joint_pos_lower=wp.from_torch(self._joint_pos_lower.repeat(self.num_envs)),
                     joint_pos_upper=wp.from_torch(self._joint_pos_upper.repeat(self.num_envs)),
                 )
             else:
-                self._initialize_controller(self._num_joints)
+                self._initialize_controller()
 
     def compute(
         self,
@@ -240,9 +241,7 @@ class DifferentialIKController:
             TypeError: If ``out`` is not floating-point.
         """
         # -- fixed topology and output contract
-        if self._controller is None:
-            self._initialize_controller(joint_pos.shape[1])
-        elif joint_pos.shape[1] != self._num_joints:
+        if joint_pos.shape[1] != self._num_joints:
             raise ValueError(f"Expected {self._num_joints} controlled joints, got {joint_pos.shape[1]}.")
         if out is not None and not out.is_floating_point():
             raise TypeError(f"Expected out to be a floating-point tensor, got {out.dtype}.")
@@ -264,13 +263,10 @@ class DifferentialIKController:
     Helper functions.
     """
 
-    def _initialize_controller(self, num_joints: int) -> None:
+    def _initialize_controller(self) -> None:
         """Construct Newton and allocate its input and output ports."""
         from newton.controllers import ControllerDifferentialIKModelFree, DifferentialIKMethod
 
-        if self._joint_pos_lower is not None and self._joint_pos_lower.shape != (num_joints,):
-            raise ValueError(f"Expected limits for {num_joints} joints, got {self._joint_pos_lower.shape}.")
-        self._num_joints = num_joints
         self._use_joint_limits = self.cfg.joint_limit_avoidance_gain > 0.0 and self._joint_pos_lower is not None
         # -- translate Isaac Lab solver configuration
         method_map = {

@@ -53,7 +53,7 @@ def _make_controller(
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
         joint_limit_avoidance_margin=joint_limit_avoidance_margin,
     )
-    return SO101PoseIKController(cfg=cfg, num_envs=num_envs, device="cpu")
+    return SO101PoseIKController(cfg=cfg, num_envs=num_envs, device="cpu", num_joints=_NUM_JOINTS)
 
 
 def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
@@ -78,7 +78,7 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     task_jac[:, 3:, :3] = 0.0
 
     # Reference: the base solver receives a Jacobian with only wrist orientation columns.
-    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
+    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu", num_joints=_NUM_JOINTS)
     base.set_command(cmd)
     joint_pos = torch.zeros(1, _NUM_JOINTS)
     out = torch.empty_like(joint_pos)
@@ -92,7 +92,7 @@ def test_mask_none_leaves_orientation_unmasked():
     """Without a mask, the SO-101 controller matches the base solver."""
     jac = torch.arange(6 * _NUM_JOINTS, dtype=torch.float32).reshape(1, 6, _NUM_JOINTS)
     c = _make_controller(orientation_weight=1.0)
-    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
+    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu", num_joints=_NUM_JOINTS)
     command = torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([1.0, 0.0, 0.0], 0.5)])
     c.set_command(command)
     base.set_command(command)

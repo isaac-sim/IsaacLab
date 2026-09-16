@@ -112,7 +112,7 @@ to be the center of the joint position limits.
 .. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Create the OSC
-   :end-at: osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
+   :end-before: # Markers
 
 Updating the states of the robot
 --------------------------------------------
