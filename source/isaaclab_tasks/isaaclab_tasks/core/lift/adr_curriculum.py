@@ -18,6 +18,16 @@ class CurriculumCfg:
         func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10}
     )
 
+    action_rate = CurrTerm(
+        func=mdp.modify_reward_weight,
+        params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000},
+    )
+
+    joint_vel = CurrTerm(
+        func=mdp.modify_reward_weight,
+        params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000},
+    )
+
     def disable_observation_noise_terms(self) -> None:
         """Drop the terms that schedule observation noise.
 

@@ -14,6 +14,7 @@ from isaaclab.managers import CommandTerm
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.adr_curriculum import CurriculumCfg
+from isaaclab_tasks.core.lift.lift_env_cfg import RewardsCfg
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
@@ -52,6 +53,28 @@ def test_point_cloud_noise_curriculum_is_symmetric() -> None:
 
     assert minimum["initial_value"] == maximum["initial_value"] == 0.0
     assert minimum["final_value"] == -maximum["final_value"] == -0.01
+
+
+def test_rigid_lift_regularizes_action_rate_and_joint_velocity() -> None:
+    """Rigid Lift and Reorient should retain their legacy motion-smoothing schedule."""
+    rewards = RewardsCfg()
+    curriculum = CurriculumCfg()
+
+    assert rewards.action_rate.func is mdp.action_rate_l2
+    assert rewards.action_rate.weight == pytest.approx(-1e-4)
+    assert rewards.joint_vel.func is mdp.joint_vel_l2
+    assert rewards.joint_vel.weight == pytest.approx(-1e-4)
+    assert rewards.joint_vel.params["asset_cfg"].name == "robot"
+    assert curriculum.action_rate.params == {
+        "term_name": "action_rate",
+        "weight": -1e-1,
+        "num_steps": 10000,
+    }
+    assert curriculum.joint_vel.params == {
+        "term_name": "joint_vel",
+        "weight": -1e-1,
+        "num_steps": 10000,
+    }
 
 
 def test_camera_normalization_is_stationary() -> None:
