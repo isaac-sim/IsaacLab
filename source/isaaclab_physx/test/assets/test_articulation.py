@@ -2859,7 +2859,6 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
         DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
         num_envs=1,
         device=device,
-        num_joints=len(arm_joint_ids),
     )
     ik.set_command(target_pose_b)
 
@@ -2918,7 +2917,6 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
         ),
         num_envs=1,
         device=device,
-        num_joints=len(arm_joint_ids),
     )
 
     sim.step()
@@ -3009,7 +3007,6 @@ def _run_osc_stay_still_under_gravity(
         ),
         num_envs=1,
         device=device,
-        num_joints=len(arm_joint_ids),
     )
 
     sim.step()

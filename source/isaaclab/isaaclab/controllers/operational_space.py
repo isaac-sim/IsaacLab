@@ -41,14 +41,13 @@ class OperationalSpaceController:
        by Marco Hutter (ETH Zurich)
     """
 
-    def __init__(self, cfg: OperationalSpaceControllerCfg, num_envs: int, device: str, *, num_joints: int):
+    def __init__(self, cfg: OperationalSpaceControllerCfg, num_envs: int, device: str):
         """Initialize operational-space controller.
 
         Args:
             cfg: The configuration for operational-space controller.
             num_envs: The number of environments.
             device: The device to use for computations.
-            num_joints: Fixed number of controlled joints.
 
         Raises:
             ValueError: When invalid control command is provided.
@@ -56,7 +55,8 @@ class OperationalSpaceController:
         # store inputs
         self.cfg = cfg
         self.num_envs = num_envs
-        self._num_dof = num_joints
+        self._num_dof = None
+        self._controller = None
         self._device = device
 
         # resolve tasks-pace target dimensions
@@ -79,8 +79,6 @@ class OperationalSpaceController:
 
         if self.cfg.nullspace_control not in ("none", "position"):
             raise ValueError(f"Invalid null-space control method: {self.cfg.nullspace_control}.")
-        if self._nullspace_control and num_joints <= 6:
-            raise ValueError("Null-space control is only applicable for redundant manipulators.")
 
         # create buffers
         # -- selection axes, defined in the task reference frame, which might differ from the root frame
@@ -124,8 +122,6 @@ class OperationalSpaceController:
             self._contact_wrench_p_gains_task = None
         self._nullspace_p_gain = self.cfg.nullspace_stiffness
         self._nullspace_d_gain = 2 * self._nullspace_p_gain**0.5 * self.cfg.nullspace_damping_ratio
-
-        self._initialize_controller()
 
     """
     Properties.
@@ -372,7 +368,9 @@ class OperationalSpaceController:
             Tensor: The joint efforts computed by the controller. It is a tensor of shape (``num_envs``, ``num_DoF``).
         """
 
-        if jacobian_b.shape[2] != self._num_dof:
+        if self._controller is None:
+            self._initialize_controller(jacobian_b.shape[2])
+        elif jacobian_b.shape[2] != self._num_dof:
             raise ValueError(f"Expected {self._num_dof} controlled joints, got {jacobian_b.shape[2]}.")
 
         # check the inputs the requested laws need, before handing anything to the backend
@@ -458,9 +456,13 @@ class OperationalSpaceController:
     Internal helpers.
     """
 
-    def _initialize_controller(self) -> None:
+    def _initialize_controller(self, num_joints: int) -> None:
         """Construct Newton and bind the fixed input and output ports."""
         from newton.controllers import ControllerOperationalSpaceModelFree
+
+        if self._nullspace_control and num_joints <= 6:
+            raise ValueError("Null-space control is only applicable for redundant manipulators.")
+        self._num_dof = num_joints
 
         # -- construct Newton controller and ports
         # Live gains support variable impedance; Newton accepts selection axes only with wrench control.

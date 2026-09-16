@@ -78,10 +78,9 @@ class DifferentialIKControllerCfg:
     When positive, a center-seeking joint velocity (active only within
     :attr:`joint_limit_avoidance_margin` of a limit) is projected into the null space of the
     position task rows, so it keeps joints off their limits without perturbing the commanded
-    end-effector position. Requires initial ``joint_pos_limits`` at controller construction.
-    The IK action term supplies them from the articulation. Use
+    end-effector position. Active only once joint limits are provided via
     :meth:`~isaaclab.controllers.differential_ik.DifferentialIKController.set_joint_pos_limits`
-    to update their values without changing the controller topology.
+    (the IK action term injects them automatically when ``joint_limit_avoidance_gain > 0``).
     """
 
     joint_limit_avoidance_margin: float = 0.3

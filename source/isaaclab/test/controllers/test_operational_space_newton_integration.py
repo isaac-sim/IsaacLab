@@ -195,7 +195,7 @@ def _build(scenario: dict) -> tuple[OperationalSpaceController, bool]:
         motion_damping_ratio_task=(1.0, 1.1, 0.9, 1.0, 1.2, 0.8),
         **scenario,
     )
-    return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE, num_joints=_NUM_DOF), task_frame
+    return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE), task_frame
 
 
 @pytest.mark.parametrize("scenario_name", list(_SCENARIOS))
@@ -311,20 +311,8 @@ def test_reset_clears_the_task_space_targets() -> None:
 @pytest.mark.parametrize("num_joints", [4, 6])
 def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> None:
     """Newton rejects under-actuated decoupling but accepts the six-joint boundary."""
-    if num_joints < 6:
-        with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
-            controller = OperationalSpaceController(
-                OperationalSpaceControllerCfg(target_types=["pose_abs"], inertial_dynamics_decoupling=True),
-                1,
-                "cpu",
-                num_joints=num_joints,
-            )
-        return
     controller = OperationalSpaceController(
-        OperationalSpaceControllerCfg(target_types=["pose_abs"], inertial_dynamics_decoupling=True),
-        1,
-        "cpu",
-        num_joints=num_joints,
+        OperationalSpaceControllerCfg(target_types=["pose_abs"], inertial_dynamics_decoupling=True), 1, "cpu"
     )
     pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
     controller.set_command(pose)
@@ -334,7 +322,11 @@ def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> 
         current_ee_vel_b=torch.zeros(1, 6),
         mass_matrix=torch.eye(num_joints).unsqueeze(0),
     )
-    torch.testing.assert_close(controller.compute(**kwargs), torch.zeros(1, num_joints))
+    if num_joints < 6:
+        with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
+            controller.compute(**kwargs)
+    else:
+        torch.testing.assert_close(controller.compute(**kwargs), torch.zeros(1, num_joints))
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graph capture requires CUDA")
@@ -348,7 +340,6 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
             OperationalSpaceControllerCfg(target_types=["pose_abs"], impedance_mode="variable_kp"),
             1,
             device,
-            num_joints=7,
         )
         pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], device=device)
         jacobian = torch.eye(6, 7, device=device).unsqueeze(0)

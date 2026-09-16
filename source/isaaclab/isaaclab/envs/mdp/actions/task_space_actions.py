@@ -88,20 +88,16 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # create the differential IK controller
         self._ik_controller = self.cfg.controller.class_type(
-            cfg=self.cfg.controller,
-            num_envs=self.num_envs,
-            device=self.device,
-            num_joints=self._num_joints,
-            joint_pos_limits=(
-                self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
-                if self.cfg.controller.joint_limit_avoidance_gain > 0.0
-                else None
-            ),
+            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
         # ``out`` is additive to the public controller API. Keep action terms compatible with custom controllers
         # that override the historical four-argument ``compute`` method, while selecting the allocation-free path
         # once at construction for controllers that accept it.
         self._ik_compute_accepts_out = self._compute_accepts_out(self._ik_controller)
+        # joint limits are injected lazily on the first apply (asset data is populated by then) so
+        # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
+        self._limits_injected = False
+
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self.raw_actions)
@@ -214,6 +210,12 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        # lazily provide joint limits to the controller for null-space joint-limit avoidance
+        # (limits are uniform across envs for these articulations; env 0 is representative)
+        if not self._limits_injected and getattr(self.cfg.controller, "joint_limit_avoidance_gain", 0.0) > 0.0:
+            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
+            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
+            self._limits_injected = True
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
@@ -403,9 +405,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._task_frame_pose_b = None
 
         # create the operational space controller
-        self._osc = OperationalSpaceController(
-            cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device, num_joints=self._num_DoF
-        )
+        self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)

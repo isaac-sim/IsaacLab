@@ -36,15 +36,7 @@ def _make_controller(
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
     )
-    return DifferentialIKController(
-        cfg,
-        num_envs=_NUM_ENVS,
-        device=device,
-        num_joints=_NUM_JOINTS,
-        joint_pos_limits=torch.tensor([-1.0, 1.0]).repeat(_NUM_JOINTS, 1)
-        if cfg.joint_limit_avoidance_gain > 0.0
-        else None,
-    )
+    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
 
 
 def _well_conditioned_jacobian(device: str) -> torch.Tensor:
@@ -186,7 +178,8 @@ def test_pinv_handles_rank_deficient_jacobian():
     torch.testing.assert_close(actual, expected, atol=2.0e-4, rtol=2.0e-4)
 
 
-def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior():
+@pytest.mark.parametrize("late_limits", [False, True])
+def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior(late_limits):
     """Task shaping and the null-space correction remain numerically compatible."""
     controller = _make_controller("adaptive_dls", orientation_weight=(0.5, 0.25, 0.0), joint_limit_avoidance_gain=0.4)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
@@ -194,8 +187,10 @@ def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior():
     joint_pos[:, 0] = 0.95
     lower = torch.full((_NUM_JOINTS,), -1.0)
     upper = torch.full((_NUM_JOINTS,), 1.0)
-    controller.set_joint_pos_limits(lower, upper)
     controller.set_command(command)
+    if late_limits:
+        controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    controller.set_joint_pos_limits(lower, upper)
 
     task_jacobian, task_error = _reference_pose_task(controller, ee_pos, ee_quat, jacobian)
     expected = joint_pos + _previous_delta_joint_pos(controller, task_error, task_jacobian)
@@ -274,44 +269,36 @@ def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary(use_r
 
 
 @pytest.mark.parametrize("device", ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else []))
-def test_joint_limits_accept_float64_cpu_tensors_without_rebuilding(device: str):
-    """Limit values update while the controller topology and captured solve stay fixed."""
+def test_joint_limits_accept_float64_cpu_tensors_before_and_after_initialization(device: str):
+    """Joint limits retain the legacy conversion behavior at the float32 Warp boundary."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2, device=device)
-    backend = controller._controller
-    lower = torch.full((_NUM_JOINTS,), -1.0, dtype=torch.float64)
-    upper = torch.full((_NUM_JOINTS,), 1.0, dtype=torch.float64)
+    lower = torch.full((_NUM_JOINTS,), -1.0, dtype=torch.float64, device="cpu")
+    upper = torch.full((_NUM_JOINTS,), 1.0, dtype=torch.float64, device="cpu")
+    controller.set_joint_pos_limits(lower, upper)
+
     ee_pos, ee_quat, command, joint_pos = _pose_inputs(device)
-    joint_pos[:, 0] = 0.95
     jacobian = _well_conditioned_jacobian(device)
     controller.set_command(command)
-    first = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    controller.set_joint_pos_limits(lower - 0.5, upper + 0.5)
-    second = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    assert controller._controller is backend
-    assert not torch.allclose(first, second)
+    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     assert controller._joint_pos_lower.dtype == torch.float32
     assert controller._joint_pos_lower.device == torch.device(device)
+
+    backend = controller._controller
+    controller.set_joint_pos_limits(lower - 0.5, upper + 0.5)
+    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    assert controller._controller is backend
     torch.testing.assert_close(controller._joint_pos_lower.cpu(), torch.full((_NUM_JOINTS,), -1.5))
+    torch.testing.assert_close(controller._joint_pos_upper.cpu(), torch.full((_NUM_JOINTS,), 1.5))
 
 
-def test_joint_limits_are_required_and_sized_at_construction():
-    """Avoidance must be configured with real limits before the first solve."""
-    cfg = DifferentialIKControllerCfg(
-        command_type="pose", use_relative_mode=False, ik_method="trans", joint_limit_avoidance_gain=0.2
-    )
-    with pytest.raises(ValueError, match="Initial joint_pos_limits"):
-        DifferentialIKController(cfg, _NUM_ENVS, "cpu", num_joints=_NUM_JOINTS)
-    with pytest.raises(ValueError, match="Expected joint_pos_limits"):
-        DifferentialIKController(
-            cfg,
-            _NUM_ENVS,
-            "cpu",
-            num_joints=_NUM_JOINTS,
-            joint_pos_limits=torch.tensor([-1.0, 1.0]).repeat(_NUM_JOINTS - 1, 1),
-        )
+def test_joint_limit_count_is_checked_when_controller_initializes():
+    """Limits supplied before the joint count is known must match the first compute call."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2)
+    controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
+    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
+    controller.set_command(command)
     with pytest.raises(ValueError, match="limits for 7 joints"):
-        controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
+        controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)
 
 
 def test_compute_rejects_integral_out_buffer():
