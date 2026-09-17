@@ -14,6 +14,8 @@ from types import MappingProxyType
 
 from pxr import Sdf, Usd, UsdGeom
 
+from isaaclab.sim.utils import make_uninstanceable
+
 logger = logging.getLogger(__name__)
 
 
@@ -426,9 +428,10 @@ def export_stage_to_string(
     anonymous session layer used only for export, so the input stage remains unchanged.
 
     When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
-    active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
-    additionally trims the non-source env roots themselves; ``stage.clone`` recreates them and the RenderProduct's
-    camera relationship is re-authored after clone.
+    active so the exported stage retains a slot for every env. Nested instances in source subtrees are expanded
+    on the export session because legacy cloning otherwise drops their geometry. The ovstage ``stage.clone``
+    path passes False, retaining source instancing and trimming the non-source env roots themselves;
+    ``stage.clone`` recreates them and the RenderProduct's camera relationship is re-authored after clone.
 
     Args:
         stage: USD stage to export.
@@ -455,6 +458,10 @@ def export_stage_to_string(
     prim_paths: list[Sdf.Path] = []
 
     if keep_env_roots:
+        # Native legacy cloning omits instanced visuals; expand only the renderer's copy.
+        with Usd.EditContext(export_stage, export_session):
+            for source_path in source_paths:
+                make_uninstanceable(source_path, stage=export_stage)
         for child in envs_prim.GetChildren():
             # Legacy code path: keep env roots so we can query their xforms after opening stage
             child_path = child.GetPath()
