@@ -17,6 +17,10 @@ from sphinx.util.docutils import SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
+_PUBLISHED_WHEEL_VERSION = "3.0.0rc1"
+_PUBLISHED_WHEEL_OVERRIDES_URL = (
+    "https://raw.githubusercontent.com/isaac-sim/IsaacLab/v3.0.0-EA/tools/wheel_builder/uv-overrides.txt"
+)
 
 
 def _branch(config) -> str:
@@ -216,16 +220,12 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
     has_content = False
 
     def run(self) -> list[nodes.Node]:
-        branch = _source_branch(self.config)
-        overrides_url = (
-            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
-        )
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[isaacsim]" \\
-     --overrides "{overrides_url}" \\
-     --extra-index-url https://pypi.nvidia.com \\
+   uv pip install "isaaclab[isaacsim]=={_PUBLISHED_WHEEL_VERSION}" \\
+     --overrides "{_PUBLISHED_WHEEL_OVERRIDES_URL}" \\
+     --index https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -237,15 +237,13 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
     has_content = False
 
     def run(self) -> list[nodes.Node]:
-        branch = _source_branch(self.config)
-        overrides_url = (
-            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
-        )
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[importers]" \\
-     --overrides "{overrides_url}"
+   uv pip install "isaaclab[importers]=={_PUBLISHED_WHEEL_VERSION}" \\
+     --overrides "{_PUBLISHED_WHEEL_OVERRIDES_URL}" \\
+     --index https://pypi.nvidia.com \\
+     --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
 
