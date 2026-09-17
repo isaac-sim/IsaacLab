@@ -301,10 +301,6 @@ class OperationalSpaceController:
                     current_ee_pos_task, current_ee_rot_task, target
                 )
                 desired_ee_pose_task = torch.cat([desired_ee_pos_task, desired_ee_rot_task], dim=-1)
-                if not self.cfg.use_newton or self.desired_ee_pose_task is None:
-                    self.desired_ee_pose_task = desired_ee_pose_task
-                else:
-                    self.desired_ee_pose_task.copy_(desired_ee_pose_task)
             elif command_type == "pose_abs":
                 # normalize the target orientation so that unnormalized policy outputs do not scale the
                 # orientation error; degenerate quaternions fall back to the current end-effector orientation
@@ -322,15 +318,17 @@ class OperationalSpaceController:
                 else:
                     fallback_quat = current_task_frame_pose_b.new_tensor([0.0, 0.0, 0.0, 1.0]).expand(self.num_envs, 4)
                 desired_ee_pose_task[:, 3:7] = torch.where(is_valid, normalized_quat, fallback_quat)
-                if not self.cfg.use_newton or self.desired_ee_pose_task is None:
-                    self.desired_ee_pose_task = desired_ee_pose_task
-                else:
-                    self.desired_ee_pose_task.copy_(desired_ee_pose_task)
             elif command_type == "wrench_abs":
                 # compute targets
                 self.desired_ee_wrench_task = target.clone()
+                continue
             else:
                 raise ValueError(f"Invalid control command: {command_type}.")
+
+            if not self.cfg.use_newton or self.desired_ee_pose_task is None:
+                self.desired_ee_pose_task = desired_ee_pose_task
+            else:
+                self.desired_ee_pose_task.copy_(desired_ee_pose_task)
 
         # Rotation of task frame wrt root frame, converts a coordinate from task frame to root frame.
         R_task_b = matrix_from_quat(current_task_frame_pose_b[:, 3:])
@@ -622,40 +620,21 @@ class OperationalSpaceController:
             self._num_dof = jacobian_b.shape[2]
             self._initialize_newton()
         self._operational_frame.copy_(self._task_frame_pose_b)
-        # check the inputs the requested laws need, before handing anything to the backend
+        # -- Newton input ports
+        self._jacobian.copy_(jacobian_b)
+        if self.cfg.gravity_compensation:
+            if gravity is None:
+                raise ValueError("Gravity vector is required for gravity compensation.")
+            self._gravity.copy_(gravity)
+        else:
+            self._gravity.zero_()
+
+        # -- motion state and target (zero gains suppress uncommanded motion)
         if self.desired_ee_pose_b is not None:
             if current_ee_pose_b is None or current_ee_vel_b is None:
                 raise ValueError("Current end-effector pose and velocity are required for motion control.")
             if self.cfg.inertial_dynamics_decoupling and mass_matrix is None:
                 raise ValueError("Mass matrix is required for inertial decoupling.")
-        if self.desired_ee_wrench_b is not None:
-            if self.cfg.contact_wrench_stiffness_task is not None and current_ee_force_b is None:
-                raise ValueError("Current end-effector force is required for closed-loop force control.")
-        if self.cfg.gravity_compensation and gravity is None:
-            raise ValueError("Gravity vector is required for gravity compensation.")
-        if self._nullspace_control:
-            if (
-                self.cfg.inertial_dynamics_decoupling
-                and not self.cfg.partial_inertial_dynamics_decoupling
-                and mass_matrix is None
-            ):
-                raise ValueError("Mass matrix inverse is required for dynamically consistent pseudo-inverse")
-            if current_joint_pos is None or current_joint_vel is None:
-                raise ValueError("Current joint positions and velocities are required for null-space control.")
-            if nullspace_joint_pos_target is not None and nullspace_joint_pos_target.shape != current_joint_pos.shape:
-                raise ValueError(
-                    f"The target nullspace joint positions shape '{nullspace_joint_pos_target.shape}' does not"
-                    f"match the current joint positions shape '{current_joint_pos.shape}'."
-                )
-
-        # -- Newton input ports
-        self._jacobian.copy_(jacobian_b)
-        if self.cfg.inertial_dynamics_decoupling:
-            self._mass_matrix.copy_(mass_matrix)
-        if self.cfg.gravity_compensation:
-            self._gravity.copy_(gravity)
-        else:
-            self._gravity.zero_()
         if current_ee_pose_b is not None:
             self._tool_pose.copy_(current_ee_pose_b)
         else:
@@ -665,8 +644,6 @@ class OperationalSpaceController:
             self._tool_twist.copy_(current_ee_vel_b)
         else:
             self._tool_twist.zero_()
-
-        # -- motion target (zero gains suppress uncommanded motion)
         if self.desired_ee_pose_task is not None:
             self._desired_pose.copy_(self.desired_ee_pose_task)
             self._motion_stiffness.copy_(self._motion_p_gains_task.diagonal(dim1=-2, dim2=-1))
@@ -682,6 +659,8 @@ class OperationalSpaceController:
             if self.desired_ee_wrench_b is not None:
                 self._desired_wrench.copy_(self.desired_ee_wrench_b)
                 if self._wrench_feedback:
+                    if current_ee_force_b is None:
+                        raise ValueError("Current end-effector force is required for closed-loop force control.")
                     self._measured_wrench[:, :3] = current_ee_force_b
                     # Moments are unmeasured: matching the target keeps them open loop.
                     self._measured_wrench[:, 3:] = self.desired_ee_wrench_b[:, 3:]
@@ -692,12 +671,28 @@ class OperationalSpaceController:
 
         # -- null-space posture target (desired velocity remains zero)
         if self._nullspace_control:
+            if (
+                self.cfg.inertial_dynamics_decoupling
+                and not self.cfg.partial_inertial_dynamics_decoupling
+                and mass_matrix is None
+            ):
+                raise ValueError("Mass matrix inverse is required for dynamically consistent pseudo-inverse")
+            if current_joint_pos is None or current_joint_vel is None:
+                raise ValueError("Current joint positions and velocities are required for null-space control.")
+            if nullspace_joint_pos_target is not None and nullspace_joint_pos_target.shape != current_joint_pos.shape:
+                raise ValueError(
+                    f"The target nullspace joint positions shape '{nullspace_joint_pos_target.shape}' does not"
+                    f"match the current joint positions shape '{current_joint_pos.shape}'."
+                )
             self._joint_pos.copy_(current_joint_pos)
             self._joint_vel.copy_(current_joint_vel)
             if nullspace_joint_pos_target is None:
                 self._nullspace_target.zero_()
             else:
                 self._nullspace_target.copy_(nullspace_joint_pos_target)
+
+        if self.cfg.inertial_dynamics_decoupling:
+            self._mass_matrix.copy_(mass_matrix)
 
         # -- solve and return an independent snapshot (dt is unused)
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
