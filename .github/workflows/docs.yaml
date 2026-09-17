@@ -114,10 +114,9 @@ jobs:
         git for-each-ref --format="%(refname:short)" refs/heads/ | xargs -r git branch -D
         make multi-docs
 
-    - name: Upload docs artifact
-      uses: actions/upload-artifact@v7
+    - name: Upload GitHub Pages artifact
+      uses: actions/upload-pages-artifact@v4
       with:
-        name: docs-html
         path: ./docs/_build
 
   deploy-docs:
@@ -127,16 +126,15 @@ jobs:
     # deploy only on "deploy" branches
     if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
-    steps:
-    - name: Download docs artifact
-      uses: actions/download-artifact@v8
-      with:
-        name: docs-html
-        path: ./docs/_build
+    permissions:
+      pages: write
+      id-token: write
 
-    - name: Deploy to gh-pages
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/_build
-        keep_files: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Deploy GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
