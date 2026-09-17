@@ -52,11 +52,11 @@ jobs:
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
 
-  # SkillEvaluator Tier 1/2A/2B/3 for skills/user/* skills touched by this PR
-  # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog).
-  # Needs internal network access (PyPI mirror + inference.nvidia.com) and a
-  # Docker daemon for Tier 3, hence the self-hosted runner and reuse of the
-  # NVIDIA_INFERENCE_API_KEY secret.
+  # SkillEvaluator Tier 1 / Tier 2A / Tier 2B for skills/user/* touched by this PR.
+  # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog.)
+  # Uses the public NVIDIA/SkillEvaluator package (Apache 2.0); no internal registry
+  # access required. Tier 3 live-agent eval is skipped here — it needs Docker + Harbor
+  # and is run separately on internal infrastructure.
   validate-skills:
     name: Validate skills (SkillEvaluator)
     runs-on: [self-hosted, gpu]
@@ -76,33 +76,23 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check NVIDIA internal registry connectivity
-        id: registry_check
-        run: |
-          if python3 -c "import socket; socket.getaddrinfo('urm.nvidia.com', 443)" 2>/dev/null; then
-            echo "reachable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "reachable=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::urm.nvidia.com unreachable — runner is not on the NVIDIA internal network; SkillEvaluator steps will be skipped"
-          fi
-
       - name: Install skillevaluator
         id: install_skillevaluator
-        # Only runs when urm.nvidia.com is reachable (NVIDIA internal runners).
-        # Any install failure other than network unreachability fails the job so
-        # a bad version pin or pip error does not silently disable the gate.
-        if: steps.registry_check.outputs.reachable == 'true'
         env:
-          # Pinned deliberately: a bump can newly-fail every open PR.
-          SKILLEVALUATOR_VERSION: "1.0.0"
-          # Provided so that `skillevaluator doctor` can verify inference-API access.
+          # Pinned to the v0.1.0 release tag. A bump here can newly-fail every
+          # open PR, so update deliberately after testing locally.
+          SKILLEVALUATOR_REF: "v0.1.0"
+          # Used by `skillevaluator doctor` to verify inference-API access, and
+          # by Tier 2 embedding calls during context-optimization-check and
+          # similarity-check.
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
         run: |
           set -euo pipefail
           python3 -m pip install --upgrade pip
-          python3 -m pip install "skillevaluator==${SKILLEVALUATOR_VERSION}" -i https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+          python3 -m pip install \
+            "skillevaluator[tier2,security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
           skillevaluator --version
-          skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY and network access"
+          skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY"
 
       - name: Determine touched skills
         id: touched
@@ -139,7 +129,7 @@ jobs:
             { printf 'dirs<<SKILL_DIRS_EOF\n'; printf '%s\n' "${skill_dirs[@]}"; printf 'SKILL_DIRS_EOF\n'; } >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 3
+      - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 2B
         if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
         env:
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
@@ -151,12 +141,9 @@ jobs:
           while IFS= read -r skill_dir; do
             [[ -n "$skill_dir" ]] || continue
             echo ""
-            echo "===== Per-skill validation: ${skill_dir} ====="
+            echo "===== Per-skill validation (Tier 1): ${skill_dir} ====="
             if ! skillevaluator validate "${skill_dir}" \
                   -c \
-                  --tier3 \
-                  --profile internal \
-                  --catalog-path skills \
                   --no-dedup; then
               failed=1
             fi
