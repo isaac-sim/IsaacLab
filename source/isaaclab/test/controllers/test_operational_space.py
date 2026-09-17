@@ -865,6 +865,23 @@ def test_franka_hybrid_variable_kp_impedance(sim):
 
 
 @pytest.mark.isaacsim_ci
+def test_task_frame_conversion_preserves_absolute_target():
+    """A rounded pose command must resolve to the same target through either reference frame."""
+    osc_cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"])
+    osc = OperationalSpaceController(osc_cfg, num_envs=1, device="cpu")
+    target_b = torch.tensor([[0.5, -0.4, 0.6, 0.707, 0.0, 0.0, 0.707]])
+    command = target_b.clone()
+    resolved_targets = []
+    for frame in ("root", "task"):
+        converted_command, task_frame_pose_b = _convert_to_task_frame(osc, command, target_b, frame)
+        osc.set_command(converted_command, current_task_frame_pose_b=task_frame_pose_b)
+        resolved_targets.append(osc.desired_ee_pose_b.clone())
+
+    torch.testing.assert_close(resolved_targets[0], resolved_targets[1], atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(command, target_b, atol=0.0, rtol=0.0)
+
+
+@pytest.mark.isaacsim_ci
 def test_franka_taskframe_pose_abs(sim):
     """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
@@ -1802,6 +1819,8 @@ def _convert_to_task_frame(
         # Convert target commands from base to the task frame
         command = command.clone()
         task_frame_pose_b = ee_target_pose_b.clone()
+        # Rounded goal quaternions must define a unit rotation when used as a reference frame.
+        task_frame_pose_b[:, 3:] /= torch.linalg.vector_norm(task_frame_pose_b[:, 3:], dim=-1, keepdim=True)
 
         cmd_idx = 0
         for target_type in osc.cfg.target_types:
