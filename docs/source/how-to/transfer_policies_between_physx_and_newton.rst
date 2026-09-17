@@ -16,7 +16,7 @@ Transfer Policies Between PhysX and Newton
    :doc:`/source/how-to/prepare_asset_for_newton`
    and the ``isaaclab-preparing-assets-for-newton``
    `skill
-   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__.
+   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/isaaclab-preparing-assets-for-newton/SKILL.md>`__.
 
 Sim-to-sim transfer evaluates one policy checkpoint in a physics backend different from the one
 used for training. This guide covers both PhysX-trained policies deployed in Newton and
