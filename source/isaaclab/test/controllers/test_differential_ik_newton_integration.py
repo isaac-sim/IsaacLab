@@ -194,7 +194,8 @@ def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior(la
     upper = torch.full((_NUM_JOINTS,), 1.0)
     controller.set_command(command)
     if late_limits:
-        controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+        with pytest.raises(ValueError, match="Set joint position limits before computing"):
+            controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     controller.set_joint_pos_limits(lower, upper)
 
     task_jacobian, task_error = _reference_pose_task(controller, ee_pos, ee_quat, jacobian)
@@ -285,6 +286,7 @@ def test_joint_limits_accept_float64_cpu_tensors_before_and_after_initialization
 def test_joint_limit_count_matches_initialized_controller():
     """The setter rejects limits that do not match the fixed joint count."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2)
+    controller.set_joint_pos_limits(torch.full((_NUM_JOINTS,), -1.0), torch.full((_NUM_JOINTS,), 1.0))
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
     controller.set_command(command)
     controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)

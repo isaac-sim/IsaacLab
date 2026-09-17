@@ -88,6 +88,8 @@ class DifferentialIKControllerCfg:
     end-effector position. Active only once joint limits are provided via
     :meth:`~isaaclab.controllers.differential_ik.DifferentialIKController.set_joint_pos_limits`
     (the IK action term injects them automatically when ``joint_limit_avoidance_gain > 0``).
+    With ``use_newton=True``, supply limits before the first compute call. Later limit updates
+    are supported; the Lab backend also permits computing before limits are supplied.
     """
 
     joint_limit_avoidance_margin: float = 0.3

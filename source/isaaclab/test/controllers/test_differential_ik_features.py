@@ -220,7 +220,7 @@ def test_adaptive_dls_damps_singularity(use_newton: bool):
 
 @pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
 def test_joint_limit_avoidance_zero_when_disabled(use_newton: bool):
-    """JLA changes no targets when disabled or before limits are provided."""
+    """Disabled avoidance is a no-op; only Newton requires limits when enabled."""
     ee_pos = torch.zeros(1, 3)
     ee_quat = torch.tensor([_ID_QUAT])
     command = torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT])
@@ -230,11 +230,15 @@ def test_joint_limit_avoidance_zero_when_disabled(use_newton: bool):
     c.set_command(command)
     out = c.compute(ee_pos, ee_quat, jacobian, joint_pos)
     torch.testing.assert_close(out, joint_pos)
-    # enabled but limits not set yet -> still zeros
+    # Lab permits missing limits; Newton requires them before initialization.
     c2 = _make_controller(use_newton=use_newton, joint_limit_avoidance_gain=1.0)
     c2.set_command(command)
-    out2 = c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    torch.testing.assert_close(out2, joint_pos)
+    if use_newton:
+        with pytest.raises(ValueError, match="Set joint position limits before computing"):
+            c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    else:
+        out2 = c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
+        torch.testing.assert_close(out2, joint_pos)
 
 
 @pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])

@@ -24,12 +24,15 @@ configuration to select Newton's model-free solver. Both choices use the same co
 command and compute APIs and return independent result tensors. The controller choice is independent
 of the physics backend: a Newton controller can also run with PhysX simulation.
 
-Newton allocates persistent float32 workspace on the first ``compute()`` call. DiffIK and OSC infer
-the number of controlled joints from the input tensors and rebuild the workspace if it changes;
-callers do not specify a joint count. For CUDA capture, supply commands and limits and warm up
-``compute()`` before capture. Recapture after changing the joint count, first enabling joint-limit
-avoidance, or changing captured control flow. DiffIK retains ``set_joint_pos_limits()`` before or
-after initialization. Gravity compensation can still be enabled or disabled between compute calls.
+Newton allocates persistent float32 workspace on the first ``compute()`` call, or when DiffIK
+receives joint limits with avoidance enabled. DiffIK and OSC infer the number of controlled joints
+from the input tensors and rebuild the workspace if it changes; callers do not specify a joint count.
+With Newton DiffIK and a positive ``joint_limit_avoidance_gain``, call ``set_joint_pos_limits()``
+before the first ``compute()``; the setter initializes Newton from the limit count. Later limit
+updates retain the existing backend. The default Lab path still permits computing before supplying
+limits. For CUDA capture, supply commands and limits and warm up ``compute()`` before capture.
+Recapture after changing the joint count or captured control flow. Gravity compensation can still
+be enabled or disabled between compute calls.
 
 Newton 1.6.0 is required for the opt-in path. Float64 inputs do not provide float64 Newton solver
 precision; leave ``use_newton=False`` when double-precision control laws are required.
