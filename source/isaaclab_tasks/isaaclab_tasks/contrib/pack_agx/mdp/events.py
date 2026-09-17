@@ -16,6 +16,8 @@ from pxr import Gf, Sdf, Usd, UsdShade
 
 from isaaclab.managers import SceneEntityCfg
 
+from .rewards import get_pack_agx_state
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -31,8 +33,6 @@ def reset_task_stage(
     """Reset Pack-AGX stage trackers and capture the randomized start height."""
     if len(env_ids) == 0:
         return
-
-    from .rewards import get_pack_agx_state
 
     state = get_pack_agx_state(env)
     previous_stage = state.task_stage[env_ids].clone()

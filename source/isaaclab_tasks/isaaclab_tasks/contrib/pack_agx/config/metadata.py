@@ -32,41 +32,7 @@ FULL_ARTICULATION_DOF = 75
 
 
 # Neutral body pose; tasks provide their own initial poses.
-H2_DEFAULT_JOINT_POS: dict[str, float] = {
-    "left_hip_pitch_joint": -0.1,
-    "left_hip_roll_joint": 0.0,
-    "left_hip_yaw_joint": 0.0,
-    "left_knee_joint": 0.3,
-    "left_ankle_roll_joint": 0.0,
-    "left_ankle_pitch_joint": -0.2,
-    "right_hip_pitch_joint": -0.1,
-    "right_hip_roll_joint": 0.0,
-    "right_hip_yaw_joint": 0.0,
-    "right_knee_joint": 0.3,
-    "right_ankle_roll_joint": 0.0,
-    "right_ankle_pitch_joint": -0.2,
-    "waist_yaw_joint": 0.0,
-    "waist_roll_joint": 0.0,
-    "waist_pitch_joint": 0.0,
-    "head_pitch_joint": 0.0,
-    "head_yaw_joint": 0.0,
-    "left_shoulder_pitch_joint": 0.0,
-    "left_shoulder_roll_joint": 0.0,
-    "left_shoulder_yaw_joint": 0.0,
-    "left_elbow_joint": 0.0,
-    "left_wrist_roll_joint": 0.0,
-    "left_wrist_pitch_joint": 0.0,
-    "left_wrist_yaw_joint": 0.0,
-    "right_shoulder_pitch_joint": 0.0,
-    "right_shoulder_roll_joint": 0.0,
-    "right_shoulder_yaw_joint": 0.0,
-    "right_elbow_joint": 0.0,
-    "right_wrist_roll_joint": 0.0,
-    "right_wrist_pitch_joint": 0.0,
-    "right_wrist_yaw_joint": 0.0,
-}
 
-# 44 Sharpa hand joints in Isaac articulation sub-order (left/right interleaved).
 H2_SHARPA_HAND_JOINT_NAMES_ARTICULATION_ORDER: list[str] = [
     "left_index_MCP_FE",
     "left_middle_MCP_FE",
@@ -226,9 +192,3 @@ MODALITY_ACTION_KEYS_BARE: list[str] = ["left_arm", "right_arm", "left_hand", "r
 
 OBSERVATION_DELTA_INDICES: list[int] = [0]
 ACTION_HORIZON_N17_INDICES: list[int] = list(range(32))
-
-# Pick-and-place apple task placement constants.
-#
-# Retry placements for the replay sweep, as XY offsets [m] from the environment's
-# configured apple position. Offsets rather than absolute table coordinates, so a
-# re-calibrated apple pose or table height needs no edit here.

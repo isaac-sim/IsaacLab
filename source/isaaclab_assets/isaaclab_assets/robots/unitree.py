@@ -20,6 +20,8 @@ The following configurations are available:
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
+import os
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -813,3 +815,176 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
 
 This configuration is designed for high-precision manipulation tasks such as trocar assembly.
 """
+
+
+"""Configuration for the Unitree H2 humanoid with Sharpa Wave hands."""
+
+# Root of the Unitree H2 + Sharpa USDs. Point ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` at a mirror
+# keeping the same subtree to serve them from disk.
+H2_SHARPA_ASSET_ROOT: str = os.environ.get(
+    "ISAACLAB_H2_SHARPA_ASSET_ROOT",
+    "https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo/resolve/main/assets/Robots/UnitreeH2",
+)
+
+H2_SHARPA_USD_PATH: str = f"{H2_SHARPA_ASSET_ROOT}/h2_with_sharpa/H2_with_sharpa_flat.usd"
+
+H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=H2_SHARPA_USD_PATH,
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=4,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+            fix_root_link=True,
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=4,
+        ),
+        # Bind a contact material to the whole robot (recurses to all collision
+        # meshes incl. fingertips) so hand<->apple friction matches the apple's
+        # 0.95, instead of the PhysX default ~0.5 baked into the H2 USD.
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            static_friction=0.95,
+            dynamic_friction=0.95,
+            restitution=0.0,
+        ),
+    ),
+    prim_path="/World/envs/env_.*/Robot",
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(-0.95, 0.0, 1.05),
+        rot=(0.0, 0.0, 0.0, 1.0),
+        joint_pos={
+            "left_hip_pitch_joint": -0.1,
+            "left_hip_roll_joint": 0.0,
+            "left_hip_yaw_joint": 0.0,
+            "left_knee_joint": 0.3,
+            "left_ankle_roll_joint": 0.0,
+            "left_ankle_pitch_joint": -0.2,
+            "right_hip_pitch_joint": -0.1,
+            "right_hip_roll_joint": 0.0,
+            "right_hip_yaw_joint": 0.0,
+            "right_knee_joint": 0.3,
+            "right_ankle_roll_joint": 0.0,
+            "right_ankle_pitch_joint": -0.2,
+            "waist_yaw_joint": 0.0,
+            "waist_roll_joint": 0.0,
+            "waist_pitch_joint": 0.0,
+            "head_pitch_joint": 0.0,
+            "head_yaw_joint": 0.0,
+            "left_shoulder_pitch_joint": 0.0,
+            "left_shoulder_roll_joint": 0.0,
+            "left_shoulder_yaw_joint": 0.0,
+            "left_elbow_joint": 0.0,
+            "left_wrist_roll_joint": 0.0,
+            "left_wrist_pitch_joint": 0.0,
+            "left_wrist_yaw_joint": 0.0,
+            "right_shoulder_pitch_joint": 0.0,
+            "right_shoulder_roll_joint": 0.0,
+            "right_shoulder_yaw_joint": 0.0,
+            "right_elbow_joint": 0.0,
+            "right_wrist_roll_joint": 0.0,
+            "right_wrist_pitch_joint": 0.0,
+            "right_wrist_yaw_joint": 0.0,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hip_yaw_joint", ".*_hip_roll_joint", ".*_hip_pitch_joint", ".*_knee_joint"],
+            effort_limit=1000.0,
+            velocity_limit=0.0,
+            stiffness=10000.0,
+            damping=1000.0,
+            armature=0.03,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_roll_joint", ".*_ankle_pitch_joint"],
+            effort_limit=1000.0,
+            velocity_limit=0.0,
+            stiffness=10000.0,
+            damping=1000.0,
+            armature=0.03,
+        ),
+        "waist": ImplicitActuatorCfg(
+            joint_names_expr=["waist_.*_joint"],
+            effort_limit=1000.0,
+            velocity_limit=0.0,
+            stiffness=1e6,
+            damping=1e5,
+            armature=0.03,
+        ),
+        "head": IdealPDActuatorCfg(
+            joint_names_expr=["head_.*_joint"],
+            effort_limit=50.0,
+            velocity_limit=10.0,
+            stiffness=150.0,
+            damping=10.0,
+            armature=0.03,
+            friction=0.03,
+        ),
+        "arms": IdealPDActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_pitch_joint",
+                ".*_shoulder_roll_joint",
+                ".*_shoulder_yaw_joint",
+                ".*_elbow_joint",
+                ".*_wrist_.*_joint",
+            ],
+            effort_limit={
+                ".*_shoulder_pitch_joint": 220.0,
+                ".*_shoulder_roll_joint": 154.0,
+                ".*_shoulder_yaw_joint": 154.0,
+                ".*_elbow_joint": 154.0,
+                ".*_wrist_roll_joint": 154.0,
+                ".*_wrist_pitch_joint": 125.0,
+                ".*_wrist_yaw_joint": 125.0,
+            },
+            velocity_limit={
+                ".*_shoulder_pitch_joint": 28.0,
+                ".*_shoulder_roll_joint": 34.0,
+                ".*_shoulder_yaw_joint": 34.0,
+                ".*_elbow_joint": 34.0,
+                ".*_wrist_roll_joint": 34.0,
+                ".*_wrist_pitch_joint": 50.0,
+                ".*_wrist_yaw_joint": 50.0,
+            },
+            stiffness={
+                ".*_shoulder_.*_joint": 150.0,
+                ".*_elbow_joint": 150.0,
+                ".*_wrist_.*_joint": 50.0,
+            },
+            damping={
+                ".*_shoulder_.*_joint": 10.0,
+                ".*_elbow_joint": 10.0,
+                ".*_wrist_.*_joint": 3.0,
+            },
+            armature={".*_shoulder_.*": 0.03, ".*_elbow_.*": 0.03, ".*_wrist_.*_joint": 0.03},
+            friction=0.03,
+        ),
+        "hands": IdealPDActuatorCfg(
+            joint_names_expr=[".*_thumb_.*", ".*_index_.*", ".*_middle_.*", ".*_ring_.*", ".*_pinky_.*"],
+            # Grasp vs tunneling tradeoff (IdealPD, torque capped by effort_limit):
+            #   20/2  -> contact wins, but fingers often cannot hold the apple
+            #   40/5  -> grasp succeeds more, but fingers tunnel into the apple
+            #   28/3  -> middle ground; keep effort_limit=5 so peak force stays bounded
+            effort_limit=5.0,
+            velocity_limit=16.0,
+            stiffness=28.0,
+            damping=3.0,
+            armature=0.03,
+            friction=0.03,
+        ),
+    },
+)
+
+
+# Neutral articulation pose; tasks override it through the preset helpers.
