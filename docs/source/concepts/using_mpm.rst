@@ -379,6 +379,12 @@ solver alone. Then tune the additional controls:
 * ``CouplerProxyMappingCfg.mass_scale`` scales the source body's effective mass
   and inertia only in the destination proxy view. It does not change the body's
   authored mass in the rigid solver.
+* ``CouplerProxyMappingCfg.proxy_relaxation`` scales the force fed back to the
+  source. Set it to ``0`` for one-way coupling, use ``1`` for the unmodified
+  force, or under-relax with a value between them when two-way feedback
+  oscillates. ``proxy_relaxation_mode="aitken"`` adapts the value within a
+  coupled step and clamps it between ``proxy_relaxation_min`` and
+  ``proxy_relaxation_max``.
 
 Start ``mass_scale`` at ``1`` for a freely moving collider. Increase it when the
 rigid solver strongly constrains the collider during MPM contact. For example, a
@@ -388,6 +394,10 @@ such as ``1``, ``10``, and ``100``, and keep the smallest value that prevents
 unrealistic proxy motion. Newton requires a finite positive value: do not use
 infinity. An excessively large scalar also suppresses legitimate motion in
 unsupported directions and can make the interaction effectively one-way.
+
+Do not use ``mode="lagged"`` as a synonym for one-way coupling. Both ``lagged``
+and ``staggered`` transfer modes can return forces. Use zero
+``proxy_relaxation`` when the intended experiment must suppress feedback.
 
 Validate both the supported and free-moving cases after changing coupling. If
 the uncoupled systems are unstable, fix their timestep, contacts, and reset
