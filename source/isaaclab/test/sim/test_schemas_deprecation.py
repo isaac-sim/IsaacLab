@@ -27,51 +27,60 @@ import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
-# Legacy cfg class -> a distinctive substring of the replacement named in its warning.
+# Legacy cfg class -> every fragment its warning must name, plus any legacy field that has no
+# fragment at all and therefore has to be called out explicitly. A legacy class bundles several
+# USD namespaces, so a warning naming only the backend-specific fragment would tell the user to
+# drop the properties the class inherits -- these expectations are the whole point of the test.
 # Deformable cfgs are intentionally absent: their fragment families do not exist yet, so the
 # legacy deformable path cannot be deprecated. Tendon and material cfgs are out of scope here.
+_RIGID_BODY = ("UsdPhysicsRigidBodyCfg", "PhysxRigidBodyCfg")
+_COLLISION = ("UsdPhysicsCollisionCfg", "PhysxCollisionCfg", "mesh_collision_property")
+_JOINT_DRIVE = ("UsdPhysicsDriveCfg", "PhysxJointCfg", "ensure_drives_exist")
+_ARTICULATION = ("PhysxArticulationCfg", "fix_root_link")
+
 DEPRECATED_CORE_CFGS = {
-    "MassPropertiesCfg": "MassCfg",
-    "RigidBodyBaseCfg": "UsdPhysicsRigidBodyCfg",
-    "CollisionBaseCfg": "UsdPhysicsCollisionCfg",
-    "ArticulationRootBaseCfg": "PhysxArticulationCfg",
-    "JointDriveBaseCfg": "UsdPhysicsDriveCfg",
-    "MeshCollisionBaseCfg": "UsdPhysicsMeshCollisionCfg",
-    "BoundingCubePropertiesCfg": "boundingCube",
-    "BoundingSpherePropertiesCfg": "boundingSphere",
+    "MassPropertiesCfg": ("MassCfg",),
+    "RigidBodyBaseCfg": _RIGID_BODY,
+    "CollisionBaseCfg": _COLLISION,
+    "ArticulationRootBaseCfg": _ARTICULATION,
+    "JointDriveBaseCfg": _JOINT_DRIVE,
+    "MeshCollisionBaseCfg": ("UsdPhysicsMeshCollisionCfg",),
+    "BoundingCubePropertiesCfg": ("UsdPhysicsMeshCollisionCfg", "boundingCube"),
+    "BoundingSpherePropertiesCfg": ("UsdPhysicsMeshCollisionCfg", "boundingSphere"),
 }
 
 DEPRECATED_PHYSX_CFGS = {
-    "PhysxRigidBodyPropertiesCfg": "PhysxRigidBodyCfg",
-    "RigidBodyPropertiesCfg": "PhysxRigidBodyCfg",
-    "PhysxJointDrivePropertiesCfg": "PhysxJointCfg",
-    "JointDrivePropertiesCfg": "PhysxJointCfg",
-    "PhysxCollisionPropertiesCfg": "PhysxCollisionCfg",
-    "CollisionPropertiesCfg": "PhysxCollisionCfg",
-    "PhysxArticulationRootPropertiesCfg": "PhysxArticulationCfg",
-    "ArticulationRootPropertiesCfg": "PhysxArticulationCfg",
-    "MeshCollisionPropertiesCfg": "UsdPhysicsMeshCollisionCfg",
-    "PhysxConvexHullPropertiesCfg": "PhysxConvexHullCfg",
-    "ConvexHullPropertiesCfg": "PhysxConvexHullCfg",
-    "PhysxConvexDecompositionPropertiesCfg": "PhysxConvexDecompositionCfg",
-    "ConvexDecompositionPropertiesCfg": "PhysxConvexDecompositionCfg",
-    "PhysxTriangleMeshPropertiesCfg": "PhysxTriangleMeshCfg",
-    "TriangleMeshPropertiesCfg": "PhysxTriangleMeshCfg",
-    "PhysxTriangleMeshSimplificationPropertiesCfg": "PhysxTriangleMeshSimplificationCfg",
-    "TriangleMeshSimplificationPropertiesCfg": "PhysxTriangleMeshSimplificationCfg",
-    "PhysxSDFMeshPropertiesCfg": "PhysxSDFMeshCfg",
-    "SDFMeshPropertiesCfg": "PhysxSDFMeshCfg",
+    "PhysxRigidBodyPropertiesCfg": _RIGID_BODY,
+    "RigidBodyPropertiesCfg": _RIGID_BODY,
+    "PhysxJointDrivePropertiesCfg": _JOINT_DRIVE,
+    "JointDrivePropertiesCfg": _JOINT_DRIVE,
+    "PhysxCollisionPropertiesCfg": _COLLISION,
+    "CollisionPropertiesCfg": _COLLISION,
+    "PhysxArticulationRootPropertiesCfg": _ARTICULATION,
+    "ArticulationRootPropertiesCfg": _ARTICULATION,
+    "MeshCollisionPropertiesCfg": ("UsdPhysicsMeshCollisionCfg",),
+    "PhysxConvexHullPropertiesCfg": ("PhysxConvexHullCfg",),
+    "ConvexHullPropertiesCfg": ("PhysxConvexHullCfg",),
+    "PhysxConvexDecompositionPropertiesCfg": ("PhysxConvexDecompositionCfg",),
+    "ConvexDecompositionPropertiesCfg": ("PhysxConvexDecompositionCfg",),
+    "PhysxTriangleMeshPropertiesCfg": ("PhysxTriangleMeshCfg",),
+    "TriangleMeshPropertiesCfg": ("PhysxTriangleMeshCfg",),
+    "PhysxTriangleMeshSimplificationPropertiesCfg": ("PhysxTriangleMeshSimplificationCfg",),
+    "TriangleMeshSimplificationPropertiesCfg": ("PhysxTriangleMeshSimplificationCfg",),
+    "PhysxSDFMeshPropertiesCfg": ("PhysxSDFMeshCfg",),
+    "SDFMeshPropertiesCfg": ("PhysxSDFMeshCfg",),
 }
 
 DEPRECATED_NEWTON_CFGS = {
-    "NewtonRigidBodyPropertiesCfg": "MujocoRigidBodyCfg",
-    "MujocoRigidBodyPropertiesCfg": "MujocoRigidBodyCfg",
-    "NewtonJointDrivePropertiesCfg": "MujocoJointCfg",
-    "MujocoJointDrivePropertiesCfg": "MujocoJointCfg",
-    "NewtonCollisionPropertiesCfg": "NewtonCollisionCfg",
-    "NewtonMeshCollisionPropertiesCfg": "NewtonMeshCollisionCfg",
-    "NewtonSDFCollisionPropertiesCfg": "NewtonSDFCollisionCfg",
-    "NewtonArticulationRootPropertiesCfg": "NewtonArticulationCfg",
+    "NewtonRigidBodyPropertiesCfg": _RIGID_BODY,
+    "MujocoRigidBodyPropertiesCfg": _RIGID_BODY + ("MujocoRigidBodyCfg",),
+    "NewtonJointDrivePropertiesCfg": _JOINT_DRIVE,
+    "MujocoJointDrivePropertiesCfg": _JOINT_DRIVE + ("MujocoJointCfg",),
+    "NewtonCollisionPropertiesCfg": _COLLISION + ("NewtonCollisionCfg",),
+    "NewtonMeshCollisionPropertiesCfg": _COLLISION
+    + ("NewtonCollisionCfg", "UsdPhysicsMeshCollisionCfg", "NewtonMeshCollisionCfg"),
+    "NewtonSDFCollisionPropertiesCfg": _COLLISION + ("NewtonCollisionCfg", "NewtonSDFCollisionCfg"),
+    "NewtonArticulationRootPropertiesCfg": _ARTICULATION + ("NewtonArticulationCfg",),
 }
 
 # Replacement fragments, which must stay silent.
@@ -148,13 +157,14 @@ def _deprecations(func):
     return [w for w in caught if issubclass(w.category, DeprecationWarning)]
 
 
-def _assert_deprecated_once(cls, replacement: str) -> None:
-    """Instantiating ``cls`` raises exactly one deprecation naming ``replacement`` and 5.0."""
+def _assert_deprecated_once(cls, expected: tuple[str, ...]) -> None:
+    """Instantiating ``cls`` raises one deprecation naming every entry of ``expected``, and 5.0."""
     deprecations = _deprecations(cls)
     assert len(deprecations) == 1, f"{cls.__name__}: expected one DeprecationWarning, got {len(deprecations)}"
     message = str(deprecations[0].message)
     assert cls.__name__ in message
-    assert replacement in message, f"{cls.__name__}: warning does not name '{replacement}': {message}"
+    missing = [name for name in expected if name not in message]
+    assert not missing, f"{cls.__name__}: warning omits {missing}: {message}"
     assert "5.0" in message, f"{cls.__name__}: warning does not state the removal version: {message}"
 
 
@@ -163,22 +173,22 @@ Deprecated cfg classes.
 """
 
 
-@pytest.mark.parametrize("name,replacement", sorted(DEPRECATED_CORE_CFGS.items()))
-def test_legacy_core_cfg_warns_on_instantiation(name, replacement):
-    """Each legacy core cfg warns once, naming its fragment replacement."""
-    _assert_deprecated_once(getattr(schemas_cfg, name), replacement)
+@pytest.mark.parametrize("name,expected", sorted(DEPRECATED_CORE_CFGS.items()))
+def test_legacy_core_cfg_warns_on_instantiation(name, expected):
+    """Each legacy core cfg warns once, naming every fragment its fields need."""
+    _assert_deprecated_once(getattr(schemas_cfg, name), expected)
 
 
-@pytest.mark.parametrize("name,replacement", sorted(DEPRECATED_PHYSX_CFGS.items()))
-def test_legacy_physx_cfg_warns_on_instantiation(name, replacement):
-    """Each legacy PhysX cfg warns once, naming its fragment replacement."""
-    _assert_deprecated_once(getattr(_physx_cfgs(), name), replacement)
+@pytest.mark.parametrize("name,expected", sorted(DEPRECATED_PHYSX_CFGS.items()))
+def test_legacy_physx_cfg_warns_on_instantiation(name, expected):
+    """Each legacy PhysX cfg warns once, naming every fragment its fields need."""
+    _assert_deprecated_once(getattr(_physx_cfgs(), name), expected)
 
 
-@pytest.mark.parametrize("name,replacement", sorted(DEPRECATED_NEWTON_CFGS.items()))
-def test_legacy_newton_cfg_warns_on_instantiation(name, replacement):
-    """Each legacy Newton cfg warns once, naming its fragment replacement."""
-    _assert_deprecated_once(getattr(_newton_cfgs(), name), replacement)
+@pytest.mark.parametrize("name,expected", sorted(DEPRECATED_NEWTON_CFGS.items()))
+def test_legacy_newton_cfg_warns_on_instantiation(name, expected):
+    """Each legacy Newton cfg warns once, naming every fragment its fields need."""
+    _assert_deprecated_once(getattr(_newton_cfgs(), name), expected)
 
 
 @pytest.mark.parametrize("name", CURRENT_CORE_FRAGMENTS)
@@ -209,6 +219,7 @@ def test_deformable_symbol_is_not_deprecated(name):
         assert ".. deprecated::" not in (symbol.__doc__ or "")
 
 
+# Imports the schema cfg modules for the first time in a fresh interpreter and reports every
 def test_legacy_cfg_import_does_not_warn():
     """Importing the schema modules must not warn: only construction is deprecated."""
     import importlib  # noqa: PLC0415
@@ -217,6 +228,7 @@ def test_legacy_cfg_import_does_not_warn():
         warnings.simplefilter("always")
         importlib.reload(schemas_cfg)
     assert [w for w in caught if issubclass(w.category, DeprecationWarning)] == []
+
 
 
 """

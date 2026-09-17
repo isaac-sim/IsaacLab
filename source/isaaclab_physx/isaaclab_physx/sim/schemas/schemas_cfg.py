@@ -177,7 +177,7 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
         super().__post_init__()
 
 
-@_deprecated_schema_cfg("PhysxRigidBodyCfg")
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """PhysX-specific rigid body properties.
@@ -363,7 +363,9 @@ class PhysxJointCfg(JointDriveFragment):
     """
 
 
-@_deprecated_schema_cfg("[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]")
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
+)
 @configclass
 class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     """PhysX-specific joint drive properties.
@@ -384,7 +386,10 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     .. deprecated:: 3.0
         Use :class:`PhysxJointCfg` instead, passed in the spawner's ``joint_drive_props`` slot
         alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` for the
-        ``UsdPhysics.DriveAPI`` fields. This class will be removed in 5.0.
+        ``UsdPhysics.DriveAPI`` fields (``drive_type``, ``stiffness``, ``damping`` and
+        ``max_force``; ``max_effort`` remains a deprecated alias of ``max_force``, as
+        ``max_velocity`` is of :attr:`PhysxJointCfg.max_joint_velocity`). ``ensure_drives_exist``
+        is now a field on the spawner cfg. This class will be removed in 5.0.
     """
 
     # ``max_joint_velocity`` on the base remains routed via ``_usd_field_exceptions``
@@ -394,7 +399,9 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     _usd_namespace: ClassVar[str | None] = "physxJoint"
 
 
-@_deprecated_schema_cfg("[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]")
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
+)
 @configclass
 class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
     """Deprecated: use the joint-drive schema fragments.
@@ -461,7 +468,10 @@ class PhysxCollisionCfg(CollisionFragment):
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
-@_deprecated_schema_cfg("PhysxCollisionCfg")
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)] (and move mesh_collision_property to the"
+    " spawner's mesh_collision_props slot)"
+)
 @configclass
 class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     """PhysX-specific rigid-body collision properties.
@@ -482,7 +492,9 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     .. deprecated:: 3.0
         Use :class:`PhysxCollisionCfg` instead, passed in the spawner's ``collision_props`` slot
         alongside :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` for ``collision_enabled``.
-        This class will be removed in 5.0.
+        The nested ``mesh_collision_property`` has no fragment: pass the mesh-collision fragments
+        in the spawner's ``mesh_collision_props`` slot instead. This class will be removed in
+        5.0.
     """
 
     # PhysX torsional-friction fields below live under the ``PhysxCollisionAPI`` schema's
@@ -502,7 +514,7 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
-@_deprecated_schema_cfg("PhysxArticulationCfg")
+@_deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
 @configclass
 class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """PhysX-specific articulation-root properties.
@@ -525,7 +537,9 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
 
     .. deprecated:: 3.0
         Use :class:`PhysxArticulationCfg` instead, passed in the spawner's ``articulation_props``
-        slot. The non-USD ``fix_root_link`` flag is now the ``fix_root_link`` argument of
+        slot; it also carries the inherited ``articulation_enabled``. The non-USD
+        ``fix_root_link`` flag has no fragment: it is a field on the spawner cfg and the
+        ``fix_root_link`` argument of
         :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
         removed in 5.0.
     """
@@ -611,7 +625,7 @@ class PhysxArticulationCfg(ArticulationRootFragment):
     stabilization [m²/s²]."""
 
 
-@_deprecated_schema_cfg("PhysxArticulationCfg")
+@_deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
 @configclass
 class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
     """Deprecated: use the articulation-root schema fragments.
@@ -628,7 +642,10 @@ class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
     """
 
 
-@_deprecated_schema_cfg("[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]")
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)] (and move mesh_collision_property to the"
+    " spawner's mesh_collision_props slot)"
+)
 @configclass
 class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
     """Deprecated: use the collision schema fragments.
@@ -638,7 +655,9 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
         ``collision_props`` slot instead:
         :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` carries ``collision_enabled``
         and :class:`PhysxCollisionCfg` the ``physxCollision:*`` offsets and torsional-patch
-        fields. This class will be removed in 5.0.
+        fields. The nested ``mesh_collision_property`` has no fragment: pass the mesh-collision
+        fragments in the spawner's ``mesh_collision_props`` slot instead. This class will be
+        removed in 5.0.
     """
 
 
@@ -807,7 +826,7 @@ class PhysxSDFMeshCfg(MeshCollisionFragment):
     """
 
 
-@_deprecated_schema_cfg("PhysxConvexHullCfg")
+@_deprecated_schema_cfg("[PhysxConvexHullCfg(...)]")
 @configclass
 class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX convex-hull cooking properties for a mesh collider.
@@ -845,7 +864,7 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxConvexDecompositionCfg")
+@_deprecated_schema_cfg("[PhysxConvexDecompositionCfg(...)]")
 @configclass
 class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX convex-decomposition cooking properties for a mesh collider.
@@ -898,7 +917,7 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxTriangleMeshCfg")
+@_deprecated_schema_cfg("[PhysxTriangleMeshCfg(...)]")
 @configclass
 class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX triangle-mesh cooking properties for a mesh collider.
@@ -929,7 +948,7 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxTriangleMeshSimplificationCfg")
+@_deprecated_schema_cfg("[PhysxTriangleMeshSimplificationCfg(...)]")
 @configclass
 class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX triangle-mesh-simplification cooking properties for a mesh collider.
@@ -963,7 +982,7 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxSDFMeshCfg")
+@_deprecated_schema_cfg("[PhysxSDFMeshCfg(...)]")
 @configclass
 class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX SDF-mesh cooking properties for a mesh collider.
@@ -1033,7 +1052,7 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg("UsdPhysicsMeshCollisionCfg")
+@_deprecated_schema_cfg("[UsdPhysicsMeshCollisionCfg(...)]")
 @configclass
 class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
     """Deprecated: use :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`.
@@ -1048,7 +1067,7 @@ class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxConvexHullCfg")
+@_deprecated_schema_cfg("[PhysxConvexHullCfg(...)]")
 @configclass
 class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
     """Deprecated: use :class:`PhysxConvexHullCfg`.
@@ -1060,7 +1079,7 @@ class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxConvexDecompositionCfg")
+@_deprecated_schema_cfg("[PhysxConvexDecompositionCfg(...)]")
 @configclass
 class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
     """Deprecated: use :class:`PhysxConvexDecompositionCfg`.
@@ -1072,7 +1091,7 @@ class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxTriangleMeshCfg")
+@_deprecated_schema_cfg("[PhysxTriangleMeshCfg(...)]")
 @configclass
 class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
     """Deprecated: use :class:`PhysxTriangleMeshCfg`.
@@ -1084,7 +1103,7 @@ class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
     """
 
 
-@_deprecated_schema_cfg("PhysxTriangleMeshSimplificationCfg")
+@_deprecated_schema_cfg("[PhysxTriangleMeshSimplificationCfg(...)]")
 @configclass
 class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPropertiesCfg):
     """Deprecated: use :class:`PhysxTriangleMeshSimplificationCfg`.
@@ -1096,7 +1115,7 @@ class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPro
     """
 
 
-@_deprecated_schema_cfg("PhysxSDFMeshCfg")
+@_deprecated_schema_cfg("[PhysxSDFMeshCfg(...)]")
 @configclass
 class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
     """Deprecated: use :class:`PhysxSDFMeshCfg`.

@@ -121,7 +121,7 @@ def _deprecated_schema_cfg(replacement: str):
 
     Apply it *above* ``@configclass`` so it wraps the generated ``__init__``::
 
-        @_deprecated_schema_cfg("MassCfg")
+        @_deprecated_schema_cfg("[MassCfg(...)]")
         @configclass
         class MassPropertiesCfg: ...
 
@@ -132,8 +132,14 @@ def _deprecated_schema_cfg(replacement: str):
     of the legacy class).
 
     Args:
-        replacement: Human-readable replacement expression shown in the warning, e.g.
-            ``"MassCfg"`` or ``"[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]"``.
+        replacement: Fragment list shown in the warning, written as the literal the caller should
+            pass in the spawner slot, e.g. ``"[MassCfg(...)]"`` or
+            ``"[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]"``. It must name *every*
+            fragment needed to cover the decorated class's fields, including fields inherited
+            from a legacy base -- naming only the backend-specific fragment would tell the user
+            to silently drop the rest. Fields with no fragment home (``fix_root_link``,
+            ``ensure_drives_exist``, ``mesh_collision_property``) are called out in a trailing
+            parenthetical pointing at the spawner cfg.
 
     Returns:
         A class decorator that installs the warning.
@@ -433,10 +439,7 @@ class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
     """
 
 
-@_deprecated_schema_cfg(
-    "PhysxArticulationCfg / NewtonArticulationCfg fragments, and pass fix_root_link to"
-    " apply_articulation_root_properties"
-)
+@_deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
 @configclass
 class ArticulationRootBaseCfg:
     """Solver-common properties to apply to the root of an articulation.
@@ -585,7 +588,10 @@ class RigidBodyBaseCfg:
     """
 
 
-@_deprecated_schema_cfg("[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]")
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)] (and move mesh_collision_property to the"
+    " spawner's mesh_collision_props slot)"
+)
 @configclass
 class CollisionBaseCfg:
     """Solver-common properties to apply to colliders.
@@ -667,7 +673,7 @@ class CollisionBaseCfg:
     """
 
 
-@_deprecated_schema_cfg("MassCfg")
+@_deprecated_schema_cfg("[MassCfg(...)]")
 @configclass
 class MassPropertiesCfg:
     """Properties to define explicit mass properties of a rigid body.
@@ -747,7 +753,9 @@ class MassCfg(MassFragment):
     """
 
 
-@_deprecated_schema_cfg("[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]")
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
+)
 @configclass
 class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
@@ -872,7 +880,7 @@ class JointDriveBaseCfg:
     """
 
 
-@_deprecated_schema_cfg("UsdPhysicsMeshCollisionCfg")
+@_deprecated_schema_cfg("[UsdPhysicsMeshCollisionCfg(...)]")
 @configclass
 class MeshCollisionBaseCfg:
     """Solver-common properties to apply to a mesh in regards to collision.
@@ -943,7 +951,7 @@ class MeshCollisionBaseCfg:
         raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
 
-@_deprecated_schema_cfg('UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")')
+@_deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")]')
 @configclass
 class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     """Bounding-cube mesh collision approximation. USD-only; authors no PhysX schema.
@@ -963,7 +971,7 @@ class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     """Name of mesh collision approximation method. Default: "boundingCube"."""
 
 
-@_deprecated_schema_cfg('UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")')
+@_deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")]')
 @configclass
 class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     """Bounding-sphere mesh collision approximation. USD-only; authors no PhysX schema.

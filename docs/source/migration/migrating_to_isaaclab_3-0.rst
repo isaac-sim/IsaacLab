@@ -421,31 +421,45 @@ Every class in the table below is deprecated: instantiating one emits a
 ``DeprecationWarning`` naming its replacement, and the class will be removed in
 5.0. Nothing is removed in 3.0 — both APIs work side by side.
 
+The replacement column lists **every** fragment needed to cover the deprecated
+class's fields, including the fields it inherits from a legacy base. A legacy
+class usually bundles more than one USD namespace, so replacing it with only the
+backend-specific fragment silently drops the inherited properties.
+
 .. list-table::
    :header-rows: 1
-   :widths: 45 55
+   :widths: 40 60
 
    * - Deprecated class
-     - Fragment replacement
+     - Fragment replacement (complete set)
    * - ``MassPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.MassCfg`
    * - ``RigidBodyBaseCfg``, ``PhysxRigidBodyPropertiesCfg``,
-       ``RigidBodyPropertiesCfg``
+       ``RigidBodyPropertiesCfg``, ``NewtonRigidBodyPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
        :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`
+   * - ``MujocoRigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` +
+       :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`
    * - ``CollisionBaseCfg``, ``PhysxCollisionPropertiesCfg``,
        ``CollisionPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
    * - ``JointDriveBaseCfg``, ``PhysxJointDrivePropertiesCfg``,
-       ``JointDrivePropertiesCfg``
+       ``JointDrivePropertiesCfg``, ``NewtonJointDrivePropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
        :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg`
+   * - ``MujocoJointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` +
+       :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`
    * - ``ArticulationRootBaseCfg``, ``PhysxArticulationRootPropertiesCfg``,
        ``ArticulationRootPropertiesCfg``
-     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` (and
-       :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg` for
-       ``newton:selfCollisionEnabled``)
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`
+   * - ``NewtonArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
    * - ``MeshCollisionBaseCfg``, ``MeshCollisionPropertiesCfg``,
        ``BoundingCubePropertiesCfg``, ``BoundingSpherePropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`
@@ -457,17 +471,32 @@ Every class in the table below is deprecated: instantiating one emits a
        :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
        :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
        :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`)
-   * - ``NewtonRigidBodyPropertiesCfg``, ``MujocoRigidBodyPropertiesCfg``
-     - :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`
-   * - ``NewtonJointDrivePropertiesCfg``, ``MujocoJointDrivePropertiesCfg``
-     - :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`
    * - ``NewtonCollisionPropertiesCfg``
-     - :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
-   * - ``NewtonMeshCollisionPropertiesCfg``, ``NewtonSDFCollisionPropertiesCfg``
-     - :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`,
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+   * - ``NewtonMeshCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
+       :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`
+   * - ``NewtonSDFCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
-   * - ``NewtonArticulationRootPropertiesCfg``
-     - :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
+
+.. note::
+
+   PhysX fragments appear in the Newton rows because several universally honored
+   properties have no other USD home today: ``disable_gravity`` is only
+   ``physxRigidBody:disableGravity``, ``max_joint_velocity`` only
+   ``physxJoint:maxJointVelocity``, ``contact_offset`` / ``rest_offset`` only
+   ``physxCollision:*``, and ``articulation_enabled`` only
+   ``physxArticulation:articulationEnabled``. Newton's USD importer reads those
+   attributes, so the fragment that writes them is the PhysX one regardless of
+   which backend consumes it.
 
 .. note::
 
@@ -500,8 +529,9 @@ lets one spawner cfg target different prims with different properties:
 
    rigid_props = {"/.*": [UsdPhysicsRigidBodyCfg(kinematic_enabled=False)]}
 
-Two fields are not USD attributes and therefore have no fragment. They are now
-arguments of the family writer instead:
+Three legacy fields are not USD attributes and therefore have no fragment. They
+move to the spawner cfg instead — no fragment covers them, so a migration that
+only swaps cfg classes drops them:
 
 .. list-table::
    :header-rows: 1
@@ -510,11 +540,21 @@ arguments of the family writer instead:
    * - Deprecated cfg field
      - Fragment-API replacement
    * - ``ArticulationRootBaseCfg.fix_root_link``
-     - ``fix_root_link`` argument of
+     - ``fix_root_link`` on the spawner cfg, forwarded as the ``fix_root_link``
+       argument of
        :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
    * - ``JointDriveBaseCfg.ensure_drives_exist``
-     - ``ensure_drives_exist`` argument of
+     - ``ensure_drives_exist`` on the spawner cfg, forwarded as the
+       ``ensure_drives_exist`` argument of
        :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+   * - ``CollisionBaseCfg.mesh_collision_property``
+     - the spawner's ``mesh_collision_props`` slot, which takes the
+       mesh-collision fragments directly
+
+The renamed joint-drive fields keep working on the fragments as well:
+``max_effort`` is a deprecated alias of
+:attr:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg.max_force`, and ``max_velocity``
+of :attr:`~isaaclab_physx.sim.schemas.PhysxJointCfg.max_joint_velocity`.
 
 **Schema writers**
 
