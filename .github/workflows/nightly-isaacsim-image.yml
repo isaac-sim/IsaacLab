@@ -7,9 +7,8 @@
 # manifest digest and open (or refresh) a draft PR against ``develop``.
 #
 # Scheduled workflows register only from the default branch, so this file
-# must be present on the current default, ``release/3.0.0-beta2``. The job
-# deliberately checks out ``develop`` because that is where the CI image pin
-# is maintained.
+# must remain on ``develop`` while it is the repository default. The job also
+# checks out ``develop`` because that is where the CI image pin is maintained.
 #
 # The isaaclab-bot GitHub App token is used instead of GITHUB_TOKEN so the
 # branch push and PR events trigger the normal CI workflows. The App must have
