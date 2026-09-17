@@ -95,10 +95,13 @@ jobs:
             "skillevaluator[tier2,security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
           # gitleaks is needed for the code-integrity (Secrets Detection) check.
           # The security check (skillspector) is NVIDIA-internal and skipped via
-          # --checks in the validate step.
+          # --checks in the validate step. Install to RUNNER_TEMP (writable on
+          # all self-hosted runners) and prepend to PATH for subsequent steps.
+          mkdir -p "${RUNNER_TEMP}/bin"
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar xz -C /usr/local/bin gitleaks
-          gitleaks version
+            | tar xz -C "${RUNNER_TEMP}/bin" gitleaks
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          "${RUNNER_TEMP}/bin/gitleaks" version
           skillevaluator --version
           skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY"
 
