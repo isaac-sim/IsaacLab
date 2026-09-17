@@ -49,13 +49,13 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `skills/user/train-rl-agents/`, `docs/source/concepts/reinforcement_learning.rst`, the uv-based `train` and `play` entry points, and task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If recurring reward or checkpoint guidance belongs in user docs, update `docs/source/` first.
+Keep this skill synchronized with `skills/user/isaaclab-training-rl-agents/`, `docs/source/concepts/reinforcement_learning.rst`, the uv-based `train` and `play` entry points, and task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If recurring reward or checkpoint guidance belongs in user docs, update `docs/source/` first.
 
 ## References
 
 - [Reference](reference.md)
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
-- [RL training skill](../train-rl-agents/SKILL.md)
+- [RL training skill](../isaaclab-training-rl-agents/SKILL.md)
 - [RL training guide](../../../docs/source/concepts/reinforcement_learning.rst)
 - [Task examples](../../../source/isaaclab_tasks/isaaclab_tasks)

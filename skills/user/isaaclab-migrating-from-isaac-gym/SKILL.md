@@ -72,7 +72,7 @@ Keep this skill synchronized with the Isaac Gym section in `docs/source/migratio
 - [Rough locomotion validation](validation-rough-locomotion.md)
 - [Initial Ant smoke validation](validation-ant-fresh-agent.md)
 - [Evaluations](evaluations.md)
-- [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
+- [Direct to manager conversion skill](../isaaclab-converting-direct-to-manager/SKILL.md)
 - [Migration guide: Isaac Gym section](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst#migration-from-isaac-gym-and-isaacgymenvs)
 - [Task workflows](../../../docs/source/concepts/task_workflows.rst)
 - [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)

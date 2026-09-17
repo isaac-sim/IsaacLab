@@ -58,12 +58,12 @@ When reward and behavior disagree, inspect task state directly. Useful trace fie
 - Termination and truncation flags.
 - Robot root, joint, and controlled-frame pose.
 - Object pose, velocity, goal error, and contact state.
-- Reset state for robot, object, and goal.
+- Initial pose for robot, object, and goal after environment reset.
 
 ## Decision Rules
 
 - Reward rises and success rises: continue or scale.
 - Reward rises and success stays flat: inspect reward saturation, observations, and success geometry.
-- Reward is flat from the start: check action interface, target reachability, reset state, and observation coverage.
+- Reward is flat from the start: check action interface, target reachability, initial environment pose, and observation coverage.
 - Entropy collapses early: inspect exploration settings and overly strong penalties.
 - Physics warnings appear: fix assets, contacts, or buffers before interpreting RL curves.
