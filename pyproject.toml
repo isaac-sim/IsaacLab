@@ -87,11 +87,8 @@ dependencies = [
     "rsl-rl-lib==5.5.1",  # default RL framework
     "gitpython>=3.1.59",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
-    # Pin the Newton release used by both workspace and wheel installs until 1.6.0 final.
-    # [tool.uv].override-dependencies only reaches uv sync, so a wheel built from this
-    # metadata would otherwise resolve the newest stable (1.5.1) and miss newton#4017:
-    # 1.6.0rc1 is a prerelease, which a default resolve skips.
-    "newton[sim]==1.6.0rc1",
+    # Pin the Newton release used by both workspace and wheel installs.
+    "newton[sim]==1.6.0",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -415,7 +412,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",
-    "newton[sim]==1.6.0rc1",
+    "newton[sim]==1.6.0",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are

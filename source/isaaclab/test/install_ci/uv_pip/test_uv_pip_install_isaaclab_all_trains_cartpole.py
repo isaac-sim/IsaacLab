@@ -16,7 +16,7 @@ Setup:
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - python -c "import importlib.metadata as m; from packaging.version import Version; assert
-      m.version('newton') == '1.6.0rc1'; assert Version(m.version('newton-usd-schemas')) >= Version('0.5.0')"
+      m.version('newton') == '1.6.0'; assert Version(m.version('newton-usd-schemas')) >= Version('0.5.0')"
         -> verify the wheel resolves the pinned Newton release and compatible schemas
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
@@ -62,7 +62,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
                     "python",
                     "-c",
                     "import importlib.metadata as m; from packaging.version import Version; "
-                    "assert m.version('newton') == '1.6.0rc1'; "
+                    "assert m.version('newton') == '1.6.0'; "
                     "assert Version(m.version('newton-usd-schemas')) >= Version('0.5.0')",
                 ],
                 cwd=isaaclab_root,
