@@ -27,7 +27,7 @@ User skills:
 - `user/use-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
 - `user/prepare-assets-for-newton/`: prepare assets for Newton and migrate PhysX-authored assets without losing their physical contract.
 - `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
-- `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
+- `_internal/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
 Planned user skills:
 
