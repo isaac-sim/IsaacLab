@@ -30,7 +30,7 @@ The tutorial corresponds to the ``launch_app.py`` script in the
 .. dropdown:: Code for launch_app.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/00_sim/launch_app.py
+   .. literalinclude:: ../../../scripts/tutorials/00_sim/launch_app.py
       :language: python
       :emphasize-lines: 18-40
       :linenos:
@@ -56,7 +56,7 @@ arguments appended. This can then be processed into an :class:`argparse.Namespac
 standard :meth:`argparse.ArgumentParser.parse_args` method and passed directly to
 :class:`~app.AppLauncher` for instantiation.
 
-.. literalinclude::  ../../../../scripts/tutorials/00_sim/launch_app.py
+.. literalinclude::  ../../../scripts/tutorials/00_sim/launch_app.py
    :language: python
    :start-at: import argparse
    :end-at: simulation_app = app_launcher.app
@@ -240,7 +240,7 @@ envar. If a visualization is desired, we could get one via Isaac's `WebRTC Lives
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing ``Ctrl+C`` in the launching terminal.
 
-.. figure:: ../../_static/tutorials/tutorial_launch_app.jpg
+.. figure:: ../_static/tutorials/tutorial_launch_app.jpg
     :align: center
     :figwidth: 100%
     :alt: result of launch_app.py

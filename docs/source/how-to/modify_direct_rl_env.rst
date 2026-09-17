@@ -26,7 +26,7 @@ For this tutorial, we start from the direct workflow Humanoid environment define
 .. dropdown:: Code for humanoid_direct_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py
+   .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py
       :language: python
       :linenos:
 
@@ -57,12 +57,12 @@ Refer to the :ref:`tutorial-register-rl-env-gym` tutorial for more details about
    to avoid altering the original configurations.
 
 
-.. literalinclude:: ../../refs/snippets/tutorial_modify_direct_rl_env.py
+.. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python
    :start-after: [start-init-import]
    :end-before: [end-init-import]
 
-.. literalinclude:: ../../refs/snippets/tutorial_modify_direct_rl_env.py
+.. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python
    :start-after: [start-init-register]
    :end-before: [end-init-register]
@@ -77,7 +77,7 @@ Since the Unitree H1 robot is included in the Isaac Lab assets extension (``isaa
 and do the replacement directly (under the ``H1EnvCfg.robot`` property), as shown below. Note that we also need to modify the
 ``joint_gears`` property as it holds robot-specific configuration values.
 
-.. |franka-direct-link| replace:: `Isaac-Open-Drawer-Franka-Direct <../../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`__
+.. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
 
 .. hint::
 
@@ -85,14 +85,14 @@ and do the replacement directly (under the ``H1EnvCfg.robot`` property), as show
    by using the :class:`~isaaclab.assets.ArticulationCfg` class.
 
    * See the |franka-direct-link| source code for an example of loading and configuring a robot from a USD file.
-   * Refer to the `Importing a New Asset <../../how-to/import_new_asset.html>`_ tutorial for details on how to import an asset from URDF or MJCF file, and other formats.
+   * Refer to the :doc:`Importing a New Asset <import_new_asset>` tutorial for details on how to import an asset from URDF or MJCF file, and other formats.
 
-.. literalinclude:: ../../refs/snippets/tutorial_modify_direct_rl_env.py
+.. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python
    :start-after: [start-h1_env-import]
    :end-before: [end-h1_env-import]
 
-.. literalinclude:: ../../refs/snippets/tutorial_modify_direct_rl_env.py
+.. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python
    :start-after: [start-h1_env-robot]
    :end-before: [end-h1_env-robot]
@@ -101,7 +101,7 @@ The robot changed, and with it the number of joints to control or the number of 
 Therefore, it is also necessary to adjust other values in the environment configuration that depend on the characteristics of the robot,
 such as the number of elements in the observation and action space.
 
-.. literalinclude:: ../../refs/snippets/tutorial_modify_direct_rl_env.py
+.. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python
    :start-after: [start-h1_env-spaces]
    :end-before: [end-h1_env-spaces]
@@ -143,7 +143,7 @@ where you started the simulation.
 
         ./isaaclab.sh play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
-.. figure:: ../../_static/tutorials/tutorial_modify_direct_rl_env.jpg
+.. figure:: ../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center
     :figwidth: 100%
     :alt: result of training Isaac-H1-Direct-v0 task

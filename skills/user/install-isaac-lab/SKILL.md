@@ -64,7 +64,7 @@ Keep this skill synchronized with the following install docs. If commands or ver
 - `docs/source/setup/installation/index.rst` — `installation-method-binary` steps (downloaded Isaac Sim package).
 - `docs/source/setup/installation/index.rst` — `installation-method-source` steps (Isaac Sim source build) and the `installation-asset-region-profiles` workflow.
 - `docs/source/setup/installation/asset_caching_details.inc` — asset caching notes.
-- `docs/source/features/docker_cloud.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
+- `docs/source/workflows/docker/index.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
 - `docs/source/refs/troubleshooting.rst` — hand-off target for post-install diagnostics.
 
 This skill is a router and executor, not a copy of the install pages. Adding install methods, changing version pins, or updating command sequences belongs in the docs above, not in this file.
@@ -81,7 +81,7 @@ This skill is a router and executor, not a copy of the install pages. Adding ins
 - Isaac Lab Python package (external projects): section `installation-method-wheel` in `index.rst`
 - Downloaded Isaac Sim package (older distros): section `installation-method-binary` in `index.rst`
 - Isaac Sim source build: section `installation-method-source` in `index.rst`
-- Docker and HPC clusters: section `installation-method-container` in `index.rst`, deep-dive in `docs/source/features/docker_cloud.rst`
+- Docker and HPC clusters: section `installation-method-container` in `index.rst`, deep-dive in `docs/source/workflows/docker/index.rst`
 - Cloud workstations: section `installation-method-cloud` in `index.rst`
 - Troubleshooting: `docs/source/refs/troubleshooting.rst`
 - Cross-skill hand-off for post-install issues: `isaaclab-setup-troubleshooting`.
