@@ -216,7 +216,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
     writer = Writer()
     renderer._visual_material_writer_ref = lambda: writer
     render = renderer._render_ovstage if use_ovstage else renderer._render_legacy
-    render(SimpleNamespace(ppisp_pipeline=None))
+    render(SimpleNamespace(render_product_path="/Render/Product", ppisp_pipeline=None))
 
     assert events == expected_events
 
@@ -248,7 +248,7 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
 
     renderer._stage.advance_write_floor = advance_write_floor
     with pytest.raises(ValueError, match=failure):
-        renderer._render_ovstage(SimpleNamespace(ppisp_pipeline=None))
+        renderer._render_ovstage(SimpleNamespace(render_product_path="/Render/Product", ppisp_pipeline=None))
 
     assert events == expected_events
 
