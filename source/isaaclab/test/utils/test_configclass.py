@@ -742,6 +742,54 @@ def test_invalid_update_key():
         update_class_from_dict(cfg, cfg_dict)
 
 
+def test_config_update_dict_union_annotated_none():
+    """A union-annotated field holding None accepts a value of the other member type.
+
+    Regression test for isaac-sim/IsaacLab#3236: the type check compared against the
+    stored value's runtime type, so ``int | None`` defaulting to ``None`` rejected
+    every int override (e.g. overriding ``seed`` on an environment config).
+    """
+
+    @configclass
+    class UnionDemoCfg:
+        param: int | None = None
+        name: str | None = None
+
+    cfg = UnionDemoCfg()
+    update_class_from_dict(cfg, {"param": 42, "name": "test"})
+    assert cfg.param == 42
+    assert cfg.name == "test"
+
+    # the internal from_dict path from the original report
+    cfg = UnionDemoCfg()
+    cfg.from_dict({"param": 7})
+    assert cfg.param == 7
+
+
+def test_config_update_dict_union_rejects_non_member_type():
+    """A union-annotated field still rejects values outside the union."""
+
+    @configclass
+    class UnionDemoCfg:
+        param: int | None = None
+
+    cfg = UnionDemoCfg()
+    with pytest.raises(ValueError):
+        update_class_from_dict(cfg, {"param": "not-an-int"})
+
+
+def test_config_update_dict_type_mismatch_without_annotation():
+    """An unannotated attribute keeps the stored-value type check."""
+
+    class PlainHolder:
+        def __init__(self):
+            self.value = None
+
+    obj = PlainHolder()
+    with pytest.raises(ValueError):
+        update_class_from_dict(obj, {"value": 42})
+
+
 def test_multiple_instances():
     """Test multiple instances with twice instantiation."""
     # create two config instances

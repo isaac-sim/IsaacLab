@@ -8,9 +8,10 @@
 import collections.abc
 import hashlib
 import json
+import types
 from collections.abc import Iterable, Mapping, Sized
 from enum import Enum
-from typing import Any
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 import torch
 
@@ -81,6 +82,64 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         else:
             data[key] = value
     return data
+
+
+def _annotation_admits_value(annotation: Any, value: Any) -> bool:
+    """Check whether a type annotation admits a value's type.
+
+    Union annotations (both ``X | Y`` and ``typing.Union[X, Y]``) are checked member-wise.
+    Parameterized generics (e.g. ``list[int]``) are checked against their origin container
+    type only, mirroring the runtime check they replace.
+
+    Args:
+        annotation: The type annotation to check against.
+        value: The candidate value.
+
+    Returns:
+        True when the annotation admits the value's type.
+    """
+    if annotation is Any:
+        return True
+    origin = get_origin(annotation)
+    if origin is Union or origin is types.UnionType:
+        return any(_annotation_admits_value(arg, value) for arg in get_args(annotation))
+    if origin is not None:
+        return isinstance(value, origin)
+    if annotation is type(None):
+        return value is None
+    if isinstance(annotation, type):
+        return isinstance(value, annotation)
+    return False
+
+
+def _field_annotation_admits_value(obj: object, key: str, value: Any) -> bool:
+    """Check whether the annotation for ``key`` on ``obj``'s class admits ``value``.
+
+    The stored value's runtime type cannot speak for a union-annotated field that
+    currently holds only one member of the union (e.g. ``int | None`` holding ``None``),
+    so :func:`update_class_from_dict` consults the annotation before rejecting a value.
+
+    Args:
+        obj: The object whose class annotations to consult.
+        key: The attribute name to look up.
+        value: The candidate value.
+
+    Returns:
+        True when an annotation for ``key`` exists and admits the value's type. False
+        when the object has no resolvable annotation for the key, which keeps the
+        stored-value type check authoritative.
+    """
+    if isinstance(obj, dict):
+        return False
+    try:
+        hints = get_type_hints(type(obj))
+    except Exception:
+        # unresolvable forward references or exotic annotations; fall back to
+        # the stored-value type check
+        return False
+    if key not in hints:
+        return False
+    return _annotation_admits_value(hints[key], value)
 
 
 def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
@@ -175,17 +234,17 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 value = type(obj_mem)(value)
 
             # -- 4) simple scalar / explicit None ---------------------
-            elif value is None or isinstance(value, type(obj_mem)):
+            elif value is None or isinstance(value, type(obj_mem)) or _field_annotation_admits_value(obj, key, value):
                 pass
 
-            # -- 5) type mismatch → abort -----------------------------
+            # -- 6) type mismatch → abort -----------------------------
             else:
                 raise ValueError(
                     f"[Config]: Incorrect type under namespace: {key_ns}."
                     f" Expected: {type(obj_mem)}, Received: {type(value)}."
                 )
 
-            # -- 6) final assignment ---------------------------------
+            # -- 7) final assignment ---------------------------------
             if isinstance(obj, dict):
                 obj[key] = value
             else:
