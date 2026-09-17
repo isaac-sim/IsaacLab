@@ -712,10 +712,10 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def _compute_ee_velocity(self):
         """Computes the velocity of the ee frame in root frame."""
-        # Extract end-effector velocity in the world frame
-        self._ee_vel_w[:] = self._asset.data.body_vel_w.torch[:, self._ee_body_idx, :]
+        # Match the link-origin reference point used by the pose and Jacobian.
+        self._ee_vel_w[:] = self._asset.data.body_link_vel_w.torch[:, self._ee_body_idx, :]
         # Compute the relative velocity in the world frame
-        relative_vel_w = self._ee_vel_w - self._asset.data.root_vel_w.torch
+        relative_vel_w = self._ee_vel_w - self._asset.data.root_link_vel_w.torch
 
         # Convert ee velocities from world to root frame
         root_quat_w = self._asset.data.root_quat_w.torch
