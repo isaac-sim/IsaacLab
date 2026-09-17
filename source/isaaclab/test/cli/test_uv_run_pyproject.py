@@ -222,12 +222,18 @@ def test_uv_run_isaacsim_is_an_opt_in_extra(source_checkout_root: Path):
     assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
 
 
-def test_uv_run_teleop_extra_bundles_isaacsim(source_checkout_root: Path):
-    """``--extra teleop`` is the single flag for the XR teleoperation workflow."""
+def test_uv_run_teleop_extra_excludes_isaacsim(source_checkout_root: Path):
+    """``teleop`` carries the teleop stack only; Isaac Sim stays its own extra.
+
+    XR teleop needs the Kit XR runtime, but environments that already provide Kit (the
+    container images) must not install a second copy of it. Users who need the wheel run
+    ``--extra teleop,isaacsim``.
+    """
     optional_dependencies = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
     teleop = optional_dependencies["teleop"]
 
-    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in teleop)
+    assert not any(dep.startswith("isaacsim") for dep in teleop)
+    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in optional_dependencies["isaacsim"])
     # record_demos.py imports isaaclab_mimic at module level; robomimic stays in ``mimic``.
     assert "isaaclab-mimic" in teleop
     assert not any(dep.startswith("robomimic") for dep in teleop)

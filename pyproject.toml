@@ -183,8 +183,10 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# XR teleop needs the Kit XR runtime, but Isaac Sim is a separate extra so environments that
+# already provide Kit (the containers) can take this stack without a second copy of it.
+# Users who need the wheel install ``--extra teleop,isaacsim``.
 teleop = [
-    "isaacsim[all,extscache]==6.1.0.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",

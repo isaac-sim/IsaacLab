@@ -14,9 +14,9 @@ on:
       # Top-level tools modules and their tests. Deliberately not "tools/**": the
       # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
       - "tools/*.py"
-      - ".github/workflows/tools-tests.yml"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
+      - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
 concurrency:
