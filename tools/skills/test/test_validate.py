@@ -341,9 +341,7 @@ def test_validate_developer_skill_does_not_require_license_or_author(tmp_path):
     # Isaac Skills catalog, so license and metadata.author are not required.
     skill = _write_skill(tmp_path, audience="developer", name="isaaclab-developer-skill")
     text = skill.read_text(encoding="utf-8").replace(
-        "license: BSD-3-Clause\n"
-        "metadata:\n"
-        "  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>\n",
+        "license: BSD-3-Clause\nmetadata:\n  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>\n",
         "",
     )
     skill.write_text(text, encoding="utf-8")
