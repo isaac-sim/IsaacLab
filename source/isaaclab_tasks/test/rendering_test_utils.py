@@ -1327,7 +1327,7 @@ def validate_camera_outputs(
             "test": test_name,
             "backend": physics_backend,
             "renderer": renderer,
-            "ovstage_variant": "Yes" if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE") == "1" else "No",
+            "ovstage_variant": "Yes" if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1") == "1" else "No",
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,

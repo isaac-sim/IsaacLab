@@ -148,7 +148,7 @@ _PPISP_IMPORT_ERROR_MESSAGE = (
 _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 
-# Runtime environment variable used to enable the ovstage code path for ovrtx.
+# Runtime environment variable used to select the ovstage or legacy OVRTX path.
 _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
 
 
@@ -160,13 +160,13 @@ _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 def ovrtx_use_ovstage_enabled() -> bool:
     """Return whether the ovstage scene-ownership path should be used.
 
-    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``. Defaults to ``0`` so existing deployments are
-    unaffected until ovstage is explicitly opted into.
+    Ovstage is enabled by default. Set ``ISAAC_LAB_OVRTX_USE_OVSTAGE=0`` to use the legacy
+    renderer-owned stage path.
 
     Raises:
         ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
     """
-    value = os.environ.get(_USE_OVSTAGE_ENV, "0").strip()
+    value = os.environ.get(_USE_OVSTAGE_ENV, "1").strip()
     if value not in {"0", "1"}:
         raise ValueError(f"Invalid value for environment variable `{_USE_OVSTAGE_ENV}`: {value}. Expected 0 or 1.")
     return value == "1"

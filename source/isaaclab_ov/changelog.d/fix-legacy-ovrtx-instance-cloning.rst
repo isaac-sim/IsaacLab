@@ -1,3 +1,9 @@
+Changed
+^^^^^^^
+
+* Changed OVRTX to use ovstage scene ownership by default, preserving USD instancing and avoiding
+  legacy clone expansion costs. Set ``ISAAC_LAB_OVRTX_USE_OVSTAGE=0`` to retain the legacy path.
+
 Fixed
 ^^^^^
 
