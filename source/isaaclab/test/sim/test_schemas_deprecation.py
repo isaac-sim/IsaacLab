@@ -170,7 +170,7 @@ def _assert_deprecated_once(cls, expected: tuple[str, ...]) -> None:
     assert cls.__name__ in message
     missing = [name for name in expected if name not in message]
     assert not missing, f"{cls.__name__}: warning omits {missing}: {message}"
-    assert "4.0" in message, f"{cls.__name__}: warning does not state the removal version: {message}"
+    assert "3.1" in message, f"{cls.__name__}: warning does not state the removal version: {message}"
 
 
 """
@@ -336,7 +336,7 @@ def test_legacy_writer_documents_its_replacement(name, replacement):
     doc = getattr(schemas, name).__doc__ or ""
     assert ".. deprecated:: 3.0" in doc, f"{name}: missing deprecation directive"
     assert replacement in doc, f"{name}: docstring does not name '{replacement}'"
-    assert "removed" in doc and "4.0" in doc, f"{name}: docstring does not state the removal version"
+    assert "removed" in doc and "3.1" in doc, f"{name}: docstring does not state the removal version"
 
 
 def test_modify_mass_properties_warns_and_writes():
@@ -351,7 +351,7 @@ def test_modify_mass_properties_warns_and_writes():
     message = str(deprecations[0].message)
     assert "modify_mass_properties is deprecated" in message
     assert "apply_mass_properties" in message
-    assert "4.0" in message
+    assert "3.1" in message
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(3.0)
 
 

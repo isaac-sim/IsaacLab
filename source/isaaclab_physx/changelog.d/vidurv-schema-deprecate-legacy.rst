@@ -2,7 +2,7 @@ Deprecated
 ^^^^^^^^^^
 
 * Deprecated the PhysX schema cfg classes in favor of the single-namespace schema fragments. Each
-  class now raises a ``DeprecationWarning`` on instantiation and will be removed in 4.0. The warning
+  class now raises a ``DeprecationWarning`` on instantiation and will be removed in 3.1. The warning
   names *every* fragment the class's fields need, including the fields it inherits from a legacy
   base, so following it does not drop authored properties. Replace
   :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` with

@@ -121,7 +121,7 @@ class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'DeformableBodyMaterialCfg' is deprecated and will be removed in 4.0. Use"
+            "'DeformableBodyMaterialCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxDeformableBodyMaterialCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -141,7 +141,7 @@ class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'SurfaceDeformableBodyMaterialCfg' is deprecated and will be removed in 4.0. Use"
+            "'SurfaceDeformableBodyMaterialCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableBodyMaterialCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -296,7 +296,7 @@ class RigidBodyMaterialCfg(PhysxRigidBodyMaterialCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'RigidBodyMaterialCfg' is deprecated and will be removed in 4.0. Use"
+            "'RigidBodyMaterialCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg' for PhysX"
             " properties, or 'isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg' for"
             " solver-common properties only.",

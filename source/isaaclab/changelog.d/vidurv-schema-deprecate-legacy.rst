@@ -3,7 +3,7 @@ Deprecated
 
 * Deprecated the inheritance-based schema cfg classes in favor of the single-namespace schema
   fragments. Each class now raises a ``DeprecationWarning`` on instantiation and will be removed in
-  4.0. The warning names *every* fragment the class's fields need, so following it does not drop
+  3.1. The warning names *every* fragment the class's fields need, so following it does not drop
   authored properties. Replace :class:`~isaaclab.sim.schemas.MassPropertiesCfg` with
   :class:`~isaaclab.sim.schemas.MassCfg`; :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` with
   ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``;
@@ -26,7 +26,7 @@ Deprecated
   becomes the spawner's ``mesh_collision_props`` slot. Deformable cfgs are unaffected.
 * Deprecated the ``define_*`` and ``modify_*`` schema writers in favor of the fragment-based
   ``apply_*`` writers, which take a prim-path expression and a list of fragments. Each writer now
-  raises a ``DeprecationWarning`` when called and will be removed in 4.0. Replace
+  raises a ``DeprecationWarning`` when called and will be removed in 3.1. Replace
   ``define_rigid_body_properties`` / ``modify_rigid_body_properties`` with
   :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`, and likewise for the collision, mass,
   articulation-root, joint-drive, mesh-collision and tendon families. Nested legacy writer calls
