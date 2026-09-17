@@ -8,10 +8,11 @@
 import collections.abc
 import hashlib
 import json
+import sys
 import types
 from collections.abc import Iterable, Mapping, Sized
 from enum import Enum
-from typing import Any, Union, get_args, get_origin, get_type_hints
+from typing import Any, Literal, Union, get_args, get_origin
 
 import torch
 
@@ -87,9 +88,11 @@ def class_to_dict(obj: object) -> dict[str, Any]:
 def _annotation_admits_value(annotation: Any, value: Any) -> bool:
     """Check whether a type annotation admits a value's type.
 
-    Union annotations (both ``X | Y`` and ``typing.Union[X, Y]``) are checked member-wise.
-    Parameterized generics (e.g. ``list[int]``) are checked against their origin container
-    type only, mirroring the runtime check they replace.
+    Union annotations (both ``X | Y`` and ``typing.Union[X, Y]``) are checked member-wise
+    and ``Literal[...]`` members are checked by value. Parameterized generics
+    (e.g. ``list[int]``) are checked against their origin container type only, mirroring
+    the runtime check they back up. Typing special forms that are not runtime classes
+    (e.g. ``ClassVar``) are not admitted rather than raising.
 
     Args:
         annotation: The type annotation to check against.
@@ -103,13 +106,103 @@ def _annotation_admits_value(annotation: Any, value: Any) -> bool:
     origin = get_origin(annotation)
     if origin is Union or origin is types.UnionType:
         return any(_annotation_admits_value(arg, value) for arg in get_args(annotation))
+    if origin is Literal:
+        # type equality alongside `==` keeps bools from matching int literals
+        return any(value == arg and type(value) is type(arg) for arg in get_args(annotation))
     if origin is not None:
-        return isinstance(value, origin)
+        return isinstance(origin, type) and isinstance(value, origin)
     if annotation is type(None):
         return value is None
     if isinstance(annotation, type):
         return isinstance(value, annotation)
     return False
+
+
+def _split_union_expression(expression: str) -> list[str] | None:
+    """Split a string annotation on top-level ``|`` separators.
+
+    Brackets, parentheses, and quoted strings (e.g. inside ``Literal['a|b']``) are
+    respected, so only union separators at the top level split the expression.
+
+    Args:
+        expression: The annotation string to split.
+
+    Returns:
+        The stripped member expressions when the string is a top-level union with
+        non-empty members, otherwise None.
+    """
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    quote: str | None = None
+    for index, char in enumerate(expression):
+        if quote is not None:
+            if char == quote:
+                quote = None
+        elif char in "'\"":
+            quote = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "|" and depth == 0:
+            parts.append(expression[start:index])
+            start = index + 1
+    parts.append(expression[start:])
+    parts = [part.strip() for part in parts]
+    if len(parts) < 2 or not all(parts):
+        return None
+    return parts
+
+
+def _resolve_field_annotations(cls: type, key: str) -> list[Any]:
+    """Resolve the type annotation for ``key`` by walking ``cls``'s MRO.
+
+    Only the requested field's annotation is evaluated, so an unresolvable forward
+    reference on an unrelated field (e.g. a name imported only under
+    ``typing.TYPE_CHECKING``) cannot block the lookup the way
+    :func:`typing.get_type_hints` would, since it resolves every annotation on the
+    class at once. When the field's own string annotation is a union with some
+    unresolvable members (e.g. ``type[BaseVisualizer] | str | None`` where the class
+    is only imported for type checking), the members that do resolve are returned, so
+    a value matching one of them can still be admitted. Evaluation mirrors
+    :func:`inspect.get_annotations`: the defining module's namespace as globals with
+    the class namespace as locals.
+
+    Args:
+        cls: The class whose MRO to search.
+        key: The attribute name to look up.
+
+    Returns:
+        The resolved annotation objects for the field. Empty when the field has no
+        annotation or nothing resolves, which keeps the stored-value check authoritative.
+    """
+    for klass in cls.__mro__:
+        annotations = klass.__dict__.get("__annotations__", {})
+        if key not in annotations:
+            continue
+        annotation = annotations[key]
+        if not isinstance(annotation, str):
+            return [annotation]
+        module_globals = getattr(sys.modules.get(klass.__module__), "__dict__", {})
+        class_locals = dict(vars(klass))
+        try:
+            return [eval(annotation, module_globals, class_locals)]  # noqa: S307
+        except Exception:
+            pass
+        members = _split_union_expression(annotation)
+        if members is None:
+            return []
+        resolved = []
+        for member in members:
+            try:
+                resolved.append(eval(member, module_globals, class_locals))  # noqa: S307
+            except Exception:
+                # an unresolvable member can only widen acceptance, never narrow it,
+                # so skipping it keeps the check conservative
+                continue
+        return resolved
+    return []
 
 
 def _field_annotation_admits_value(obj: object, key: str, value: Any) -> bool:
@@ -131,15 +224,8 @@ def _field_annotation_admits_value(obj: object, key: str, value: Any) -> bool:
     """
     if isinstance(obj, dict):
         return False
-    try:
-        hints = get_type_hints(type(obj))
-    except Exception:
-        # unresolvable forward references or exotic annotations; fall back to
-        # the stored-value type check
-        return False
-    if key not in hints:
-        return False
-    return _annotation_admits_value(hints[key], value)
+    annotations = _resolve_field_annotations(type(obj), key)
+    return any(_annotation_admits_value(annotation, value) for annotation in annotations)
 
 
 def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
