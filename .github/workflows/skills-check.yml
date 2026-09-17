@@ -103,7 +103,6 @@ jobs:
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
           "${RUNNER_TEMP}/bin/gitleaks" version
           skillevaluator --version
-          skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY"
 
       - name: Determine touched skills
         id: touched
@@ -163,16 +162,18 @@ jobs:
 
             echo ""
             echo "===== Tier 2A intra-skill context dedup: ${skill_dir} ====="
-            if ! skillevaluator context-optimization-check "${skill_dir}"; then
-              failed=1
-            fi
+            # Tier 2A needs an embedding API key (NVIDIA_API_KEY for build.nvidia.com
+            # or OPENAI_API_KEY). Fork PRs cannot access repo secrets, so this is
+            # advisory — failures emit a warning but do not block the job.
+            skillevaluator context-optimization-check "${skill_dir}" \
+              || echo "::warning::Tier 2A context-optimization-check failed for ${skill_dir} (embedding API key unavailable?)"
           done <<< "${SKILL_DIRS}"
 
           echo ""
           echo "===== Tier 2B intra-repo similarity scan: skills/user/ ====="
-          if ! skillevaluator similarity-check skills/user/ --type skill; then
-            failed=1
-          fi
+          # Same advisory treatment as Tier 2A — API key required, unavailable on forks.
+          skillevaluator similarity-check skills/user/ --type skill \
+            || echo "::warning::Tier 2B similarity-check failed (embedding API key unavailable?)"
 
           exit "${failed}"
 
