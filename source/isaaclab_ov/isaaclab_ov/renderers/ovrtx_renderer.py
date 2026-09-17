@@ -541,11 +541,12 @@ class OVRTXRenderer(BaseRenderer):
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
         self._cable_point_slices: list[wp.array] = []
 
-    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec):
+    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
             spec: Tiled camera description (resolution, paths, data types).
+            render_data: Owner of the initial camera's native resources.
         """
         width = spec.cfg.width
         height = spec.cfg.height
@@ -565,6 +566,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._exported_usd_string is None:
             raise RuntimeError("Expected an exported USD string from stage")
 
+        scope = f"RenderCamera_{self._next_camera_id}"
         render_product_string, render_product_path = build_render_product_as_string(
             width=width,
             height=height,
@@ -575,31 +577,35 @@ class OVRTXRenderer(BaseRenderer):
             background_color=getattr(spec.cfg, "background_color", None),
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_scope_name=scope,
         )
         self._render_product_paths.append(render_product_path)
 
         combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
-        self._exported_usd_string = None  # Free memory
 
         # If temp_usd_dir is set, write the combined USD stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
 
         logger.info("Loading USD into OvRTX...")
-        self._renderer.open_usd_from_string(combined_usd_string)
+        self._renderer.open_usd_from_string(self._exported_usd_string)
+        self._exported_usd_string = None  # Free memory
+        reference = self._renderer.add_usd_reference_from_string(
+            f'#usda 1.0\n(defaultPrim = "{scope}")\n' + render_product_string, f"/{scope}"
+        )
+        render_data.resources.callback(self._renderer.remove_usd, reference)
         logger.info("OVRTX loaded USD from string successfully")
 
         camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
             self._update_scene_partitions_after_clone(num_envs)
-            # OVRTX 0.4 keeps the initial Fabric camera relationship after clone_usd creates the remaining
-            # cameras. Rewrite it so the RenderProduct includes every camera in its tiled output.
-            self._renderer.write_array_attribute(
-                prim_paths=[render_product_path],
-                attribute_name="camera",
-                tensors=[camera_paths],
-            )
+        # References drop external camera targets; restore them after all cameras have been cloned.
+        self._renderer.write_array_attribute(
+            prim_paths=[render_product_path],
+            attribute_name="camera",
+            tensors=[camera_paths],
+        )
 
         self._initialized_scene = True
 
@@ -940,24 +946,24 @@ class OVRTXRenderer(BaseRenderer):
         self._warp_device = warp_device
         self._device = str(warp_device)
         render_data = OVRTXRenderData(spec, self._device)
-        if not self._initialized_scene:
-            self._initialize_from_spec(spec)
-            render_data.render_product_path = self._render_product_paths[0]
-            # Move the initial camera's handles into its render data, just like subsequent cameras.
-            if self._use_ovstage:
-                render_data.resources.callback(self._stage_paths.destroy_path_list, self._camera_paths_list)
-                render_data.camera_xform_query = render_data.resources.enter_context(self._camera_xform_query)
-                self._camera_xform_query = None
-                self._camera_paths_list = None
+        try:
+            if not self._initialized_scene:
+                self._initialize_from_spec(spec, render_data)
+                render_data.render_product_path = self._render_product_paths[0]
+                # Move the initial camera's handles into its render data, just like subsequent cameras.
+                if self._use_ovstage:
+                    render_data.resources.callback(self._stage_paths.destroy_path_list, self._camera_paths_list)
+                    render_data.camera_xform_query = render_data.resources.enter_context(self._camera_xform_query)
+                    self._camera_xform_query = None
+                    self._camera_paths_list = None
+                else:
+                    render_data.camera_xform_binding, self._camera_xform_binding = self._camera_xform_binding, None
+                    render_data.resources.callback(render_data.camera_xform_binding.unbind)
             else:
-                render_data.camera_xform_binding, self._camera_xform_binding = self._camera_xform_binding, None
-                render_data.resources.callback(render_data.camera_xform_binding.unbind)
-        else:
-            try:
                 self._register_camera(spec, render_data)
-            except Exception:
-                render_data.cleanup()
-                raise
+        except Exception:
+            render_data.cleanup()
+            raise
         self._next_camera_id += 1
         self._camera_render_data.append(render_data)
         return render_data
@@ -1726,11 +1732,11 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._init_fields_legacy()
 
-    def _initialize_from_spec(self, spec: CameraRenderSpec) -> None:
+    def _initialize_from_spec(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
         if self._use_ovstage:
-            self._initialize_from_spec_ovstage(spec)
+            self._initialize_from_spec_ovstage(spec, render_data)
         else:
-            self._initialize_from_spec_legacy(spec)
+            self._initialize_from_spec_legacy(spec, render_data)
 
     def _setup_xform_bindings(self) -> None:
         if self._use_ovstage:
@@ -1918,11 +1924,12 @@ class OVRTXRenderer(BaseRenderer):
         # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
         self._cable_point_tensors: list = []
 
-    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec) -> None:
+    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
 
         Args:
             spec: Tiled camera description (resolution, paths, data types).
+            render_data: Owner of the initial camera's native resources.
         """
         width = spec.cfg.width
         height = spec.cfg.height
@@ -1942,6 +1949,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._exported_usd_string is None:
             raise RuntimeError("Expected an exported USD string from stage")
 
+        scope = f"RenderCamera_{self._next_camera_id}"
         render_product_string, render_product_path = build_render_product_as_string(
             width=width,
             height=height,
@@ -1951,11 +1959,11 @@ class OVRTXRenderer(BaseRenderer):
             camera_rel_path=self._camera_rel_path,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_scope_name=scope,
         )
         self._render_product_paths.append(render_product_path)
 
         combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
-        self._exported_usd_string = None  # Free memory
 
         # If temp_usd_dir is set, write the combined USD stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
@@ -1969,10 +1977,16 @@ class OVRTXRenderer(BaseRenderer):
         self._current_ordinal += 1
         ovstage.population.open_usd_from_string(
             self._stage,
-            combined_usd_string,
+            self._exported_usd_string,
             ordinal=self._current_ordinal,
             domains=ovstage.PopulationDomain.RENDERING,
         )
+        self._exported_usd_string = None  # Free memory
+        reference = ovstage.population.add_usd_reference_from_string(
+            self._stage, f'#usda 1.0\n(defaultPrim = "{scope}")\n' + render_product_string, f"/{scope}"
+        )
+        render_data.resources.callback(self._remove_camera_reference, reference)
+        ovstage.population.apply_usd_changes(self._stage, ordinal=self._current_ordinal)
 
         if num_envs > 1:
             self._clone_sources_ovstage()

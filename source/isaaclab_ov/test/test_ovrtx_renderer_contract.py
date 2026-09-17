@@ -186,6 +186,16 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     )
     cameras = []
 
+    def camera_scope_exists(rd):
+        scope = rd.render_product_path.rsplit("/", 1)[0] + "/"
+        if use_ovstage:
+            import ovstage
+
+            camera_filter = ovstage.Filter([ovstage.Predicate("usd-path", ovstage.FilterOp.PREFIX, [scope])])
+            with renderer._stage.query(filter=camera_filter) as query:
+                return query.result().total_prim_count > 0
+        return any(path.startswith(scope) for path in renderer._renderer.query_prims())
+
     def check_depth(rd, data, expected, label):
         renderer.render(rd)
         depth = data.output["distance_to_image_plane"].torch
@@ -247,10 +257,13 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
         check_depth(*cameras[0], 4.5, "after_move_cam0")
         check_depth(*cameras[1], 5.5, "after_move_cam1")
+        assert all(camera_scope_exists(rd) for rd, _ in cameras)
         renderer.cleanup(cameras[0][0])
+        assert not camera_scope_exists(cameras[0][0])
         check_depth(*cameras[1], 5.5, "after_cleanup_cam1")
         renderer.cleanup(cameras[1][0])
         renderer.cleanup(cameras[1][0])
+        assert not camera_scope_exists(cameras[1][0])
     finally:
         renderer.close()
 
