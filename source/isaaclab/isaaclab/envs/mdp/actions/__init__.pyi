@@ -5,6 +5,7 @@
 
 __all__ = [
     "AbsBinaryJointPositionActionCfg",
+    "AckermannActionCfg",
     "BinaryJointActionCfg",
     "BinaryJointPositionActionCfg",
     "BinaryJointVelocityActionCfg",
@@ -21,6 +22,7 @@ __all__ = [
     "RelativeJointPositionActionCfg",
     "SurfaceGripperBinaryActionCfg",
     "AbsBinaryJointPositionAction",
+    "AckermannAction",
     "BinaryJointAction",
     "BinaryJointPositionAction",
     "BinaryJointVelocityAction",
@@ -38,6 +40,7 @@ __all__ = [
 
 from .actions_cfg import (
     AbsBinaryJointPositionActionCfg,
+    AckermannActionCfg,
     BinaryJointActionCfg,
     BinaryJointPositionActionCfg,
     BinaryJointVelocityActionCfg,
@@ -54,6 +57,7 @@ from .actions_cfg import (
     RelativeJointPositionActionCfg,
     SurfaceGripperBinaryActionCfg,
 )
+from .ackermann_actions import AckermannAction
 from .binary_joint_actions import (
     AbsBinaryJointPositionAction,
     BinaryJointAction,
