@@ -216,14 +216,14 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
     has_content = False
 
     def run(self) -> list[nodes.Node]:
-        branch = _source_branch(self.config)
+        branch = self.config.isaaclab_wheel_source_tag
         overrides_url = (
             f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
         )
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[isaacsim]" \\
+   uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match
@@ -237,15 +237,17 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
     has_content = False
 
     def run(self) -> list[nodes.Node]:
-        branch = _source_branch(self.config)
+        branch = self.config.isaaclab_wheel_source_tag
         overrides_url = (
             f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
         )
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[importers]" \\
-     --overrides "{overrides_url}"
+   uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
+     --overrides "{overrides_url}" \\
+     --index https://pypi.nvidia.com \\
+     --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
 
@@ -339,6 +341,8 @@ def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torc
 def setup(app):
     """Register Isaac Lab documentation directives."""
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaaclab_wheel_version", "", "env")
+    app.add_config_value("isaaclab_wheel_source_tag", "", "env")
     app.add_config_value("isaacsim_version", "", "env")
     app.add_config_value("torch_version", "", "env")
     app.add_config_value("torchvision_version", "", "env")
