@@ -302,12 +302,7 @@ def _ensure_cuda_torch() -> None:
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
 
-    if is_arm():
-        cuda_ver = "130"
-    else:
-        cuda_ver = "126"
-
-    cuda_tag = f"cu{cuda_ver}"
+    cuda_tag = "cu130"
     index_url = f"{base_index}/{cuda_tag}"
 
     want_torch = f"{torch_ver}+{cuda_tag}"
@@ -1298,7 +1293,7 @@ def command_install(install_type: str = "all") -> None:
             if install_isaacsim:
                 _install_isaacsim()
 
-            # Install pytorch (version based on arch).
+            # Install the pinned PyTorch CUDA build.
             _ensure_cuda_torch()
 
             # Install all submodules (core set + any explicitly requested optional ones).

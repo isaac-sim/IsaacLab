@@ -10,10 +10,9 @@ Setup:
     - uv --no-config pip install <wheel>[isaacsim] --overrides uv_pip/uv-overrides.txt
         --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match
     - uv pip install --reinstall-package torch --reinstall-package torchvision
-        torch==<pinned> torchvision==<pinned> --index-url <cu126|cu130>
+        torch==<pinned> torchvision==<pinned> --index-url https://download.pytorch.org/whl/cu130
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
-        (cu126 on x86_64, cu130 on aarch64; per docs/source/setup/installation/index.rst.
-         Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
+        (per docs/source/setup/installation/index.rst; reinstall after the wheel install to select the CUDA build.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - python -c "from isaaclab.app import AppLauncher" -> verify AppLauncher importable

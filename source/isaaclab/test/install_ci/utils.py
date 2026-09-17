@@ -187,14 +187,8 @@ _IS_WINDOWS = platform.system() == "Windows"
 
 
 def cuda_torch_index_url() -> str:
-    """Return the documented CUDA-matched torch wheel index URL for the current platform.
-
-    Mirrors ``docs/source/setup/installation/index.rst``: ``cu130`` on aarch64 and
-    ``cu126`` on x86_64.
-    """
-    if platform.machine().lower() in ("aarch64", "arm64"):
-        return "https://download.pytorch.org/whl/cu130"
-    return "https://download.pytorch.org/whl/cu126"
+    """Return the documented CUDA 13 torch wheel index URL for all supported platforms."""
+    return "https://download.pytorch.org/whl/cu130"
 
 
 def pinned_torch_specs() -> list[str]:
