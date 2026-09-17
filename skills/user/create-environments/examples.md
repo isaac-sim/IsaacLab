@@ -6,8 +6,8 @@ Use manager-based workflow by default for new Isaac Lab tasks. This is the frame
 
 Start from:
 
-- `docs/source/tutorials/03_envs/create_manager_base_env.rst`
-- `docs/source/tutorials/03_envs/create_manager_rl_env.rst`
+- `docs/source/how-to/create_manager_base_env.rst`
+- `docs/source/how-to/create_manager_rl_env.rst`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py`
@@ -28,7 +28,7 @@ Use direct workflow when the task has custom low-level step/reset logic, must st
 
 Start from:
 
-- `docs/source/tutorials/03_envs/create_direct_rl_env.rst`
+- `docs/source/how-to/create_direct_rl_env.rst`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
 
@@ -55,5 +55,5 @@ When adding a new Gym task:
 
 Reference:
 
-- `docs/source/tutorials/03_envs/register_rl_env_gym.rst`
-- `docs/source/tutorials/03_envs/configuring_rl_training.rst`
+- `docs/source/how-to/register_rl_env_gym.rst`
+- `docs/source/how-to/configuring_rl_training.rst`
