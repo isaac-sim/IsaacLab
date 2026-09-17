@@ -22,19 +22,22 @@ if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
     from .newton.adapter import NewtonActuatorSelection
 
-_JOINT_PROPERTY_KEYS = (
-    "stiffness",
-    "damping",
-    "armature",
-    "friction",
-    "dynamic_friction",
-    "viscous_friction",
-    "joint_effort_limit",
-    "joint_velocity_limit",
-)
-"""Keys of the joint-property payload exchanged between the collection and backend control.
+_JOINT_PROPERTY_FIELDS = {
+    "stiffness": "joint_stiffness",
+    "damping": "joint_damping",
+    "armature": "joint_armature",
+    "friction": "joint_friction_coeff",
+    "dynamic_friction": "joint_dynamic_friction_coeff",
+    "viscous_friction": "joint_viscous_friction_coeff",
+    "joint_effort_limit": "joint_effort_limits",
+    "joint_velocity_limit": "joint_vel_limits",
+}
+"""Construction configuration keys and their public articulation data fields.
 
-Each key maps to a group-shaped ``torch.Tensor``:
+Default reads and override provenance share these bindings; USD targets belong to
+those data fields' decorators, not the actuator framework.
+
+Resolved payloads use the same keys with group-shaped ``torch.Tensor`` values:
 
 - ``stiffness``: joint stiffness [N/m or N·m/rad, depending on joint type].
 - ``damping``: joint damping [N·s/m or N·m·s/rad, depending on joint type].
@@ -217,9 +220,45 @@ class ActuatorControl(ABC):
 
         Returns:
             Default properties for the selected joints, keyed by
-            :data:`_JOINT_PROPERTY_KEYS`.
+            :data:`_JOINT_PROPERTY_FIELDS`.
         """
         raise NotImplementedError
+
+    def get_joint_property_overrides(
+        self,
+        cfg: ActuatorBaseCfg,
+        defaults: dict[str, torch.Tensor],
+        resolved: dict[str, torch.Tensor],
+        *,
+        implicit: bool,
+        native_managed: bool,
+    ) -> dict[str, torch.Tensor | None]:
+        """Identify fixed initialization overrides requiring serialization.
+
+        Call before applying resolved values. This records provenance from actuator
+        configuration, not arbitrary later writes to public setters or backend buffers.
+
+        Args:
+            cfg: Configuration for the actuator group.
+            defaults: Imported properties returned by :meth:`get_default_joint_properties`.
+            resolved: Resolved construction properties for the same group.
+            implicit: Whether the group uses an implicit solver drive.
+            native_managed: Whether the backend executes this group natively.
+
+        Returns:
+            Public data field names mapped to CPU boolean masks of shape
+            [num_instances, num_group_joints], or None when every group entry is required.
+        """
+        overrides = {}
+        for key, field in _JOINT_PROPERTY_FIELDS.items():
+            drive = key in ("stiffness", "damping")
+            if getattr(cfg, key) is None and not (drive and (not implicit or native_managed)):
+                continue
+            # Equal gains can change drive semantics; PhysX axis APIs can shadow imported defaults.
+            overrides[field] = (
+                None if drive or not self.usd_preserves_imported_defaults else (resolved[key] != defaults[key]).cpu()
+            )
+        return overrides
 
     @abstractmethod
     def write_resolved_joint_properties(
@@ -234,7 +273,7 @@ class ActuatorControl(ABC):
 
         Args:
             properties: Resolved joint properties for one configured group, keyed by
-                :data:`_JOINT_PROPERTY_KEYS`.
+                :data:`_JOINT_PROPERTY_FIELDS`.
             joint_ids: Articulation joints in the configured group.
             implicit: Whether the group uses an implicit solver drive.
             native_managed: Whether the backend executes this group natively.
@@ -418,20 +457,16 @@ class ArticulationActuatorControl(ActuatorControl):
             joint_ids = wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
         data = self._articulation.data
         stiffness = data.joint_stiffness.torch[:, joint_ids]
-        return {
-            "stiffness": stiffness.clone(),
-            "damping": data.joint_damping.torch[:, joint_ids].clone(),
-            "armature": data.joint_armature.torch[:, joint_ids].clone(),
-            "friction": data.joint_friction_coeff.torch[:, joint_ids].clone(),
-            "dynamic_friction": self._joint_property_or_zeros(
-                "joint_dynamic_friction_coeff", joint_ids, stiffness
-            ).clone(),
-            "viscous_friction": self._joint_property_or_zeros(
-                "joint_viscous_friction_coeff", joint_ids, stiffness
-            ).clone(),
-            "joint_effort_limit": data.joint_effort_limits.torch[:, joint_ids].clone(),
-            "joint_velocity_limit": data.joint_vel_limits.torch[:, joint_ids].clone(),
-        }
+        properties = {}
+        for key, field in _JOINT_PROPERTY_FIELDS.items():
+            # Some backends expose only one friction property; retain their existing zero fallbacks.
+            value = (
+                self._joint_property_or_zeros(field, joint_ids, stiffness)
+                if key in ("dynamic_friction", "viscous_friction")
+                else getattr(data, field).torch[:, joint_ids]
+            )
+            properties[key] = value.clone()
+        return properties
 
     def write_resolved_joint_properties(
         self,

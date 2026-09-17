@@ -352,26 +352,14 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             joint_indices = (
                 range(self.num_joints) if isinstance(actuator_joint_ids, slice) else actuator_joint_ids.tolist()
             )
-            for cfg_name, data_name in (
-                ("stiffness", "joint_stiffness"),
-                ("damping", "joint_damping"),
-                ("armature", "joint_armature"),
-                ("friction", "joint_friction_coeff"),
-                ("dynamic_friction", "joint_dynamic_friction_coeff"),
-                ("viscous_friction", "joint_viscous_friction_coeff"),
-                ("joint_effort_limit", "joint_effort_limits"),
-                ("joint_velocity_limit", "joint_vel_limits"),
-            ):
-                drive = cfg_name in ("stiffness", "damping")
-                if getattr(actuator_cfg, cfg_name) is None and not (drive and (not implicit or native_managed)):
-                    continue
-                # An explicit gain can enable/disable a drive even when its numeric value matches.
-                if drive or not self._control.usd_preserves_imported_defaults:
+            overrides = self._control.get_joint_property_overrides(
+                actuator_cfg, joint_defaults, properties, implicit=implicit, native_managed=native_managed
+            )
+            for data_name, changed in overrides.items():
+                if changed is None:
                     for joint_id in joint_indices:
                         self._usd_override_fields.setdefault(joint_id, {})[data_name] = None
                     continue
-                # Compare before writing to the backend; retain only identities, not buffer snapshots.
-                changed = (properties[cfg_name] != joint_defaults[cfg_name]).cpu()
                 for column, joint_id in enumerate(joint_indices):
                     environments = changed[:, column].nonzero().flatten().tolist()
                     if environments:
@@ -460,17 +448,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         """
         values: dict[str, torch.Tensor] = {}
         resolution_rows: dict[str, tuple[tuple[object, ...], ...]] = {}
-        for cfg_name in (
-            "stiffness",
-            "damping",
-            "armature",
-            "friction",
-            "dynamic_friction",
-            "viscous_friction",
-            "joint_effort_limit",
-            "joint_velocity_limit",
-        ):
-            default_value = defaults[cfg_name]
+        for cfg_name, default_value in defaults.items():
             cfg_value = getattr(cfg, cfg_name)
             value = self._resolve_joint_property(cfg_value, default_value, joint_names)
             values[cfg_name] = value

@@ -38,37 +38,56 @@ def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
     return ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0, **kwargs)
 
 
-@pytest.mark.parametrize("stiffness", [None, 7.0, {"joint_0": 7.0}])
+@pytest.mark.parametrize("stiffness", [None, 3.0, 7.0, {"joint_0": 7.0}])
 def test_fixed_export_selection_preserves_parameter_resolution(stiffness):
     control = FakeActuatorControl()
     control._joint_stiffness.torch.fill_(3)
     collection = ActuatorCollection(
         {"drive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=None)}, control
     )
-    expected = [3, 3, 3] if stiffness is None else ([7, 0, 0] if isinstance(stiffness, dict) else [7, 7, 7])
+    expected = [3, 3, 3] if stiffness is None else ([7, 0, 0] if isinstance(stiffness, dict) else [stiffness] * 3)
     torch.testing.assert_close(control._joint_stiffness.torch, torch.tensor([expected, expected], dtype=torch.float32))
     for row in range(3):
         assert collection.usd_override_fields(row) == (frozenset() if stiffness is None else {"joint_stiffness"})
 
 
-@pytest.mark.parametrize("armature", [0.1, {"joint_0": 0.1}])
-def test_fixed_export_selection_excludes_imported_values(armature):
+@pytest.mark.parametrize(
+    "config_field, data_field",
+    [
+        ("armature", "joint_armature"),
+        ("friction", "joint_friction_coeff"),
+        ("joint_velocity_limit", "joint_vel_limits"),
+    ],
+)
+@pytest.mark.parametrize("setting", [0.1, {"joint_0": 0.1}])
+@pytest.mark.parametrize("preserves_imported_defaults", [True, False])
+def test_fixed_export_selection_excludes_imported_values(
+    config_field, data_field, setting, preserves_imported_defaults
+):
     control = FakeActuatorControl()
-    control._current_joint_properties["armature"][:] = torch.tensor([[0.1, 0.1, 0], [0.2, 0.1, 0]])
+    control.usd_preserves_imported_defaults = preserves_imported_defaults
+    control._current_joint_properties[config_field][:] = torch.tensor([[0.1, 0.1, 0], [0.2, 0.1, 0]])
     collection = ActuatorCollection(
-        {"drive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=None, armature=armature)},
+        {
+            "drive": ImplicitActuatorCfg(
+                joint_names_expr=[".*"], stiffness=None, damping=None, **{config_field: setting}
+            )
+        },
         control,
     )
-    expected = [0.1, 0, 0] if isinstance(armature, dict) else [0.1, 0.1, 0.1]
+    expected = [0.1, 0, 0] if isinstance(setting, dict) else [0.1, 0.1, 0.1]
     torch.testing.assert_close(
-        control.written_properties[0][0]["armature"], torch.tensor([expected, expected], dtype=torch.float32)
+        control.written_properties[0][0][config_field], torch.tensor([expected, expected], dtype=torch.float32)
     )
-    changed = {1} if isinstance(armature, dict) else {2}
-    assert collection.usd_override_fields(1) == ({"joint_armature"} if isinstance(armature, dict) else set())
-    for env_index in range(2):
-        for joint_id in range(3):
-            expected_fields = {"joint_armature"} if joint_id in changed or (env_index == 1 and joint_id == 0) else set()
+    changed = {1} if isinstance(setting, dict) else {2}
+    for joint_id in range(3):
+        expected_union = set()
+        for env_index in range(2):
+            required = not preserves_imported_defaults or joint_id in changed or (env_index == 1 and joint_id == 0)
+            expected_fields = {data_field} if required else set()
             assert collection.usd_override_fields(joint_id, env_index=env_index) == expected_fields
+            expected_union.update(expected_fields)
+        assert collection.usd_override_fields(joint_id) == expected_union
 
 
 class SelectorRecordingActuator(ImplicitActuator):
@@ -656,6 +675,8 @@ def test_articulation_control_provides_common_forwarding_and_property_writes():
     assert control.joint_effort_limits is articulation.data.joint_effort_limits
 
     defaults = control.get_default_joint_properties(slice(None))
+    torch.testing.assert_close(defaults["joint_effort_limit"], articulation.data.joint_effort_limits.torch)
+    torch.testing.assert_close(defaults["joint_velocity_limit"], articulation.data.joint_vel_limits.torch)
     torch.testing.assert_close(defaults["dynamic_friction"], torch.zeros(2, 3))
     torch.testing.assert_close(defaults["viscous_friction"], torch.zeros(2, 3))
 
