@@ -10,6 +10,7 @@ import dataclasses
 import functools
 import logging
 import math
+import threading
 import warnings
 from collections.abc import Callable, Iterable
 
@@ -39,9 +40,15 @@ logger = logging.getLogger(__name__)
 
 # Nesting depth of the legacy ``define_*`` / ``modify_*`` writers. Several ``define_*`` writers
 # delegate to their ``modify_*`` counterpart, so only the outermost call warns and the caller
-# sees exactly one deprecation naming the entry point they used. Stage authoring is
-# single-threaded, so a plain module-level counter is sufficient.
-_legacy_writer_depth = 0
+# sees exactly one deprecation naming the entry point they used. The depth is thread-local --
+# matching the thread-local stage context in :mod:`isaaclab.sim.utils.stage` -- so a writer call
+# on one thread never suppresses the deprecation another thread is entitled to.
+_legacy_writer_state = threading.local()
+
+
+def _legacy_writer_depth() -> int:
+    """Return the legacy-writer nesting depth for the calling thread."""
+    return getattr(_legacy_writer_state, "depth", 0)
 
 
 def _deprecated_schema_writer(replacement: str):
@@ -64,19 +71,19 @@ def _deprecated_schema_writer(replacement: str):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            global _legacy_writer_depth
-            if _legacy_writer_depth == 0:
+            depth = _legacy_writer_depth()
+            if depth == 0:
                 warnings.warn(
                     f"{func.__name__} is deprecated. Use {replacement} with schema fragments"
                     f" instead; {func.__name__} will be removed in 5.0.",
                     DeprecationWarning,
                     stacklevel=2,
                 )
-            _legacy_writer_depth += 1
+            _legacy_writer_state.depth = depth + 1
             try:
                 return func(*args, **kwargs)
             finally:
-                _legacy_writer_depth -= 1
+                _legacy_writer_state.depth = depth
 
         # ``functools.wraps`` would point ``__wrapped__`` at this decorator's input. Keep it on the
         # undecorated writer instead, so ``writer.__wrapped__`` still yields the bool-returning

@@ -18,6 +18,7 @@ import inspect
 import json
 import subprocess
 import sys
+import threading
 import warnings
 
 import pytest
@@ -25,6 +26,7 @@ import pytest
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim.schemas as schemas
+import isaaclab.sim.schemas.schemas as schemas_impl
 import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
@@ -387,6 +389,49 @@ def test_apply_mass_properties_does_not_warn():
     deprecations = _deprecations(lambda: schemas.apply_mass_properties(prim_path, [fragment], stage=stage))
     assert deprecations == []
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(5.0)
+
+
+def test_legacy_writer_warns_per_thread():
+    """Concurrent legacy writer calls each warn: the nesting guard must not be process-global.
+
+    Two threads are held inside a decorated writer at the same time, so each one observes the
+    other's nesting depth. With a shared module-level depth the second thread sees a nonzero
+    depth and stays silent; the depth must be per-thread for both callers to be told.
+    """
+    barrier = threading.Barrier(2, timeout=60)
+
+    @schemas_impl._deprecated_schema_writer("apply_mass_properties")
+    def legacy_writer():
+        barrier.wait()
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        threads = [threading.Thread(target=legacy_writer) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=60)
+
+    assert all(not thread.is_alive() for thread in threads)
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 2, f"expected one warning per calling thread, got {len(deprecations)}"
+
+
+def test_legacy_writer_still_warns_once_when_nested_on_one_thread():
+    """Nesting on a single thread is still collapsed to the outermost warning."""
+
+    @schemas_impl._deprecated_schema_writer("apply_mass_properties")
+    def inner():
+        return None
+
+    @schemas_impl._deprecated_schema_writer("apply_mass_properties")
+    def outer():
+        return inner()
+
+    assert len(_deprecations(outer)) == 1
+    # The depth is restored on exit, so a later top-level call warns again.
+    assert len(_deprecations(inner)) == 1
+
 
 """
 Silencing the warnings, as documented in the 3.0 migration guide.
