@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+17.0.3 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated Starlette to 1.3.1 or newer to address current security advisories and aligned aiohttp with the
+  Isaac Sim 6.1 dependency selection. No migration is required.
+
+
 17.0.2 (2026-09-16)
 ~~~~~~~~~~~~~~~~~~~
 
