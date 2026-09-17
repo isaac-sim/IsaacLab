@@ -75,8 +75,8 @@ multi-GPU feature doc. Add new workarounds there first and keep this skill as a 
 
 - [Evaluations](evaluations.md)
 - [Reference](reference.md)
-- [Training RL agents skill](../train-rl-agents/SKILL.md)
-- [Debug RL training skill](../debug-rl-training/SKILL.md)
+- [Training RL agents skill](../isaaclab-training-rl-agents/SKILL.md)
+- [Debug RL training skill](../isaaclab-debugging-rl-training/SKILL.md)
 - [Multi-GPU and multi-node training](../../../docs/source/features/multi_gpu.rst)
 - [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)
 - [Multi-GPU launcher](../../../scripts/reinforcement_learning/train_multigpu.py)

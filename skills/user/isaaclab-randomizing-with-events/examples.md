@@ -2,7 +2,7 @@
 
 ## Contents
 
-- Reset state randomization
+- Episode-start randomization
 - Direct workflow event config
 - Success-driven ADR
 - Prestartup USD randomization
@@ -10,7 +10,7 @@
 - Backend-specific material randomization
 - Interval disturbance
 
-## Reset State Randomization
+## Episode-Start Randomization
 
 Input: randomize robot initial joint positions at the start of each episode.
 

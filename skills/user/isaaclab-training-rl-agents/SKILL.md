@@ -16,7 +16,7 @@ owners:
 
 Use this skill when a user wants to train, resume, evaluate, or configure reinforcement learning for an Isaac Lab task.
 
-Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/create-environments/`) for environment construction first, and use `isaaclab-debugging-rl-training` when training behavior or reward metrics are already failing. Use `isaaclab-training-multi-gpu` for multi-GPU or multi-node launches and for distributed runs that hang or fail inside NCCL.
+Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/isaaclab-building-environments/`) for environment construction first, and use `isaaclab-debugging-rl-training` when training behavior or reward metrics are already failing. Use `isaaclab-training-multi-gpu` for multi-GPU or multi-node launches and for distributed runs that hang or fail inside NCCL.
 
 ## Workflow
 
@@ -59,8 +59,8 @@ Keep this skill synchronized with `docs/source/concepts/reinforcement_learning.r
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
-- [Debug RL training skill](../debug-rl-training/SKILL.md)
-- [Multi-GPU training skill](../train-multi-gpu/SKILL.md)
+- [Debug RL training skill](../isaaclab-debugging-rl-training/SKILL.md)
+- [Multi-GPU training skill](../isaaclab-training-multi-gpu/SKILL.md)
 - [RL training guide](../../../docs/source/concepts/reinforcement_learning.rst)
 - [Configure RL training tutorial](../../../docs/source/how-to/configuring_rl_training.rst)
 - [Run RL training tutorial](../../../docs/source/how-to/run_rl_training.rst)

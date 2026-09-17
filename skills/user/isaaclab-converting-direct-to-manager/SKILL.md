@@ -57,8 +57,8 @@ Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, `do
 
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
-- [Environment building skill](../create-environments/SKILL.md)
-- [Isaac Gym migration skill](../migrate-from-isaac-gym/SKILL.md)
+- [Environment building skill](../isaaclab-building-environments/SKILL.md)
+- [Isaac Gym migration skill](../isaaclab-migrating-from-isaac-gym/SKILL.md)
 - [Task workflows](../../../docs/source/concepts/task_workflows.rst)
 - [Create manager-based RL environment tutorial](../../../docs/source/how-to/create_manager_rl_env.rst)
 - [Register Gym environment tutorial](../../../docs/source/how-to/register_rl_env_gym.rst)

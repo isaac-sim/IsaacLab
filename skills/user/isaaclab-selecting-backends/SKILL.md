@@ -59,7 +59,7 @@ Keep this skill synchronized with `docs/source/concepts/physics_backends.rst`, `
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
-- [Prepare assets for Newton skill](../prepare-assets-for-newton/SKILL.md)
+- [Prepare assets for Newton skill](../isaaclab-preparing-assets-for-newton/SKILL.md)
 - [Physics backends](../../../docs/source/concepts/physics_backends.rst)
 - [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)
 - [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
