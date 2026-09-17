@@ -60,10 +60,12 @@ are now always retained. Newton builder defaults require writeback only when con
 differently from native defaults and not superseded by source shape or material opinions.
 Material copies are shared between consumers requesting the same necessary override.
 
-The actuator framework owns configuration-to-data bindings shared by imported-default
-reads and initialization override selection. ``ActuatorControl.get_joint_property_overrides``
+Data-property ``@usd_field(actuator_config="...")`` declarations bind actuator configuration
+keys to public data fields. The actuator framework discovers these inherited bindings for
+imported-default reads and initialization override selection. ``ActuatorControl.get_joint_property_overrides``
 reports affected public fields and instance/joint masks before backend assignment;
-``ActuatorCollection`` retains only identities, not additional value snapshots. The exporter
+``ActuatorCollection`` records the identities after successful backend assignment, without
+additional value snapshots. The exporter
 consumes those identities and the existing data-property USD decorators, without a separate
 actuator configuration table.
 ``None`` inherits the source; scalars and dictionaries select the whole actuator group,
@@ -88,6 +90,21 @@ Data getters declare USD targets and any angular conversion in the same place::
     )
     def joint_pos_limits(self):
         ...
+
+Actuator configuration is declared alongside its USD target, rather than in a second
+export mapping::
+
+    @property
+    @usd_field(
+        UsdAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}"),
+        angular_conversion=per_radian_to_per_degree,
+        actuator_config="stiffness",
+    )
+    def joint_stiffness(self):
+        ...
+
+``usd_actuator_fields`` discovers these bindings without evaluating getters. Backend
+overrides inherit the configuration binding even when they replace or extend USD targets.
 
 Deployment requires the meter/kilogram stage convention set by ``SimulationContext``.
 Angular limits and rates use ``radians_to_degrees``; angular gains use

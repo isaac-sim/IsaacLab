@@ -161,6 +161,11 @@ class UsdWriter:
         # Relationship dependencies may live in a different prototype environment.
         # Retain resources, but never pull a foreign physical entity into the export.
         copied = {}
+        resource_root = Sdf.Path("/__ExportResources")
+        suffix = 0
+        while self.stage.GetPrimAtPath(resource_root):
+            suffix += 1
+            resource_root = Sdf.Path(f"/__ExportResources_{suffix}")
         pending = list(self.stage.Traverse(Usd.TraverseInstanceProxies()))
         for prim in pending:
             if any(prim.GetPath().HasPrefix(root) for root in excluded):
@@ -185,7 +190,7 @@ class UsdWriter:
                         raise NotImplementedError(f"Cross-environment physical dependency {prop.GetPath()}: {target}")
                     destination = copied.get(source)
                     if destination is None:
-                        destination = Sdf.Path("/__ExportResources").AppendChild(f"resource_{len(copied)}")
+                        destination = resource_root.AppendChild(f"resource_{len(copied)}")
                         UsdGeom.Scope.Define(self.stage, destination.GetParentPath())
                         if not Sdf.CopySpec(layer, source, layer, destination):
                             raise RuntimeError(f"Cannot preserve dependency {source}.")

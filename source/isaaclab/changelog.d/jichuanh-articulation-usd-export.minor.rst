@@ -6,4 +6,6 @@ Added
 Fixed
 ^^^^^
 
-* Avoided exporting actuator values already supplied by the imported asset, including equivalent values from other USD schemas. Shared actuator property bindings between initialization and override provenance instead of maintaining a separate export mapping.
+* Avoided exporting actuator values already supplied by the imported asset, including equivalent values from other USD schemas. Declared actuator configuration bindings on data-property USD decorators and discovered them during initialization, eliminating the parallel configuration-to-data table. Preserved existing dictionary resolution and backend-specific drive semantics.
+
+* Preserved existing scene content when copied dependencies needed an export-resource namespace already occupied by source prims.

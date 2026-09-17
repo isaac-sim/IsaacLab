@@ -325,7 +325,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         misleading construction-time snapshots. Their mapping entries are filled
         with the owning Newton actuator objects after backend finalization.
         """
-        construction_records: list[tuple[dict[str, torch.Tensor], torch.Tensor | slice, bool, bool]] = []
+        construction_records = []
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = resolved_group_joints[actuator_name]
             if len(joint_names) == self.num_joints:
@@ -349,23 +349,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 joint_names,
                 actuator_joint_ids,
             )
-            joint_indices = (
-                range(self.num_joints) if isinstance(actuator_joint_ids, slice) else actuator_joint_ids.tolist()
-            )
             overrides = self._control.get_joint_property_overrides(
                 actuator_cfg, joint_defaults, properties, implicit=implicit, native_managed=native_managed
             )
-            for data_name, changed in overrides.items():
-                if changed is None:
-                    for joint_id in joint_indices:
-                        self._usd_override_fields.setdefault(joint_id, {})[data_name] = None
-                    continue
-                for column, joint_id in enumerate(joint_indices):
-                    environments = changed[:, column].nonzero().flatten().tolist()
-                    if environments:
-                        self._usd_override_fields.setdefault(joint_id, {})[data_name] = (
-                            None if len(environments) == self.num_instances else frozenset(environments)
-                        )
             if native_managed:
                 # placeholder keeps configuration order; replaced by the Newton actuator
                 # objects once the backend selection is finalized.
@@ -397,16 +383,30 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                     actuator_joint_ids,
                     implicit,
                     native_managed,
+                    overrides,
                 )
             )
 
-        for properties, joint_ids, implicit, native_managed in construction_records:
+        for properties, joint_ids, implicit, native_managed, overrides in construction_records:
             self._control.write_resolved_joint_properties(
                 properties,
                 joint_ids,
                 implicit=implicit,
                 native_managed=native_managed,
             )
+            # Publish provenance only after the fixed initialization write succeeds.
+            joint_indices = range(self.num_joints) if isinstance(joint_ids, slice) else joint_ids.tolist()
+            for data_name, changed in overrides.items():
+                if changed is None:
+                    for joint_id in joint_indices:
+                        self._usd_override_fields.setdefault(joint_id, {})[data_name] = None
+                    continue
+                for column, joint_id in enumerate(joint_indices):
+                    environments = changed[:, column].nonzero().flatten().tolist()
+                    if environments:
+                        self._usd_override_fields.setdefault(joint_id, {})[data_name] = (
+                            None if len(environments) == self.num_instances else frozenset(environments)
+                        )
         for actuator in self._groups.values():
             if isinstance(actuator, ImplicitActuator):
                 actuator._bind_actuator_parameters(self._control)

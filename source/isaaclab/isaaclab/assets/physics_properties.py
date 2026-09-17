@@ -51,19 +51,46 @@ def usd_field(
     transform: Callable | None = None,
     inputs: tuple[str, ...] = (),
     angular_conversion: Callable | None = None,
+    actuator_config: str | None = None,
 ) -> Callable:
     """Bind USD targets to the decorated property's getter without wrapping it.
 
     Place below ``@property``. Getter overrides inherit the nearest declaration;
     decorated overrides replace it, or append targets with ``extend=True``.
     An empty declaration requires a concrete backend to supply its semantics.
+    ``actuator_config`` binds the property to its actuator configuration key for
+    initialization reads and override tracking. Backend overrides inherit this binding.
     """
 
     def bind(getter: Callable) -> Callable:
         getter._usd_field = (targets, extend, scope, transform, inputs, angular_conversion)
+        if actuator_config is not None:
+            getter._actuator_config = actuator_config
         return getter
 
     return bind
+
+
+@lru_cache
+def usd_actuator_fields(data_type: type) -> dict[str, str]:
+    """Discover data-to-actuator bindings without evaluating backend getters.
+
+    Bindings inherit independently of backend-specific USD targets, including
+    properties whose target declaration must be supplied by a concrete backend.
+    """
+    result = {}
+    for base in reversed(data_type.__mro__):
+        for name, prop in vars(base).items():
+            if not isinstance(prop, property):
+                if name in result:
+                    raise NotImplementedError(f"Actuator data property {name} was shadowed by a non-property.")
+                continue
+            key = getattr(prop.fget, "_actuator_config", None)
+            if key is not None:
+                result[name] = key
+    if len(set(result.values())) != len(result):
+        raise ValueError(f"Duplicate actuator configuration bindings on {data_type.__name__}.")
+    return result
 
 
 @lru_cache

@@ -510,7 +510,8 @@ class ArticulationData(BaseArticulationData):
 
     @property
     @usd_field(
-        UsdAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float")
+        UsdAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float"),
+        actuator_config="dynamic_friction",
     )
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
         """Joint dynamic friction effort [N*m or N, depending on joint type].
@@ -534,6 +535,7 @@ class ArticulationData(BaseArticulationData):
             type_name="float",
         ),
         angular_conversion=per_radian_to_per_degree,
+        actuator_config="viscous_friction",
     )
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient [N*m*s/rad or N*s/m, depending on joint type].

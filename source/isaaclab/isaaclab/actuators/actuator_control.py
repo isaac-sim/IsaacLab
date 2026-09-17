@@ -22,38 +22,6 @@ if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
     from .newton.adapter import NewtonActuatorSelection
 
-_JOINT_PROPERTY_FIELDS = {
-    "stiffness": "joint_stiffness",
-    "damping": "joint_damping",
-    "armature": "joint_armature",
-    "friction": "joint_friction_coeff",
-    "dynamic_friction": "joint_dynamic_friction_coeff",
-    "viscous_friction": "joint_viscous_friction_coeff",
-    "joint_effort_limit": "joint_effort_limits",
-    "joint_velocity_limit": "joint_vel_limits",
-}
-"""Construction configuration keys and their public articulation data fields.
-
-Default reads and override provenance share these bindings; USD targets belong to
-those data fields' decorators, not the actuator framework.
-
-Resolved payloads use the same keys with group-shaped ``torch.Tensor`` values:
-
-- ``stiffness``: joint stiffness [N/m or N·m/rad, depending on joint type].
-- ``damping``: joint damping [N·s/m or N·m·s/rad, depending on joint type].
-- ``armature``: joint armature [kg or kg·m², depending on joint type].
-- ``friction``: backend-specific joint friction; see
-  :attr:`isaaclab.assets.ArticulationData.joint_friction_coeff` for the active
-  backend's convention.
-- ``dynamic_friction``: backend-specific dynamic friction. PhysX interprets these as
-  dynamic friction efforts [N or N·m, depending on joint type], OVPhysX as
-  dimensionless Coulomb friction coefficients; Newton has no separate
-  dynamic-friction property, so its control adapter supplies zeros.
-- ``viscous_friction``: passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
-- ``joint_effort_limit``: joint effort limits [N or N·m, depending on joint type].
-- ``joint_velocity_limit``: joint velocity limits [m/s or rad/s, depending on joint type].
-"""
-
 
 class ActuatorControl(ABC):
     """Backend-neutral bridge used by :class:`~isaaclab.actuators.ActuatorCollection`."""
@@ -219,10 +187,18 @@ class ActuatorControl(ABC):
             joint_ids: Articulation joints in the actuator group.
 
         Returns:
-            Default properties for the selected joints, keyed by
-            :data:`_JOINT_PROPERTY_FIELDS`.
+            Default properties for the selected joints, keyed by actuator configuration
+            names. Units follow the corresponding data properties and :class:`ActuatorBaseCfg`.
         """
         raise NotImplementedError
+
+    def get_joint_property_fields(self) -> dict[str, str]:
+        """Return declared data-to-configuration bindings for joint initialization."""
+        # Import lazily: assets construct actuator controls during their own initialization.
+        from isaaclab.assets import BaseArticulationData
+        from isaaclab.assets.physics_properties import usd_actuator_fields
+
+        return usd_actuator_fields(BaseArticulationData)
 
     def get_joint_property_overrides(
         self,
@@ -250,7 +226,7 @@ class ActuatorControl(ABC):
             [num_instances, num_group_joints], or None when every group entry is required.
         """
         overrides = {}
-        for key, field in _JOINT_PROPERTY_FIELDS.items():
+        for field, key in self.get_joint_property_fields().items():
             drive = key in ("stiffness", "damping")
             if getattr(cfg, key) is None and not (drive and (not implicit or native_managed)):
                 continue
@@ -272,8 +248,8 @@ class ActuatorControl(ABC):
         """Write construction-resolved joint properties to the backend.
 
         Args:
-            properties: Resolved joint properties for one configured group, keyed by
-                :data:`_JOINT_PROPERTY_FIELDS`.
+            properties: Resolved joint properties for one configured group, with the keys
+                and units returned by :meth:`get_default_joint_properties`.
             joint_ids: Articulation joints in the configured group.
             implicit: Whether the group uses an implicit solver drive.
             native_managed: Whether the backend executes this group natively.
@@ -452,20 +428,23 @@ class ArticulationActuatorControl(ActuatorControl):
     ) -> None:
         self._articulation.assert_shape_and_dtype_mask(tensor, masks, dtype, name)
 
+    def get_joint_property_fields(self) -> dict[str, str]:
+        from isaaclab.assets.physics_properties import usd_actuator_fields
+
+        return super().get_joint_property_fields() | usd_actuator_fields(type(self._articulation.data))
+
     def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> dict[str, torch.Tensor]:
         if isinstance(joint_ids, wp.array):
             joint_ids = wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
         data = self._articulation.data
         stiffness = data.joint_stiffness.torch[:, joint_ids]
         properties = {}
-        for key, field in _JOINT_PROPERTY_FIELDS.items():
-            # Some backends expose only one friction property; retain their existing zero fallbacks.
-            value = (
-                self._joint_property_or_zeros(field, joint_ids, stiffness)
-                if key in ("dynamic_friction", "viscous_friction")
-                else getattr(data, field).torch[:, joint_ids]
-            )
-            properties[key] = value.clone()
+        for field, key in self.get_joint_property_fields().items():
+            properties[key] = getattr(data, field).torch[:, joint_ids].clone()
+        # Backends without separate friction channels retain the existing zero defaults.
+        for key in ("dynamic_friction", "viscous_friction"):
+            if key not in properties:
+                properties[key] = torch.zeros_like(stiffness)
         return properties
 
     def write_resolved_joint_properties(
@@ -498,14 +477,3 @@ class ArticulationActuatorControl(ActuatorControl):
         else:
             articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=joint_ids)
             articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=joint_ids)
-
-    def _joint_property_or_zeros(
-        self,
-        attr_name: str,
-        joint_ids: torch.Tensor | wp.array | slice,
-        reference: torch.Tensor,
-    ) -> torch.Tensor:
-        joint_property = getattr(self._articulation.data, attr_name, None)
-        if joint_property is None:
-            return torch.zeros_like(reference)
-        return joint_property.torch[:, joint_ids]
