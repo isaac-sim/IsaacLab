@@ -96,7 +96,6 @@ copybutton_selector = "div.highlight pre"
 rst_prolog = f"""
 .. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
 .. |isaaclab_wheel_version| replace:: {isaaclab_wheel_version}
-.. |isaaclab_wheel_requirement| replace:: isaaclab=={isaaclab_wheel_version}
 .. |isaacsim_version| replace:: {isaacsim_version}
 .. |torch_version| replace:: {torch_version}
 .. |torchvision_version| replace:: {torchvision_version}

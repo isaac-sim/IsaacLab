@@ -603,13 +603,11 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
    .. tab-item:: uv project dependency
 
-      .. container:: highlight
+      .. code-block:: bash
 
-         .. parsed-literal::
-
-            uv init --python 3.12 my_isaaclab_project
-            cd my_isaaclab_project
-            uv add --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
+         uv init --python 3.12 my_isaaclab_project
+         cd my_isaaclab_project
+         uv add --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
    .. tab-item:: Standalone uv environment
 
@@ -619,35 +617,29 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
             :sync: linux-x86_64
 
-            .. container:: highlight
+            .. code-block:: bash
 
-               .. parsed-literal::
-
-                  uv venv --python 3.12 env_isaaclab
-                  source env_isaaclab/bin/activate
-                  uv pip install --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
+               uv venv --python 3.12 env_isaaclab
+               source env_isaaclab/bin/activate
+               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
          .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
             :sync: windows-x86_64
 
-            .. container:: highlight
+            .. code-block:: batch
 
-               .. parsed-literal::
-
-                  uv venv --python 3.12 env_isaaclab
-                  env_isaaclab\\Scripts\\activate
-                  uv pip install --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
+               uv venv --python 3.12 env_isaaclab
+               env_isaaclab\Scripts\activate
+               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
             :sync: linux-aarch64
 
-            .. container:: highlight
+            .. code-block:: bash
 
-               .. parsed-literal::
-
-                  uv venv --python 3.12 env_isaaclab
-                  source env_isaaclab/bin/activate
-                  uv pip install --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
+               uv venv --python 3.12 env_isaaclab
+               source env_isaaclab/bin/activate
+               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
 The project workflow records the dependency in ``pyproject.toml`` and updates ``uv.lock``. Use it
 when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
