@@ -32,6 +32,11 @@ _SKIPPED_TASKS = {
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
 }
 _SKIPPED_TASK_SUBSTRINGS = {
+    # Under random actions the Kamino P-ADMM solver intermittently diverges and the whole robot state
+    # (root pose, joint state) turns NaN mid-episode, so the run fails nondeterministically (about 1 in 12
+    # seeds locally; the sibling HoldPose task stays finite). The termination terms cannot catch a NaN state.
+    # Re-enable once the solver instability is resolved upstream.
+    "DrLegs-Walk": "Kamino solver intermittently produces NaN robot state under random actions.",
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
@@ -67,4 +72,5 @@ def _contrib_environment_params() -> list:
 
 @pytest.mark.parametrize("task_name", _contrib_environment_params())
 def test_contrib_environments(task_name):
-    _run_environments(task_name, device="cuda", num_envs=2)
+    num_envs = 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2
+    _run_environments(task_name, device="cuda", num_envs=num_envs)

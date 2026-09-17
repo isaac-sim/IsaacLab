@@ -14,10 +14,12 @@ simulation_app = AppLauncher(headless=True).app
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
@@ -182,8 +184,8 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     assert_state_equal(prev_state, scene.get_state())
 
 
-def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene forwards the right plan and stage to cloner.replicate.
+def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
+    """A cfg-driven scene publishes the exact plan it forwards to replication.
 
     Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
     lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
@@ -193,22 +195,51 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
 
     captured: list = []
 
-    def fake_replicate(plan, *, stage, replicate_physics=True):
-        captured.append((plan, stage, replicate_physics))
+    def fake_replicate(plan, *, replicate_physics=True):
+        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, stage, replicate_physics = captured[0]
+    plan, replicate_physics, published = captured[0]
+    assert published is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
-    assert stage is scene.stage
     assert replicate_physics is True
+
+
+def test_empty_scene_leaves_clone_lifecycle_to_caller():
+    """An empty scene authors one prototype and leaves its replication to the direct task."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=1.0))
+
+        assert sim.get_clone_plan() is None
+        env_template = scene.cfg.clone_cfg.clone_template
+        grid_positions = cloner.grid_transforms(4, 1.0)[0]
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
+        env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
+        np.testing.assert_allclose(sim_utils.resolve_prim_pose(env_0)[0], grid_positions[0])
+        assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
+
+        cube_cfg = RigidObjectCfg(
+            prim_path=f"{env_template.format('[^/]+')}/Cube",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+            cloning_contexts=(cloner.UsdReplicateContext,),
+        )
+        cube_cfg.class_type(cube_cfg)
+        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
+        plan = cloner.clone_plan_from_env_0(env_template.format(0), env_template, 4, positions)
+        cloner.replicate(plan)
+
+        assert sim.get_clone_plan() is plan
+        assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -261,31 +292,6 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
     assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
 
 
-def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.MonkeyPatch):
-    """AssetBaseCfg.cloning_contexts replaces the backend default stack for that asset."""
-    import isaaclab.cloner.replicate_session as replicate_session_module
-    from isaaclab.cloner import REPLICATION_QUEUE
-
-    # keep the queue for inspection: the fake drain does not clear it
-    monkeypatch.setattr(replicate_session_module, "replicate", lambda plan, *, stage, replicate_physics=True: None)
-
-    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
-        sim._app_control_on_stop_handle = None
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=1.0)
-        scene_cfg.rigid_obj.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-        try:
-            InteractiveScene(scene_cfg)
-            queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
-            # the override rides the queued cfg; resolution happens at replicate()
-            assert queued_by_path["/World/envs/env_[^/]+/RigidObj"].cloning_contexts == (
-                "isaaclab.cloner:UsdReplicateContext",
-            )
-            # untouched asset resolves to the backend default stack at replicate()
-            assert queued_by_path["/World/envs/env_[^/]+/Robot"].cloning_contexts is None
-        finally:
-            REPLICATION_QUEUE.clear()
-
-
 def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     """The composition root separates cloneable configs from shared prim roots."""
     scene = object.__new__(InteractiveScene)
@@ -307,7 +313,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_asset_cfgs()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
     assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
@@ -323,7 +329,7 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_asset_cfgs()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     assert cfgs == []
     assert global_paths == ()

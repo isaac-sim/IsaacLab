@@ -85,24 +85,17 @@ supported.
 Installation
 ------------
 
-The Isaac Lab source install includes the ``isaaclab_ov`` package, but it
-does not install the heavier ``ovphysx`` runtime wheel by default. After a
-standard source install, install the optional OvPhysX runtime dependency from
-the repository root:
+The public ``ovphysx`` extra remains pinned to OvPhysX 0.5.11. Install it from
+the repository root with:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -i 'ov[ovphysx]'
+    uv sync --inexact --extra ovphysx
 
-You can also install all OV runtime wheels with:
-
-.. code-block:: bash
-
-    ./isaaclab.sh -i 'ov[all]'
-
-The ``ov[ovphysx]`` selector installs the ``ovphysx`` runtime wheel declared by
-the root ``pyproject.toml`` ``ov`` extra. If the wheel is missing, OvPhysX-specific
-tests skip with ``ovphysx wheel not installed`` and user code fails at import time.
+The ``--inexact`` flag preserves packages installed through other extras.
+Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The legacy
+Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
+``./isaaclab.sh -i 'ov[all]'``.
 
 Testing the Installation
 ------------------------
@@ -115,7 +108,7 @@ First check that the Python package and runtime wheel import correctly:
 
       .. code-block:: bash
 
-          uv run python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+          uv run --extra ovphysx --extra test python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -131,7 +124,7 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
+          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -148,7 +141,7 @@ syntax as the other backends:
 
       .. code-block:: bash
 
-          uv run isaaclab zero_agent --task Isaac-Cartpole-Direct \
+          uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
               --num_envs 128 --max_steps 64 --viz none physics=ovphysx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

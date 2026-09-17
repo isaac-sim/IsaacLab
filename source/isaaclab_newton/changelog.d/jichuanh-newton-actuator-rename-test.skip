@@ -1,0 +1,3 @@
+Test-only change: the actuator tests now assert Newton's new drive class names
+(``DrivePD``, ``DriveNeuralMLP``, ``DriveNeuralLSTM``). Newton 1.6.0rc1 still exports the
+old ``Controller*`` aliases, so there is no user-visible behavior change.

@@ -315,6 +315,7 @@ class OvPhysxFrameView(BaseFrameView):
         self._stage = stage
         sim = sim_utils.SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None
+        self._clone_plan = plan
         source_matches = tuple(cloner.query.iter_sources(plan, prim_path)) if plan is not None else ()
         self._source_records = []
         self._prims: list[Usd.Prim] = []
@@ -516,9 +517,14 @@ class OvPhysxFrameView(BaseFrameView):
     def _expand_world_sites_from_clone_plan(
         self, xform_cache: UsdGeom.XformCache
     ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
-        """Return row-ordered source prims and projected poses for source-only world sites."""
+        """Return plan-ordered source prims and projected poses for source-only world sites."""
         if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
             return []
+        plan = self._clone_plan
+        if plan is None:
+            raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
+        plan_env_ids = range(plan.clone_mask.shape[1]) if plan.env_ids is None else plan.env_ids
+        column_by_env_id = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
 
         records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
         for source_root, destination_template, source_prim, env_ids in self._source_records:
@@ -528,26 +534,28 @@ class OvPhysxFrameView(BaseFrameView):
                 raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
             source_world = xform_cache.GetLocalToWorldTransform(source_prim)
             source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
+            source_match = cloner.path.match(source_root, destination_template)
+            source_anchor_world = Gf.Matrix4d(1.0)
+            if source_match is not None:
+                template_prefix, _ = cloner.path.split(destination_template)
+                source_anchor_path = template_prefix + source_match.instance
+                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
+                if not source_anchor.IsValid():
+                    raise RuntimeError(f"OvPhysxFrameView source anchor {source_anchor_path!r} is not on the stage.")
+                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor)
+            source_inverse = source_anchor_world.GetInverse()
 
             for env_id in env_ids:
+                env_id = int(env_id)
                 destination_root = destination_template.format(env_id)
-                source_anchor_path, destination_anchor_path = source_root, destination_root
-                destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
-                while not destination_anchor.IsValid() and destination_anchor_path != "/":
-                    source_anchor_path = source_anchor_path.rsplit("/", 1)[0] or "/"
-                    destination_anchor_path = destination_anchor_path.rsplit("/", 1)[0] or "/"
-                    destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
-
-                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
-                if not source_anchor.IsValid() or not destination_anchor.IsValid():
-                    raise RuntimeError(f"OvPhysxFrameView could not project {source_prim_path!r} into env {env_id}.")
-                source_inverse = xform_cache.GetLocalToWorldTransform(source_anchor).GetInverse()
-                destination_world = xform_cache.GetLocalToWorldTransform(destination_anchor)
+                destination_world = Gf.Matrix4d(1.0)
+                if plan.positions is not None:
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[column_by_env_id[env_id]])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
                 records.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
 
-        records.sort(key=lambda record: record[0])
+        records.sort(key=lambda record: column_by_env_id[record[0]])
         return records
 
     def _resolve_rigid_body_ancestor(

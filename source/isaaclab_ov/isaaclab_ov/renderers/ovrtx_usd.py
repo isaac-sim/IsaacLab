@@ -9,14 +9,18 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Mapping
+from types import MappingProxyType
 
 from pxr import Sdf, Usd, UsdGeom
+
+from isaaclab.sim.utils import make_uninstanceable
 
 logger = logging.getLogger(__name__)
 
 
-# Maps camera data types to render-var configs. OVRTX frame vars are keyed by source name,
-# so shared sources use one config.
+# Maps camera data types to (prim path, prim name, source name). Shared sources use one config.
+# OVRTX 0.4 keys ``frame.render_vars`` by source name; 0.5+ keys them by the RenderVar prim path.
 _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
     "rgb": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
     "rgba": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
@@ -52,6 +56,17 @@ _SIMPLE_SHADING_DATA_TYPES = frozenset(
 _COLOR_DATA_TYPES = frozenset({"rgb", "rgba"})
 
 _DEFAULT_RENDER_VAR = _RENDER_VAR_BY_DATA_TYPE["rgb"]
+
+# Segmentation ID-map vars are authored alongside the pixel AOVs, not as camera data types.
+_SEGMENTATION_MAP_RENDER_VARS: tuple[tuple[str, str, str], ...] = (
+    ("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"),
+    ("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"),
+    ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
+)
+
+_RENDER_VAR_PRIM_PATH_BY_SOURCE: Mapping[str, str] = MappingProxyType(
+    {source: path for path, _, source in (*_RENDER_VAR_BY_DATA_TYPE.values(), *_SEGMENTATION_MAP_RENDER_VARS)}
+)
 
 
 def _validate_data_type_combination(data_types: list[str]) -> None:
@@ -131,13 +146,23 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     # Author the ID-to-label map render vars needed to decode the segmentation info dicts.
     # instance_segmentation needs StableIdSemanticIdMap + StableIdMap to resolve each pixel to a prim path.
     if "instance_segmentation" in data_types:
-        render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
-        render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
+        render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[0])
+        render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[1])
     # SemanticIdMap resolves the semantic-ID-to-label mapping and is shared by both semantic_segmentation and
     # instance_segmentation, so it is authored once when either output is requested.
     if "semantic_segmentation" in data_types or "instance_segmentation" in data_types:
-        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
+        render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[2])
     return render_vars
+
+
+def render_var_prim_paths_by_source() -> Mapping[str, str]:
+    """Return the authored RenderVar prim path of every OVRTX render-var source.
+
+    Returns:
+        Read-only mapping of render-var source name to the absolute path of the ``RenderVar``
+        prim this module authors for it.
+    """
+    return _RENDER_VAR_PRIM_PATH_BY_SOURCE
 
 
 def build_render_scope_usd(
@@ -403,9 +428,10 @@ def export_stage_to_string(
     anonymous session layer used only for export, so the input stage remains unchanged.
 
     When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
-    active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
-    additionally trims the non-source env roots themselves; ``stage.clone`` recreates them and the RenderProduct's
-    camera relationship is re-authored after clone.
+    active so the exported stage retains a slot for every env. Nested instances in source subtrees are expanded
+    on the export session because legacy cloning otherwise drops their geometry. The ovstage ``stage.clone``
+    path passes False, retaining source instancing and trimming the non-source env roots themselves;
+    ``stage.clone`` recreates them and the RenderProduct's camera relationship is re-authored after clone.
 
     Args:
         stage: USD stage to export.
@@ -432,6 +458,10 @@ def export_stage_to_string(
     prim_paths: list[Sdf.Path] = []
 
     if keep_env_roots:
+        # Native legacy cloning omits instanced visuals; expand only the renderer's copy.
+        with Usd.EditContext(export_stage, export_session):
+            for source_path in source_paths:
+                make_uninstanceable(source_path, stage=export_stage)
         for child in envs_prim.GetChildren():
             # Legacy code path: keep env roots so we can query their xforms after opening stage
             child_path = child.GetPath()

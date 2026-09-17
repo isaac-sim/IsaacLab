@@ -32,7 +32,6 @@ from types import SimpleNamespace
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
-import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.physics import (
@@ -589,12 +588,20 @@ _KAMINO_DYNAMICS_FIELD_VALUES = [
 @pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
 def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
     """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
-    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
+    sparse_kwargs = {"sparse_jacobian": True, "sparse_dynamics": True} if field_name == "penalty_update_method" else {}
+    solver_cfg = KaminoPADMMSolverCfg(**sparse_kwargs, dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
     newton_cfg = solver_cfg.to_solver_config()
     assert hasattr(newton_cfg.padmm, field_name), (
         f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
     )
     assert getattr(newton_cfg.padmm, field_name) == value
+
+
+def test_kamino_padmm_rejects_adaptive_penalties_with_dense_dynamics():
+    """Kamino's adaptive P-ADMM penalties require the sparse solver path."""
+    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(penalty_update_method="balanced"))
+    with pytest.raises(ValueError, match="sparse_dynamics=True"):
+        solver_cfg.to_solver_config()
 
 
 @pytest.mark.parametrize("field_name, value", _KAMINO_DVI_FIELD_VALUES)
@@ -845,8 +852,8 @@ def test_production_imports_scope_mujoco_joint_properties(
             stage=stage,
             sources=(root_path,),
             destinations=("/World/envs/env_{}/robot",),
-            env_ids=torch.tensor([0], dtype=torch.int64),
-            mapping=torch.ones((1, 1), dtype=torch.bool),
+            env_ids=np.array([0], dtype=np.int64),
+            mapping=np.ones((1, 1), dtype=np.bool_),
             load_visual_shapes=False,
         )
     else:

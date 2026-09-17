@@ -102,6 +102,49 @@ def test_launcher_uses_bundled_python_with_inactive_default_environment(tmp_path
 
 
 @pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
+def test_launcher_accepts_virtual_environment_on_bundled_python(tmp_path):
+    """A virtual environment created on the package's own Python runs that interpreter, so it is allowed."""
+    launcher = tmp_path / "isaaclab.sh"
+    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    bundled_python = tmp_path / "_isaac_sim" / "python.sh"
+    bundled_python.parent.mkdir()
+    bundled_python.write_text("#!/usr/bin/env bash\necho bundled-python\n")
+    bundled_python.chmod(0o755)
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to(bundled_python)
+    # ``home`` points into the Isaac Sim tree, exactly as ``uv venv --python`` on it would record.
+    (venv / "pyvenv.cfg").write_text(f"home = {bundled_python.parent}\n")
+
+    environment = os.environ.copy()
+    environment["VIRTUAL_ENV"] = str(venv)
+    environment.pop("CONDA_PREFIX", None)
+    result = subprocess.run(["bash", str(launcher), "-h"], capture_output=True, text=True, check=False, env=environment)
+
+    assert result.returncode == 0, result.stderr
+    assert "cannot be combined" not in result.stderr
+
+
+@pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
+def test_launcher_rejects_virtual_environment_on_foreign_python(tmp_path):
+    """A virtual environment built on another interpreter stays rejected."""
+    launcher = tmp_path / "isaaclab.sh"
+    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    (tmp_path / "_isaac_sim").mkdir()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+    environment = os.environ.copy()
+    environment["VIRTUAL_ENV"] = str(venv)
+    environment.pop("CONDA_PREFIX", None)
+    result = subprocess.run(["bash", str(launcher), "-h"], capture_output=True, text=True, check=False, env=environment)
+
+    assert result.returncode == 1
+    assert "Downloaded Isaac Sim packages cannot be combined" in result.stderr
+
+
+@pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
 def test_launcher_allows_relinking_unmarked_source_build(tmp_path):
     """The source-build command must bypass downloaded-package environment rejection."""
     launcher = tmp_path / "isaaclab.sh"

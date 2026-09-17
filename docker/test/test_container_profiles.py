@@ -289,6 +289,27 @@ def test_kitless_compose_service_has_no_isaac_sim_mounts():
     assert all("/kit/" not in mount["target"].lower() for mount in mounts)
 
 
+def test_image_is_verified_before_it_is_published():
+    """A published image must be a verified one.
+
+    The push steps publish under both the commit tag and the deps tag, and a later deps-cache hit
+    serves that image without rebuilding it, so anything published unverified stays unverified.
+    """
+    action = yaml.safe_load(
+        (REPO_ROOT / ".github" / "actions" / "ecr-build-push-pull" / "action.yml").read_text(encoding="utf-8")
+    )
+    names = [step["name"] for step in action["runs"]["steps"] if "name" in step]
+
+    assert names.index("Verify freshly built image") < names.index("Push to ECR") < names.index("Push deps tag")
+
+    build = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8"))
+    (base_build,) = [
+        step for step in build["jobs"]["build"]["steps"] if step.get("uses") == "./.github/actions/ecr-build-push-pull"
+    ]
+
+    assert base_build["with"]["verify-test-path"] == "docker/test/test_image_invariants.py"
+
+
 def test_run_tests_links_isaac_sim_only_where_kit_is_installed():
     """The kit-less image has no Kit under ``/isaac-sim``, which the runtime mounts create anyway.
 
