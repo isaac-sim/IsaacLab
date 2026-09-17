@@ -73,6 +73,12 @@ jobs:
           python-version: "3.12"
 
       - name: Install skillevaluator
+        id: install_skillevaluator
+        # urm.nvidia.com is only reachable from runners on the NVIDIA internal network.
+        # If it is unreachable, emit a warning and let later steps skip rather than
+        # failing the whole job, so external forks and runners without internal access
+        # don't block on a package they cannot install.
+        continue-on-error: true
         env:
           # Pinned deliberately: a bump can newly-fail every open PR.
           SKILLEVALUATOR_VERSION: "1.0.0"
@@ -82,6 +88,10 @@ jobs:
           python3 -m pip install "skillevaluator==${SKILLEVALUATOR_VERSION}" -i https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
           skillevaluator --version
           skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY and network access"
+
+      - name: Warn if skillevaluator unavailable
+        if: steps.install_skillevaluator.outcome == 'failure'
+        run: echo "::warning::skillevaluator could not be installed from urm.nvidia.com — Tier 1/2/3 checks skipped. Run from a runner with NVIDIA internal network access."
 
       - name: Determine touched skills
         id: touched
@@ -117,7 +127,7 @@ jobs:
           fi
 
       - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 3
-        if: steps.touched.outputs.any == 'true'
+        if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
         env:
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
           SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
@@ -154,7 +164,7 @@ jobs:
           exit "${failed}"
 
       - uses: actions/upload-artifact@v7
-        if: always() && steps.touched.outputs.any == 'true'
+        if: always() && steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
         with:
           name: skillevaluator-reports
           path: reports/
