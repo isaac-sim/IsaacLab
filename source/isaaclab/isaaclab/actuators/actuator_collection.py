@@ -366,7 +366,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 if getattr(actuator_cfg, cfg_name) is None and not (drive and (not implicit or native_managed)):
                     continue
                 # An explicit gain can enable/disable a drive even when its numeric value matches.
-                if drive:
+                if drive or not self._control.usd_preserves_imported_defaults:
                     for joint_id in joint_indices:
                         self._usd_override_fields.setdefault(joint_id, {})[data_name] = None
                     continue

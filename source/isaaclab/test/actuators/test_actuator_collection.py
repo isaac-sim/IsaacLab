@@ -164,6 +164,8 @@ def _assign_deterministic_inputs(collection: ActuatorCollection, control: FakeAc
 class FakeActuatorControl(ActuatorControl):
     """Small backend-neutral control object used by collection unit tests."""
 
+    usd_preserves_imported_defaults = True
+
     def __init__(self, *, num_envs: int = 2, joint_names: list[str] | None = None, device: str = "cpu"):
         self._num_instances = num_envs
         self._joint_names = joint_names or ["joint_0", "joint_1", "joint_2"]
