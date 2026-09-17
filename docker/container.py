@@ -19,14 +19,14 @@ else:
     from utils import ContainerInterface, x11_utils
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build the command line parser.
+def parse_cli_args() -> argparse.Namespace:
+    """Parse command line arguments.
 
-    This function creates a parser object and adds subparsers for each command. The documentation build
-    imports it so that the published command reference stays in sync with the options defined here.
+    This function creates a parser object and adds subparsers for each command. The function then parses the
+    command line arguments and returns the parsed arguments.
 
     Returns:
-        The configured argument parser.
+        The parsed command line arguments.
     """
     parser = argparse.ArgumentParser(description="Utility for using Docker with Isaac Lab.")
 
@@ -104,16 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser("stop", help="Stop the docker container and remove it.", parents=[parent_parser])
 
-    return parser
+    # parse the arguments to determine the command
+    args = parser.parse_args()
 
-
-def parse_cli_args() -> argparse.Namespace:
-    """Parse command line arguments.
-
-    Returns:
-        The parsed command line arguments.
-    """
-    return build_parser().parse_args()
+    return args
 
 
 def main(args: argparse.Namespace):
@@ -122,7 +116,7 @@ def main(args: argparse.Namespace):
     if not shutil.which("docker"):
         raise RuntimeError(
             "Docker is not installed! Please check the 'Docker Guide' for instruction: "
-            "https://isaac-sim.github.io/IsaacLab/"
+            "https://isaac-sim.github.io/IsaacLab/develop/source/workflows/docker/index.html"
         )
 
     # creating container interface

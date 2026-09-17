@@ -77,7 +77,7 @@ Since the Unitree H1 robot is included in the Isaac Lab assets extension (``isaa
 and do the replacement directly (under the ``H1EnvCfg.robot`` property), as shown below. Note that we also need to modify the
 ``joint_gears`` property as it holds robot-specific configuration values.
 
-.. |franka-direct-link| replace:: `Isaac-Open-Drawer-Franka-Direct <../../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`__
+.. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
 
 .. hint::
 
@@ -85,7 +85,7 @@ and do the replacement directly (under the ``H1EnvCfg.robot`` property), as show
    by using the :class:`~isaaclab.assets.ArticulationCfg` class.
 
    * See the |franka-direct-link| source code for an example of loading and configuring a robot from a USD file.
-   * Refer to the `Importing a New Asset <../../how-to/import_new_asset.html>`_ tutorial for details on how to import an asset from URDF or MJCF file, and other formats.
+   * Refer to the :doc:`Importing a New Asset <import_new_asset>` tutorial for details on how to import an asset from URDF or MJCF file, and other formats.
 
 .. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python

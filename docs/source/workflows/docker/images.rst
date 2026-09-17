@@ -40,7 +40,7 @@ ROS 2 image
 -----------
 
 ``Dockerfile.ros2`` installs ROS 2 Humble from an `apt package`_ and sources it in the runtime
-user's ``.bashrc``. ``ROS_APT_PACKAGE`` in ``.env.ros2`` selects the exact version, defaulting to
+user's ``.bashrc``. ``ROS2_APT_PACKAGE`` in ``.env.ros2`` selects the package set, defaulting to
 ``ros-base``. The image defaults to the ``FastRTPS`` middleware; ``CycloneDDS`` is also supported, and
 both can be `tuned`_ through their ``.xml`` files under ``docker/.ros``. See `various middleware`_
 for the trade-offs.
@@ -97,8 +97,16 @@ that several commands can share it:
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
 
-For this headless container example, swap ``train`` for ``play --checkpoint latest --viz viser``
-to replay in a browser: Viser is reachable through the host network without forwarding a desktop display.
+Replay in a browser with:
+
+.. code:: bash
+
+    docker exec --interactive --tty isaac-lab-kitless \
+        isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+        --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
+
+Viser is reachable through the host network without forwarding a desktop display. Stop playback
+with ``Ctrl+C`` without stopping the container.
 To build the image from the checkout instead of
 pulling it, run ``docker build --file docker/Dockerfile.kitless --tag isaac-lab-kitless .``.
 
@@ -109,15 +117,27 @@ Pre-built image from NGC
 ------------------------
 
 A minimal pre-built container carries a small set of Isaac Sim and Omniverse dependencies with Isaac
-Lab already built in, under ``/workspace/IsaacLab``. The example below runs without a
+Lab already built in, under ``/workspace/isaaclab``. The example below runs without a
 forwarded desktop display. Choose the image profile for the physics and rendering stack
 you need, and configure graphics access separately when rendering.
 
 .. note::
 
-  Currently, we only provide docker images with every major release of Isaac Lab.
-  For example, we provide the docker image for release 2.0.0 and 2.1.0, but not 2.0.2.
-  In the future, we will provide docker images for every minor release of Isaac Lab.
+  Use an explicit published version tag for reproducible runs. The examples below use
+  ``3.0.0-rc1``; the corresponding kit-less image uses ``3.0.0-rc1-kitless``.
+
+.. attention::
+
+  Images from 3.0.0-beta2 onward run as a **non-root** user, so those bind-mount directories must be
+  writable by uid/gid 1000. Docker creates any missing one as ``root``, which the runtime user cannot
+  write to, producing errors such as
+  ``PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'``.
+  Create them first:
+
+  .. code:: bash
+
+     mkdir -p ~/docker/isaac-sim/{cache/kit,cache/ov,cache/pip,cache/glcache,cache/computecache,logs,data,documents}
+     sudo chown -R 1000:1000 ~/docker/isaac-sim
 
 Because it is run outside Compose, the Isaac Sim cache directories have to be mounted by hand,
 otherwise every start recompiles shaders:
@@ -143,19 +163,6 @@ access to the host display and matching authorization. For direct ``docker run``
 ``-v "${XAUTHORITY:-$HOME/.Xauthority}":/tmp/isaaclab.xauth:ro`` to the command above.
 The host authority file must exist and be readable by the container user. Offscreen Newton rendering does
 not require X11. Follow the graphics-driver requirements above for GL or RTX.
-
-.. attention::
-
-  Images from 3.0.0-beta2 onward run as a **non-root** user, so those bind-mount directories must be
-  writable by uid/gid 1000. Docker creates any missing one as ``root``, which the runtime user cannot
-  write to, producing errors such as
-  ``PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'``.
-  Create them first:
-
-  .. code:: bash
-
-     mkdir -p ~/docker/isaac-sim/{cache/kit,cache/ov,cache/pip,cache/glcache,cache/computecache,logs,data,documents}
-     sudo chown -R 1000:1000 ~/docker/isaac-sim
 
 Runtime user
 ------------

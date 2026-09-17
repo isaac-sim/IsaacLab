@@ -104,6 +104,8 @@ For a spawn configuration using schema fragments, or no ``articulation_props``, 
 as above, keep ``fix_root_link`` on that configuration. Both paths author the fixed joint
 before the backend imports the articulation.
 
+.. _further-notes:
+
 .. dropdown:: PhysX articulation-root placement details
 
    The following parser details explain the PhysX-specific root-placement adjustment. Newton

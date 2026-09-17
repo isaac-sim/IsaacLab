@@ -7,13 +7,10 @@
 
 from __future__ import annotations
 
-import argparse
-import importlib.util
 import json
 import posixpath
 from html import escape
 import re
-import sys
 from pathlib import Path
 
 from docutils import nodes
@@ -343,76 +340,6 @@ def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torc
 """
 
 
-def _container_parser(srcdir) -> argparse.ArgumentParser:
-    """Import ``docker/container.py`` and return its argument parser.
-
-    The module is loaded by path because ``docker`` is not an installed package. Its ``utils``
-    package only imports from the standard library, so this is safe during a documentation build.
-    """
-    docker_dir = Path(srcdir).parent / "docker"
-    if str(docker_dir) not in sys.path:
-        sys.path.insert(0, str(docker_dir))
-    spec = importlib.util.spec_from_file_location("isaaclab_docker_container", docker_dir / "container.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.build_parser()
-
-
-def _squash(text: str) -> str:
-    """Collapse an argparse help string onto a single line."""
-    return " ".join((text or "").split())
-
-
-def _subparsers_action(parser: argparse.ArgumentParser) -> argparse._SubParsersAction | None:
-    """Return the sub-command action, relying on argparse internals as sphinx-argparse does."""
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            return action
-    return None
-
-
-def _list_table(header: str, rows: list[tuple[str, str]]) -> str:
-    """Render name/description pairs as a two-column list table."""
-    lines = [".. list-table::", "   :header-rows: 1", "   :widths: 25 75", "", f"   * - {header}", "     - Description"]
-    for name, description in rows:
-        lines.extend([f"   * - {name}", f"     - {description}"])
-    return "\n".join(lines) + "\n"
-
-
-class IsaacLabContainerCli(SphinxDirective):
-    """Render the ``docker/container.py`` reference from its ``argparse`` definition.
-
-    Importing the parser keeps the published tables from drifting away from the CLI. Select the
-    table with ``:section: commands`` (default) or ``:section: options``.
-    """
-
-    has_content = False
-    option_spec = {"section": directives.unchanged}
-
-    def run(self) -> list[nodes.Node]:
-        section = self.options.get("section", "commands")
-        if section not in ("commands", "options"):
-            raise self.error(f"Unknown section '{section}' for isaaclab-container-cli. Use 'commands' or 'options'.")
-
-        self.env.note_dependency(str((Path(self.env.srcdir).parent / "docker/container.py").resolve()))
-        action = _subparsers_action(_container_parser(self.env.srcdir))
-        if action is None:
-            raise self.error("Could not find sub-commands in docker/container.py.")
-
-        if section == "commands":
-            header = "Command"
-            rows = [(f"``{choice.dest}``", _squash(choice.help)) for choice in action._choices_actions]
-        else:
-            # Every sub-command inherits the same parent parser, so one of them describes them all.
-            header = "Argument"
-            rows = [
-                (", ".join(f"``{flag}``" for flag in arg.option_strings) or f"``{arg.dest}``", _squash(arg.help))
-                for arg in action.choices["start"]._actions
-                if arg.dest != "help"
-            ]
-        return _parse_rst(self, _list_table(header, rows))
-
-
 def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
     """Preserve old HTML URLs without retaining duplicate guide sources."""
     if exception is not None or app.builder.format != "html":
@@ -423,12 +350,23 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
             raise ValueError(f"Documentation redirect target was not built: {new}")
         output = Path(app.builder.get_outfilename(old))
         target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
+        sections = {}
+        for fragment, route in getattr(app.config, "isaaclab_doc_redirect_fragments", {}).get(old, {}).items():
+            doc, separator, anchor = route.partition("#")
+            page = Path(app.builder.get_outfilename(doc))
+            if not page.is_file():
+                raise ValueError(f"Documentation redirect target was not built: {doc}")
+            sections[f"#{fragment}"] = [
+                posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
+            ]
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
             '<!doctype html><meta charset="utf-8"><title>Page moved</title>'
-            f'<meta http-equiv="refresh" content="0; url={escape(target, quote=True)}">'
+            f'<noscript><meta http-equiv="refresh" content="0; url={escape(target, quote=True)}"></noscript>'
             f'<link rel="canonical" href="{escape(target, quote=True)}">'
-            f'<script>location.replace({json.dumps(target)} + location.search + location.hash);</script>'
+            f'<script>const sections = {json.dumps(sections)};\n'
+            f'const target = sections[location.hash] || [{json.dumps(target)}, location.hash];\n'
+            'location.replace(target[0] + location.search + target[1]);</script>'
             f'<p>This page moved to <a href="{escape(target, quote=True)}">{escape(new)}</a>.</p>',
             encoding="utf-8",
         )
@@ -437,6 +375,7 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
 def setup(app):
     """Register Isaac Lab documentation directives."""
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
+    app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
     app.add_config_value("isaacsim_version", "", "env")
@@ -453,7 +392,6 @@ def setup(app):
     app.add_directive("isaaclab-uv-importers-wheel-install", IsaacLabUvImportersWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)
     app.add_directive("isaaclab-ovrtx-install", IsaacLabOvrtxInstall)
-    app.add_directive("isaaclab-container-cli", IsaacLabContainerCli)
     return {
         "version": "0.1",
         "parallel_read_safe": True,

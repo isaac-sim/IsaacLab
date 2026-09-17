@@ -3,6 +3,9 @@
 .. _isaac-lab-robots:
 .. _tutorial-add-new-robot:
 .. _how-to-write-articulation-config:
+.. _writing-an-asset-configuration:
+.. _robot-configurations:
+.. _adding-a-new-robot-to-isaac-lab:
 
 
 Robot and articulation configuration
@@ -310,6 +313,8 @@ default to False, remember to turn it on when wishes.
 
 
 .. _robot-configuration-example:
+.. _the-code:
+.. _the-code-explained:
 
 Example: configure and run two robots
 -------------------------------------
@@ -317,7 +322,8 @@ Example: configure and run two robots
 The runnable example ``scripts/tutorials/01_assets/add_new_robot.py`` contrasts a minimal
 Jetbot configuration with a more detailed Dofbot configuration. Start with an imported USD
 asset (see :doc:`import_new_asset`) and define its spawn properties and actuators. Jetbot
-retains the joint gains authored in the USD by setting stiffness and damping to ``None``:
+retains the joint gains authored in the USD by setting stiffness and damping to ``None``.
+Both fields must be specified, even when using these USD defaults:
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
    :language: python
@@ -327,6 +333,8 @@ retains the joint gains authored in the USD by setting stiffness and damping to 
 Dofbot additionally sets initial joint positions, groups joints by name, and specifies
 actuator gains and limits. Its solver iterations and maximum depenetration velocity are
 PhysX-specific; use :ref:`asset-config-backends` when adapting these properties to Newton.
+The keys in ``init_state.joint_pos`` identify USD joints, not actuator groups. Joint names can
+be matched with regular expressions; for example, ``.*`` selects all joints.
 
 .. dropdown:: Expanded Dofbot configuration from the runnable example
    :icon: code
@@ -357,3 +365,8 @@ Run the example in the Isaac Sim viewport:
 
 This example uses PhysX physics and requires Isaac Sim. The Dofbot gripper is not actuated
 in this example, so a warning about unconfigured joints is expected. Stop the example with ``Ctrl+C``.
+
+.. figure:: ../_static/tutorials/tutorial_add_new_robot_result.jpg
+   :align: center
+   :figwidth: 100%
+   :alt: Jetbot and Dofbot running in the example scene.

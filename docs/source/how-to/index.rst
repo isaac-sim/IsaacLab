@@ -1,4 +1,5 @@
 .. _tutorials:
+.. _tutorials-have-moved:
 .. _how-to:
 
 How-to Guides

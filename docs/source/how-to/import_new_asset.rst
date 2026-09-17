@@ -434,6 +434,7 @@ See :ref:`Previewing converted assets <import-new-asset-preview>` for the ``--vi
 
 
 .. _import-new-asset-ensure-drives-exist:
+.. _ensuring-joint-drives-exist-on-every-joint:
 
 Joint drives on each physics backend
 ------------------------------------
@@ -534,7 +535,7 @@ the steps to clone the repository and run the converter:
 
 The mesh converter requires Isaac Sim. The command writes the converted USD and its
 instanceable mesh payload under ``source/isaaclab_assets/data/Props/CubeMultiColor/`` and opens
-the Isaac Sim viewport.
+the Isaac Sim viewport. Select the asset and press ``F`` to frame it in the viewport.
 Omit ``--viz kit`` to convert without opening a preview.
 
 * If you do not set the ``--mass`` flag, then no rigid body properties will be added to the asset.

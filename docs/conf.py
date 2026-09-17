@@ -420,6 +420,16 @@ isaaclab_doc_redirects = {
     "source/tutorials/index": "source/how-to/index",
 }
 
+# Sections of the former combined Docker page now live on separate pages.
+isaaclab_doc_redirect_fragments = {
+    "source/features/docker_cloud": {
+        "clusters": "source/workflows/docker/cluster#deployment-cluster",
+        "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
+        "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
+        "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+    },
+}
+
 # -- Advanced configuration -------------------------------------------------
 
 

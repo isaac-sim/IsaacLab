@@ -1,5 +1,6 @@
 .. _docker-cloud:
 .. _deployment-docker:
+.. _docker-guide:
 
 Running Isaac Lab in Docker
 ===========================
@@ -78,6 +79,7 @@ For what each image actually contains and how to choose between them, see :ref:`
 
 .. _container-lifecycle:
 .. _docker-example:
+.. _worked-docker-example:
 
 Start, run, and retrieve results
 --------------------------------
@@ -107,8 +109,8 @@ the container:
     ./docker/container.py stop
 
 The log is now at ``docker/artifacts/logs/docker_tutorial/log.txt`` on the host.
-Stopping removes the container but preserves its image and named volumes. To remove the image
-after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
+The ``stop`` command removes the container and its Compose-managed volumes, including logs
+and caches; copy out anything you need first. The image remains. To remove it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
 `Docker pruning <https://docs.docker.com/engine/manage-resources/pruning/>`__ for other cleanup options.
 
 .. dropdown:: Code for log_time.py
@@ -128,16 +130,48 @@ after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebui
 ``container.py`` command reference
 ----------------------------------
 
-Generated from ``docker/container.py``, so it always matches the installed script. The same
-information is available from ``./docker/container.py --help``.
+Run ``./docker/container.py --help`` to list commands and
+``./docker/container.py <command> --help`` for that command's arguments.
 
-.. isaaclab-container-cli::
-   :section: commands
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Command
+     - Description
+   * - ``build``
+     - Build the image without creating a container.
+   * - ``start``
+     - Build the image and start the container in the background.
+   * - ``enter``
+     - Open a Bash shell in the running container.
+   * - ``config``
+     - Print the merged Compose configuration. Use ``--output-yaml <path>`` to write it to a file instead.
+   * - ``copy``
+     - Copy logs, data, and built documentation to ``docker/artifacts`` on the host.
+   * - ``stop``
+     - Stop and remove the container and its Compose-managed volumes.
 
 Every command accepts the following arguments:
 
-.. isaaclab-container-cli::
-   :section: options
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Argument
+     - Description
+   * - ``profile``
+     - Optional profile name; defaults to ``base``. Other profiles are ``ros2`` and ``kitless``.
+   * - ``--files [FILE ...]``
+     - Merge additional Compose YAML files after ``docker-compose.yaml``, in the supplied order.
+   * - ``--env-files [FILE ...]``
+     - Merge additional environment files after the profile defaults, in the supplied order.
+   * - ``--suffix [SUFFIX]``
+     - Append ``-SUFFIX`` to the image and container names. Omit it for unsuffixed names.
+   * - ``--info``
+     - Print the resolved container interface configuration instead of running the command.
+   * - ``-h``, ``--help``
+     - Show help and exit.
 
 Extending the Compose configuration
 -----------------------------------
@@ -158,8 +192,10 @@ merged result when a combination does not behave as expected.
 What persists between runs
 --------------------------
 
-The compose file declares named volumes so that Isaac Sim caches, logs, and your own data survive
-``stop``. The caches are why the second start is much faster than the first.
+The compose file declares named volumes for Isaac Sim caches, logs, and your own data. They
+remain available while reusing a container, but ``container.py stop`` runs ``docker compose down
+--volumes`` and removes them. Run ``container.py copy`` before ``stop`` to preserve your results
+on the host.
 
 ``container.py copy`` extracts the three volumes you are most likely to want on the host --
 ``logs``, ``data_storage``, and ``docs/_build`` -- into ``docker/artifacts``. For anything else, use
@@ -167,7 +203,7 @@ The compose file declares named volumes so that Isaac Sim caches, logs, and your
 
 If you are upgrading from an Isaac Lab image that ran as ``root``, the existing volumes still hold
 root-owned files that the current uid/gid 1000 runtime user cannot write. Copy out anything worth
-keeping, then recreate them:
+keeping, then recreate them from the ``docker`` directory:
 
 .. code:: bash
 
@@ -186,6 +222,9 @@ keeping, then recreate them:
       * - isaac-cache-kit
         - Stores cached Kit resources
         - /isaac-sim/kit/cache
+      * - isaac-data-kit
+        - Stores Kit data
+        - /isaac-sim/kit/data
       * - isaac-cache-ov
         - Stores cached OV resources
         - /root/.cache/ov
@@ -226,7 +265,8 @@ keeping, then recreate them:
         - Stores whatever data users may want to preserve between container runs
         - /workspace/isaaclab/data_storage
 
-   Inspect one from the host with ``docker volume inspect isaac-cache-kit``. The ``kitless`` profile
+   Run ``docker volume ls`` on the host to find the actual names, which include the Compose project
+   prefix, then use ``docker volume inspect <volume-name>``. The ``kitless`` profile
    uses the uv and Warp caches and shares the documentation, logs, and data volumes with the others.
 
 Display forwarding with X11
