@@ -13,28 +13,8 @@ import torch
 
 from isaaclab.envs import mdp as base_mdp
 
-from ..config.metadata import POLICY_58_ORDER
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-
-_policy_idx_cache: dict[tuple[tuple[str, ...], torch.device], torch.Tensor] = {}
-
-
-def _policy_joint_indices(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return indices mapping Isaac articulation order to policy order."""
-    robot = env.scene["robot"]
-    key = (tuple(robot.joint_names), env.device)
-    if key not in _policy_idx_cache:
-        names = list(robot.joint_names)
-        indices = [names.index(joint_name) for joint_name in POLICY_58_ORDER]
-        _policy_idx_cache[key] = torch.tensor(
-            indices,
-            dtype=torch.long,
-            device=env.device,
-        )
-    return _policy_idx_cache[key]
 
 
 def get_robot_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -44,12 +24,6 @@ def get_robot_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
     joint_vel = robot.data.joint_vel.torch
     joint_torque = robot.data.applied_torque.torch
     return torch.cat([joint_pos, joint_vel, joint_torque], dim=-1)
-
-
-def get_robot_policy_joint_positions(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return 58-D joint positions in GR00T policy order for RLinf."""
-    joint_pos = env.scene["robot"].data.joint_pos.torch
-    return joint_pos.index_select(dim=1, index=_policy_joint_indices(env))
 
 
 def warm_rgb_image(

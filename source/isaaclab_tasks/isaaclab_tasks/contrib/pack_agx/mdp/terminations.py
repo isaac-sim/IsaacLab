@@ -28,12 +28,17 @@ logger = logging.getLogger(__name__)
 
 def task_success_termination(
     env: ManagerBasedRLEnv,
-    success_stage: int = 3,
+    success_phase: int = 4,
+    print_log: bool = False,
 ) -> torch.Tensor:
-    """Terminate after all monotonic Pack-AGX reward stages complete."""
-    from .rewards import get_task_stage
+    """Terminate when the phase machine reaches the success phase."""
+    phase = env.pack_agx_state.task_phase
+    task_complete = phase >= success_phase
 
-    return get_task_stage(env) >= success_stage
+    if print_log and task_complete.any():
+        logger.info("Task completed in %d environment(s)!", task_complete.sum().item())
+
+    return task_complete
 
 
 def agx_is_horizontal_from_quat(

@@ -16,7 +16,7 @@ from pxr import Gf, Sdf, Usd, UsdShade
 
 from isaaclab.managers import SceneEntityCfg
 
-from .rewards import get_pack_agx_state
+from .rewards import PackAgxState
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -24,31 +24,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def reset_task_stage(
+def init_task_phase_state(env: ManagerBasedRLEnv, _env_ids: torch.Tensor | None = None) -> None:
+    """Allocate the Pack-AGX phase state on ``env``.
+
+    Registered as a ``startup`` event, so it runs once for the whole scene
+    before the first reset or step. The env-id argument is part of the event
+    term contract but unused here.
+    """
+    env.pack_agx_state = PackAgxState.create(env.num_envs, env.device)
+
+
+def reset_task_phase(
     env: ManagerBasedRLEnv,
     env_ids: torch.Tensor,
     agx_orin_cfg: SceneEntityCfg = SceneEntityCfg("agx_orin"),
     print_log: bool = False,
 ) -> None:
-    """Reset Pack-AGX stage trackers and capture the randomized start height."""
+    """Reset Pack-AGX phase trackers and capture the randomized start height."""
     if len(env_ids) == 0:
         return
 
-    state = get_pack_agx_state(env)
-    previous_stage = state.task_stage[env_ids].clone()
+    state = env.pack_agx_state
+    previous_phase = state.task_phase[env_ids].clone()
     if print_log:
-        reached = [int((previous_stage >= stage_id).sum().item()) for stage_id in (1, 2, 3)]
+        reached = [int((previous_phase >= phase_id).sum().item()) for phase_id in (1, 2, 3, 4)]
         logger.info(
-            "[PACK_AGX_STAGE_SUMMARY] total=%d reached_stage_1/2/3=%s",
+            "[PACK_AGX_PHASE_SUMMARY] total=%d reached_phase_1/2/3/4=%s",
             len(env_ids),
             reached,
         )
 
-    state.task_stage[env_ids] = 0
-    state.prev_stage_lift[env_ids] = 0
-    state.prev_stage_align[env_ids] = 0
-    state.prev_stage_seat[env_ids] = 0
-    state.stage_hold_counter[env_ids] = 0
+    state.reset(env_ids)
 
     agx_orin = env.scene[agx_orin_cfg.name]
     state.initial_agx_z[env_ids] = agx_orin.data.root_pos_w.torch[env_ids, 2]

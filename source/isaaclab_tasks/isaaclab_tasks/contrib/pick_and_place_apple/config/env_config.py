@@ -332,7 +332,12 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         robot_joint_state = ObsTerm(func=mdp.get_robot_joint_states)
-        robot_policy_joint_pos = ObsTerm(func=mdp.get_robot_policy_joint_positions)
+        robot_policy_joint_pos = ObsTerm(
+            func=mdp.joint_pos,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=POLICY_58_ORDER, preserve_order=True),
+            },
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -373,8 +378,11 @@ class EventCfg:
         params={"reset_joint_targets": True},
     )
 
-    reset_task_stage = EventTermCfg(
-        func=mdp.reset_task_stage,
+    # Must run before any reset or step so the phase buffers exist.
+    init_task_phase = EventTermCfg(func=mdp.init_task_phase_state, mode="startup")
+
+    reset_task_phase = EventTermCfg(
+        func=mdp.reset_task_phase,
         mode="reset",
         params={"apple_cfg": SceneEntityCfg("apple"), "print_log": True},
     )
@@ -388,19 +396,19 @@ class EventCfg:
 
 @configclass
 class TerminationsCfg:
-    """Timeout, stage success, and apple-drop failure."""
+    """Timeout, phase success, and apple-drop failure."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
         func=mdp.task_success_termination,
         time_out=False,
-        params={"success_stage": 4, "print_log": False},
+        params={"success_phase": 4, "print_log": False},
     )
 
 
 @configclass
 class RewardsCfg:
-    """Sparse stage rewards: left lift, right catch, place, then release."""
+    """Sparse phase rewards: left lift, right catch, place, then release."""
 
     left_grasp_lift = RewTerm(
         func=mdp.left_grasp_lift_reward,
@@ -425,17 +433,14 @@ class RewardsCfg:
     handover_to_right = RewTerm(
         func=mdp.handover_to_right_reward,
         weight=1.0,
-        params={"print_log": False},
     )
     place_on_plate = RewTerm(
         func=mdp.place_on_plate_reward,
         weight=1.0,
-        params={"print_log": False},
     )
     release_on_plate = RewTerm(
         func=mdp.release_on_plate_reward,
         weight=1.0,
-        params={"print_log": False},
     )
 
 
