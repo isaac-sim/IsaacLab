@@ -15,6 +15,9 @@ These tests run on an in-memory USD stage and do not launch Isaac Sim / Kit.
 
 import dataclasses
 import inspect
+import json
+import subprocess
+import sys
 import warnings
 
 import pytest
@@ -220,15 +223,45 @@ def test_deformable_symbol_is_not_deprecated(name):
 
 
 # Imports the schema cfg modules for the first time in a fresh interpreter and reports every
+# ``DeprecationWarning`` raised while doing so. Run in a subprocess rather than via
+# ``importlib.reload``: reloading the shared cfg module rebinds the base classes other already
+# imported modules still reference, which would leave two incompatible generations of the class
+# hierarchy alive and make the rest of the session order-dependent.
+_IMPORT_SILENCE_PROBE = """
+import importlib
+import json
+import sys
+import warnings
+
+import isaaclab  # noqa: F401  # warm up the package itself; the schema modules stay unimported
+
+modules = [
+    "isaaclab.sim.schemas.schemas_cfg",
+    "isaaclab_physx.sim.schemas.schemas_cfg",
+    "isaaclab_newton.sim.schemas.schemas_cfg",
+]
+assert not any(m in sys.modules for m in modules), "schema cfg modules were already imported"
+
+messages = []
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    for module in modules:
+        try:
+            importlib.import_module(module)
+        except ImportError:
+            continue
+    messages = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
+
+print("RESULT " + json.dumps(messages))
+"""
+
+
 def test_legacy_cfg_import_does_not_warn():
     """Importing the schema modules must not warn: only construction is deprecated."""
-    import importlib  # noqa: PLC0415
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        importlib.reload(schemas_cfg)
-    assert [w for w in caught if issubclass(w.category, DeprecationWarning)] == []
-
+    result = subprocess.run([sys.executable, "-c", _IMPORT_SILENCE_PROBE], capture_output=True, text=True, timeout=600)
+    assert result.returncode == 0, f"probe failed:\n{result.stdout}\n{result.stderr}"
+    line = next(ln for ln in result.stdout.splitlines() if ln.startswith("RESULT "))
+    assert json.loads(line[len("RESULT ") :]) == []
 
 
 """
