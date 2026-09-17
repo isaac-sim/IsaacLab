@@ -16,11 +16,97 @@ from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
     from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim.usd_export import UsdWriter
 
 
 class NewtonVBDManager(NewtonManager):
     """Newton manager specialization for the VBD solver."""
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Preserve effective VBD constructor settings alongside deformable schemas."""
+        import json
+
+        super().author_fixed_configuration(writer, scene)
+        if not writer.include_solver_settings:
+            return
+        options = cls.export_solver_options(cls._solver, scene.sim.cfg.physics.solver_cfg)
+        from newton.usd import PrimType, SchemaResolverNewton
+
+        from isaaclab.assets.physics_properties import UsdAttribute
+
+        target = SchemaResolverNewton.mapping[PrimType.SCENE]["max_solver_iterations"].name
+        writer.write_attribute(
+            scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+        )
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "vbd", "options": json.dumps(options)},
+        }
+
+    @staticmethod
+    def export_solver_options(solver: SolverVBD, cfg: VBDSolverCfg | None = None) -> dict:
+        """Read effective VBD settings from the initialized solver.
+
+        Args:
+            solver: The initialized native solver.
+            cfg: Constructor provenance for settings without native getters.
+
+        Returns:
+            Serializable constructor options using resolved native settings.
+        """
+        import inspect
+
+        aliases = {
+            "particle_enable_tile_solve": "use_particle_tile_solve",
+            "particle_edge_parallel_epsilon": "_self_contact_edge_edge_parallel_epsilon",
+            "rigid_avbd_joint_alpha": "rigid_joint_alpha",
+            "rigid_avbd_contact_alpha": "rigid_contact_alpha",
+            "rigid_avbd_linear_beta": "rigid_linear_beta",
+            "rigid_avbd_angular_beta": "rigid_angular_beta",
+            "rigid_contact_k_start": "rigid_contact_k_start_value",
+            "rigid_body_contact_buffer_size": "body_body_contact_buffer_pre_alloc",
+            "rigid_body_particle_contact_buffer_size": "body_particle_contact_buffer_pre_alloc",
+        }
+        superseded = {
+            "particle_self_contact_radius",
+            "particle_collision_detection_interval",
+            "rigid_avbd_alpha",
+            "rigid_avbd_beta",
+            "rigid_contact_stick_motion_eps",
+            "rigid_contact_stick_freeze_translation_eps",
+            "rigid_contact_stick_freeze_angular_eps",
+        }
+        options = {}
+        for name, parameter in inspect.signature(SolverVBD).parameters.items():
+            if name in {"model", "deterministic"} or name in superseded:
+                continue
+            # Native aliases hold resolved settings; initialization-only capacities use cfg provenance.
+            value = getattr(solver, aliases.get(name, name), getattr(cfg, name, parameter.default))
+            if name == "rigid_contact_k_start" and value < 0:
+                continue  # Negative native sentinel disables a seed when the ramp is inactive.
+            if value is None:
+                continue
+            if name in {"collision_frequency", "collision_frequency_type"}:
+                options[name] = {str(int(slot)): int(value) for slot, value in value.items()}
+                continue
+            if not isinstance(value, (bool, int, float, str)):
+                raise NotImplementedError(f"No VBD export representation for {name}: {value!r}.")
+            options[name] = value
+        return options
+
+    @staticmethod
+    def load_exported_solver(model: Model, options: dict) -> SolverVBD:
+        """Restore typed collision scheduling before constructing VBD."""
+        from newton.solvers import SolverBase
+
+        options = dict(options)
+        for name in ("collision_frequency", "collision_frequency_type"):
+            if name in options:
+                options[name] = {SolverBase.CollisionSlot(int(slot)): value for slot, value in options[name].items()}
+        return SolverVBD(model, **options)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:

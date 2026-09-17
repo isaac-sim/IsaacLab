@@ -84,6 +84,13 @@ class InteractiveSceneCfg:
     Defaults to :class:`isaaclab.scene.InteractiveScene`.
     """
 
+    export_usd_path: str | None = None
+    """Optional USD output path for environment zero and required shared scene content.
+
+    Environments export after physics and asset initialization, before startup events or the
+    first reset/step. Prestartup USD edits are retained. Defaults to None (no automatic export).
+    """
+
     num_envs: int = MISSING
     """Number of environment instances handled by the scene."""
 

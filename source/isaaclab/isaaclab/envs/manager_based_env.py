@@ -203,6 +203,9 @@ class ManagerBasedEnv:
         # fold the full loop into a single step() when possible
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        # Fixed asset properties are ready; startup events must not affect this artifact.
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path, preserve_source_contacts=True)
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()

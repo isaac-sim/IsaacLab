@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 from newton import JointType
@@ -16,6 +17,7 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
+from isaaclab.assets.physics_properties import read_usd_array, usd_fields
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
@@ -33,6 +35,7 @@ from .kernels import (
 
 if TYPE_CHECKING:
     from isaaclab.assets.cable_object.cable_object_cfg import CableObjectCfg
+    from isaaclab.sim.usd_export import UsdWriter
 
 
 class CableObject(BaseCableObject):
@@ -43,6 +46,52 @@ class CableObject(BaseCableObject):
 
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Keep the curve schema and supplement native segment properties it cannot express."""
+        from pxr import Usd
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        model = SimulationManager.get_model()
+        from isaaclab.sim.utils.queries import find_first_matching_prim
+
+        root = str(find_first_matching_prim(self.cfg.prim_path, stage=writer.stage).GetPath())
+        root = str(
+            next(p for p in Usd.PrimRange(writer.stage.GetPrimAtPath(root)) if p.IsA(UsdGeom.BasisCurves)).GetPath()
+        )
+        path = writer.resolve_paths(AssetPaths([(root, 0)], [])).bodies[0][0]
+        prim = writer.stage.GetPrimAtPath(path)
+        if not prim or not prim.IsA(UsdGeom.BasisCurves):
+            raise RuntimeError(f"Missing cable curve {path}.")
+        fields = self.data.fixed_override_fields(
+            prim,
+            SimulationManager._cfg.default_shape_cfg,
+            SimulationManager._get_usd_import_schema_resolvers(),
+        )
+        writer.write_array_properties(path, self.data, env_index=writer.env_index, fields=fields[0] | fields[1])
+        rows = self.data.shape_indices[writer.env_index]
+        writer.represented_collider_paths.update(model.shape_label[i] for i in rows)
+
+    @classmethod
+    def restore_fixed_configuration(cls, stage, builder, cable_map) -> None:
+        """Read the same data declarations after native curve import, without live data instances."""
+        from isaaclab.sim.usd_export import validate_stage_units
+
+        validate_stage_units(stage)
+        for path, (bodies, _) in cable_map.items():
+            prim = stage.GetPrimAtPath(path)
+            rows = np.flatnonzero(np.isin(builder.shape_body, bodies))
+            for name, declarations in usd_fields(CableObjectData, "array").items():
+                for declaration in declarations:
+                    value = read_usd_array(prim, declaration)
+                    if value is None:
+                        continue
+                    if value.shape != rows.shape:
+                        raise ValueError(f"Cable collider count mismatch for {path}.{declaration.attribute}.")
+                    target = getattr(builder, name)
+                    for index, item in zip(rows, value):
+                        target[index] = float(item)
 
     def __init__(self, cfg: CableObjectCfg) -> None:
         """Initialize the cable object.

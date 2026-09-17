@@ -750,3 +750,140 @@ def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
         namespace["main"]()
 
     assert not hasattr(skrl.config.jax, "backend")
+
+
+def test_deployment_export_precedes_startup_and_preserves_training(tmp_path, monkeypatch):
+    """Export initialized properties while preserving startup randomization and same-seed training."""
+    import copy
+    import random
+
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    from pxr import Usd, UsdPhysics
+
+    from isaaclab.envs import DirectRLEnvCfg
+    from isaaclab.managers import EventTermCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.test.utils.usd_export import fixed_export_prestartup, fixed_export_startup, make_fixed_scene_cfg
+
+    from isaaclab_rl.entrypoints.common import create_isaaclab_env
+
+    task = "Isaac-Fixed-Export-Probe-v0"
+    if task not in gym.registry:
+        gym.register(task, entry_point="isaaclab.test.utils.usd_export:FixedExportProbeEnv", disable_env_checker=True)
+    cfg = DirectRLEnvCfg(
+        decimation=1,
+        episode_length_s=1.0,
+        action_space=1,
+        observation_space=7,
+        scene=make_fixed_scene_cfg(tmp_path),
+        sim=SimulationCfg(device="cpu", physics=NewtonCfg(solver_cfg=XPBDSolverCfg())),
+        seed=713,
+        log_dir=str(tmp_path / "run"),
+    )
+    cfg.scene.num_envs = 1
+    cfg.scene.replicate_physics = False
+    cfg.scene.clone_in_fabric = False
+    cfg.events = SimpleNamespace(
+        pre=EventTermCfg(func=fixed_export_prestartup, mode="prestartup"),
+        start=EventTermCfg(func=fixed_export_startup, mode="startup"),
+    )
+    monkeypatch.setenv("RANK", "0")
+    args = SimpleNamespace(frontend="torch", export_deployment_usd=True)
+    runs = []
+    for enabled in (False, True):
+        args.export_deployment_usd = enabled
+        env = create_isaaclab_env(task, copy.deepcopy(cfg), args, convert_marl_to_single_agent=False)
+        try:
+            if enabled:
+                stage = Usd.Stage.Open(str(tmp_path / "run/deployment.usda"))
+                assert not stage.GetPrimAtPath("/World/envs/env_1")
+                assert stage.GetPrimAtPath("/World/SetupOnly")
+                box = stage.GetPrimAtPath("/World/envs/env_0/Box")
+                mass = UsdPhysics.MassAPI(box).GetMassAttr().Get()
+                assert 20 <= mass < 21  # Prestartup USD edits precede initialization and export.
+                assert float(env.unwrapped.scene.rigid_objects["box"].data.body_mass.torch[0, 0]) > mass
+                # Startup inertia changes must not enter the deployment artifact.
+                geometric_inertia = np.array([0.3**2 + 0.4**2, 0.2**2 + 0.4**2, 0.2**2 + 0.3**2]) / 12
+                np.testing.assert_allclose(
+                    sorted(UsdPhysics.MassAPI(box).GetDiagonalInertiaAttr().Get()),
+                    sorted(mass * geometric_inertia),
+                    rtol=1e-5,
+                )
+                collected = stage.GetPrimAtPath("/World/envs/env_0/CollectedFirst")
+                np.testing.assert_allclose(
+                    sorted(UsdPhysics.MassAPI(collected).GetDiagonalInertiaAttr().Get()),
+                    sorted(1.5 * geometric_inertia),
+                    rtol=1e-5,
+                )
+                # Fresh import receives nominal physical properties, without the task's startup event.
+                import newton
+
+                builder = newton.ModelBuilder()
+                builder.add_usd(stage)
+                restored = builder.finalize(device="cpu")
+                index = restored.body_label.index(str(box.GetPath()))
+                assert restored.body_mass.numpy()[index] == pytest.approx(mass)
+                np.testing.assert_allclose(
+                    np.linalg.eigvalsh(restored.body_inertia.numpy()[index]),
+                    sorted(mass * geometric_inertia),
+                    rtol=1e-5,
+                )
+                assert not (tmp_path / "run/deployment.metrics.json").exists()
+            observations, _ = env.reset(seed=713)
+            samples = [observations["policy"].clone()]
+            for _ in range(3):
+                observations, *_ = env.step(torch.zeros((1, 1)))
+                samples.append(observations["policy"].clone())
+            runs.append((torch.stack(samples), torch.rand(8), np.random.rand(8), random.random()))
+        finally:
+            env.close()
+    assert torch.equal(runs[0][0], runs[1][0])
+    assert torch.equal(runs[0][1], runs[1][1])
+    np.testing.assert_array_equal(runs[0][2], runs[1][2])
+    assert runs[0][3] == runs[1][3]
+
+
+def test_deployment_export_preserves_direct_task_cloning(tmp_path, monkeypatch):
+    """A maintained Direct task builds its robot in _setup_scene; training still has two worlds."""
+    import copy
+
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    from pxr import Usd, UsdPhysics
+
+    from isaaclab_rl.entrypoints.common import create_isaaclab_env
+
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+
+    task = "Isaac-USD-Cartpole-Clone-Probe-v0"
+    if task not in gym.registry:
+        gym.register(
+            task, entry_point="isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv", disable_env_checker=True
+        )
+    cfg = CartpoleEnvCfg()
+    cfg.sim.physics = NewtonCfg(solver_cfg=XPBDSolverCfg())
+    cfg.sim.device = "cpu"
+    cfg.scene.num_envs = 2
+    cfg.seed = 42
+    cfg.log_dir = str(tmp_path)
+    monkeypatch.setenv("RANK", "0")
+    samples = []
+    for enabled in (False, True):
+        args = SimpleNamespace(frontend="torch", export_deployment_usd=enabled)
+        env = create_isaaclab_env(task, copy.deepcopy(cfg), args, convert_marl_to_single_agent=False)
+        try:
+            assert env.unwrapped.num_envs == 2
+            obs, _ = env.reset(seed=42)
+            run = [obs["policy"].clone()]
+            for _ in range(3):
+                obs, *_ = env.step(torch.zeros((2, 1)))
+                run.append(obs["policy"].clone())
+            samples.append(torch.stack(run))
+        finally:
+            env.close()
+    assert torch.equal(samples[0], samples[1])
+    stage = Usd.Stage.Open(str(tmp_path / "deployment.usda"))
+    assert stage.GetPrimAtPath("/World/envs/env_0/Robot")
+    assert not stage.GetPrimAtPath("/World/envs/env_1")
+    assert sum(p.HasAPI(UsdPhysics.RigidBodyAPI) for p in stage.Traverse()) == 3

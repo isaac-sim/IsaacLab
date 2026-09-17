@@ -167,3 +167,36 @@ def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
 
     assert not _FakeManager.marked
     assert not _FakeManager.synced
+
+
+def test_exported_properties_do_not_change_normal_registration():
+    """Deployment supplements are opt-in; ordinary spawning keeps its original source geometry."""
+    import numpy as np
+
+    from pxr import Sdf, Usd, UsdGeom, UsdShade
+
+    from isaaclab_contrib.deformable.deformable_object import read_deformable_entry
+
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/Cloth").GetPrim()
+    mesh = UsdGeom.Mesh.Define(stage, "/Cloth/Mesh")
+    points = np.asarray([(0, 0, 0), (1, 0, 0), (0, 1, 0)], dtype=np.float32)
+    mesh.CreatePointsAttr(points.tolist())
+    mesh.CreateFaceVertexCountsAttr([3])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+    mesh.GetPrim().CreateAttribute("physics:restShapePoints", Sdf.ValueTypeNames.Point3fArray).Set(
+        (2 * points).tolist()
+    )
+    mesh.GetPrim().CreateAttribute("physics:masses", Sdf.ValueTypeNames.FloatArray).Set([2, 3, 4])
+    material = UsdShade.Material.Define(stage, "/Material")
+    material.GetPrim().CreateAttribute("newton:density", Sdf.ValueTypeNames.Float).Set(1.0)
+    UsdShade.MaterialBindingAPI.Apply(root).Bind(material, materialPurpose="physics")
+
+    spawned = read_deformable_entry(root, "/Cloth")
+    np.testing.assert_array_equal(spawned.vertices, points)
+    assert spawned.initial_positions is None
+    assert spawned.export_properties == {}
+    restored = read_deformable_entry(root, "/Cloth", restore_exported_properties=True)
+    np.testing.assert_array_equal(restored.vertices, 2 * points)
+    np.testing.assert_array_equal(restored.initial_positions, points)
+    assert restored.export_properties["particle_mass"] == [2, 3, 4]

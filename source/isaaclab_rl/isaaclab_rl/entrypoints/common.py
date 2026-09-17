@@ -402,6 +402,12 @@ def add_common_train_args(
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
     )
+    parser.add_argument(
+        "--export_deployment_usd",
+        action="store_true",
+        default=False,
+        help="Export initialized environment zero before startup randomization (rank 0 only).",
+    )
     parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
     parser.add_argument(
         "--ray-proc-id",
@@ -739,6 +745,14 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
+    if getattr(args_cli, "export_deployment_usd", False):
+        if args_cli.frontend != "torch":
+            raise NotImplementedError("Deployment USD export currently supports the torch task frontend.")
+        rank_key = "JAX_RANK" if getattr(args_cli, "ml_framework", "torch").startswith("jax") else "RANK"
+        if int(os.environ.get(rank_key, "0")) == 0:
+            if not env_cfg.log_dir:
+                raise ValueError("Deployment export requires the training run log_dir.")
+            env_cfg.scene.export_usd_path = str(Path(env_cfg.log_dir).resolve() / "deployment.usda")
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:

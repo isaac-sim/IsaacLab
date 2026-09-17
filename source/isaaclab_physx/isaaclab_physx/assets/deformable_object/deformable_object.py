@@ -36,6 +36,8 @@ from .kernels import (
 if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
+    from isaaclab.sim.usd_export import UsdWriter
+
     from .deformable_object_cfg import DeformableObjectCfg
 
 # import logger
@@ -157,6 +159,14 @@ class DeformableObject(AssetBase):
     """
     Operations.
     """
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Register coverage while preserving authored geometry, rest state and materials."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        row = writer.env_index
+        path = writer.resolve_paths(AssetPaths([(self.root_view.prim_paths[row], 0)], [])).bodies[0][0]
+        writer.deformable_paths.add(path)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the deformable object.

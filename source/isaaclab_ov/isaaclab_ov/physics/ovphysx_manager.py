@@ -750,6 +750,18 @@ class OvPhysxManager(PhysicsManager):
         return cls._physx
 
     @classmethod
+    def author_fixed_configuration(cls, writer, scene) -> None:
+        """Retain imported contacts and supplement gravity and the cooking frequency."""
+        super().author_fixed_configuration(writer, scene)
+        # Preserve the frequency used to cook automatic contacts; it can differ from integration dt.
+        frequency = (
+            scene.sim.stage.GetPrimAtPath(scene.physics_scene_path).GetAttribute("physxScene:timeStepsPerSecond").Get()
+        )
+        if frequency is not None:
+            writer.write_physx_timestep(scene.physics_scene_path, 1.0 / frequency)
+        writer.write_gravity(scene.physics_scene_path, cls.get_gravity())
+
+    @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
         """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
 

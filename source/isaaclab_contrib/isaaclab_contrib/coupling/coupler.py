@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
+from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics import (
@@ -37,9 +38,174 @@ from .coupler_cfg import (
     CouplerProxyMappingCfg,
 )
 
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import UsdWriter
+
 
 class NewtonCouplerManager(NewtonVBDManager):
     """Couple named Newton solver entries through proxy or ADMM interfaces."""
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Export solver ownership, proxy relationships and each initialized sub-solver."""
+        import dataclasses
+        import json
+
+        from isaaclab_newton.physics.mjwarp_manager import NewtonMJWarpManager
+        from newton.solvers import SolverMuJoCo, SolverVBD
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        NewtonManager.author_fixed_configuration.__func__(cls, writer, scene)
+        if not writer.include_solver_settings:
+            return
+        solver = cls._solver
+        if not isinstance(solver, SolverCoupledProxy):
+            raise NotImplementedError("Deployment export currently requires proxy coupling.")
+        model = cls.get_model()
+        particle_paths = {}
+        for asset in scene.deformable_objects.values():
+            entry = asset._registry_entry
+            start = entry.particle_offsets[writer.env_index]
+            from isaaclab.cloner.query import iter_sources, path_to_clone
+
+            source = next(row for row in iter_sources(scene.clone_plan, asset.cfg.prim_path) if writer.env_id in row[3])
+            root = path_to_clone(scene.clone_plan, source[2], writer.env_id)
+            mesh = root + entry.sim_mesh_prim_path[len(entry.prim_path) :]
+            particle_paths.update({start + i: (mesh, i) for i in range(entry.particles_per_body)})
+
+        def identities(kind, indices):
+            if kind == "particle":
+                selected = [int(i) for i in indices if model.particle_world.numpy()[int(i)] in (-1, writer.env_id)]
+                missing = set(selected) - particle_paths.keys()
+                if missing:
+                    raise NotImplementedError(f"Coupled particles have no registered deformable identity: {missing}.")
+                return [particle_paths[i] for i in selected]
+            worlds = getattr(model, kind + "_world").numpy()
+            labels = getattr(model, kind + "_label")
+
+            def resolve(index):
+                path = labels[index]
+                if kind == "joint" and path.endswith("_free_joint"):
+                    # Generated root joints are not USD prims; route their owning body instead.
+                    body = model.body_label[int(model.joint_child.numpy()[index])]
+                    if path == body + "_free_joint" or not scene.stage.GetPrimAtPath(path):
+                        return writer.resolve_paths(AssetPaths([(body, 0)], [])).bodies[0][0] + "_free_joint"
+                return writer.resolve_paths(AssetPaths([(path, 0)], [])).bodies[0][0]
+
+            return [
+                resolve(i)
+                for i in map(int, indices)
+                if worlds[i] in (-1, writer.env_id)
+                # Sensor sites are runtime observation resources, not physical shapes.
+                and (kind != "shape" or not int(model.shape_flags.numpy()[i]) & int(ShapeFlags.SITE))
+            ]
+
+        entries = []
+        configs = {entry.name: entry.solver_cfg for entry in scene.sim.cfg.physics.solver_cfg.entries}
+        for name in solver.entry_names():
+            native = solver.solver(name)
+            runtime = solver._entries[name]
+            if isinstance(native, SolverMuJoCo):
+                NewtonMJWarpManager.author_solver_configuration(
+                    writer, scene, native, configs[name], scene_settings=False
+                )
+                driver = dict(writer.stage.GetRootLayer().customLayerData["isaaclab:newtonDriver"])
+            elif isinstance(native, SolverVBD):
+                driver = {"solver": "vbd", "options": json.dumps(cls.export_solver_options(native, configs[name]))}
+            else:
+                raise NotImplementedError(f"No deployment adapter for {type(native).__name__}.")
+            entries.append(
+                {
+                    "name": name,
+                    "driver": driver,
+                    "substeps": runtime.substeps,
+                    "in_place": runtime.in_place,
+                    **{
+                        kind: identities(kind, getattr(runtime, kind + "_indices").numpy())
+                        for kind in ("body", "joint", "shape", "particle")
+                    },
+                }
+            )
+        coupling = solver._coupling
+        options = {
+            field.name: getattr(coupling, field.name)
+            for field in dataclasses.fields(coupling)
+            if field.name != "proxies"
+        }
+        proxies = []
+        for proxy in coupling.proxies:
+            values = {field.name: getattr(proxy, field.name) for field in dataclasses.fields(proxy)}
+            for field, kind in (("bodies", "body"), ("joints", "joint"), ("particles", "particle")):
+                for name in (field, "proxy_" + field):
+                    if values[name] is not None:
+                        values[name] = identities(kind, values[name])
+            pipeline = values["collision_pipeline"]
+            if pipeline is not None:
+                if not isinstance(pipeline, partial) or pipeline.func is not CollisionPipeline:
+                    raise NotImplementedError(
+                        "Proxy collision factories require a serializable CollisionPipeline configuration."
+                    )
+                values["collision_pipeline"] = {k: v for k, v in pipeline.keywords.items() if k != "deterministic"}
+            proxies.append(values)
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {
+                "solver": "coupled_proxy",
+                "options": json.dumps({"entries": entries, "proxies": proxies, "coupling": options}),
+            },
+        }
+
+    @classmethod
+    def load_exported_solver(
+        cls, model: Model, options: dict, particle_paths: dict[tuple[str, int], int]
+    ) -> SolverCoupledProxy:
+        """Construct the coupled backend solely from exported physical settings and identities."""
+
+        lookup = {
+            kind: {path: i for i, path in enumerate(getattr(model, kind + "_label"))}
+            for kind in ("body", "joint", "shape")
+        }
+        lookup["particle"] = particle_paths
+
+        def indices(kind, paths):
+            return [lookup[kind][tuple(path) if kind == "particle" else path] for path in paths]
+
+        def factory(driver, view):
+            import json
+
+            from newton.solvers import SolverMuJoCo
+
+            options = json.loads(driver["options"])
+            if driver["solver"] == "mujoco":
+                return SolverMuJoCo(view, **options)
+            return NewtonVBDManager.load_exported_solver(view, options)
+
+        entries = [
+            SolverCoupled.Entry(
+                name=entry["name"],
+                solver=partial(factory, entry["driver"]),
+                bodies=indices("body", entry["body"]),
+                joints=indices("joint", entry["joint"]),
+                shapes=indices("shape", entry["shape"]),
+                particles=indices("particle", entry["particle"]),
+                substeps=entry["substeps"],
+                in_place=entry["in_place"],
+            )
+            for entry in options["entries"]
+        ]
+        proxies = []
+        for proxy in options["proxies"]:
+            values = dict(proxy)
+            for field, kind in (("bodies", "body"), ("joints", "joint"), ("particles", "particle")):
+                for name in (field, "proxy_" + field):
+                    if values[name] is not None:
+                        values[name] = indices(kind, values[name])
+            if values["collision_pipeline"] is not None:
+                values["collision_pipeline"] = partial(CollisionPipeline, **values["collision_pipeline"])
+            proxies.append(SolverCoupledProxy.Proxy(**values))
+        return SolverCoupledProxy(model, entries, SolverCoupledProxy.Config(proxies=proxies, **options["coupling"]))
 
     @dataclass
     class _ResolvedEntry:

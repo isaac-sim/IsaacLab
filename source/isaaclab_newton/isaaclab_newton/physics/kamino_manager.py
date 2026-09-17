@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import Model, eval_fk
@@ -17,6 +18,10 @@ from isaaclab.physics import PhysicsManager
 
 from .kamino_manager_cfg import _KaminoSolverCfgBase
 from .newton_manager import NewtonManager
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import UsdWriter
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +63,38 @@ class NewtonKaminoManager(NewtonManager):
     _solver: SolverKamino
 
     _builder_attribute_solvers = (SolverKamino,)
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Preserve the resolved Kamino driver configuration, including nested solver settings."""
+        import json
+        from dataclasses import asdict
+
+        super().author_fixed_configuration(writer, scene)
+        if not writer.include_solver_settings:
+            return
+        # The instantiated config includes defaults resolved by Kamino, unlike the task cfg.
+        configuration = asdict(cls._solver._config)
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "kamino", "options": json.dumps(configuration)},
+        }
+
+    @staticmethod
+    def load_exported_solver(model: Model, options: dict) -> SolverKamino:
+        """Restore Kamino's nested physical solver configuration."""
+        import dataclasses
+
+        import newton
+
+        config = newton.solvers.SolverKamino.Config.from_model(model, dynamics_solver=options["dynamics_solver"])
+        for field in dataclasses.fields(config):
+            value = options[field.name]
+            default = getattr(config, field.name)
+            if dataclasses.is_dataclass(default) and value is not None:
+                value = type(default)(**value)
+            setattr(config, field.name, value)
+        return newton.solvers.SolverKamino(model, config)
 
     @classmethod
     def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:

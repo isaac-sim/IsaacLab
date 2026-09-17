@@ -19,6 +19,8 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
+    from isaaclab.sim.usd_export import UsdWriter
+
     from .rigid_object_collection_cfg import RigidObjectCollectionCfg
     from .rigid_object_collection_data import RigidObjectCollectionData
 
@@ -123,6 +125,13 @@ class BaseRigidObjectCollection(AssetBase):
     """
     Operations.
     """
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Supplement all collection members' placements and mass properties in the export stage."""
+
+        paths = writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies
+        writer.register_bodies(paths, self.num_bodies)
+        writer.write_root_placement(self.data, paths)
 
     @abstractmethod
     def reset(

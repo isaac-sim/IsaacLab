@@ -11,6 +11,14 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.assets.physics_properties import (
+    LimitComponent,
+    UsdAttribute,
+    per_radian_to_per_degree,
+    principal_inertia,
+    radians_to_degrees,
+    usd_field,
+)
 from isaaclab.utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
@@ -433,6 +441,14 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute(
+            "drive:{axis}:physics:stiffness",
+            "PhysicsDriveAPI:{axis}",
+        ),
+        angular_conversion=per_radian_to_per_degree,
+        actuator_config="stiffness",
+    )
     def joint_stiffness(self) -> ProxyArray:
         """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
 
@@ -444,6 +460,14 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute(
+            "drive:{axis}:physics:damping",
+            "PhysicsDriveAPI:{axis}",
+        ),
+        angular_conversion=per_radian_to_per_degree,
+        actuator_config="damping",
+    )
     def joint_damping(self) -> ProxyArray:
         """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
 
@@ -455,6 +479,11 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", type_name="float"),
+        UsdAttribute("physxJoint:armature", "PhysxJointAPI", type_name="float", axes=("angular", "linear")),
+        actuator_config="armature",
+    )
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -465,6 +494,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(actuator_config="friction")
     def joint_friction_coeff(self) -> ProxyArray:
         """Backend-specific joint friction values provided to the simulation.
 
@@ -480,6 +510,23 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("physics:lowerLimit", component=LimitComponent.LOWER, axes=("angular", "linear")),
+        UsdAttribute(
+            "limit:{axis}:physics:low",
+            "PhysicsLimitAPI:{axis}",
+            component=LimitComponent.LOWER,
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+        ),
+        UsdAttribute("physics:upperLimit", component=LimitComponent.UPPER, axes=("angular", "linear")),
+        UsdAttribute(
+            "limit:{axis}:physics:high",
+            "PhysicsLimitAPI:{axis}",
+            component=LimitComponent.UPPER,
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+        ),
+        angular_conversion=radians_to_degrees,
+    )
     def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits provided to the simulation.
 
@@ -493,6 +540,17 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:maxJointVelocity", "PhysxJointAxisAPI:{axis}", type_name="float"),
+        UsdAttribute(
+            "physxJoint:maxJointVelocity",
+            "PhysxJointAPI",
+            type_name="float",
+            axes=("angular", "linear"),
+        ),
+        angular_conversion=radians_to_degrees,
+        actuator_config="joint_velocity_limit",
+    )
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 
@@ -503,6 +561,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}"), actuator_config="joint_effort_limit"
+    )
     def joint_effort_limits(self) -> ProxyArray:
         """Joint maximum effort provided to the simulation.
 
@@ -755,6 +816,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"), scope="body")
     def body_mass(self) -> ProxyArray:
         """Body mass ``wp.float32`` in the world frame.
 
@@ -765,6 +827,13 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
+    @usd_field(
+        UsdAttribute("physics:diagonalInertia", "PhysicsMassAPI", output="moments"),
+        UsdAttribute("physics:principalAxes", "PhysicsMassAPI", output="principal_axes"),
+        scope="body",
+        transform=principal_inertia,
+        inputs=("body_com_quat_b",),
+    )
     def body_inertia(self) -> ProxyArray:
         """Flattened body inertia in the world frame.
 
@@ -1306,6 +1375,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @usd_field(UsdAttribute("physics:centerOfMass", "PhysicsMassAPI"), scope="body")
     def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 

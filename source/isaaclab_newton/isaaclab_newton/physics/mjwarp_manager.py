@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
@@ -19,6 +20,10 @@ from isaaclab.physics import PhysicsManager
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import UsdWriter
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +38,75 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     _builder_attribute_solvers = (SolverMuJoCo,)
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Export physical configuration and optionally the selected world's MuJoCo settings."""
+        super().author_fixed_configuration(writer, scene)
+        if writer.include_solver_settings and cls._solver is not None:
+            cls.author_solver_configuration(writer, scene, cls._solver, scene.sim.cfg.physics.solver_cfg)
+
+    @classmethod
+    def author_solver_configuration(
+        cls,
+        writer: UsdWriter,
+        scene: InteractiveScene,
+        solver: SolverMuJoCo,
+        solver_cfg: MJWarpSolverCfg,
+        *,
+        scene_settings: bool = True,
+    ) -> None:
+        """Write optional MuJoCo settings without making asset import depend on them."""
+        import json
+
+        from isaaclab.assets.physics_properties import UsdAttribute
+
+        world = writer.env_id if solver.mjc_body_to_newton.shape[0] > 1 else 0
+        native = solver.mj_model if solver.use_mujoco_cpu else solver.mjw_model
+
+        def value(owner, name):
+            data = getattr(owner, name)
+            if isinstance(data, wp.array):
+                data = data.numpy()
+                template = solver.mj_model.opt if owner is native.opt else solver.mj_model
+                if data.ndim > np.asarray(getattr(template, name, 0.0)).ndim:
+                    data = data[world if data.shape[0] > 1 else 0]
+            return np.asarray(data)
+
+        options = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
+        options.pop("deterministic", None)
+        options.pop("save_to_mjcf", None)
+        options.pop("ls_parallel", None)
+        for name in tuple(options):
+            if hasattr(native.opt, name):
+                data = value(native.opt, name)
+                options[name] = data.tolist()
+        # MJWarp stores the inverse square root, which may differ from the CPU template.
+        if hasattr(native.opt, "impratio_invsqrt"):
+            options["impratio"] = float(value(native.opt, "impratio_invsqrt")) ** -2
+        options["use_mujoco_contacts"] = solver._use_mujoco_contacts
+        options["update_data_interval"] = solver.update_data_interval
+        options["enable_sleeping"] = solver.enable_sleeping
+        import mujoco
+
+        flags = int(value(native.opt, "disableflags"))
+        options["disable_contacts"] = bool(flags & mujoco.mjtDisableBit.mjDSBL_CONTACT)
+        options["disable_sensors"] = bool(flags & mujoco.mjtDisableBit.mjDSBL_SENSOR)
+        options["enable_multiccd"] = not bool(flags & mujoco.mjtDisableBit.mjDSBL_MULTICCD)
+        from newton.usd import PrimType, SchemaResolverMjc
+
+        if scene_settings:
+            target = SchemaResolverMjc.mapping[PrimType.SCENE]["max_solver_iterations"].name
+            writer.write_attribute(
+                scene.physics_scene_path, UsdAttribute(target, type_name="int"), int(options.pop("iterations"))
+            )
+        options = {name: option for name, option in options.items() if option is not None}
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonDriver": {"solver": "mujoco", "options": json.dumps(options)},
+        }
+        if scene_settings:
+            writer.write_gravity(scene.physics_scene_path, value(native.opt, "gravity"))
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:

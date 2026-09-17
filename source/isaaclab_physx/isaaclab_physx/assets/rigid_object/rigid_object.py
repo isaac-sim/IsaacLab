@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class RigidObject(BaseRigidObject):
@@ -92,6 +93,12 @@ class RigidObject(BaseRigidObject):
         """Ordered names of bodies in the rigid object."""
         prim_paths = self.root_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
+
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        return AssetPaths([(str(self.root_view.prim_paths[env_index]), 0)], [])
 
     @property
     def root_view(self):

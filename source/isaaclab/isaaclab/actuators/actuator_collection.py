@@ -76,6 +76,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._groups: dict[str, ActuatorBase | object] = {}
         self._group_joint_names: dict[str, list[str]] = {}
         self._group_joint_indices: dict[str, slice | torch.Tensor] = {}
+        self._usd_override_fields: dict[int, dict[str, frozenset[int] | None]] = {}
         self._implicit_group_names: set[str] = set()
         self._native_group_names: set[str] = set()
         self._debug_value_resolution = debug_value_resolution
@@ -127,6 +128,24 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     def __len__(self) -> int:
         return len(self._groups)
+
+    @property
+    def usd_actuator_groups(self) -> frozenset[str]:
+        """Groups executed from authored NewtonActuator schemas rather than Python-only controllers."""
+        return frozenset(self._native_group_names)
+
+    def usd_override_fields(self, joint_id: int, env_index: int | None = None) -> frozenset[str]:
+        """Public data fields requiring fixed configuration authoring for one joint.
+
+        Args:
+            joint_id: Articulation joint index.
+            env_index: Instance index, or None for the union across instances.
+        """
+        return frozenset(
+            field
+            for field, environments in self._usd_override_fields.get(joint_id, {}).items()
+            if env_index is None or environments is None or env_index in environments
+        )
 
     def __setitem__(self, name: str, actuator: ActuatorBase) -> None:
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
@@ -306,7 +325,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         misleading construction-time snapshots. Their mapping entries are filled
         with the owning Newton actuator objects after backend finalization.
         """
-        construction_records: list[tuple[dict[str, torch.Tensor], torch.Tensor | slice, bool, bool]] = []
+        construction_records = []
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = resolved_group_joints[actuator_name]
             if len(joint_names) == self.num_joints:
@@ -329,6 +348,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 joint_defaults,
                 joint_names,
                 actuator_joint_ids,
+            )
+            overrides = self._control.get_joint_property_overrides(
+                actuator_cfg, joint_defaults, properties, implicit=implicit, native_managed=native_managed
             )
             if native_managed:
                 # placeholder keeps configuration order; replaced by the Newton actuator
@@ -361,16 +383,30 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                     actuator_joint_ids,
                     implicit,
                     native_managed,
+                    overrides,
                 )
             )
 
-        for properties, joint_ids, implicit, native_managed in construction_records:
+        for properties, joint_ids, implicit, native_managed, overrides in construction_records:
             self._control.write_resolved_joint_properties(
                 properties,
                 joint_ids,
                 implicit=implicit,
                 native_managed=native_managed,
             )
+            # Publish provenance only after the fixed initialization write succeeds.
+            joint_indices = range(self.num_joints) if isinstance(joint_ids, slice) else joint_ids.tolist()
+            for data_name, changed in overrides.items():
+                if changed is None:
+                    for joint_id in joint_indices:
+                        self._usd_override_fields.setdefault(joint_id, {})[data_name] = None
+                    continue
+                for column, joint_id in enumerate(joint_indices):
+                    environments = changed[:, column].nonzero().flatten().tolist()
+                    if environments:
+                        self._usd_override_fields.setdefault(joint_id, {})[data_name] = (
+                            None if len(environments) == self.num_instances else frozenset(environments)
+                        )
         for actuator in self._groups.values():
             if isinstance(actuator, ImplicitActuator):
                 actuator._bind_actuator_parameters(self._control)
@@ -412,17 +448,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         """
         values: dict[str, torch.Tensor] = {}
         resolution_rows: dict[str, tuple[tuple[object, ...], ...]] = {}
-        for cfg_name in (
-            "stiffness",
-            "damping",
-            "armature",
-            "friction",
-            "dynamic_friction",
-            "viscous_friction",
-            "joint_effort_limit",
-            "joint_velocity_limit",
-        ):
-            default_value = defaults[cfg_name]
+        for cfg_name, default_value in defaults.items():
             cfg_value = getattr(cfg, cfg_name)
             value = self._resolve_joint_property(cfg_value, default_value, joint_names)
             values[cfg_name] = value
