@@ -232,15 +232,20 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
 
 
 class IsaacLabUvImportersWheelInstall(SphinxDirective):
-    """Render the Isaac Lab standalone importer command."""
+    """Render the Isaac Lab standalone importer command with resolver overrides."""
 
     has_content = False
 
     def run(self) -> list[nodes.Node]:
+        branch = self.config.isaaclab_wheel_source_tag
+        overrides_url = (
+            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
+        )
         content = f"""\
 .. code-block:: bash
 
    uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
+     --overrides "{overrides_url}" \\
      --index https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match
 """

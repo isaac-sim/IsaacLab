@@ -658,9 +658,10 @@ or temporary work.
 Optional extras
 ~~~~~~~~~~~~~~~
 
-Add extras only when your project needs them. Add the extra name in brackets after ``isaaclab``
-in the install command, keeping the version pin and index. The ``importers`` and ``isaacsim``
-extras have dedicated commands below.
+Add extras only when your project needs them. Most extras work with
+``uv pip install "isaaclab[<extra>]"`` in a standalone environment or
+``uv add "isaaclab[<extra>]"`` in a uv project. The ``importers`` and ``isaacsim`` extras
+have dedicated commands below.
 
 .. list-table::
    :header-rows: 1
@@ -715,6 +716,11 @@ Installing the ``importers`` extra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install this extra to convert URDF and MJCF files without Isaac Sim.
+
+.. warning::
+
+   Use the full command below. Without the overrides, the importer extra can downgrade packages
+   used by the base Isaac Lab install. The overrides keep Isaac Lab's tested versions.
 
 .. isaaclab-uv-importers-wheel-install::
 
