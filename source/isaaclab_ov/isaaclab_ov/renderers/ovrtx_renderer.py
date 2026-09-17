@@ -256,7 +256,7 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
         logger.info("Wrote USD file: %s", output_path)
 
 
-class OVRTXRenderData:
+class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and Warp output buffers."""
 
     def __init__(self, spec: CameraRenderSpec, device):
@@ -347,7 +347,7 @@ class OVRTXRenderer(BaseRenderer):
         # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
         self._warp_device: wp.Device | None = None
         self._render_product_paths = []
-        self._camera_render_data: list[OVRTXRenderData] = []
+        self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._next_camera_id = 0
         # Shared by both paths. The legacy-only binding handles that pair with these live in
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
@@ -541,7 +541,7 @@ class OVRTXRenderer(BaseRenderer):
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
         self._cable_point_slices: list[wp.array] = []
 
-    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
+    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
@@ -581,10 +581,9 @@ class OVRTXRenderer(BaseRenderer):
         )
         self._render_product_paths.append(render_product_path)
 
-        combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
-
         # If temp_usd_dir is set, write the combined USD stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
+            combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
             _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
 
         logger.info("Loading USD into OvRTX...")
@@ -933,7 +932,7 @@ class OVRTXRenderer(BaseRenderer):
             flags=BindingFlag.OPTIMIZE,
         )
 
-    def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
@@ -945,7 +944,7 @@ class OVRTXRenderer(BaseRenderer):
             raise ValueError("Cameras sharing an OVRTX renderer must use the same device.")
         self._warp_device = warp_device
         self._device = str(warp_device)
-        render_data = OVRTXRenderData(spec, self._device)
+        render_data = OVRTXCameraRenderData(spec, self._device)
         try:
             if not self._initialized_scene:
                 self._initialize_from_spec(spec, render_data)
@@ -968,7 +967,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_render_data.append(render_data)
         return render_data
 
-    def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
+    def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Add another tiled product and camera binding without reloading the shared scene."""
         camera_paths = list(spec.camera_prim_paths)
         if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
@@ -1059,7 +1058,7 @@ class OVRTXRenderer(BaseRenderer):
             )
         self._render_product_paths.append(product_path)
 
-    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
+    def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
 
         Each :class:`~isaaclab.utils.warp.ProxyArray` already carries the correct warp
@@ -1203,7 +1202,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_camera_legacy(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         positions: ProxyArray,
         orientations: ProxyArray,
         intrinsics: ProxyArray,
@@ -1234,7 +1233,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def read_output(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         camera_data: CameraData,
     ) -> None:
         """Forward per-output metadata collected during :meth:`render` into ``camera_data.info``.
@@ -1321,7 +1320,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _process_id_segmentation_render_var(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         frame,
         output_buffers: dict,
         render_var_key: str,
@@ -1371,7 +1370,7 @@ class OVRTXRenderer(BaseRenderer):
                     tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
                 self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
 
-    def _process_semantic_id_map(self, render_data: OVRTXRenderData, frame) -> None:
+    def _process_semantic_id_map(self, render_data: OVRTXCameraRenderData, frame) -> None:
         """Decode the ``SemanticIdMap`` render var into ``render_data.renderer_info["semantic_segmentation"]``.
 
         Populates an ``"idToLabels"`` mapping compatible with Isaac RTX / Replicator: keys are the raw semantic
@@ -1396,7 +1395,7 @@ class OVRTXRenderer(BaseRenderer):
             )
         }
 
-    def _process_instance_segmentation_maps(self, render_data: OVRTXRenderData, frame) -> None:
+    def _process_instance_segmentation_maps(self, render_data: OVRTXCameraRenderData, frame) -> None:
         """Decode the instance-segmentation map render vars into ``renderer_info["instance_segmentation"]``.
 
         An *instance pixel ID* is a compact integer that the renderer assigns to each visible object instance.
@@ -1448,7 +1447,7 @@ class OVRTXRenderer(BaseRenderer):
         }
 
     def _launch_extract_all_tiles(
-        self, render_data: OVRTXRenderData, tiled_buffer: wp.array, output_buffer: wp.array
+        self, render_data: OVRTXCameraRenderData, tiled_buffer: wp.array, output_buffer: wp.array
     ) -> None:
         """Launch ``extract_all_tiles_kernel`` for one tiled/output buffer pair.
 
@@ -1489,7 +1488,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _extract_rgba_tiles(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         tiled_data: wp.array,
         output_buffers: dict,
         buffer_key: str,
@@ -1505,7 +1504,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _extract_depth_tiles(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         tiled_depth_data: wp.array,
         output_buffers: dict,
         buffer_keys: Sequence[str],
@@ -1524,7 +1523,7 @@ class OVRTXRenderer(BaseRenderer):
                 self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
 
     def _extract_hdr_color_tiles(
-        self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict
+        self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict
     ) -> None:
         """Extract per-env HdrColor tiles into output_buffers."""
         if "rgb_hdr" not in output_buffers:
@@ -1534,7 +1533,7 @@ class OVRTXRenderer(BaseRenderer):
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffers["rgb_hdr"])
 
     def _prepare_ppisp_hdr_source(
-        self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict
+        self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict
     ) -> wp.array:
         """Return the PPISP HdrColor source on the output buffer device."""
         if render_data.ppisp_pipeline is None:
@@ -1550,7 +1549,7 @@ class OVRTXRenderer(BaseRenderer):
         # assignment.
         return wp.clone(tiled_data, device=output_device)
 
-    def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
+    def _process_render_frame(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
         # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
@@ -1565,7 +1564,7 @@ class OVRTXRenderer(BaseRenderer):
                 buffer_key = "rgba"
             else:
                 # The output buffers must contain only one simple shading data type at most after resolution of the data
-                # types during creation of the output buffers (OVRTXRenderData._create_warp_buffers).
+                # types during creation of the output buffers (OVRTXCameraRenderData._create_warp_buffers).
                 for dt in _RTX_MINIMAL_MODES:
                     if dt in output_buffers:
                         buffer_key = dt
@@ -1637,7 +1636,7 @@ class OVRTXRenderer(BaseRenderer):
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
-    def _render_legacy(self, render_data: OVRTXRenderData) -> None:
+    def _render_legacy(self, render_data: OVRTXCameraRenderData) -> None:
         """Render the scene into the provided RenderData."""
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
@@ -1732,7 +1731,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._init_fields_legacy()
 
-    def _initialize_from_spec(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
+    def _initialize_from_spec(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         if self._use_ovstage:
             self._initialize_from_spec_ovstage(spec, render_data)
         else:
@@ -1849,7 +1848,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_camera(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         positions: ProxyArray,
         orientations: ProxyArray,
         intrinsics: ProxyArray,
@@ -1860,14 +1859,14 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._update_camera_legacy(render_data, positions, orientations, intrinsics)
 
-    def render(self, render_data: OVRTXRenderData) -> None:
+    def render(self, render_data: OVRTXCameraRenderData) -> None:
         """Render the scene into the provided RenderData."""
         if self._use_ovstage:
             self._render_ovstage(render_data)
         else:
             self._render_legacy(render_data)
 
-    def cleanup(self, render_data: OVRTXRenderData | None) -> None:
+    def cleanup(self, render_data: OVRTXCameraRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
         Each camera owns its product and pose binding. Scene and physics bindings remain alive
@@ -1924,7 +1923,7 @@ class OVRTXRenderer(BaseRenderer):
         # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
         self._cable_point_tensors: list = []
 
-    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec, render_data: OVRTXRenderData) -> None:
+    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
 
         Args:
@@ -2500,7 +2499,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_camera_ovstage(
         self,
-        render_data: OVRTXRenderData,
+        render_data: OVRTXCameraRenderData,
         positions: ProxyArray,
         orientations: ProxyArray,
         intrinsics: ProxyArray,
@@ -2533,7 +2532,7 @@ class OVRTXRenderer(BaseRenderer):
                 cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
 
-    def _render_ovstage(self, render_data: OVRTXRenderData) -> None:
+    def _render_ovstage(self, render_data: OVRTXCameraRenderData) -> None:
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self._renderer is None or len(self._render_product_paths) == 0:

@@ -35,13 +35,13 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
-        OVRTXRenderData,
+        OVRTXCameraRenderData,
         OVRTXRenderer,
         _gpu_side_render_var_sync_enabled,
         ovrtx_use_ovstage_enabled,
     )
 else:
-    OVRTXRenderData = None
+    OVRTXCameraRenderData = None
     OVRTXRenderer = None
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
@@ -68,8 +68,8 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     )
 
 
-def _make_ovrtx_render_data() -> OVRTXRenderData:
-    rd = OVRTXRenderData.__new__(OVRTXRenderData)
+def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
+    rd = OVRTXCameraRenderData.__new__(OVRTXCameraRenderData)
     rd.render_product_path = None
     rd.camera_xform_binding = None
     rd.camera_xform_query = None
@@ -285,7 +285,7 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
         device=device,
         supported_specs=renderer.supported_output_types(),
     )
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     renderer.set_outputs(render_data, data.output)
 
     assert set(render_data.warp_buffers.keys()) >= {"rgba", "depth"}
@@ -311,7 +311,7 @@ def test_ovrtx_set_outputs_wraps_requested_rgb_hdr_output():
         device=device,
         supported_specs=renderer.supported_output_types(),
     )
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     renderer.set_outputs(render_data, data.output)
 
     assert render_data.warp_buffers["rgb_hdr"].ptr == data.output["rgb_hdr"].warp.ptr
@@ -330,7 +330,7 @@ def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
         device="cpu",
         supported_specs=renderer.supported_output_types(),
     )
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.ppisp_pipeline = object()
     renderer.set_outputs(render_data, data.output)
 
@@ -351,7 +351,7 @@ def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
         render_vars = {RENDER_VAR_FRAME_KEYS["LdrColor"]: FailingRenderVar()}
 
     renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.ppisp_pipeline = object()
 
     renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
@@ -376,7 +376,7 @@ def test_ovrtx_process_frame_reads_only_the_installed_ldr_color_key(monkeypatch:
         render_vars = {stale_key: "stale", installed_key: "installed"}
 
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._process_render_frame(_make_ovrtx_render_data(), Frame(), {"rgba": object()})
+    renderer._process_render_frame(_make_ovrtx_camera_render_data(), Frame(), {"rgba": object()})
     assert mapped == ["installed"]
 
 
@@ -399,7 +399,7 @@ def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
     monkeypatch.setattr(wp, "clone", fake_clone)
 
     renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.ppisp_pipeline = object()
     source = FakeArray()
 
@@ -416,7 +416,7 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
     """An output wider than the tiled input would read out of bounds, so it must raise before launching."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
 
     with pytest.raises(ValueError, match="out of bounds"):
         renderer._launch_extract_all_tiles(render_data, _FakeArray((8, 16, 3)), _FakeArray((2, 8, 16, 4)))
@@ -426,7 +426,7 @@ def test_launch_extract_all_tiles_launches_kernel_when_channels_are_compatible(m
     """Equal or narrower output channel counts pass validation and reach the kernel launch."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.num_cols = 2
 
     launch_calls = []
@@ -443,7 +443,7 @@ def test_launch_extract_all_tiles_launches_kernel_when_channels_are_compatible(m
 def test_ovrtx_read_output_copies_no_pixel_data():
     """OVRTXRenderer.read_output copies no pixel data; with empty renderer_info it leaves info untouched."""
     renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     camera_data = CameraData()
     camera_data.info = {}
     camera_data._output = {}
@@ -458,7 +458,7 @@ def test_ovrtx_read_output_copies_no_pixel_data():
 def test_ovrtx_read_output_forwards_renderer_info():
     """OVRTXRenderer.read_output forwards render_data.renderer_info (e.g. semantic idToLabels) into info."""
     renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     id_to_labels = {"2": {"class": "cartpole"}}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": id_to_labels}}
 
@@ -473,7 +473,7 @@ def test_ovrtx_read_output_forwards_renderer_info():
 def test_ovrtx_read_output_clears_stale_metadata_and_keeps_seeded_keys():
     """read_output replaces (not merges): a dropped render var resets its info entry, seeded keys persist."""
     renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
 
     # ``camera_data.info`` is seeded with one key per output (mirrors ``camera_data.output``); both start None.
     camera_data = CameraData()
@@ -637,7 +637,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly):
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._initialized_scene = True
 
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/Render/RenderProduct_to_remove"
     renderer._render_product_paths.append(render_data.render_product_path)
     renderer._camera_render_data.append(render_data)
@@ -695,7 +695,7 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = False
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/Render/RenderProduct_camera"
     render_data.camera_xform_binding = _RecordingBinding(events, "camera")
     render_data.resources.callback(render_data.camera_xform_binding.unbind)
@@ -747,7 +747,7 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._use_ovstage = True
     renderer._stage = Stage()
     renderer._stage_paths = StagePaths()
-    render_data = _make_ovrtx_render_data()
+    render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/Render/RenderProduct_camera"
     render_data.camera_xform_query = "camera"
     render_data.resources.callback(renderer._stage_paths.destroy_path_list, "camera")
