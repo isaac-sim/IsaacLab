@@ -76,21 +76,29 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install skillevaluator
+      - name: Install skillevaluator and gitleaks
         id: install_skillevaluator
         env:
           # Pinned to the v0.1.0 release tag. A bump here can newly-fail every
           # open PR, so update deliberately after testing locally.
           SKILLEVALUATOR_REF: "v0.1.0"
-          # Used by `skillevaluator doctor` to verify inference-API access, and
-          # by Tier 2 embedding calls during context-optimization-check and
-          # similarity-check.
+          GITLEAKS_VERSION: "8.27.2"
+          # build.nvidia.com embedding API key (NVIDIA_API_KEY is the env var
+          # the public SkillEvaluator looks for). Reuses the repo's existing
+          # NVIDIA_INFERENCE_API_KEY secret — same NIM key, different endpoint.
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
         run: |
           set -euo pipefail
           python3 -m pip install --upgrade pip
           python3 -m pip install \
             "skillevaluator[tier2,security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
+          # gitleaks is needed for the code-integrity (Secrets Detection) check.
+          # The security check (skillspector) is NVIDIA-internal and skipped via
+          # --checks in the validate step.
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C /usr/local/bin gitleaks
+          gitleaks version
           skillevaluator --version
           skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY"
 
@@ -132,6 +140,7 @@ jobs:
       - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 2B
         if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
         env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
           SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
         run: |
@@ -144,7 +153,8 @@ jobs:
             echo "===== Per-skill validation (Tier 1): ${skill_dir} ====="
             if ! skillevaluator validate "${skill_dir}" \
                   -c \
-                  --no-dedup; then
+                  --no-dedup \
+                  --checks schema,version,pii,license,code-integrity,unicode,quality,lint; then
               failed=1
             fi
 
