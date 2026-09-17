@@ -180,7 +180,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._IO_descriptor.body_name = self._body_name
         self._IO_descriptor.joint_names = self._joint_names
         self._IO_descriptor.scale = self._scale
-        self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
+        self._IO_descriptor.offset = self._offset
         if self.cfg.clip is not None:
             self._IO_descriptor.clip = self.cfg.clip
         else:

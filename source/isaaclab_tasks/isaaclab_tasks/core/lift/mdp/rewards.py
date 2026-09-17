@@ -51,8 +51,7 @@ def object_ee_distance(
     object_pos = obj.data.root_pos_w.torch
     distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)
-    reward = (1 - torch.tanh(distance / std)) * contact_bonus
-    return torch.where(torch.isfinite(reward), reward, torch.zeros_like(reward))
+    return (1 - torch.tanh(distance / std)) * contact_bonus
 
 
 def _contact_force_mag(sensor: ContactSensor, num_envs: int) -> torch.Tensor:
@@ -165,7 +164,7 @@ class success_reward(ManagerTermBase):
             reward = ((1 - torch.tanh(pos_dist / pos_std)) ** 2) * contact_mask.float()
             self.succeeded |= (pos_dist < pos_std) & contact_mask
 
-        return torch.where(torch.isfinite(reward), reward, torch.zeros_like(reward))
+        return reward
 
 
 def position_command_error_tanh(
@@ -281,11 +280,9 @@ class _ProgressReward(ManagerTermBase):
         else:
             self.best_error[(self._prev_command != command).any(dim=1)] = float("inf")
             self._prev_command.copy_(command)
-        finite = torch.isfinite(error)
-        self.best_error[~finite] = float("inf")
-        unseeded = torch.isinf(self.best_error) & finite
+        unseeded = torch.isinf(self.best_error)
         self.best_error[unseeded] = error[unseeded]
-        improved = finite & gate & (error < self.best_error - min_improvement)
+        improved = gate & (error < self.best_error - min_improvement)
         self.best_error[improved] = error[improved]
         return improved.float()
 
