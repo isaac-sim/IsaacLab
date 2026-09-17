@@ -279,7 +279,7 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
 
     class Derived(Base):
         @property
-        @usd_field(UsdAttribute("custom:mass", type_name="float"), extend=True)
+        @usd_field(UsdAttribute("custom:mass", "CustomMassAPI", type_name="float"), extend=True)
         def value(self):
             return super().value
 
@@ -292,7 +292,9 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
     writer.write_properties("/Body", None, Base(), row=0)
     assert body.HasAPI(UsdPhysics.MassAPI)
     assert body.GetAttribute("physics:mass").Get() == 2.5
+    body.CreateAttribute("custom:mass", Sdf.ValueTypeNames.Float, custom=False).Set(2.5)
     writer.write_properties("/Body", None, Derived(), row=0)
+    assert "CustomMassAPI" in body.GetPrimTypeInfo().GetAppliedAPISchemas()
     assert body.GetAttribute("custom:mass").Get() == 2.5
     writer.write_attribute("/Body", UsdAttribute("visibility", "Imageable"), "invisible")
     assert body.GetAttribute("visibility").Get() == "invisible"
