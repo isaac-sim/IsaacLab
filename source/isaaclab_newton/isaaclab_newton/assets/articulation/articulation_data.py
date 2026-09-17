@@ -492,6 +492,7 @@ class ArticulationData(BaseArticulationData):
             type_name="float",
         ),
         angular_conversion=per_radian_to_per_degree,
+        actuator_config="viscous_friction",
     )
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Newton passive joint damping [N·s/m or N·m·s/rad, depending on joint type].

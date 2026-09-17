@@ -569,6 +569,30 @@ class FakeArticulationActuatorControl(ArticulationActuatorControl):
         pass
 
 
+def test_declared_backend_property_drives_initialization_and_override_selection():
+    from isaaclab.assets.physics_properties import UsdAttribute, usd_field
+
+    class BackendData(SimpleNamespace):
+        @property
+        @usd_field(UsdAttribute("custom:loss", type_name="float"), actuator_config="viscous_friction")
+        def passive_loss(self):
+            return SimpleNamespace(torch=torch.full((2, 3), 0.25))
+
+    articulation = FakeArticulation()
+    articulation.data = BackendData(**vars(articulation.data))
+    control = FakeArticulationActuatorControl(articulation)
+    defaults = control.get_default_joint_properties(slice(None))
+    torch.testing.assert_close(defaults["viscous_friction"], torch.full((2, 3), 0.25))
+    collection = ActuatorCollection(
+        {"drive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=None, viscous_friction=0.5)},
+        control,
+    )
+    for joint_id in range(3):
+        assert collection.usd_override_fields(joint_id) == {"passive_loss"}
+    friction_write = next(kwargs for name, kwargs in articulation.calls if name == "friction")
+    torch.testing.assert_close(friction_write["joint_viscous_friction_coeff"], torch.full((2, 3), 0.5))
+
+
 class FakeArticulation:
     """Small articulation facade for shared control tests."""
 
@@ -776,6 +800,8 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     torch.testing.assert_close(articulation.data.joint_damping.torch, torch.zeros((2, 3)))
     assert articulation.calls[-2][1]["stiffness"] == 0.0
     assert articulation.calls[-1][1]["damping"] == 0.0
+    for joint_id in range(articulation.num_joints):
+        assert {"joint_stiffness", "joint_damping"} <= collection.usd_override_fields(joint_id)
 
 
 def test_native_group_parameters_route_through_the_collection_door():

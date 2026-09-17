@@ -447,6 +447,7 @@ class BaseArticulationData(ABC):
             "PhysicsDriveAPI:{axis}",
         ),
         angular_conversion=per_radian_to_per_degree,
+        actuator_config="stiffness",
     )
     def joint_stiffness(self) -> ProxyArray:
         """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
@@ -465,6 +466,7 @@ class BaseArticulationData(ABC):
             "PhysicsDriveAPI:{axis}",
         ),
         angular_conversion=per_radian_to_per_degree,
+        actuator_config="damping",
     )
     def joint_damping(self) -> ProxyArray:
         """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
@@ -480,6 +482,7 @@ class BaseArticulationData(ABC):
     @usd_field(
         UsdAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", type_name="float"),
         UsdAttribute("physxJoint:armature", "PhysxJointAPI", type_name="float", axes=("angular", "linear")),
+        actuator_config="armature",
     )
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
@@ -491,7 +494,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
-    @usd_field()
+    @usd_field(actuator_config="friction")
     def joint_friction_coeff(self) -> ProxyArray:
         """Backend-specific joint friction values provided to the simulation.
 
@@ -546,6 +549,7 @@ class BaseArticulationData(ABC):
             axes=("angular", "linear"),
         ),
         angular_conversion=radians_to_degrees,
+        actuator_config="joint_velocity_limit",
     )
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
@@ -557,7 +561,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
-    @usd_field(UsdAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}"))
+    @usd_field(
+        UsdAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}"), actuator_config="joint_effort_limit"
+    )
     def joint_effort_limits(self) -> ProxyArray:
         """Joint maximum effort provided to the simulation.
 

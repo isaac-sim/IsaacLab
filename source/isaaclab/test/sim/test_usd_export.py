@@ -16,6 +16,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.assets.physics_properties import (
     UsdAttribute,
+    usd_actuator_fields,
     usd_field,
     usd_fields,
 )
@@ -176,6 +177,8 @@ def test_selected_variant_preserves_transitive_resources(scene):
     material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
     UsdShade.MaterialBindingAPI.Apply(variant.GetPrim()).Bind(material)
     UsdGeom.Xform.Define(stage, roots[2])
+    retained = stage.DefinePrim("/__ExportResources/resource_0", "Xform")
+    retained.CreateAttribute("original", Sdf.ValueTypeNames.String).Set("keep")
     plan = ClonePlan(
         sources=(roots[0] + "/Body", roots[1] + "/Body"),
         destinations=("/World/envs/env_{}/Body",) * 2,
@@ -185,6 +188,7 @@ def test_selected_variant_preserves_transitive_resources(scene):
     before = stage.GetRootLayer().ExportToString()
     writer = UsdWriter.from_stage(stage)
     writer.select_environment(plan, 2, roots)
+    assert writer.stage.GetPrimAtPath(retained.GetPath()).GetAttribute("original").Get() == "keep"
     selected = writer.stage.GetPrimAtPath(roots[2] + "/Body")
     assert UsdGeom.Sphere(selected).GetRadiusAttr().Get() == pytest.approx(0.42)
     bound, _ = UsdShade.MaterialBindingAPI(selected).ComputeBoundMaterial()
@@ -273,7 +277,7 @@ def test_selected_properties_preserve_untouched_instance_and_source():
 def test_binding_override_extension_and_scalar_vector_schema_types():
     class Base:
         @property
-        @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"))
+        @usd_field(UsdAttribute("physics:mass", "PhysicsMassAPI"), actuator_config="armature")
         def value(self):
             return np.array([[2.5]])
 
@@ -284,6 +288,7 @@ def test_binding_override_extension_and_scalar_vector_schema_types():
             return super().value
 
     assert len(usd_fields(Derived)["value"]) == 2
+    assert usd_actuator_fields(Derived) == {"value": "armature"}
     stage = _stage()
     body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(body)
@@ -325,12 +330,13 @@ def test_unsupported_binding_fails_explicitly(target, error):
 def test_required_backend_binding_and_property_shadow_fail():
     class Base:
         @property
-        @usd_field()
+        @usd_field(actuator_config="friction")
         def friction(self):
             raise AssertionError("Discovery must not read friction.")
 
     with pytest.raises(NotImplementedError, match="Missing backend"):
         usd_fields(Base)
+    assert usd_actuator_fields(Base) == {"friction": "friction"}
 
     class Backend(Base):
         @property
@@ -342,8 +348,11 @@ def test_required_backend_binding_and_property_shadow_fail():
         friction = None
 
     assert set(usd_fields(Backend)) == {"friction"}
+    assert usd_actuator_fields(Backend) == {"friction": "friction"}
     with pytest.raises(NotImplementedError, match="shadowed"):
         usd_fields(Shadow)
+    with pytest.raises(NotImplementedError, match="shadowed"):
+        usd_actuator_fields(Shadow)
 
 
 def test_articulation_rejects_unsupported_driven_joint(monkeypatch):
