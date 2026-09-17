@@ -101,12 +101,16 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str 
             if not isinstance(current, list):
                 return data, "\n".join(lines[end + 1 :]), f"mixed scalar/list value for {current_list_key!r}"
             current.append(value)
+            current_map_key = None  # list items do not open a map context
             continue
         if line.startswith("  ") and current_map_key is not None and ":" in line:
             # Nested `parent:\n  key: value` map entry. Flattened as `parent.key` so callers can
             # distinguish it from a mistaken top-level `key: value`.
             nested_key, nested_value = line.strip().split(":", 1)
-            data[f"{current_map_key}.{nested_key.strip()}"] = nested_value.strip().strip("\"'")
+            nested_key = nested_key.strip()
+            if not nested_key:
+                return data, "\n".join(lines[end + 1 :]), f"empty nested key under {current_map_key!r}: {line!r}"
+            data[f"{current_map_key}.{nested_key}"] = nested_value.strip().strip("\"'")
             continue
         current_list_key = None
         current_map_key = None
@@ -122,7 +126,8 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str 
         if value:
             data[key] = value.strip("\"'")
         else:
-            data[key] = []
+            # Key with no inline value: next indented lines are list items or map entries.
+            # Do not pre-write data[key] — the list branch creates the list on first item.
             current_list_key = key
             current_map_key = key
 
@@ -367,7 +372,8 @@ class Skill:
                     errors.append(f"{_display_path(evals_json)}: eval entry must be an object, got {entry!r}")
                     continue
                 for field in ("id", "prompt"):
-                    if not entry.get(field):
+                    value = entry.get(field)
+                    if value is None or value == "":
                         errors.append(f"{_display_path(evals_json)}: entry missing required field '{field}'")
                 # `expected_skill: null` is intentional for negative eval cases (no skill should
                 # trigger); only its key membership is required, not a truthy value.
