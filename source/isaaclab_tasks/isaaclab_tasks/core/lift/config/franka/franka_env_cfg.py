@@ -44,7 +44,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
             "panda_joint6": 25.0,
             "panda_joint7": 15.0,
         },
-        viscous_friction={"panda_joint[1-4]": 40.0, "panda_joint[5-7]": 2.0},
+        viscous_friction=0.0,
         armature={
             "panda_joint[1-2]": 0.6057,
             "panda_joint[3-4]": 0.4625,
@@ -58,7 +58,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
         joint_velocity_limit=2.0,
         stiffness=350.0,
         damping=175.0,
-        viscous_friction=10.0,
+        viscous_friction=0.0,
         armature=0.1,
     ),
     "panda_finger2_passive": ImplicitActuatorCfg(
@@ -68,7 +68,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
         joint_velocity_limit=2.0,
         stiffness=0.0,
         damping=0.0,
-        viscous_friction=10.0,
+        viscous_friction=0.0,
         armature=0.1,
     ),
 }
