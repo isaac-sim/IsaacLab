@@ -14,6 +14,8 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
+from .rewards import get_pnp_apple_state
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -29,8 +31,6 @@ def reset_task_stage(
     """Reset stage trackers and capture the post-reset apple height reference."""
     if len(env_ids) == 0:
         return
-
-    from .rewards import get_pnp_apple_state
 
     state = get_pnp_apple_state(env)
     previous_stage = state.task_stage[env_ids].clone()

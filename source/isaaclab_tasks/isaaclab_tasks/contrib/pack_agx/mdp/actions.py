@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Action terms for the H2 pick-and-place apple task."""
+"""Action terms for the H2 AGX Orin packing task."""
 
 from __future__ import annotations
 
