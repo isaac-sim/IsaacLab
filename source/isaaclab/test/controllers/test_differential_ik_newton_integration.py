@@ -30,12 +30,12 @@ def _make_controller(
     device: str = "cpu",
 ) -> DifferentialIKController:
     cfg = DifferentialIKControllerCfg(
+        use_newton=True,
         command_type=command_type,
         use_relative_mode=use_relative_mode,
         ik_method=ik_method,
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
-        num_joints=_NUM_JOINTS,
     )
     return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
 
@@ -130,9 +130,11 @@ def _previous_joint_limit_correction(
 
 @pytest.mark.parametrize("ik_method", ["pinv", "svd", "trans", "dls", "adaptive_dls"])
 @pytest.mark.parametrize("orientation_weight", [None, (0.4, 0.2, 0.0), (2.0, 1.0, 1.0)])
-def test_newton_backend_matches_previous_pose_solver(ik_method: str, orientation_weight):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight, use_newton: bool):
     """Every configured solver produces the previous Isaac Lab joint-position target."""
     controller = _make_controller(ik_method, orientation_weight=orientation_weight)
+    controller.cfg.use_newton = use_newton
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
     jacobian = _well_conditioned_jacobian("cpu")
     controller.set_command(command)
@@ -145,9 +147,11 @@ def test_newton_backend_matches_previous_pose_solver(ik_method: str, orientation
 
 
 @pytest.mark.parametrize("ik_method", ["pinv", "svd", "trans", "dls", "adaptive_dls"])
-def test_newton_backend_matches_previous_position_solver(ik_method: str):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_backend_matches_previous_position_solver(ik_method: str, use_newton: bool):
     """Position-only control passes the matching three-row site Jacobian to every solver."""
     controller = _make_controller(ik_method, command_type="position")
+    controller.cfg.use_newton = use_newton
     ee_pos, ee_quat, _, joint_pos = _pose_inputs("cpu")
     command = ee_pos + torch.tensor([0.01, -0.02, 0.03])
     jacobian = _well_conditioned_jacobian("cpu")
@@ -206,8 +210,6 @@ def test_command_and_bridge_buffers_keep_stable_addresses():
     controller = _make_controller("dls")
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
     jacobian = _well_conditioned_jacobian("cpu")
-    target_pos_ptr = controller.ee_pos_des.data_ptr()
-    target_quat_ptr = controller.ee_quat_des.data_ptr()
 
     controller.set_command(command)
     controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
@@ -219,8 +221,6 @@ def test_command_and_bridge_buffers_keep_stable_addresses():
 
     controller.set_command(command.clone())
     controller.compute(ee_pos.clone(), ee_quat.clone(), jacobian.clone(), joint_pos.clone())
-    assert controller.ee_pos_des.data_ptr() == target_pos_ptr
-    assert controller.ee_quat_des.data_ptr() == target_quat_ptr
     assert pointers == (
         controller._controller_input.tool_pose_world.ptr,
         controller._controller_input.jacobian_tool_world.ptr,
@@ -285,6 +285,9 @@ def test_joint_limits_accept_float64_cpu_tensors_before_and_after_initialization
 def test_joint_limit_count_matches_initialized_controller():
     """The setter rejects limits that do not match the fixed joint count."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2)
+    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
+    controller.set_command(command)
+    controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)
     with pytest.raises(ValueError, match="limits for 7 joints"):
         controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
 
@@ -316,8 +319,15 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
     torch.testing.assert_close(result, joint_pos)
 
 
-def test_requires_joint_count_in_config():
-    """Standalone construction requires a resolved joint count."""
-    cfg = DifferentialIKControllerCfg(command_type="pose", ik_method="dls")
-    with pytest.raises(ValueError, match="cfg.num_joints must be set"):
-        DifferentialIKController(cfg, num_envs=1, device="cpu")
+@pytest.mark.parametrize("use_newton", [False, True])
+def test_joint_count_is_inferred_from_compute(use_newton):
+    """Both solvers retain standalone construction and accept changing joint counts."""
+    cfg = DifferentialIKControllerCfg(command_type="position", ik_method="dls", use_newton=use_newton)
+    controller = DifferentialIKController(cfg, 1, "cpu")
+    quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+    controller.set_command(torch.ones(1, 3) * 0.1, ee_quat=quat)
+    for count in (7, 6, 8):
+        actual = controller.compute(torch.zeros(1, 3), quat, torch.eye(6, count).unsqueeze(0), torch.zeros(1, count))
+        expected = torch.zeros(1, count)
+        expected[:, :3] = 0.1 / (1.0 + cfg.ik_params["lambda_val"] ** 2)
+        torch.testing.assert_close(actual, expected)

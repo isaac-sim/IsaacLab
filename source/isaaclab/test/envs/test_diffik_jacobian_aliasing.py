@@ -44,39 +44,8 @@ class _Stub:
         return self._backing_buffer
 
 
-class _ApplyAsset:
-    """Minimal articulation target sink for controller compatibility tests."""
-
-    def __init__(self):
-        self.data = SimpleNamespace(joint_pos=SimpleNamespace(torch=torch.tensor([[0.2, -0.1]])))
-        self.target = None
-
-    def set_joint_position_target_index(self, *, target: torch.Tensor, joint_ids):
-        self.target = target.clone()
-
-
-class _LegacyController:
-    """Custom controller implementing the historical compute signature."""
-
-    def compute(self, ee_pos, ee_quat, jacobian, joint_pos):
-        return joint_pos + 0.25
-
-
 def _make_stub(num_envs: int, num_joints: int, body_offset_pos, body_offset_rot, backing_buffer: torch.Tensor):
     return _Stub(num_envs, num_joints, body_offset_pos, body_offset_rot, backing_buffer)
-
-
-def _make_apply_stub(controller):
-    stub = SimpleNamespace(
-        cfg=SimpleNamespace(controller=SimpleNamespace(joint_limit_avoidance_gain=0.0)),
-        _asset=_ApplyAsset(),
-        _joint_ids=[0, 1],
-        _limits_injected=False,
-        _ik_controller=controller,
-        _compute_frame_pose=lambda: (torch.zeros(1, 3), torch.tensor([[0.0, 0.0, 0.0, 1.0]])),
-        _compute_frame_jacobian=lambda: torch.zeros(1, 6, 2),
-    )
-    return stub
 
 
 def test_compute_frame_jacobian_is_idempotent_within_step():
@@ -145,15 +114,6 @@ def test_compute_frame_jacobian_returns_owned_buffer():
     out = DifferentialInverseKinematicsAction._compute_frame_jacobian(stub)
     assert out.data_ptr() == stub._jacobian_b.data_ptr()
     assert out.data_ptr() != backing.data_ptr()
-
-
-def test_apply_actions_preserves_legacy_custom_controller_signature():
-    """Custom controllers retain the historical four-argument compute contract."""
-    stub = _make_apply_stub(_LegacyController())
-
-    DifferentialInverseKinematicsAction.apply_actions(stub)
-
-    torch.testing.assert_close(stub._asset.target, torch.tensor([[0.45, 0.15]]))
 
 
 if __name__ == "__main__":

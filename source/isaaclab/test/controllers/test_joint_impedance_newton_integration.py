@@ -18,7 +18,9 @@ _NUM_DOF = 7
 
 
 def _make_cfg(mode: str, command_type: str, inertial: bool, gravity: bool) -> JointImpedanceControllerCfg:
-    cfg = JointImpedanceControllerCfg()
+    cfg = JointImpedanceControllerCfg(
+        use_newton=True,
+    )
     cfg.impedance_mode = mode
     cfg.command_type = command_type
     cfg.inertial_compensation = inertial
@@ -57,18 +59,20 @@ def _reference_torques(
     return torques
 
 
+@pytest.mark.parametrize("use_newton", [False, True])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 @pytest.mark.parametrize("mode", ["fixed", "variable_kp", "variable"])
 @pytest.mark.parametrize("command_type", ["p_abs", "p_rel"])
 @pytest.mark.parametrize("inertial", [False, True])
 @pytest.mark.parametrize("gravity", [False, True])
-def test_newton_backend_matches_previous_impedance_law(
-    mode: str, command_type: str, inertial: bool, gravity: bool, dtype: torch.dtype
+def test_backend_matches_previous_impedance_law(
+    mode: str, command_type: str, inertial: bool, gravity: bool, dtype: torch.dtype, use_newton: bool
 ) -> None:
-    """The Newton-backed controller reproduces the previous Torch impedance law."""
+    """Both backends reproduce the original Torch impedance law."""
     device = "cpu"
     generator = torch.Generator(device=device).manual_seed(0)
     cfg = _make_cfg(mode, command_type, inertial, gravity)
+    cfg.use_newton = use_newton
     limits = torch.stack(
         [
             -3.0 * torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device),

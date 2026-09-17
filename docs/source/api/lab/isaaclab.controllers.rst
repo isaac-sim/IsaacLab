@@ -19,36 +19,34 @@ Newton controller integration
 -----------------------------
 
 ``DifferentialIKController``, ``JointImpedanceController``, and ``OperationalSpaceController``
-use Newton's model-free controller APIs. They accept Torch tensors independently of the simulation
-backend. Isaac Lab resolves commands and gain schedules, copies inputs into persistent float32
-buffers, and invokes Newton's ``step()`` method. Returned tensors are independent snapshots.
+retain their original Torch implementations by default. Set ``use_newton=True`` in the controller
+configuration to select Newton's model-free solver. Both choices use the same constructor,
+command and compute APIs and return independent result tensors. The controller choice is independent
+of the physics backend: a Newton controller can also run with PhysX simulation.
 
-DiffIK and OSC require ``cfg.num_joints`` before construction, fixing the selected joint count
-for that controller's lifetime. Standalone callers must set this field. Action terms fill a copy
-of the controller config from their resolved joint selection. Task-space dimensions and gains do
-not determine the joint count. Newton and its ports are initialized in the constructor.
-Use a separate controller for a different joint count.
+Newton allocates persistent float32 workspace on the first ``compute()`` call. DiffIK and OSC infer
+the number of controlled joints from the input tensors and rebuild the workspace if it changes;
+callers do not specify a joint count. For CUDA capture, supply commands and limits and warm up
+``compute()`` before capture. Recapture after changing the joint count, first enabling joint-limit
+avoidance, or changing captured control flow. DiffIK retains ``set_joint_pos_limits()`` before or
+after initialization. Gravity compensation can still be enabled or disabled between compute calls.
 
-DiffIK retains ``set_joint_pos_limits()``. When avoidance is configured, the first supplied
-limits rebuild Newton to enable that feature; subsequent limit updates reuse the backend.
-For CUDA capture, supply commands and limits and warm up ``compute()`` before capture.
-Recapture after first enabling joint-limit avoidance or after OSC ``reset()``.
-
-Newton 1.6.0 is required. Float64 inputs do not provide float64 solver precision. Applications that
-require double-precision control laws must retain the previous implementation.
+Newton 1.6.0 is required for the opt-in path. Float64 inputs do not provide float64 Newton solver
+precision; leave ``use_newton=False`` when double-precision control laws are required.
 
 Operational-space migration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Motion-axis selection now precedes inertia decoupling. Hybrid force/motion tasks that select only
-some axes must revalidate tracking and contact-force gains; the former post-inertia masking is not
-available. Inertia decoupling requires at least six controlled joints. Set
-``inertial_dynamics_decoupling=False`` for under-actuated arms. Null-space posture efforts are
-mass-weighted only when inertia decoupling is enabled; retune posture gains if a task previously
-passed a mass matrix while leaving decoupling disabled.
+When ``use_newton=True``, motion-axis selection precedes inertia decoupling. Hybrid force/motion
+tasks that select only some axes must revalidate tracking and contact-force gains. The default
+Torch path retains its original post-inertia selection. Newton inertia decoupling requires at least
+six controlled joints; disable ``inertial_dynamics_decoupling`` for under-actuated arms. Newton
+mass-weights null-space posture efforts only when inertia decoupling is enabled, unlike the
+original implementation when a mass matrix is supplied without decoupling. Existing gains and
+checkpoints therefore remain on the default path until separately validated with Newton.
 
-Newton applies orientation weights and computes differential-IK pose errors and solver updates.
-The SO-101 controller masks orientation-Jacobian columns before calling the base controller.
+SO-101 retains its original wrist-only orientation mask on the default path. With Newton selected,
+it applies the mask to a copy of the Jacobian before the Newton solve.
 
 Differential Inverse Kinematics
 -------------------------------

@@ -18,6 +18,13 @@ class JointImpedanceControllerCfg:
     class_type: type | str = "isaaclab.controllers.joint_impedance:JointImpedanceController"
     """The associated controller class."""
 
+    use_newton: bool = False
+    """Use Newton's model-free solver instead of the original Torch implementation.
+
+    This choice is independent of the simulation physics backend. Newton allocates its
+    float32 workspace on the first compute call; warm up before capturing CUDA graphs.
+    """
+
     command_type: str = "p_abs"
     """Type of command: p_abs (absolute) or p_rel (relative)."""
 

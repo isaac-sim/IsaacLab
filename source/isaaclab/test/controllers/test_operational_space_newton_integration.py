@@ -53,7 +53,7 @@ def _reference_efforts(
 
     def to_root_frame(axis_values: torch.Tensor) -> torch.Tensor:
         """Block-rotate a per-axis task-frame diagonal into a root-frame 6x6 matrix."""
-        task = torch.diag_embed(axis_values.expand(num_envs, 6).contiguous())
+        task = axis_values
         root = torch.zeros_like(task)
         root[:, 0:3, 0:3] = rot_task_b @ task[:, 0:3, 0:3] @ rot_b_task
         root[:, 3:6, 3:6] = rot_task_b @ task[:, 3:6, 3:6] @ rot_b_task
@@ -76,8 +76,9 @@ def _reference_efforts(
         des_ee_acc_b = to_root_frame(controller._motion_p_gains_task) @ pose_error_b.unsqueeze(-1) + to_root_frame(
             controller._motion_d_gains_task
         ) @ (-ee_vel_b).unsqueeze(-1)
-        selection_motion_b = to_root_frame(controller._selection_axes_motion_task)
-        des_ee_acc_b = selection_motion_b @ des_ee_acc_b
+        selection_motion_b = to_root_frame(controller._selection_matrix_motion_task)
+        if cfg.use_newton:
+            des_ee_acc_b = selection_motion_b @ des_ee_acc_b
         if cfg.inertial_dynamics_decoupling:
             mass_matrix_inv = torch.inverse(mass_matrix)
             if cfg.partial_inertial_dynamics_decoupling:
@@ -92,6 +93,8 @@ def _reference_efforts(
             os_command_forces_b = os_mass_matrix_b @ des_ee_acc_b
         else:
             os_command_forces_b = des_ee_acc_b
+        if not cfg.use_newton:
+            os_command_forces_b = selection_motion_b @ os_command_forces_b
         joint_efforts += (jacobian_b.mT @ os_command_forces_b).squeeze(-1)
 
     if controller.desired_ee_wrench_b is not None:
@@ -104,7 +107,7 @@ def _reference_efforts(
             ) @ (controller.desired_ee_wrench_b - measured_wrench_b).unsqueeze(-1)
         else:
             wrench_command_b = controller.desired_ee_wrench_b.unsqueeze(-1)
-        selection_force_b = to_root_frame(controller._selection_axes_force_task)
+        selection_force_b = to_root_frame(controller._selection_matrix_force_task)
         joint_efforts += (jacobian_b.mT @ selection_force_b @ wrench_command_b).squeeze(-1)
 
     if cfg.gravity_compensation:
@@ -120,7 +123,11 @@ def _reference_efforts(
             controller._nullspace_p_gain * (nullspace_joint_pos_target - joint_pos)
             + controller._nullspace_d_gain * (-joint_vel)
         ).unsqueeze(-1)
-        posture_force = mass_matrix @ joint_acc_nullspace if cfg.inertial_dynamics_decoupling else joint_acc_nullspace
+        posture_force = (
+            mass_matrix @ joint_acc_nullspace
+            if not cfg.use_newton or cfg.inertial_dynamics_decoupling
+            else joint_acc_nullspace
+        )
         joint_efforts += (nullspace_jacobian_transpose @ posture_force).squeeze(-1)
 
     return joint_efforts
@@ -191,19 +198,21 @@ def _build(scenario: dict) -> tuple[OperationalSpaceController, bool]:
     scenario = dict(scenario)
     task_frame = scenario.pop("task_frame", False)
     cfg = OperationalSpaceControllerCfg(
+        use_newton=True,
         motion_stiffness_task=(120.0, 130.0, 140.0, 15.0, 16.0, 17.0),
         motion_damping_ratio_task=(1.0, 1.1, 0.9, 1.0, 1.2, 0.8),
         **scenario,
-        num_joints=_NUM_DOF,
     )
     return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE), task_frame
 
 
+@pytest.mark.parametrize("use_newton", [False, True])
 @pytest.mark.parametrize("scenario_name", list(_SCENARIOS))
-def test_newton_backend_matches_operational_space_law(scenario_name: str) -> None:
+def test_backend_matches_operational_space_law(scenario_name: str, use_newton: bool) -> None:
     """The Newton-backed controller matches an independent operational-space reference."""
     generator = torch.Generator(device=_DEVICE).manual_seed(0)
     controller, task_frame = _build(_SCENARIOS[scenario_name])
+    controller.cfg.use_newton = use_newton
 
     ee_pose_b = torch.cat([0.4 * torch.randn(_NUM_ENVS, 3, generator=generator), _random_quat(generator)], dim=-1)
     ee_vel_b = 0.2 * torch.randn(_NUM_ENVS, 6, generator=generator)
@@ -312,20 +321,8 @@ def test_reset_clears_the_task_space_targets() -> None:
 @pytest.mark.parametrize("num_joints", [4, 6])
 def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> None:
     """Newton rejects under-actuated decoupling but accepts the six-joint boundary."""
-    if num_joints < 6:
-        with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
-            controller = OperationalSpaceController(
-                OperationalSpaceControllerCfg(
-                    target_types=["pose_abs"], inertial_dynamics_decoupling=True, num_joints=num_joints
-                ),
-                1,
-                "cpu",
-            )
-        return
     controller = OperationalSpaceController(
-        OperationalSpaceControllerCfg(
-            target_types=["pose_abs"], inertial_dynamics_decoupling=True, num_joints=num_joints
-        ),
+        OperationalSpaceControllerCfg(use_newton=True, target_types=["pose_abs"], inertial_dynamics_decoupling=True),
         1,
         "cpu",
     )
@@ -337,7 +334,11 @@ def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> 
         current_ee_vel_b=torch.zeros(1, 6),
         mass_matrix=torch.eye(num_joints).unsqueeze(0),
     )
-    torch.testing.assert_close(controller.compute(**kwargs), torch.zeros(1, num_joints))
+    if num_joints < 6:
+        with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
+            controller.compute(**kwargs)
+    else:
+        torch.testing.assert_close(controller.compute(**kwargs), torch.zeros(1, num_joints))
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graph capture requires CUDA")
@@ -348,7 +349,7 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
         controller = OperationalSpaceController(
-            OperationalSpaceControllerCfg(target_types=["pose_abs"], impedance_mode="variable_kp", num_joints=7),
+            OperationalSpaceControllerCfg(use_newton=True, target_types=["pose_abs"], impedance_mode="variable_kp"),
             1,
             device,
         )
@@ -377,8 +378,21 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
             torch.testing.assert_close(compute(), torch.zeros_like(expected))
 
 
-def test_requires_joint_count_in_config():
-    """Standalone construction requires a resolved joint count."""
-    cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"])
-    with pytest.raises(ValueError, match="cfg.num_joints must be set"):
-        OperationalSpaceController(cfg, num_envs=1, device="cpu")
+@pytest.mark.parametrize("use_newton", [False, True])
+def test_joint_count_inference_and_runtime_gravity_toggle(use_newton):
+    """Both solvers infer dimensions and respect enabling/disabling gravity between calls."""
+    cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"], use_newton=use_newton)
+    controller = OperationalSpaceController(cfg, 1, "cpu")
+    pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
+    controller.set_command(pose)
+    for count in (7, 6, 8):
+        gravity = torch.arange(count, dtype=torch.float32).unsqueeze(0)
+        for enabled in (False, True, False):
+            cfg.gravity_compensation = enabled
+            actual = controller.compute(
+                jacobian_b=torch.eye(6, count).unsqueeze(0),
+                current_ee_pose_b=pose,
+                current_ee_vel_b=torch.zeros(1, 6),
+                gravity=gravity if enabled else None,
+            )
+            torch.testing.assert_close(actual, gravity if enabled else torch.zeros_like(gravity))

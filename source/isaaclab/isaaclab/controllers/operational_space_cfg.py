@@ -22,11 +22,11 @@ class OperationalSpaceControllerCfg:
     class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
     """The associated controller class."""
 
-    num_joints: int | None = None
-    """Fixed number of controlled joints.
+    use_newton: bool = False
+    """Use Newton's model-free solver instead of the original Torch implementation.
 
-    Action terms fill this from their resolved joint selection. Standalone callers must set it
-    before constructing the controller; task-space dimensions do not determine the joint count.
+    This choice is independent of the simulation physics backend. Newton allocates its
+    float32 workspace on the first compute call; warm up before capturing CUDA graphs.
     """
 
     target_types: Sequence[str] = MISSING
@@ -40,7 +40,8 @@ class OperationalSpaceControllerCfg:
     motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
     """Motion direction to control in task reference frame. Mark as ``0/1`` for each axis.
 
-    Selection is applied to the commanded task acceleration before inertia decoupling.
+    The original Torch solver selects motion after inertia decoupling. With ``use_newton=True``,
+    selection is applied to the commanded task acceleration before inertia decoupling.
     """
 
     contact_wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
@@ -49,7 +50,7 @@ class OperationalSpaceControllerCfg:
     inertial_dynamics_decoupling: bool = False
     """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics).
 
-    Requires at least six controlled joints. Disable for under-actuated arms.
+    With ``use_newton=True``, requires at least six controlled joints; disable for under-actuated arms.
     """
 
     partial_inertial_dynamics_decoupling: bool = False

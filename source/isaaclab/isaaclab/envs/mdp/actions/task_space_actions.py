@@ -16,6 +16,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
+from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
@@ -86,8 +87,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._joint_ids = slice(None)
 
         # create the differential IK controller
-        self._ik_controller = self.cfg.controller.class_type(
-            cfg=self.cfg.controller.replace(num_joints=self._num_joints), num_envs=self.num_envs, device=self.device
+        self._ik_controller = DifferentialIKController(
+            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
         # joint limits are injected lazily on the first apply (asset data is populated by then) so
         # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
@@ -147,9 +148,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         jacobian = self.jacobian_w
         base_rot = self._asset.data.root_quat_w.torch
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
-        return torch.cat(
-            (torch.bmm(base_rot_matrix, jacobian[:, :3, :]), torch.bmm(base_rot_matrix, jacobian[:, 3:, :])), dim=1
-        )
+        jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+        jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+        return jacobian
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
@@ -214,7 +215,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             jacobian = self._compute_frame_jacobian()
             joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
         else:
-            joint_pos_des = joint_pos
+            joint_pos_des = joint_pos.clone()
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
@@ -252,7 +253,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         This function accounts for the target frame offset and applies the necessary transformations to obtain
         the right Jacobian from the parent body Jacobian.
         """
-        # Custom jacobian_b properties may expose engine data; apply offsets only to our owned buffer.
         self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
@@ -376,9 +376,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._task_frame_pose_b = None
 
         # create the operational space controller
-        self._osc = OperationalSpaceController(
-            cfg=self.cfg.controller_cfg.replace(num_joints=self._num_DoF), num_envs=self.num_envs, device=self.device
-        )
+        self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)

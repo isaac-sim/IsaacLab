@@ -239,7 +239,8 @@ def sim():
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_without_inertial_decoupling(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_without_inertial_decoupling(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance and without inertial dynamics decoupling."""
     (
         sim_context,
@@ -263,13 +264,13 @@ def test_franka_pose_abs_without_inertial_decoupling(sim):
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=False,
         gravity_compensation=False,
         motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
         motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -289,7 +290,8 @@ def test_franka_pose_abs_without_inertial_decoupling(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_with_partial_inertial_decoupling(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling."""
     (
         sim_context,
@@ -313,6 +315,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -320,7 +323,6 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
         gravity_compensation=False,
         motion_stiffness_task=1000.0,
         motion_damping_ratio_task=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -341,7 +343,8 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance, gravity compensation, and inertial dynamics decoupling."""
     (
         sim_context,
@@ -366,6 +369,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
     robot_cfg.spawn.rigid_props.disable_gravity = False
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -373,7 +377,6 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
         gravity_compensation=True,
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=2.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -393,7 +396,8 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -417,6 +421,7 @@ def test_franka_pose_abs(sim):
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -424,7 +429,6 @@ def test_franka_pose_abs(sim):
         gravity_compensation=False,
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -444,7 +448,8 @@ def test_franka_pose_abs(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_rel(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_rel(sim, use_newton: bool):
     """Test relative pose control with fixed impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -468,6 +473,7 @@ def test_franka_pose_rel(sim):
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_rel"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -475,7 +481,6 @@ def test_franka_pose_rel(sim):
         gravity_compensation=False,
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -495,7 +500,8 @@ def test_franka_pose_rel(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_variable_impedance(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_variable_impedance(sim, use_newton: bool):
     """Test absolute pose control with variable impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -519,12 +525,12 @@ def test_franka_pose_abs_variable_impedance(sim):
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="variable",
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -544,7 +550,8 @@ def test_franka_pose_abs_variable_impedance(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_wrench_abs_open_loop(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_wrench_abs_open_loop(sim, use_newton: bool):
     """Test open loop absolute force control."""
     (
         sim_context,
@@ -603,10 +610,10 @@ def test_franka_wrench_abs_open_loop(sim):
     contact_forces = ContactSensor(contact_forces_cfg)
 
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["wrench_abs"],
         motion_control_axes_task=[0, 0, 0, 0, 0, 0],
         contact_wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -626,7 +633,8 @@ def test_franka_wrench_abs_open_loop(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_wrench_abs_closed_loop(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_wrench_abs_closed_loop(sim, use_newton: bool):
     """Test closed loop absolute force control."""
     (
         sim_context,
@@ -685,6 +693,7 @@ def test_franka_wrench_abs_closed_loop(sim):
     contact_forces = ContactSensor(contact_forces_cfg)
 
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["wrench_abs"],
         contact_wrench_stiffness_task=[
             0.2,
@@ -696,7 +705,6 @@ def test_franka_wrench_abs_closed_loop(sim):
         ],  # Zero torque feedback as we cannot contact torque
         motion_control_axes_task=[0, 0, 0, 0, 0, 0],
         contact_wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -716,7 +724,8 @@ def test_franka_wrench_abs_closed_loop(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_hybrid_decoupled_motion(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_hybrid_decoupled_motion(sim, use_newton: bool):
     """Test hybrid control with fixed impedance and partial inertial dynamics decoupling."""
     (
         sim_context,
@@ -763,6 +772,7 @@ def test_franka_hybrid_decoupled_motion(sim):
     contact_forces = ContactSensor(contact_forces_cfg)
 
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs", "wrench_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -773,7 +783,6 @@ def test_franka_hybrid_decoupled_motion(sim):
         contact_wrench_stiffness_task=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
         motion_control_axes_task=[0, 1, 1, 1, 1, 1],
         contact_wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -794,7 +803,8 @@ def test_franka_hybrid_decoupled_motion(sim):
 
 @pytest.mark.isaacsim_ci
 @flaky(max_runs=3, min_passes=1)
-def test_franka_hybrid_variable_kp_impedance(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_hybrid_variable_kp_impedance(sim, use_newton: bool):
     """Test hybrid control with variable kp impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -841,6 +851,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
     contact_forces = ContactSensor(contact_forces_cfg)
 
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs", "wrench_abs"],
         impedance_mode="variable_kp",
         inertial_dynamics_decoupling=True,
@@ -850,7 +861,6 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         contact_wrench_stiffness_task=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
         motion_control_axes_task=[0, 1, 1, 1, 1, 1],
         contact_wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -872,7 +882,8 @@ def test_franka_hybrid_variable_kp_impedance(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_taskframe_pose_abs(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_taskframe_pose_abs(sim, use_newton: bool):
     """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -897,6 +908,7 @@ def test_franka_taskframe_pose_abs(sim):
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -904,7 +916,6 @@ def test_franka_taskframe_pose_abs(sim):
         gravity_compensation=False,
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -924,7 +935,8 @@ def test_franka_taskframe_pose_abs(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_taskframe_pose_rel(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_taskframe_pose_rel(sim, use_newton: bool):
     """Test relative pose control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -949,6 +961,7 @@ def test_franka_taskframe_pose_rel(sim):
     robot = Articulation(cfg=robot_cfg)
     frame = "task"
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_rel"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -956,7 +969,6 @@ def test_franka_taskframe_pose_rel(sim):
         gravity_compensation=False,
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -976,7 +988,8 @@ def test_franka_taskframe_pose_rel(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_taskframe_hybrid(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_taskframe_hybrid(sim, use_newton: bool):
     """Test hybrid control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
         sim_context,
@@ -1024,6 +1037,7 @@ def test_franka_taskframe_hybrid(sim):
     contact_forces = ContactSensor(contact_forces_cfg)
 
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs", "wrench_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -1034,7 +1048,6 @@ def test_franka_taskframe_hybrid(sim):
         contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
         motion_control_axes_task=[1, 1, 0, 1, 1, 1],
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1054,7 +1067,8 @@ def test_franka_taskframe_hybrid(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance and nullspace centerin but without inertial decoupling."""
     (
         sim_context,
@@ -1078,6 +1092,7 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=False,
@@ -1085,7 +1100,6 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
         motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
         motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
         nullspace_control="position",
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1105,7 +1119,8 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance, partial inertial decoupling and nullspace centering."""
     (
         sim_context,
@@ -1129,6 +1144,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -1138,7 +1154,6 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         motion_damping_ratio_task=1.0,
         nullspace_control="position",
         nullspace_stiffness=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1159,7 +1174,8 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_with_nullspace_centering(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_pose_abs_with_nullspace_centering(sim, use_newton: bool):
     """Test absolute pose control with fixed impedance, inertial decoupling and nullspace centering."""
     (
         sim_context,
@@ -1183,6 +1199,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
 
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -1192,7 +1209,6 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         motion_damping_ratio_task=1.0,
         nullspace_control="position",
         nullspace_stiffness=1.0,
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1212,7 +1228,8 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_taskframe_hybrid_with_nullspace_centering(sim, use_newton: bool):
     """Test hybrid control in task frame with fixed impedance, inertial decoupling and nullspace centering."""
     (
         sim_context,
@@ -1260,6 +1277,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
     contact_forces = ContactSensor(contact_forces_cfg)
 
     osc_cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs", "wrench_abs"],
         impedance_mode="fixed",
         inertial_dynamics_decoupling=True,
@@ -1271,7 +1289,6 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         motion_control_axes_task=[1, 1, 0, 1, 1, 1],
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
         nullspace_control="position",
-        num_joints=7,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1299,9 +1316,6 @@ _G1_ARM_JOINT_NAMES = [
     "left_shoulder_roll_joint",
     "left_shoulder_yaw_joint",
     "left_elbow_joint",
-    "left_wrist_roll_joint",
-    "left_wrist_pitch_joint",
-    "left_wrist_yaw_joint",
 ]
 
 

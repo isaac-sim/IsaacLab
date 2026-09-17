@@ -21,11 +21,11 @@ class DifferentialIKControllerCfg:
     class_type: type[DifferentialIKController] | str = "{DIR}.differential_ik:DifferentialIKController"
     """The associated controller class."""
 
-    num_joints: int | None = None
-    """Fixed number of controlled joints.
+    use_newton: bool = False
+    """Use Newton's model-free solver instead of the original Torch implementation.
 
-    Action terms fill this from their resolved joint selection. Standalone callers must set it
-    before constructing the controller; task-space dimensions do not determine the joint count.
+    This choice is independent of the simulation physics backend. Newton allocates its
+    float32 workspace on the first compute call; warm up before capturing CUDA graphs.
     """
 
     command_type: Literal["position", "pose"] = MISSING

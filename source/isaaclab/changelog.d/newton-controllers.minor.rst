@@ -1,0 +1,19 @@
+Added
+^^^^^
+
+* Added opt-in Newton model-free solvers for differential IK, joint impedance, and operational
+  space controllers through ``cfg.use_newton=True``, independently of the simulation backend.
+  Preserved the original Torch solvers by default and retained the constructor and compute APIs.
+  Newton workspace was initialized lazily from compute inputs; CUDA graph users must warm up
+  before capture and recapture after changing joint counts.
+* Documented the opt-in Newton float32 precision, OSC selection before inertia decoupling,
+  six-joint decoupling requirement, and conditional mass weighting of null-space posture efforts.
+  Existing tasks must validate gains and checkpoints before opting in; the default path retained
+  the original behavior.
+
+Fixed
+^^^^^
+
+* Fixed variable joint-impedance gain clamping for robot batches with more than two joints.
+* Fixed batched joint-impedance inertia compensation when the robot and joint counts differed.
+* Fixed the original differential IK SVD solver for position-only and under-actuated tasks.
