@@ -10,10 +10,10 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from pxr import Usd
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.managers import CommandTerm
-from isaaclab.sim import select_usd_variants
+from isaaclab.sim import apply_collision_properties, select_usd_variants, use_stage
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
@@ -23,6 +23,7 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -63,26 +64,67 @@ def test_franka_soft_robot_physics_variant_matches_backend(
 
 
 @pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
-def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
-    """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
+def test_franka_rigid_tasks_keep_only_hand_and_finger_contacts(cfg_type) -> None:
+    """Arm overrides must preserve hand/finger contacts nested below the arm links."""
     cfg = cfg_type()
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")
-    for selection, prim_path, prim_type in (
-        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
-        ("primitives", "/Robot/link1_capsule", "Capsule"),
-    ):
+    for selection in ("convex_hulls", "primitives"):
         colliders.AddVariant(selection)
         colliders.SetVariantSelection(selection)
         with colliders.GetVariantEditContext():
-            stage.DefinePrim(prim_path, prim_type)
-    colliders.SetVariantSelection("primitives")
+            link_path = "/Robot/Geometry"
+            for index in range(8):
+                link_path += f"/panda_link{index}"
+                names = [f"link{index}_capsule"]
+                if index in (5, 7):
+                    names = [f"link{index}_capsule_0", f"link{index}_capsule_1"]
+                if selection == "convex_hulls":
+                    names = [f"link{index}_c"]
+                for name in names:
+                    prim = stage.DefinePrim(f"{link_path}/{name}", "Capsule" if selection == "primitives" else "Mesh")
+                    UsdPhysics.CollisionAPI.Apply(prim)
+            hand_path = f"{link_path}/panda_hand"
+            for suffix, shape in (
+                ("hand_capsule", "Capsule"),
+                ("panda_leftfinger/left_finger_pad", "Cube"),
+                ("panda_rightfinger/right_finger_pad", "Cube"),
+            ):
+                UsdPhysics.CollisionAPI.Apply(stage.DefinePrim(f"{hand_path}/{suffix}", shape))
+    colliders.SetVariantSelection("convex_hulls")
 
     select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
+    for pattern, fragments in (cfg.scene.robot.spawn.collision_props or {}).items():
+        assert apply_collision_properties(f"/Robot{pattern}", fragments, stage=stage)
 
-    assert stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
-    assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+    collision_prims = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.CollisionAPI)]
+    enabled = [prim for prim in collision_prims if UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()]
+    disabled = [prim for prim in collision_prims if not UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()]
+    assert {(prim.GetName(), prim.GetTypeName()) for prim in enabled} == {
+        ("hand_capsule", "Capsule"),
+        ("left_finger_pad", "Cube"),
+        ("right_finger_pad", "Cube"),
+    }
+    assert len(disabled) == 10
+    assert all(prim.GetTypeName() == "Capsule" for prim in disabled)
+
+
+def test_reset_clearance_ignores_disabled_collision_geometry() -> None:
+    """Disabled colliders and visual-only geometry must not reject reset candidates."""
+    stage = Usd.Stage.CreateInMemory()
+    root = stage.DefinePrim("/Object", "Xform")
+    for name, enabled in (("default_enabled", None), ("explicit_enabled", True), ("disabled", False)):
+        prim = UsdGeom.Cube.Define(stage, f"/Object/{name}").GetPrim()
+        collision = UsdPhysics.CollisionAPI.Apply(prim)
+        if enabled is not None:
+            collision.CreateCollisionEnabledAttr(enabled)
+    UsdGeom.Cube.Define(stage, "/Object/visual_only")
+
+    with use_stage(stage):
+        meshes = collect_collision_meshes(root, lambda prim: (prim.GetName(), root))
+
+    assert set(meshes) == {"default_enabled", "explicit_enabled"}
 
 
 def test_camera_normalization_is_stationary() -> None:
