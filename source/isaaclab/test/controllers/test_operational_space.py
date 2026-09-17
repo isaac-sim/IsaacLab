@@ -122,6 +122,8 @@ def sim():
         ],
         device=sim.device,
     )
+    # These orientations also define task frames, whose transforms require unit quaternions.
+    ee_goal_abs_quad_set_b /= torch.linalg.vector_norm(ee_goal_abs_quad_set_b, dim=-1, keepdim=True)
     ee_goal_rel_pos_set = torch.tensor(
         [
             [0.2, 0.0, 0.0],
@@ -1174,7 +1176,8 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
         motion_stiffness_task=500.0,
-        motion_damping_ratio_task=1.0,
+        # Avoid hitting joint limits during the large pose steps while centering the nullspace.
+        motion_damping_ratio_task=2.0,
         nullspace_control="position",
         nullspace_stiffness=1.0,
     )
@@ -1635,9 +1638,9 @@ def _update_states(
     )
     ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
-    # Compute the current velocity of the end-effector
-    ee_vel_w = robot.data.body_vel_w.torch[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
-    root_vel_w = robot.data.root_vel_w.torch  # Extract root velocity in the world frame
+    # Match the link-origin reference point used by the pose and Jacobian.
+    ee_vel_w = robot.data.body_link_vel_w.torch[:, ee_frame_idx, :]
+    root_vel_w = robot.data.root_link_vel_w.torch
     relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
     ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 0:3])  # From world to root frame
     ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 3:6])
