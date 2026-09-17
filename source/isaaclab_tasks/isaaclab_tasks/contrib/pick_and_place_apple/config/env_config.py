@@ -17,23 +17,25 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
+
 from .. import mdp
-from . import (
-    APPLE_USD,
-    BACKGROUND_USD,
-    H2_PNP_APPLE_CUSTOM_JOINT_POS,
-    H2_PNP_APPLE_INIT_POS,
-    H2_PNP_APPLE_INIT_ROT,
-    PLATE_USD,
-    TABLE_USD,
-    CameraPresets,
-    H2RobotPresets,
-)
-from .metadata import H2_ACTION_JOINT_ORDER
-from .robot_config import h2_body_joint_offsets
+from .camera_config import CameraPresets
+from .metadata import H2_ACTION_JOINT_ORDER, H2_PNP_APPLE_CUSTOM_JOINT_POS
+from .robot_config import H2RobotPresets, h2_body_joint_offsets
 
 # Compatibility alias; action order differs from Isaac articulation order.
 h2_joint_names = H2_ACTION_JOINT_ORDER
+
+
+TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256_cloth.usd"
+APPLE_USD = f"{PROP_ASSET_ROOT}/Assets/Apple033/Apple033.usd"
+PLATE_USD = f"{PROP_ASSET_ROOT}/Assets/SimReady_Furniture/plate_large/plate_large_rigid.usd"
+BACKGROUND_USD = f"{NUREC_ASSET_ROOT}/IMG_6246_nurec_aligned_scaled.usdz"
+
+# Task-specific start pose.
+H2_PNP_APPLE_INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
+H2_PNP_APPLE_INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
 
 @configclass
