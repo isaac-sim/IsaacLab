@@ -541,7 +541,9 @@ class OVRTXRenderer(BaseRenderer):
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
         self._cable_point_slices: list[wp.array] = []
 
-    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+    def _initialize_camera_render_data_from_spec_legacy(
+        self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
+    ) -> None:
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
@@ -947,7 +949,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data = OVRTXCameraRenderData(spec, self._device)
         try:
             if not self._initialized_scene:
-                self._initialize_from_spec(spec, render_data)
+                self._initialize_camera_render_data_from_spec(spec, render_data)
                 render_data.render_product_path = self._render_product_paths[0]
                 # Move the initial camera's handles into its render data, just like subsequent cameras.
                 if self._use_ovstage:
@@ -1731,11 +1733,13 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._init_fields_legacy()
 
-    def _initialize_from_spec(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+    def _initialize_camera_render_data_from_spec(
+        self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
+    ) -> None:
         if self._use_ovstage:
-            self._initialize_from_spec_ovstage(spec, render_data)
+            self._initialize_camera_render_data_from_spec_ovstage(spec, render_data)
         else:
-            self._initialize_from_spec_legacy(spec, render_data)
+            self._initialize_camera_render_data_from_spec_legacy(spec, render_data)
 
     def _setup_xform_bindings(self) -> None:
         if self._use_ovstage:
@@ -1923,7 +1927,9 @@ class OVRTXRenderer(BaseRenderer):
         # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
         self._cable_point_tensors: list = []
 
-    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+    def _initialize_camera_render_data_from_spec_ovstage(
+        self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
+    ) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
 
         Args:
@@ -2638,7 +2644,7 @@ class OVRTXRenderer(BaseRenderer):
         # Both are guarded because close() can run before initialization completed — the sim was
         # never played, or scene setup raised — and it must stay a no-op when called twice.
         # detach_ovstage() raises when nothing is attached, and the ExitStack does not exist until
-        # _initialize_from_spec_ovstage creates it.
+        # _initialize_camera_render_data_from_spec_ovstage creates it.
         if self._renderer is not None and self._stage is not None:
             self._renderer.detach_ovstage()
         self._renderer = None

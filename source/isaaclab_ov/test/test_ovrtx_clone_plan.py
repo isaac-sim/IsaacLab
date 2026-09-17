@@ -465,8 +465,8 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
     assert write_calls == []
 
 
-def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
-    """_initialize_from_spec writes the combined stage when temp_usd_dir is set."""
+def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_path: Path):
+    """_initialize_camera_render_data_from_spec writes the combined stage when temp_usd_dir is set."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
     renderer._exported_usd_string = "#usda 1.0\n"
@@ -479,7 +479,7 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     renderer._renderer.write_attribute = lambda **kwargs: None
 
     spec = _make_camera_render_spec(num_envs=1)
-    renderer._initialize_from_spec(spec, OVRTXCameraRenderData(spec, "cpu"))
+    renderer._initialize_camera_render_data_from_spec(spec, OVRTXCameraRenderData(spec, "cpu"))
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -519,7 +519,7 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     assert "uint[] deviceIds = [1]" in combined_text
 
 
-def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
+def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning():
     """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
     num_envs = 4
     renderer = _make_ovrtx_renderer_without_backend()
@@ -543,7 +543,7 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
     renderer._setup_deformable_bindings = lambda _num_envs: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
-    renderer._initialize_from_spec(spec, OVRTXCameraRenderData(spec, "cpu"))
+    renderer._initialize_camera_render_data_from_spec(spec, OVRTXCameraRenderData(spec, "cpu"))
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
     assert write_array_calls == [
