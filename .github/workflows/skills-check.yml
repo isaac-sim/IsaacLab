@@ -103,9 +103,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
         run: |
           set -euo pipefail
-          changed_files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+          # Use Python stdlib to fetch changed files — gh CLI is not available on all runners.
+          changed_files="$(python3 - <<'PYEOF'
+import json, os, urllib.request
+token = os.environ["GH_TOKEN"]
+repo  = os.environ["REPO"]
+pr    = os.environ["PR_NUMBER"]
+base  = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+page, names = 1, []
+while True:
+    req = urllib.request.Request(
+        f"{base}/repos/{repo}/pulls/{pr}/files?per_page=100&page={page}",
+        headers={"Authorization": f"token {token}", "Accept": "application/vnd.github+json"},
+    )
+    batch = json.loads(urllib.request.urlopen(req).read())
+    names.extend(f["filename"] for f in batch)
+    if len(batch) < 100:
+        break
+    page += 1
+print("\n".join(names))
+PYEOF
+)"
 
           declare -A seen=()
           skill_dirs=()
