@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+18.0.2 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Franka deformable lift tasks to select the Menagerie robot's MuJoCo physics payload under
+  Newton while retaining its PhysX payload for PhysX presets.
+
+
 18.0.1 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~~
 
