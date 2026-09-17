@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 from flaky import flaky
@@ -30,6 +32,7 @@ from isaaclab.controllers import OperationalSpaceController, OperationalSpaceCon
 ##
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
+from isaaclab.envs.mdp.actions.task_space_actions import OperationalSpaceControllerAction
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -861,6 +864,23 @@ def test_franka_hybrid_variable_kp_impedance(sim):
 
 
 @pytest.mark.isaacsim_ci
+def test_task_frame_conversion_preserves_absolute_target():
+    """A rounded pose command must resolve to the same target through either reference frame."""
+    osc_cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"])
+    osc = OperationalSpaceController(osc_cfg, num_envs=1, device="cpu")
+    target_b = torch.tensor([[0.5, -0.4, 0.6, 0.707, 0.0, 0.0, 0.707]])
+    command = target_b.clone()
+    resolved_targets = []
+    for frame in ("root", "task"):
+        converted_command, task_frame_pose_b = _convert_to_task_frame(osc, command, target_b, frame)
+        osc.set_command(converted_command, current_task_frame_pose_b=task_frame_pose_b)
+        resolved_targets.append(osc.desired_ee_pose_b.clone())
+
+    torch.testing.assert_close(resolved_targets[0], resolved_targets[1], atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(command, target_b, atol=0.0, rtol=0.0)
+
+
+@pytest.mark.isaacsim_ci
 def test_franka_taskframe_pose_abs(sim):
     """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
@@ -1336,6 +1356,51 @@ class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("feedback_source", ["test_helper", "action"])
+def test_franka_velocity_feedback_matches_jacobian(sim, feedback_source):
+    """Both OSC callers must measure velocity at the link origin used by the Jacobian."""
+    sim_context, num_envs, robot_cfg, *_ = sim
+    robot = Articulation(cfg=robot_cfg)
+    sim_context.reset()
+    arm_joint_ids, _ = robot.find_joints("panda_joint.*")
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+
+    joint_vel = torch.zeros_like(robot.data.default_joint_vel.torch)
+    joint_vel[:, arm_joint_ids] = torch.linspace(0.1, 0.7, len(arm_joint_ids), device=sim_context.device)
+    robot.write_joint_state_to_sim_index(position=robot.data.default_joint_pos.torch, velocity=joint_vel)
+    sim_context.step(render=False)
+    robot.update(sim_context.get_physics_dt())
+
+    # Angular motion and the hand's COM offset must expose the reference-point mismatch.
+    assert not torch.allclose(
+        robot.data.body_com_vel_w.torch[:, ee_frame_idx, :3],
+        robot.data.body_link_vel_w.torch[:, ee_frame_idx, :3],
+        atol=1e-4,
+        rtol=1e-4,
+    )
+    if feedback_source == "test_helper":
+        states = _update_states(robot, ee_frame_idx, arm_joint_ids, sim_context, None, num_envs)
+        jacobian_b, _, _, _, ee_vel_b, _, _, _, _, joint_vel = states
+    else:
+        env = SimpleNamespace(scene={"robot": robot}, sim=sim_context, num_envs=num_envs, device=sim_context.device)
+        action_cfg = OperationalSpaceControllerActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            body_name="panda_hand",
+            controller_cfg=OperationalSpaceControllerCfg(target_types=["pose_abs"]),
+        )
+        action_term = OperationalSpaceControllerAction(action_cfg, env)
+        action_term._compute_ee_jacobian()
+        action_term._compute_ee_velocity()
+        jacobian_b, ee_vel_b = action_term._jacobian_b, action_term._ee_vel_b
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+
+    # With a stationary fixed base, the link twist must equal J(q) * q_dot.
+    expected_vel_b = torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+    torch.testing.assert_close(ee_vel_b, expected_vel_b, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.isaacsim_ci
 def test_floating_base_osc_action_term_indexing():
     """Regression test for #4999 / PR #5107: verify OperationalSpaceControllerAction uses correct
     indices for mass matrix and gravity on floating-base robots.
@@ -1634,9 +1699,9 @@ def _update_states(
     )
     ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
-    # Compute the current velocity of the end-effector
-    ee_vel_w = robot.data.body_vel_w.torch[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
-    root_vel_w = robot.data.root_vel_w.torch  # Extract root velocity in the world frame
+    # Match the link-origin reference point used by the pose and Jacobian.
+    ee_vel_w = robot.data.body_link_vel_w.torch[:, ee_frame_idx, :]
+    root_vel_w = robot.data.root_link_vel_w.torch
     relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
     ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 0:3])  # From world to root frame
     ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 3:6])
@@ -1753,6 +1818,8 @@ def _convert_to_task_frame(
         # Convert target commands from base to the task frame
         command = command.clone()
         task_frame_pose_b = ee_target_pose_b.clone()
+        # Rounded goal quaternions must define a unit rotation when used as a reference frame.
+        task_frame_pose_b[:, 3:] /= torch.linalg.vector_norm(task_frame_pose_b[:, 3:], dim=-1, keepdim=True)
 
         cmd_idx = 0
         for target_type in osc.cfg.target_types:
