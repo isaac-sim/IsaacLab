@@ -24,7 +24,7 @@ from isaaclab_tasks.contrib.nist.factory_presets import (
     HeldAssetAlignOffsetCfg,
 )
 from isaaclab_tasks.contrib.nist.factory_scenes_cfg import FactorySceneCfg
-from isaaclab_tasks.contrib.nist.reset_env_cfg import ACCUMULATOR_RESET
+from isaaclab_tasks.contrib.nist.reset_env_cfg import ACCUMULATOR_RESET, SCENE_RESET
 from isaaclab_tasks.contrib.nist.utils import SamplerCfg, UniformSamplingStrategyCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
@@ -137,7 +137,7 @@ class FactoryEventCfg:
         },
     )
 
-    reset_strategies = ACCUMULATOR_RESET
+    reset_strategies = preset(default=ACCUMULATOR_RESET, accumulator=ACCUMULATOR_RESET, choice=SCENE_RESET)
 
     # The curriculum restores gravity as task difficulty rises.
     variable_gravity: EventTerm | None = EventTerm(
