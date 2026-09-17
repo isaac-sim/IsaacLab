@@ -95,6 +95,8 @@ jobs:
         env:
           # Pinned deliberately: a bump can newly-fail every open PR.
           SKILLEVALUATOR_VERSION: "1.0.0"
+          # Provided so that `skillevaluator doctor` can verify inference-API access.
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
         run: |
           set -euo pipefail
           python3 -m pip install --upgrade pip
