@@ -55,6 +55,12 @@ Each key maps to a group-shaped ``torch.Tensor``:
 class ActuatorControl(ABC):
     """Backend-neutral bridge used by :class:`~isaaclab.actuators.ActuatorCollection`."""
 
+    usd_preserves_imported_defaults: bool = False
+    """Whether authoring other joint schemas preserves the imported property fallbacks.
+
+    PhysX axis APIs can shadow legacy defaults; those backends retain configured fields.
+    """
+
     @staticmethod
     def _normalize_index_sequence(
         indices: Sequence[int] | slice | torch.Tensor | wp.array | None,

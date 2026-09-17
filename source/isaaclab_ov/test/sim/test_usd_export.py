@@ -14,7 +14,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.sim.views import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
-from pxr import Usd, UsdPhysics
+from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -29,6 +29,14 @@ from isaaclab.test.utils.usd_export import (
 def test_fixed_environment_round_trip(tmp_path, env_id, num_envs):
     cfg = make_fixed_scene_cfg(tmp_path)
     cfg.num_envs = num_envs
+    # A new axis API must not drop an equal value supplied by the legacy joint API.
+    source = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+    joint = source.GetPrimAtPath("/Robot/Hinge")
+    joint.AddAppliedSchema("PhysxJointAPI")
+    joint.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, custom=False).Set(
+        cfg.robot.actuators["hinge"].armature
+    )
+    source.GetRootLayer().Save()
     expected, structure = {}, {}
     art_props = (
         TT.BODY_MASS,

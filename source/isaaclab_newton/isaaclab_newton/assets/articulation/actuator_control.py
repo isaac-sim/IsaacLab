@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 class NewtonActuatorControl(ArticulationActuatorControl):
     """Actuator control adapter for the Newton backend."""
 
+    usd_preserves_imported_defaults = True
+
     def __init__(self, articulation: Articulation):
         """Initialize the control adapter.
 
