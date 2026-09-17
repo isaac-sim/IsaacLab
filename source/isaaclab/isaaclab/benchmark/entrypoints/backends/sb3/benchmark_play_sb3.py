@@ -192,11 +192,18 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             # Post-process agent configuration the same way isaaclab_rl.entrypoints.backends.play_sb3 does.
             agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
+            action_low = agent_cfg.pop("action_low", None)
+            action_high = agent_cfg.pop("action_high", None)
 
             num_envs = env.unwrapped.num_envs
 
             # Wrap for stable-baselines3.
-            env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            env = Sb3VecEnvWrapper(
+                env,
+                fast_variant=not args_cli.keep_all_info,
+                action_low=action_low,
+                action_high=action_high,
+            )
 
             # Load VecNormalize statistics when they were saved next to the checkpoint.
             vec_norm_path = Path(resume_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl"))

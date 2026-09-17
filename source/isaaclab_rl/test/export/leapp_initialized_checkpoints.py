@@ -242,11 +242,18 @@ def _create_sb3_checkpoint(
             raise NotImplementedError("SB3 LEAPP export currently supports manager-based environments only.")
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             env = multi_agent_to_single_agent(env)
-        env = Sb3VecEnvWrapper(env, fast_variant=True)
-
         agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
         policy_arch = agent_cfg.pop("policy")
         agent_cfg.pop("n_timesteps", None)
+        action_low = agent_cfg.pop("action_low", None)
+        action_high = agent_cfg.pop("action_high", None)
+
+        env = Sb3VecEnvWrapper(
+            env,
+            fast_variant=True,
+            action_low=action_low,
+            action_high=action_high,
+        )
 
         norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
         norm_args = {key: agent_cfg.pop(key) for key in norm_keys if key in agent_cfg}

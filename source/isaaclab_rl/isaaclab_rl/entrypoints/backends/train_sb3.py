@@ -137,6 +137,8 @@ def run(argv: list[str]) -> None:
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
             n_timesteps = agent_cfg.pop("n_timesteps")
+            action_low = agent_cfg.pop("action_low", None)
+            action_high = agent_cfg.pop("action_high", None)
 
             configure_io_descriptors(env_cfg, args_cli, logger)
             env_cfg.log_dir = log_dir
@@ -154,7 +156,12 @@ def run(argv: list[str]) -> None:
             screen.stage("Preparing agent")
             start_time = time.time()
             report_activity("Wrapping environment")
-            env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            env = Sb3VecEnvWrapper(
+                env,
+                fast_variant=not args_cli.keep_all_info,
+                action_low=action_low,
+                action_high=action_high,
+            )
             report_activity(None)
 
             norm_keys = {"normalize_input", "normalize_value", "clip_obs"}

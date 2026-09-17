@@ -80,6 +80,7 @@ Guidelines for modifications:
 * David Cao-Mueller
 * David Leon
 * David Yang
+* Daniel Lonneman
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
