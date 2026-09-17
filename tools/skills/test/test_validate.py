@@ -312,7 +312,9 @@ def test_validate_rejects_top_level_author_not_nested_under_metadata(tmp_path):
     assert any("must be nested under 'metadata:'" in error for error in errors)
 
 
-def test_validate_internal_skill_skips_audience_but_requires_author(tmp_path):
+def test_validate_internal_skill_skips_audience_and_author(tmp_path):
+    # Internal skills (_internal/) bypass audience, status, owners, license, and metadata.author
+    # checks. Only user-facing skills require license and metadata.author for public catalog sharing.
     skill_dir = tmp_path / "_internal" / "example"
     skill_dir.mkdir(parents=True)
     (skill_dir / "reference.md").write_text("# Reference\n\n## Contents\n\n- Workflow\n", encoding="utf-8")
@@ -320,7 +322,6 @@ def test_validate_internal_skill_skips_audience_but_requires_author(tmp_path):
         "---\n"
         "name: isaaclab-internal-testing-skill\n"
         "description: Tests Isaac Lab internal skill validation. Use when validating internal skill fixtures.\n"
-        "license: BSD-3-Clause\n"
         "---\n\n"
         "# Internal Example Skill\n\n"
         "## When To Use\n\nUse for tests.\n\n"
@@ -331,8 +332,24 @@ def test_validate_internal_skill_skips_audience_but_requires_author(tmp_path):
         encoding="utf-8",
     )
     errors = cli.Skill(skill_dir / "SKILL.md").validate()
-    assert any("metadata.author" in error for error in errors)
+    assert not any("metadata.author" in error for error in errors)
     assert not any("audience must be one of" in error for error in errors)
+
+
+def test_validate_developer_skill_does_not_require_license_or_author(tmp_path):
+    # Developer-audience skills are internal developer utilities; they don't go into the public
+    # Isaac Skills catalog, so license and metadata.author are not required.
+    skill = _write_skill(tmp_path, audience="developer", name="isaaclab-developer-skill")
+    text = skill.read_text(encoding="utf-8").replace(
+        "license: BSD-3-Clause\n"
+        "metadata:\n"
+        "  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>\n",
+        "",
+    )
+    skill.write_text(text, encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert not any("license" in error for error in errors)
+    assert not any("metadata.author" in error for error in errors)
 
 
 def test_validate_rejects_evals_json_missing_expected_skill_key(tmp_path):
