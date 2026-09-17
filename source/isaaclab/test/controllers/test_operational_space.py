@@ -1176,7 +1176,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
         nullspace_control="position",
-        nullspace_stiffness=1.0,
+        nullspace_stiffness=10.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
