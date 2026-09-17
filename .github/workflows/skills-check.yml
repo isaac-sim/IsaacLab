@@ -81,7 +81,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install "skillevaluator==${SKILLEVALUATOR_VERSION}" -i https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
           skillevaluator --version
-          skillevaluator doctor || true
+          skillevaluator doctor || echo "::warning::skillevaluator doctor reported issues — check NVIDIA_INFERENCE_KEY and network access"
 
       - name: Determine touched skills
         id: touched
@@ -113,7 +113,7 @@ jobs:
             echo "Skills touched by this PR (validating only these):"
             printf '  - %s\n' "${skill_dirs[@]}"
             echo "any=true" >> "$GITHUB_OUTPUT"
-            printf 'dirs<<SKILL_DIRS_EOF\n%s\nSKILL_DIRS_EOF\n' "${skill_dirs[*]}" >> "$GITHUB_OUTPUT"
+            { printf 'dirs<<SKILL_DIRS_EOF\n'; printf '%s\n' "${skill_dirs[@]}"; printf 'SKILL_DIRS_EOF\n'; } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 3
@@ -125,7 +125,8 @@ jobs:
           set -euo pipefail
           failed=0
 
-          for skill_dir in ${SKILL_DIRS}; do
+          while IFS= read -r skill_dir; do
+            [[ -n "$skill_dir" ]] || continue
             echo ""
             echo "===== Per-skill validation: ${skill_dir} ====="
             if ! skillevaluator validate "${skill_dir}" \
@@ -142,7 +143,7 @@ jobs:
             if ! skillevaluator context-optimization-check "${skill_dir}"; then
               failed=1
             fi
-          done
+          done <<< "${SKILL_DIRS}"
 
           echo ""
           echo "===== Tier 2B intra-repo similarity scan: skills/user/ ====="
