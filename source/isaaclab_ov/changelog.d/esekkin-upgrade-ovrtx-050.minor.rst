@@ -7,6 +7,10 @@ Changed
   these runtimes is supported. Reinstall with ``uv sync --inexact --extra ov`` (or
   ``--extra ovrtx`` / ``--extra ovphysx``). Pinning any one of the three to an older release
   now fails at runtime rather than degrading.
+* Changed the OmniClient dependency to require ``omniverseclient==2.74.0``, matching the client
+  library that the OVStage 0.2 and OVRTX 0.5 native plugins bundle. An environment left on
+  ``omniverseclient==2.72.3`` fails plugin initialization with
+  ``Initialization failed, minor version 74 > 72``.
 * Writes to OvPhysX CPU-only property bindings, such as deformable material attributes, now
   require host-resident ``indices`` and ``mask`` buffers. OvPhysX 0.6 rejects device tensors on
   these bindings instead of staging them, so move selection buffers to the host before writing.

@@ -58,7 +58,7 @@ dependencies = [
     "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
-    "omniverseclient==2.72.3",
+    "omniverseclient==2.74.0",
     "filelock",
     "lazy_loader>=0.4",
     # ----- project template generator -----
