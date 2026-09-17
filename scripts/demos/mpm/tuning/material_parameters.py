@@ -299,7 +299,7 @@ def create_visualizer_cfgs():
     cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
     visualizer_kwargs = {}
     if cfg_type is NewtonRTXVisualizerCfg:
-        visualizer_kwargs = {"rtx_environment": "studio", "dome_texture_file": None}
+        visualizer_kwargs = {"rtx_environment": "studio"}
     cfgs.append(
         cfg_type(
             eye=CAMERA_EYE,

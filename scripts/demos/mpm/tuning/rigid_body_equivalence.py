@@ -8,21 +8,19 @@
 This demo extends the rigid-ball experiment from Figure 17 of Daviet's
 mixed-MPM paper. A sphere, cube, and capsule descend matched inclined lanes:
 MJWarp rigid bodies are on the left and MPM particle discretizations are on the
-right. Corresponding objects use the same color and discretized mass.
+right. Corresponding objects use the same authored color and discretized mass.
 
 .. code-block:: bash
 
     uv run python scripts/demos/mpm/tuning/rigid_body_equivalence.py \
-      --visualizer newton_gl
+      --visualizer kit
 """
 
 from __future__ import annotations
 
 import argparse
 import math
-from collections.abc import Callable
-from functools import partial
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 import numpy as np
 
@@ -54,7 +52,6 @@ PARTICLES_PER_VOXEL_AXIS = 3.0
 DENSITY = 1600.0
 STRAIN_BASIS = "P0"
 VELOCITY_BASIS = "Q1"
-PROJECT_OUTSIDE_COLLIDERS = True
 RIGID_GROUP_X = -2.85
 MPM_GROUP_X = 2.85
 RAMP_CENTER_Y = 0.0
@@ -107,7 +104,7 @@ parser.add_argument("--mpm_substeps", type=int, default=8, help="Implicit MPM su
 parser.add_argument("--rigid_substeps", type=int, default=4, help="MJWarp substeps per simulation step.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable Newton CUDA graphs for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 if not np.isfinite(args_cli.voxel_size) or args_cli.voxel_size <= 0.0:
@@ -232,7 +229,7 @@ def create_visualizer_cfgs():
     cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
     visualizer_kwargs = {}
     if cfg_type is NewtonRTXVisualizerCfg:
-        visualizer_kwargs = {"rtx_environment": "studio", "dome_texture_file": None}
+        visualizer_kwargs = {"rtx_environment": "studio"}
     cfgs.append(
         cfg_type(
             eye=CAMERA_EYE,
@@ -311,40 +308,13 @@ def create_scene_cfg():
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 
-    from pxr import Gf, UsdGeom
-
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.utils.configclass import configclass
 
-    @sim_utils.clone
-    def spawn_colored_shape(
-        prim_path: str,
-        cfg: sim_utils.SpawnerCfg,
-        translation: tuple[float, float, float] | None = None,
-        orientation: tuple[float, float, float, float] | None = None,
-        *,
-        spawn_func: Callable[..., Any],
-        color: tuple[float, float, float],
-    ) -> Any:
-        """Spawn a primitive with a Newton-GL-compatible display color."""
-        prim = spawn_func(prim_path, cfg, translation, orientation)
-        mesh = UsdGeom.Gprim(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh"))
-        mesh.CreateDisplayColorAttr().Set([Gf.Vec3f(*color)])
-        return prim
-
     def rigid_spawn(shape: ShapeSpec):
         common = {
-            "func": partial(
-                spawn_colored_shape,
-                spawn_func={
-                    "sphere": sim_utils.spawn_sphere,
-                    "cube": sim_utils.spawn_cuboid,
-                    "capsule": sim_utils.spawn_capsule,
-                }[shape.name],
-                color=shape.color,
-            ),
             "rigid_props": sim_utils.RigidBodyPropertiesCfg(),
             "mass_props": sim_utils.MassPropertiesCfg(mass=len(SHAPE_POINTS[shape.name]) * PARTICLE_MASS),
             "collision_props": sim_utils.NewtonCollisionPropertiesCfg(contact_margin=0.5 * PARTICLE_SPACING),
@@ -476,79 +446,12 @@ def create_scene_cfg():
     return RigidMPMComparisonSceneCfg(num_envs=1, env_spacing=0.0)
 
 
-def apply_newton_gl_particle_colors(sim) -> None:
-    """Restore authored per-object particle colors in Newton GL's merged batch."""
-    if "newton_gl" not in (args_cli.visualizer or []):
-        return
-
-    import warp as wp
-    from isaaclab_newton.physics import NewtonManager
-
-    from pxr import UsdGeom
-
-    import isaaclab.sim as sim_utils
-
-    model = NewtonManager.get_model()
-    state = NewtonManager.get_state_0()
-    records = NewtonManager._particle_visual_prims
-    if model is None or state is None or not records:
-        return
-
-    colors = np.full((model.particle_count, 3), (0.7, 0.6, 0.4), dtype=np.float32)
-    stage = sim_utils.get_current_stage()
-    for prim_path, record in records.items():
-        authored_colors = UsdGeom.Gprim(stage.GetPrimAtPath(prim_path)).GetDisplayColorAttr().Get()
-        if authored_colors:
-            colors[record.offset : record.offset + record.count] = tuple(authored_colors[0])
-    color_array = wp.array(colors, dtype=wp.vec3, device=model.device)
-
-    # Newton GL renders Newton's canonical particle batch rather than the
-    # per-object USD Points prims. Update that batch once after its allocation;
-    # subsequent position-only updates preserve this color buffer.
-    for visualizer in sim.visualizers:
-        if getattr(visualizer.cfg, "visualizer_type", None) != "newton_gl":
-            continue
-        visualizer.log_points(
-            "/model/particles",
-            points=state.particle_q,
-            radii=model.particle_radius,
-            colors=color_array,
-            hidden=False,
-        )
-
-
-def project_mpm_particles_outside_colliders() -> None:
-    """Apply Newton's particle-level collider correction to the coupled MPM entry."""
-    if not PROJECT_OUTSIDE_COLLIDERS:
-        return
-
-    import warp as wp
-    from isaaclab_newton.physics import NewtonManager
-
-    coupled_solver = NewtonManager._solver
-    mpm_solver = coupled_solver.solver("mpm")
-    mpm_state = coupled_solver.entry_state("mpm")
-    mpm_solver.project_outside(
-        mpm_state,
-        mpm_state,
-        NewtonManager.get_solver_dt() / args_cli.mpm_substeps,
-    )
-
-    # The coupled entry owns every particle in this demo. Publish the corrected
-    # state back to the parent arrays before Isaac Lab data views are refreshed.
-    parent_state = NewtonManager.get_state_0()
-    wp.copy(parent_state.particle_q, mpm_state.particle_q)
-    wp.copy(parent_state.particle_qd, mpm_state.particle_qd)
-    wp.copy(parent_state.mpm.particle_qd_grad, mpm_state.mpm.particle_qd_grad)
-
-
 def run_simulator(sim, scene) -> None:
     """Run until the viewer closes or the step limit is reached."""
     sim_dt = sim.get_physics_dt()
     step_count = 0
     while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         sim.step(render=False)
-        project_mpm_particles_outside_colliders()
         scene.update(sim_dt)
         if sim.is_rendering:
             sim.render()
@@ -566,9 +469,6 @@ def main() -> None:
         scene = InteractiveScene(create_scene_cfg())
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
-        if "newton_gl" in (args_cli.visualizer or []):
-            sim.render()
-            apply_newton_gl_particle_colors(sim)
         particle_count = sum(len(points) for points in SHAPE_POINTS.values())
         print(
             f"[INFO]: Rigid-versus-MPM comparison ready: {particle_count} MPM particles across {len(SHAPES)} pairs.",

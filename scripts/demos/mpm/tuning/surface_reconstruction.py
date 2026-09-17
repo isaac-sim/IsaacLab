@@ -233,12 +233,11 @@ def create_visualizer_cfgs():
 
     for name in args_cli.visualizer or []:
         if name in ("newton", "newton_gl"):
-            cfgs.append(NewtonGLVisualizerCfg(streaming_view=False, background_mode="sky", **common))
+            cfgs.append(NewtonGLVisualizerCfg(streaming_view=False, background_color=None, **common))
         elif name == "newton_rtx":
             cfgs.append(
                 NewtonRTXVisualizerCfg(
                     rtx_environment="studio",
-                    dome_texture_file=None,
                     render_settings={
                         "omni:rtx:quality": ("Int", args_cli.rtx_quality),
                         "omni:rtx:rt:reflections:enabled": ("Bool", True),

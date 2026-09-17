@@ -29,6 +29,7 @@ import numpy as np
 from isaaclab.app import add_launcher_args, launch_simulation
 
 TASK = "Isaac-Velocity-Flat-G1"
+POLICY_BACKEND_NAMES = ("newtonmjwarp", "none")
 ROBOT_PATTERN = r"/World/envs/env_.*/Robot"
 FOOT_PATTERN = r"/World/envs/env_.*/Robot/(left|right)_ankle_roll_link"
 LOWER_LEG_PATTERN = r"/World/envs/env_.*/Robot/(left|right)_(knee|ankle_pitch|ankle_roll)_link"
@@ -46,6 +47,7 @@ CAMERA_LEAD = 0.70
 CAMERA_TRACK_MIN_X = ROBOT_START_X + CAMERA_LEAD
 CAMERA_TRACK_MAX_X = STRIP_START_X + len(STRIP_NAMES) * STRIP_LENGTH + 1.0
 PARTICLES_PER_VOXEL_AXIS = 2.0
+MJWARP_CONTACT_CAPACITY = 300
 SHIN_PROXY_RADIUS = 0.05
 SHIN_PROXY_HEIGHT = 0.22
 SHIN_PROXY_OFFSET = (0.0, 0.0, -0.14)
@@ -295,7 +297,7 @@ def _configure_common_environment(env_cfg: Any) -> None:
         visualizer_kwargs = {}
         if cfg_type is NewtonRTXVisualizerCfg:
             # Keep the standalone comparison independent of optional HDR assets.
-            visualizer_kwargs = {"rtx_environment": "studio", "dome_texture_file": None}
+            visualizer_kwargs = {"rtx_environment": "studio"}
         visualizer_cfgs.append(
             cfg_type(
                 eye=CAMERA_EYE,
@@ -347,7 +349,9 @@ def _configure_particle_runway(env_cfg: Any) -> None:
     )
 
     previous_physics = env_cfg.sim.physics
-    rigid_solver_cfg = previous_physics.solver_cfg
+    rigid_solver_cfg = previous_physics.solver_cfg.replace(
+        nconmax=max(previous_physics.solver_cfg.nconmax or 0, MJWARP_CONTACT_CAPACITY)
+    )
     particle_spacing = args_cli.voxel_size / PARTICLES_PER_VOXEL_AXIS
     jitter_width = 2.0 * args_cli.particle_jitter_fraction * particle_spacing
 
@@ -487,17 +491,10 @@ def main() -> None:
         overrides=("physics=newton_mjwarp",),
     )
 
-    if args_cli.checkpoint:
-        checkpoint = Path(args_cli.checkpoint).expanduser().resolve()
+    checkpoint = Path(args_cli.checkpoint).expanduser().resolve() if args_cli.checkpoint else None
+    if checkpoint is not None:
         if not checkpoint.is_file():
             raise FileNotFoundError(f"G1 checkpoint not found: {checkpoint}")
-    else:
-        from isaaclab_rl.entrypoints.common import resolve_play_checkpoint
-
-        # Resolve against the published task preset before replacing its physics
-        # selector with the coupled rigid/MPM solver configuration below.
-        checkpoint = Path(resolve_play_checkpoint(None, "rsl_rl", TASK, env_cfg)).resolve()
-    print(f"[INFO]: Resolved G1 checkpoint: {checkpoint}", flush=True)
     configure_environment(env_cfg)
     print("[INFO]: Configured G1 rigid/MPM environment; launching visualizer.", flush=True)
     env_cfg.seed = args_cli.seed
@@ -512,6 +509,17 @@ def main() -> None:
         from isaaclab.utils.seed import configure_seed
 
         from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+
+        if checkpoint is None:
+            from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+
+            # Download only after the application is running so remote asset
+            # access does not import Kit modules before SimulationApp starts.
+            published_checkpoint = get_published_pretrained_checkpoint("rsl_rl", TASK, *POLICY_BACKEND_NAMES)
+            if published_checkpoint is None:
+                raise FileNotFoundError(f"No published rsl_rl checkpoint is available for {TASK!r}.")
+            checkpoint = Path(published_checkpoint).resolve()
+        print(f"[INFO]: Resolved G1 checkpoint: {checkpoint}", flush=True)
 
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         base_env = ManagerBasedRLEnv(cfg=env_cfg)

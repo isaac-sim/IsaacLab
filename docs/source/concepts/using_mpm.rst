@@ -103,6 +103,191 @@ states, collision geometry, or a stable timestep. Coupled MPM entries do not
 support this manager-level projection pass.
 
 
+Run Controlled Tuning Experiments
+---------------------------------
+
+The examples in ``scripts/demos/mpm/tuning`` are controlled experiments rather
+than general-purpose scenes. They keep the geometry, initial particles, camera,
+and solver configuration fixed while changing one quantity. They live beside
+the other standalone MPM demos because each file is directly executable and
+owns a complete scene; reusable solver and material APIs remain in
+``isaaclab_newton``.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Material response
+
+      Compare up to three specimens while changing one constitutive parameter.
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/tuning/material_parameters.py \
+           --preset young_modulus --visualizer kit
+
+   .. grid-item-card:: Rigid-body limit
+
+      Compare matched MJWarp rigid primitives with nearly rigid MPM particles.
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/tuning/rigid_body_equivalence.py \
+           --visualizer kit
+
+   .. grid-item-card:: One-way and two-way coupling
+
+      Deploy the published G1 policy across successive sand, snow, and clay
+      strips. The one-way run moves particles without returning reaction forces.
+
+      .. code-block:: bash
+
+         uv run --extra rsl-rl python scripts/demos/mpm/tuning/g1_coupling.py \
+           --coupling two_way --visualizer kit
+
+   .. grid-item-card:: Surface reconstruction
+
+      Keep one water simulation fixed while changing only reconstruction
+      resolution, kernel anisotropy, or smoothing.
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/tuning/surface_reconstruction.py \
+           --surface_preset balanced --visualizer newton_gl
+
+The material runner includes the following presentation presets. Use
+``--variant_index`` to render one member of a comparison, or omit it for the
+side-by-side view.
+
+.. list-table:: Material tuning presets
+   :header-rows: 1
+   :widths: 21 35 44
+
+   * - Preset
+     - Varied values
+     - Behavior to inspect
+   * - ``young_modulus``
+     - 10 kPa, 100 kPa, 1 MPa
+     - Compression, recovery, and impact rebound
+   * - ``poisson_ratio``
+     - 0.05, 0.30, 0.499
+     - Volume loss versus near-incompressibility
+   * - ``friction``
+     - 0, 0.68, 2.0
+     - Runout and the final angle of repose
+   * - ``tensile_yield_ratio``
+     - 0, 0.01, 0.05
+     - Fragmentation versus tensile cohesion
+   * - ``yield_pressure``
+     - 100 kPa, 1 MPa, 4 MPa
+     - Onset and amount of irreversible compression
+   * - ``hardening``
+     - 0, 0.05, 5.0
+     - Strength gained after plastic compaction
+   * - ``dilatancy``
+     - 0, 0.1, 1.0
+     - Compaction versus expansion under shear
+   * - ``yield_stress``
+     - 0, 10 kPa, 20 kPa
+     - Cohesive flow and retained shape
+   * - ``viscosity``
+     - 0, 10 Pa·s, 500 Pa·s
+     - Rate-dependent plastic flow
+   * - ``particle_jitter``
+     - 0%, 30% of particle spacing
+     - Grid-alignment artifacts and packing symmetry
+
+
+Design a Useful Parameter Study
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use these practices when adapting the examples:
+
+* Change one physical quantity at a time. Use the same generated positions,
+  particle mass, collider, timestep, and camera for every variant.
+* Choose values that bracket visibly different regimes. Geometric spacing is
+  usually more informative than small linear increments for stiffness, yield,
+  viscosity, and coupling mass scales.
+* Use deterministic jitter for constitutive comparisons so lattice alignment
+  does not dominate the motion. Keep the no-jitter case as a separate packing
+  diagnostic.
+* Run until impact, peak deformation, recovery or flow, and the final settled
+  state are all visible. A short clip can make different materials appear
+  identical.
+* Tune numerical resolution and timestep before interpreting material values.
+  Record the voxel size, particles per voxel axis, particle count, physics
+  timestep, substeps, iterations, tolerance, random seed, and code revision.
+* Treat surface reconstruction as rendering. Keep the MPM state identical when
+  comparing surface parameters, and do not infer a material change from a
+  smoother reconstructed mesh.
+* Check a quantitative signal alongside the video when possible: center of
+  mass, runout distance, rebound height, retained volume, or settled height.
+
+``particles_per_cell`` is the number of particles along one voxel axis. A value
+of ``2`` therefore produces approximately eight particles per filled voxel in
+3D, not two. Refining both voxel size and particle density can increase memory
+and runtime rapidly.
+
+
+Publish the Demo Videos
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Generated videos are intentionally not stored in Git. Upload final MP4 files to
+the documentation media host, then replace the cards below with the standard
+``raw:: html`` video element used elsewhere in the documentation. Keep these
+stable publication names so slide decks and docs can share the same assets.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Video slot — material tuning
+
+      ``mpm_tune_young_modulus.mp4``
+
+      ``mpm_tune_poisson_ratio.mp4``
+
+      ``mpm_tune_friction.mp4``
+
+      ``mpm_tune_tensile_yield_ratio.mp4``
+
+      ``mpm_tune_yield_pressure.mp4``
+
+      ``mpm_tune_hardening.mp4``
+
+      ``mpm_tune_dilatancy.mp4``
+
+      ``mpm_tune_yield_stress.mp4``
+
+      ``mpm_tune_viscosity.mp4``
+
+      ``mpm_tune_particle_jitter.mp4``
+
+   .. grid-item-card:: Video slot — comparison demos
+
+      ``mpm_rigid_body_equivalence.mp4``
+
+      ``mpm_g1_one_way.mp4``
+
+      ``mpm_g1_two_way.mp4``
+
+      ``mpm_surface_reconstruction.mp4``
+
+   .. grid-item-card:: Video slot — core MPM demos
+
+      ``mpm_granular.mp4``
+
+      ``mpm_two_way_coupling.mp4``
+
+      ``mpm_snowball_smash.mp4``
+
+      ``mpm_teapot_fill_particles.mp4``
+
+   .. grid-item-card:: Capture checklist
+
+      Use a fixed camera and resolution, include the full evolution, retain one
+      resolved-configuration record per clip, and verify the encoded MP4 on a
+      second machine before publishing it.
+
+
 Render a Particle Surface
 -------------------------
 
@@ -112,7 +297,7 @@ material behavior. Run the teapot example to compare the available modes:
 
 .. code-block:: bash
 
-   # Reconstructed surface (default)
+   # Reconstructed surface
    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
      --visualizer newton_gl --fluid_render_mode surface
    # Surface and source particles together
@@ -121,6 +306,10 @@ material behavior. Run the teapot example to compare the available modes:
    # Path-traced translucent surface
    uv run --extra ovrtx python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
      --visualizer newton_rtx --fluid_render_mode surface
+
+The teapot demo defaults to particles. This keeps the source MPM state visible
+in Kit and avoids making a reconstruction choice on behalf of the user. Select
+``surface`` or ``both`` explicitly for Newton GL or Newton RTX.
 
 Surface rendering is available in the Newton GL and Newton RTX visualizers.
 The Kit visualizer continues to render the MPM particles directly.
