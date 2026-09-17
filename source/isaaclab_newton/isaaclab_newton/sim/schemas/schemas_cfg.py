@@ -49,7 +49,7 @@ class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
         :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` for the inherited
         ``disable_gravity``, whose only USD home is ``physxRigidBody:disableGravity`` (Newton's
         importer reads it). This class carries no ``mjc:*`` field; add
-        :class:`MujocoRigidBodyCfg` only for ``gravcomp``. This class will be removed in 5.0.
+        :class:`MujocoRigidBodyCfg` only for ``gravcomp``. This class will be removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -96,7 +96,7 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
         :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` the inherited ``disable_gravity``,
         and :class:`MujocoRigidBodyCfg` the ``mjc:gravcomp`` field defined here. Naming only
         :class:`MujocoRigidBodyCfg` would silently drop the inherited fields. This class will be
-        removed in 5.0.
+        removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
@@ -191,7 +191,7 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
         :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` for ``max_joint_velocity``, whose only
         USD home is ``physxJoint:maxJointVelocity``. This class carries no ``mjc:*`` field; add
         :class:`MujocoJointCfg` only for ``actuatorgravcomp``. ``ensure_drives_exist`` has no
-        fragment: it is a field on the spawner cfg. This class will be removed in 5.0.
+        fragment: it is a field on the spawner cfg. This class will be removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -222,7 +222,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
         ``UsdPhysics.DriveAPI`` fields, :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` the
         inherited ``max_joint_velocity``, and :class:`MujocoJointCfg` the ``mjc:actuatorgravcomp``
         field defined here. ``ensure_drives_exist`` has no fragment: it is a field on the spawner
-        cfg. This class will be removed in 5.0.
+        cfg. This class will be removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
@@ -365,7 +365,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
         :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` the inherited ``contact_offset`` /
         ``rest_offset``, and :class:`NewtonCollisionCfg` the ``newton:*`` fields defined here. The
         nested ``mesh_collision_property`` has no fragment: pass the mesh-collision fragments in
-        the spawner's ``mesh_collision_props`` slot instead. This class will be removed in 5.0.
+        the spawner's ``mesh_collision_props`` slot instead. This class will be removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -412,7 +412,7 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
         in the spawner's ``mesh_collision_props`` slot, and the inherited collision fields as
         ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]`` in the
         ``collision_props`` slot. Naming only :class:`NewtonMeshCollisionCfg` would silently drop
-        the inherited fields. This class will be removed in 5.0.
+        the inherited fields. This class will be removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -450,7 +450,7 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
         cooking schema implies the ``sdf`` approximation token), and the inherited collision
         fields as ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]``
         in the ``collision_props`` slot. Naming only :class:`NewtonSDFCollisionCfg` would silently
-        drop the inherited fields. This class will be removed in 5.0.
+        drop the inherited fields. This class will be removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -738,7 +738,7 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
         ``newton:selfCollisionEnabled`` field defined here. The non-USD ``fix_root_link`` flag has
         no fragment: it is a field on the spawner cfg and the ``fix_root_link`` argument of
         :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
-        removed in 5.0.
+        removed in 4.0.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"

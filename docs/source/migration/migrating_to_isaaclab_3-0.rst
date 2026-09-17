@@ -268,13 +268,13 @@ For the full design, see :ref:`schema-cfgs`.
 .. important::
 
    The ``*BaseCfg`` / ``*PropertiesCfg`` classes in this subsection are themselves
-   now deprecated in favor of schema fragments, and will be removed in 5.0. Read
+   now deprecated in favor of schema fragments, and will be removed in 4.0. Read
    this subsection to understand where a 2.x name went, then migrate to the
    fragments as described in :ref:`schema fragments <schema-fragments-migration>`. The code samples
    below show the intermediate step, not the recommended end state.
 
 The following 2.x class names are kept as deprecated aliases. They forward to
-the new location and will be removed in 5.0.
+the new location and will be removed in 4.0.
 
 .. list-table::
    :header-rows: 1
@@ -309,7 +309,7 @@ the new location and will be removed in 5.0.
 **Code migration**
 
 Existing 2.x code continues to work via the deprecation aliases (with a
-``DeprecationWarning``; removed in 5.0):
+``DeprecationWarning``; removed in 4.0):
 
 .. code-block:: python
 
@@ -342,7 +342,7 @@ fields on :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (so
 in ``__post_init__`` with a ``DeprecationWarning``. Setting **both** the old
 and new field on the same instance is silent — the canonical (new) field
 wins; the old field's value is discarded after the warning. Both aliases are
-scheduled for removal in 5.0.
+scheduled for removal in 4.0.
 
 .. list-table::
    :header-rows: 1
@@ -358,7 +358,7 @@ scheduled for removal in 5.0.
      - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
-Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 5.0):
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
 
 .. code-block:: python
 
@@ -419,7 +419,7 @@ instead of picking a class that bundles them.
 
 Every class in the table below is deprecated: instantiating one emits a
 ``DeprecationWarning`` naming its replacement, and the class will be removed in
-5.0. Nothing is removed in 3.0 — both APIs work side by side.
+4.0. Nothing is removed in 3.0 — both APIs work side by side.
 
 The replacement column lists **every** fragment needed to cover the deprecated
 class's fields, including the fields it inherits from a legacy base. A legacy
@@ -559,7 +559,7 @@ of :attr:`~isaaclab_physx.sim.schemas.PhysxJointCfg.max_joint_velocity`.
 **Schema writers**
 
 The ``define_*`` and ``modify_*`` writers are deprecated alongside the cfgs and
-will be removed in 5.0. Each has an ``apply_*`` counterpart that takes a
+will be removed in 4.0. Each has an ``apply_*`` counterpart that takes a
 prim-path *expression* (a regular expression over whole prim paths) and a list
 of fragments, so one call can author a whole subtree:
 

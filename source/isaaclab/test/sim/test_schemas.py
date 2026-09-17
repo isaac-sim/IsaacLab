@@ -353,7 +353,7 @@ def test_rigid_body_material_deprecation_alias(setup_simulation):
         RigidBodyMaterialCfg()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -459,7 +459,7 @@ def test_collision_deprecation_alias(setup_simulation):
         PhysxCollisionPropertiesCfgAlias()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -557,7 +557,7 @@ def test_articulation_root_deprecation_alias(setup_simulation):
         ArticulationRootDeprecatedAliasCfg()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -666,7 +666,7 @@ def test_mesh_collision_deprecation_aliases(setup_simulation, name):
         cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -701,7 +701,7 @@ def test_fixed_tendon_deprecation_alias(setup_simulation):
         cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -734,7 +734,7 @@ def test_spatial_tendon_deprecation_alias(setup_simulation):
         cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci

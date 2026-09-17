@@ -2,7 +2,7 @@ Deprecated
 ^^^^^^^^^^
 
 * Deprecated the PhysX schema cfg classes in favor of the single-namespace schema fragments. Each
-  class now raises a ``DeprecationWarning`` on instantiation and will be removed in 5.0. The warning
+  class now raises a ``DeprecationWarning`` on instantiation and will be removed in 4.0. The warning
   names *every* fragment the class's fields need, including the fields it inherits from a legacy
   base, so following it does not drop authored properties. Replace
   :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` with
@@ -23,5 +23,5 @@ Deprecated
 * Reworded the Isaac Lab 2.x schema aliases (``RigidBodyPropertiesCfg``, ``JointDrivePropertiesCfg``,
   ``CollisionPropertiesCfg``, ``ArticulationRootPropertiesCfg``, ``MeshCollisionPropertiesCfg`` and
   the mesh-cooking aliases) to point their ``DeprecationWarning`` at the fragment replacement rather
-  than at the now also-deprecated ``Physx*PropertiesCfg`` classes, keeping their existing 5.0
-  announced removal release. The material and tendon aliases are unaffected.
+  than at the now also-deprecated ``Physx*PropertiesCfg`` classes. The material and tendon aliases
+  are unaffected.

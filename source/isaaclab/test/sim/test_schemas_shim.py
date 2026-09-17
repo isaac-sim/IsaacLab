@@ -183,7 +183,7 @@ def test_deprecated_material_aliases_emit_deprecation_warning(name):
         getattr(materials, name)()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
+    assert "4.0" in str(deprecations[0].message)
 
 
 def test_new_class_does_not_emit_deprecation_warning():
