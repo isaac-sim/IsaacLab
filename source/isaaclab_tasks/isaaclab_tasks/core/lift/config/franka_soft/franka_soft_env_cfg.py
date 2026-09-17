@@ -40,8 +40,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import (
@@ -50,7 +50,7 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
 )
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import mdp
@@ -201,6 +201,11 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
     robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants = preset(
+        default={"Physics": "mujoco"},
+        isaacsim_physx={"Physics": "physx"},
+        physx={"Physics": "physx"},
+    )
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(

@@ -190,6 +190,31 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
+    def update(self, dt: float, force_recompute: bool = False) -> None:
+        """Advances the sensor timestamp and refreshes the PhysX contact buffers.
+
+        PhysX zeroes the net contact force of a body only on the physics step where its contact
+        is lost. A sensor that is refreshed lazily (on data access) would skip that step and keep
+        reporting the last in-contact force until the next touchdown, so the PhysX getters are
+        called on every physics step. The warp kernels that turn those buffers into sensor data
+        remain lazy and only run when :attr:`data` is accessed. The body poses have no such
+        transient and are only read on data access.
+
+        Args:
+            dt: Time elapsed since the previous sensor update [s].
+            force_recompute: Whether to recompute the sensor buffers regardless of their
+                configured update period. Defaults to False.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so the sensor must be updated outside the capture.
+        """
+        super().update(dt, force_recompute=force_recompute)
+        # Skip the fetch if the base class already refreshed the buffers on this step, which it
+        # does when the sensor carries a history buffer.
+        if self._is_initialized and self._data_generation != self._data_generation_last_update:
+            self._fetch_physx_buffers(include_pose=False)
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         # resolve env_ids to warp array
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
@@ -219,12 +244,13 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
         by comparing the current contact time with the given time period. If the contact time is less
-        than the given time period, then the bodies are considered to be in contact.
+        than the given time period, then the bodies are considered to be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
@@ -239,7 +265,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contact was established.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have established contact within the last
@@ -255,21 +282,25 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[float(dt + tol), self._data._current_contact_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds
         by comparing the current air time with the given time period. If the air time is less
-        than the given time period, then the bodies are considered to not be in contact.
+        than the given time period, then the bodies are considered to not be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
@@ -284,7 +315,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contract is broken.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have broken contact within the last :attr:`dt` seconds.
@@ -300,10 +332,13 @@ class ContactSensor(BaseContactSensor):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
 
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[float(dt + tol), self._data._current_air_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -425,13 +460,8 @@ class ContactSensor(BaseContactSensor):
                 cannot be graph-captured, so replays of such a graph would consume stale
                 contact data.
         """
+        self._raise_if_graph_capturing()
         device = wp.get_device(self._device)
-        if device.is_capturing:
-            raise RuntimeError(
-                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
-                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
-                " graph would consume stale contact data."
-            )
 
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
@@ -459,6 +489,19 @@ class ContactSensor(BaseContactSensor):
             self._compute_graph = capture.graph
         wp.capture_launch(self._compute_graph)
 
+    def _raise_if_graph_capturing(self) -> None:
+        """Rejects a PhysX tensor read while an outer CUDA graph capture is active.
+
+        Raises:
+            RuntimeError: If the sensor's device is capturing a CUDA graph.
+        """
+        if wp.get_device(self._device).is_capturing:
+            raise RuntimeError(
+                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
+                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
+                " graph would consume stale contact data."
+            )
+
     @staticmethod
     def _checked_view(buffer: wp.array, view: wp.array | None, dtype) -> wp.array:
         """Returns the cached typed view over ``buffer``, verifying pointer stability.
@@ -477,7 +520,7 @@ class ContactSensor(BaseContactSensor):
             )
         return view
 
-    def _fetch_physx_buffers(self) -> None:
+    def _fetch_physx_buffers(self, include_pose: bool = True) -> None:
         """Refreshes the contact data from PhysX and lazily builds the warp views over it.
 
         The PhysX tensor getters allocate their output buffers once and refresh them in place on
@@ -486,7 +529,19 @@ class ContactSensor(BaseContactSensor):
         refreshes the same count and start-index buffers as ``get_contact_data``, the
         contact-point counts are staged into sensor-owned copies before the friction read
         overwrites them.
+
+        Args:
+            include_pose: Whether to also read the body poses when ``track_pose`` is enabled.
+                The per-step refresh in :meth:`update` skips them since only the contact
+                buffers carry the contact-loss transient. Defaults to True.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so replays of such a graph would consume stale
+                contact data.
         """
+        self._raise_if_graph_capturing()
+
         # PhysX returns (B*N, 3) float32 -> viewed as (B*N,) vec3f, body-major (one view
         # pattern per body)
         net_forces = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
@@ -498,7 +553,7 @@ class ContactSensor(BaseContactSensor):
             self._force_matrix_flat = self._checked_view(force_matrix, self._force_matrix_flat, wp.vec3f)
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
-        if self.cfg.track_pose:
+        if self.cfg.track_pose and include_pose:
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 

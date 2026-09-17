@@ -51,7 +51,7 @@ from isaaclab.assets import RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 wp.init()
 

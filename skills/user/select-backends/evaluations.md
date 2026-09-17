@@ -23,12 +23,12 @@ Expected behavior:
 
 - Adds backend-specific presets or config variants.
 - Checks sensors, contacts, actuators, terrain, and randomization events for backend support.
-- Runs reset/step smoke tests on both backends.
+- Runs reset/step smoke tests on each selected backend.
 
 Known failure modes:
 
 - Adds runtime conditionals throughout task logic instead of config presets.
-- Assumes event randomization works identically on both backends.
+- Assumes event randomization works identically across selected backends.
 
 ## Scenario 3: Renderer Or Sensor Issue
 

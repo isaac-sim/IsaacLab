@@ -46,8 +46,6 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.joint_gears[joint_ids] = torch.tensor(gears, device=self.sim.device)
         # the energy and joint-limit penalties weigh each joint by its gear relative to the largest one
         self.gear_ratio_scaled = self.joint_gears / torch.max(self.joint_gears)
-        joint_dof_idx, _ = self.robot.find_joints(".*", as_proxy=True)
-        self._joint_dof_idx = joint_dof_idx.warp
         # resolve against the sensor's own body list: its ordering is backend-specific and does not
         # necessarily match the articulation's body ordering
         self._feet_body_idx, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names)
@@ -83,11 +81,13 @@ class LocomotionDirectEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
-
-    def _apply_action(self) -> None:
         # the action is clamped before scaling: unbounded joint efforts drive the solver to NaN
         forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
-        self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
+        self.robot.set_joint_effort_target_index(target=forces)
+
+    def _apply_action(self) -> None:
+        # Joint effort targets persist in the articulation command buffer across decimation substeps.
+        pass
 
     def _compute_intermediate_values(self):
         self.torso_position = self.robot.data.root_pos_w.torch
@@ -100,7 +100,7 @@ class LocomotionDirectEnv(DirectRLEnv):
 
         # planar vector from the torso to the walk target
         to_target = self.targets - self.torso_position
-        to_target[:, 2] = 0.0
+        to_target[:, 2].zero_()
 
         # alignment of the torso with the world up axis and with the direction to the target
         self.up_proj = -self.robot.data.projected_gravity_b.torch[:, 2]
@@ -188,27 +188,26 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.actions[env_ids] = 0.0
 
         # root state is reset to the default pose, offset into the environment
-        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids]
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
         self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self.robot.write_root_velocity_to_sim_index(
-            root_velocity=self.robot.data.default_root_vel.torch[env_ids].clone(), env_ids=env_ids
+            root_velocity=self.robot.data.default_root_vel.torch[env_ids], env_ids=env_ids
         )
 
         # joint state is randomized around the default pose and clamped back into the joint limits
-        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
-        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids]
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids]
         joint_pos += sample_uniform(*self.cfg.initial_joint_pos_range, joint_pos.shape, joint_pos.device)
         joint_vel += sample_uniform(*self.cfg.initial_joint_vel_range, joint_vel.shape, joint_vel.device)
         joint_pos_limits = self.robot.data.soft_joint_pos_limits.torch[env_ids]
         joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
         joint_vel_limits = self.robot.data.soft_joint_vel_limits.torch[env_ids]
         joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
-        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
-        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+        self.robot.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
         to_target = self.targets[env_ids] - default_root_pose[:, :3]
-        to_target[:, 2] = 0.0
+        to_target[:, 2].zero_()
         self.potentials[env_ids] = -torch.linalg.norm(to_target, ord=2, dim=-1) / self.step_dt
 
         self._compute_intermediate_values()

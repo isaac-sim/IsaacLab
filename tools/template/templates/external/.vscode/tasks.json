@@ -4,7 +4,7 @@
         {
             "label": "setup_python_env",
             "type": "shell",
-            "command": "uv run python ${workspaceFolder}/.vscode/tools/setup_vscode.py",
+            "command": "uv run isaaclab --editor",
             "problemMatcher": []
         }
     ]

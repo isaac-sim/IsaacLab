@@ -87,7 +87,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 add_frontend_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser, agent_library="rl_games")
+args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
@@ -99,6 +99,12 @@ sys.argv = [sys.argv[0]] + hydra_args
 def main():
     """Play with RL-Games agent."""
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
+    if not isinstance(agent_cfg, dict) or not isinstance(agent_cfg.get("params"), dict):
+        raise SystemExit(
+            f"Invalid RL-Games agent configuration from --agent {args_cli.agent}: expected a dictionary with"
+            f" a 'params' dictionary, got {type(agent_cfg).__name__}. Select an RL-Games configuration with"
+            " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
+        )
     pre_launch_video_config(env_cfg, args_cli=args_cli)
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")

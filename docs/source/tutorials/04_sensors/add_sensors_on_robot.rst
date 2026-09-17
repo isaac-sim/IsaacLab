@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-add-sensors-on-robot:
 
 Adding sensors on a robot

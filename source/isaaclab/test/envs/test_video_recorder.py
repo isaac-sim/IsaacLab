@@ -229,6 +229,31 @@ def test_visualizer_source_auto_picks_first_with_render_rgb_array():
     assert viz.render_calls == 1
 
 
+def test_visualizer_source_refreshes_physics_before_on_demand_capture():
+    """On-demand capture reads a frame after physics transforms are synchronized."""
+    synchronized = False
+
+    class _FreshFrameViz(_FakeViz):
+        def render_rgb_array(self) -> np.ndarray:
+            return np.full_like(self._frame, 255 if synchronized else 0)
+
+    viz = _FreshFrameViz("kit")
+    env = _make_env(visualizers=[viz])
+    env.sim.is_rendering = False
+
+    def synchronize_physics() -> None:
+        nonlocal synchronized
+        synchronized = True
+
+    env.sim.forward.side_effect = synchronize_physics
+    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+
+    frame = recorder._get_frame()
+
+    assert frame is not None
+    assert np.all(frame == 255)
+
+
 def test_visualizer_source_auto_no_visualizer_logs_and_returns_none(caplog):
     """source='visualizer' with no visualizers logs an error once and returns None instead of raising."""
     import logging
@@ -245,6 +270,9 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
 
     With cubric the capture succeeds; without it frames may be black.  Either way
     the recorder warns and does not hard-fail.
+
+    The warned-about condition is fixed configuration state, so the message is emitted
+    once per recorder rather than once per captured frame.
     """
     import logging
 
@@ -254,11 +282,15 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
 
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
     with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
-        recorder._get_frame()
+        for _ in range(5):
+            recorder._get_frame()
+        second_recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+        second_recorder._get_frame()
 
-    assert any("source='visualizer:newton'" in r.message for r in caplog.records)
-    # The recorder attempts capture rather than short-circuiting.
-    assert kit_viz.render_calls == 1
+    cubric_warnings = [r for r in caplog.records if "source='visualizer:newton'" in r.message]
+    assert len(cubric_warnings) == 2
+    # Capture is still attempted on every frame rather than short-circuiting.
+    assert kit_viz.render_calls == 6
 
 
 def test_visualizer_newton_alias_resolves_newton_gl():

@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-interact-articulation:
 
 Interacting with an articulation

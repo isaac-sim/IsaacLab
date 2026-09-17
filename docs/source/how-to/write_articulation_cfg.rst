@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-write-articulation-config:
 
 

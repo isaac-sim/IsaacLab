@@ -1,6 +1,213 @@
 Changelog
 ---------
 
+20.3.1 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``newton_mjwarp`` branch to ``DigitPhysicsCfg``, so the Digit velocity tasks run on the
+  Newton backend with ``presets=newton_mjwarp``. Gated on that preset: ``self_collision_enabled``
+  (the asset authors ``enabledSelfCollisions=False`` and ``DIGIT_V4_CFG`` sets no
+  ``articulation_props``, so Newton filters all 253 intra-articulation shape pairs). An armature
+  floor for the ten joints below MJWarp's observed stability threshold (expressed as a second
+  actuator group) and ``entropy_coef = 0.005`` apply on **both** backends, consistent with #7607's
+  direction of not special-casing PhysX for values that do not hurt it there.
+
+Fixed
+^^^^^
+
+* Fixed 32 ``CollisionAPI`` prims on Digit's RealSense camera decoration meshes -- glass, USB-C and
+  case halves -- becoming collision shapes. This applies on **both** backends, so the PhysX contact
+  behaviour of the Digit tasks changes: those 32 shapes no longer collide.
+* Fixed Franka deformable lift tasks to select the Menagerie robot's MuJoCo physics payload under
+  Newton while retaining its PhysX payload for PhysX presets.
+
+
+20.3.0 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-RenderBenchmark-Franka-Cabinet`` direct task, an animated Franka-and-cabinet scene with no
+  policy or reward used to compare rendering backends under ``scripts/benchmarks/benchmark_renderer.py``.
+
+Changed
+^^^^^^^
+
+* Moved benchmark-only tasks into a new ``isaaclab_tasks.benchmark`` package so they are no longer mixed in with
+  the trainable ``core`` and ``contrib`` task families. The ``IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct``
+  task id is unchanged, but its configuration moved from
+  ``isaaclab_tasks.contrib.reorient.config.shadow_hand.shadow_hand_camera_benchmark_env_cfg`` to
+  ``isaaclab_tasks.benchmark.shadow_hand_camera.shadow_hand_camera_benchmark_env_cfg``. Code that imports the
+  configuration class directly must update the import path; code that resolves the task through ``gym.make`` or
+  ``load_cfg_from_registry`` needs no change.
+
+
+20.2.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added task-owned loading of published Shadow Hand camera feature-extractor checkpoints during playback.
+
+Fixed
+^^^^^
+
+* Restored Newton-backed visualizers for Agibot place tasks after the robot asset's reversed joint ordering was
+  corrected. Newton physics remains unsupported because of an incompatible generated collision mesh.
+* Used the legacy instanceable Franka asset for PhysX Reach tasks to preserve link collisions without
+  de-instancing or large-environment performance regressions.
+
+
+20.1.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed environment-coupled agent variants to participate directly in the shared preset resolution pass through
+  each library's canonical ``<library>_cfg_entry_point``. Commands selecting Cartpole camera features or showcase
+  observation/action spaces now need only ``presets=<name>`` and no preset-specific ``--agent`` value.
+* Removed the default XR camera PiP from the G1 locomanipulation task. Neither the locomanipulation
+  nor fixed-base G1 task creates a PiP panel by default, preventing the articulated head camera from
+  capturing the panel and producing a recursive view. The locomanipulation task retains its recorded
+  robot camera.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``diffik_abs`` preset on ``Isaac-Reach-Franka-OSC``. The OSC action term replaces the
+  arm-controller presets, so on this task the preset only zeroed the action-magnitude reward weight, which
+  removed the sole regularizer on the raw pose targets. The preset now resolves as a no-op and emits a
+  :class:`FutureWarning`; it will be removed in a future release. Migration: drop ``presets=diffik_abs``
+  from ``Isaac-Reach-Franka-OSC`` commands.
+
+Removed
+^^^^^^^
+
+* Removed registry-side agent/preset compatibility metadata and agent auto-selection. Removed ``agent_library`` from
+  :func:`~isaaclab_tasks.utils.setup_preset_cli`; agent configuration families should declare matching root-level
+  :class:`~isaaclab_tasks.utils.PresetCfg` alternatives instead.
+
+Fixed
+^^^^^
+
+* Added an early validation error when Agibot place tasks use Newton-backed visualizers, whose shadow-model importer
+  does not support the reversed gripper joints in the robot USD. Use ``--visualizer kit`` with Isaac Sim PhysX, or
+  ``--visualizer none`` for headless execution.
+* Reduced the default Agibot place environment count from 4096 to one and enabled physics replication to prevent
+  interactive tools from exhausting host memory. Use ``--num_envs`` to configure a larger batch when needed.
+* Fixed unexpected Franka Reach motion before teleoperation input by configuring backend-native gravity control
+  for the differential and Newton IK presets.
+* Fixed Franka Reach links intersecting the table on PhysX by enabling the Menagerie asset's convex link colliders.
+* Fixed ``Isaac-Reach-Franka-OSC`` dropping the Franka Menagerie solver joint velocity limit. The effort
+  actuator copied the deprecated ``velocity_limit_sim`` alias instead of ``joint_velocity_limit``, so the
+  arm ran without a velocity clamp and could reach joint speeds that destabilize the simulation.
+* Fixed ``Isaac-Reach-Franka-OSC`` inheriting the controller-keyed teleop device presets of ``Isaac-Reach-Franka``;
+  the OSC task now always uses the default (empty) teleop device set.
+* Added task-specific installation guidance when loading a task configuration failed because a Pink IK dependency
+  was missing, including the standard Windows installation's missing Pinocchio dependency.
+
+
+20.1.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reduced direct locomotion step and reset overhead by staging actions once per environment step,
+  avoiding duplicate articulation resets, redundant state copies, and separate joint-state writes.
+* Added preset-specific RSL-RL checkpoint discovery for the ResNet18 and Theia-Tiny Cartpole camera policies.
+* Fixed the SO-101 joint-teleop cube-stack task often failing to auto-reset after a completed
+  stack. The success termination accepted the gripper as open only within 0.2 rad of
+  ``SO101_GRIPPER_OPEN``, which is the top 0.2 rad of the jaw's 1.92 rad range, so a leader arm
+  whose calibrated full-open reading fell short never triggered success. The tolerance is now
+  0.5 rad, which still requires more opening than releasing a cube needs.
+* Defaulted the SO-101 cube-stacking tasks to the PhysX backend, so the gripper no longer
+  penetrates the cubes and grasps hold. ``IsaacContrib-Stack-Cube-SO101-v0``,
+  ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``, and
+  ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` previously resolved to Newton MJWarp, whose
+  gripper contact response is still being tuned for this robot. Pass ``physics=newton_mjwarp``
+  to select the previous backend.
+
+
+20.1.1 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified rough-velocity task inputs across physics backends by removing MJWarp-only actuator armatures,
+  using 5,000 G1 training iterations for every backend, and representing shared base-COM randomization as a
+  plain event. Downstream configurations that require the former backend-specific behavior should set it
+  explicitly.
+
+Fixed
+^^^^^
+
+* Fixed preset-based ``--agent`` auto-selection being skipped for every entrypoint that registers
+  ``--agent`` with a non-``None`` default (``rsl_rl``, ``rl_games`` and ``sb3``). The selection guard
+  could not tell a default-supplied value from a user-typed one, so ``presets=resnet18`` and
+  ``presets=theia_tiny`` on ``Isaac-Cartpole-Camera`` kept the raw-camera entry point and the runner
+  failed to construct. An explicitly typed ``--agent`` still wins over auto-selection.
+* Fixed surface-gripper stack and place observations returning a quadratic environment batch due to unintended
+  broadcasting.
+* Fixed native keyboard, gamepad, and SpaceMouse teleoperation for ``Isaac-Reach-Franka`` with the
+  ``diffik`` and ``newton_ik`` presets by disabling the unsupported gripper command.
+* Fixed surface-gripper stack tasks to select CPU simulation by default and reject unsupported GPU overrides before
+  simulator initialization. Task-defined simulation devices are now preserved by :func:`parse_env_cfg` when no
+  explicit device override is provided.
+
+
+20.1.0 (2026-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed-tendon actuation to the Shadow Hand tasks. The hand's twenty motors drive sixteen
+  joints and four tendons, so each manager-based task pairs a joint action term with a fixed-tendon
+  action term -- one pair per hand, so handover carries two -- and the direct tasks apply the joint
+  and tendon halves of the action in turn. Without the tendon term the eight joints coupled by a
+  tendon took no command at all.
+
+Changed
+^^^^^^^
+
+* Changed the Shadow Hand reorientation and handover goal commands to sample orientations uniformly
+  over SO(3) with :func:`~isaaclab.utils.math.random_orientation`, replacing two independent
+  rotations about the x- and y-axes. ``ReorientCommandCfg`` and ``HandoverCommandCfg`` moved to
+  ``commands_cfg.py`` modules in their ``mdp`` packages; both remain importable from ``mdp``.
+
+* Changed ``Metrics/success_rate`` for the Shadow Hand handover task to report whether the object is
+  at the goal when the episode ends. It previously latched as soon as the object first came within
+  the success distance, so an object swung through the goal scored the same as one left resting
+  there. Both the manager-based and direct environments were updated together. Reported success
+  rates are lower than before for the same policy, and are not comparable with values recorded
+  under the previous definition; re-evaluate any checkpoint whose success rate is being compared
+  across this change.
+
+* Reduced the default RSL-RL training length for the Shadow Hand tasks: reorientation from 10000 to
+  3000 iterations and handover from 5000 to 3500. Success rate flattens well before the previous
+  budgets, so a default run reaches the same success rate in roughly a third of the wall time. Pass
+  ``agent.max_iterations=<n>`` to train longer.
+
+Fixed
+^^^^^
+
+* Fixed the Shadow Hand reorientation task spawning the hand in an orientation that left the palm
+  facing sideways on the current asset, so the object could not be held.
+
+* Fixed the Shadow Hand reorientation and handover tasks diverging on PhysX. Twenty-four joints
+  under finger-object contact need more solver iterations than the default budget provides, and
+  training ended with non-finite observations. The hand's configuration sets them again for both
+  engines; Newton ignores them.
+
+
 20.0.1 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~~
 

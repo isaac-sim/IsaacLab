@@ -161,7 +161,7 @@ def create_scene_cfg():
 
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,
@@ -230,7 +230,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
         )
         dome_light = AssetBaseCfg(

@@ -10,7 +10,7 @@ from dataclasses import MISSING
 
 import numpy as np
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .cloner_strategies import sequential
 

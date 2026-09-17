@@ -1,6 +1,240 @@
 Changelog
 ---------
 
+24.2.3 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the pinned Newton version from ``1.6.0rc1`` to the final ``1.6.0`` release. No user
+  action is required; new environments now resolve the stable release instead of the release candidate.
+
+Fixed
+^^^^^
+
+* Updated Starlette to 1.3.1 or newer to address current security advisories and aligned aiohttp with the
+  Isaac Sim 6.1 dependency selection. No migration is required.
+* Pinned the PyTorch stack in the published package dependencies so downstream projects no
+  longer selected newer, untested builds when installing the Isaac Lab wheel.
+
+
+24.2.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Transformers to 5.10.4 and preserved Theia feature-model loading under Transformers 5.
+* Removed the RL-Games extra and the Robomimic dependency from the published Isaac Lab wheel
+  metadata because their pinned versions do not provide package-index wheels. Install Isaac Lab
+  from a source checkout to use the ``rl-games`` or ``mimic`` source extras for these integrations.
+* Restricted Newton actuator metadata authoring to TorchScript network archives. Convert legacy pickled actuator
+  checkpoints to TorchScript before using them with ``ActuatorNetMLPCfg`` or ``ActuatorNetLSTMCfg``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``isaaclab.sh``. It will be removed in Isaac Lab 3.1; use ``uv run isaaclab`` instead.
+
+Fixed
+^^^^^
+
+* Updated the GitPython, Pillow and PyArrow dependency selections and the
+  container Git LFS executable to address security findings.
+* Fixed ``--video`` training continuously updating PhysX Fabric and the capture-only Kit visualizer
+  between recording windows. Physics transforms are now synchronized on demand before each captured frame.
+
+
+24.2.1 (2026-09-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a synchronized timer around the renderer call inside
+  :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera`, gated by the ``ISAACLAB_RENDER_PROFILE``
+  environment variable, so any rendering backend can be profiled through the same scope name
+  (:data:`~isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`). When enabled, each render prints its elapsed
+  time to the log.
+
+Changed
+^^^^^^^
+
+* Allowed the shared generalized-force ordering kernel to omit direction signs for backends that already returned
+  forces in the public joint basis. Callers supplying direction signs retained their existing behavior.
+
+
+24.2.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaaclab leapp export`` as the unified LEAPP policy export entry point.
+* Added ``isaaclab leapp deploy`` as the installed LEAPP deployment entry point.
+
+Changed
+^^^^^^^
+
+* Updated the default ground plane to a metric off-white and grey checker with NVIDIA-green landmarks every 2 m,
+  with its roughness map authored for renderers that support PBR textures.
+* Added the shared ``VisualizerCfg.background_color`` setting with a solid sky-blue default.
+* **Breaking:** Removed ``scripts/reinforcement_learning/leapp/deploy.py``. Use
+  ``isaaclab leapp deploy --task <TASK> --pipeline <PIPELINE_YAML>``; the old
+  ``--leapp_model`` option was replaced by ``--pipeline``.
+* Changed :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` by default so
+  supported explicit actuator models use the native Newton actuator path. Set it to ``False``
+  to restore the deprecated Isaac Lab execution path.
+
+Fixed
+^^^^^
+
+* Fixed benign ``[omni.rtx] FindAppliedAPIPrimDefinition(...) returned nothing`` /
+  ``Could not find UsdPrimDefinition for 'OmniRtx...API'`` error logs printed the first time
+  the ``newton_rtx`` visualizer opens its render product with ``physics=ovphysx`` by registering
+  the OVRTX schemas before physics initializes USD.
+* Disabled Kit's overlapping editor grid and camera axis by default so they do not obscure the ground-plane material.
+* Fixed play benchmarks failing on ``DirectMARLEnv`` tasks by creating and converting environments
+  with the same backend-specific rules as training.
+
+
+24.1.2 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed SKRL training and playback benchmarks to use the canonical task config and report its ``agent.class``.
+* Updated the Isaac Sim and standalone asset converter dependencies, Docker image default, and
+  installation guidance to 6.1. Recreate or resynchronize environments that install the
+  ``isaacsim`` or ``importers`` extras.
+
+Fixed
+^^^^^
+
+* Fixed ``SceneDataProvider`` allocating transform and geometry buffers on Warp's process-global
+  default device. Allocations now follow the device of the publication they consume.
+* Selected the configured PyTorch and Warp process device in ``SimulationContext`` before
+  constructing physics, rendering, and visualization backends.
+* Fixed ``uv run`` inside the kit-less Docker image resolving its own environment at
+  ``/workspace/isaaclab/.venv`` instead of the one the image ships. Commands such as
+  ``uv run isaaclab train ...`` reinstalled the entire locked dependency set and, when the
+  source tree was mounted from the host, failed with
+  ``could not create '<package>.egg-info': Permission denied``.
+* Initialized an already-imported PyTorch CUDA runtime before Kit startup so deferred capability checks do not retain
+  stale device indices when Kit filters the GPUs available to its Vulkan backend.
+* Fixed :class:`~isaaclab.controllers.OperationalSpaceController` using ``pose_abs`` target quaternions
+  without normalizing them. Unnormalized policy outputs scaled the orientation error and the commanded
+  efforts by the quaternion norm. Targets are now normalized, and degenerate (zero or non-finite)
+  quaternions fall back to the current end-effector orientation, matching the absolute-pose handling of
+  :class:`~isaaclab.controllers.DifferentialIKController`.
+* Fixed ``isaaclab.utils.configclass`` resolving to either the sub-module or the
+  :func:`~isaaclab.utils.configclass.configclass` decorator depending on which one happened to be
+  imported first. ``from isaaclab.utils import configclass`` could return the sub-module, making
+  ``@configclass`` fail with ``TypeError: 'module' object is not callable``, and resolving the
+  decorator first left the sub-module unreachable as an attribute of :mod:`isaaclab.utils`. The
+  sub-module is now callable, so the decorator, ``import isaaclab.utils.configclass as ...`` and
+  dotted attribute access all work regardless of import order. No migration is needed.
+
+
+24.1.1 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``reshape_tiled_image`` Warp kernel to index the tiled image buffer as a 3D array
+  of shape (num_tiles_y * image_height, num_tiles_x * image_width, num_channels) instead of a
+  flattened 1D array. This keeps every array dimension within Warp's per-dimension size limit, so
+  large environment counts and camera resolutions no longer overflow a single flattened dimension.
+
+Fixed
+^^^^^
+
+* Fixed VS Code and Cursor import resolution for source, editable, wheel, and Isaac Sim binaries installations.
+  Replaced ``isaaclab --vscode`` and ``python -m isaaclab --generate-vscode-settings`` with
+  ``uv run isaaclab --editor``.
+* Flattened multi-dimensional frozen-encoder outputs so they satisfy the observation-term contract and can be used
+  by MLP policies such as the Cartpole Theia-Tiny feature policy.
+* Fixed the :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder` Kit/Newton cubric
+  warning being logged on every captured frame, which flooded the terminal during
+  ``--video`` runs (roughly one line per frame for the whole clip). The warned-about
+  condition is fixed configuration state, so the message is now emitted once per
+  recorder, matching the existing once-only behavior of the frame-capture error path.
+* Documented ``"normals"`` as a valid value for
+  :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`. It was already accepted by
+  :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES` and advertised on the
+  visualization docs page, but missing from the field's own docstring.
+
+
+24.1.0 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``rsl_rl``, ``rl_games`` and ``sb3`` benchmark train and play entrypoints not passing
+  ``agent_library`` to :func:`~isaaclab_tasks.utils.setup_preset_cli`, which disabled preset-based
+  ``--agent`` selection and the registered-agent help listing for those backends. Only the ``skrl``
+  entrypoints wired it.
+* Fixed :meth:`~isaaclab.sensors.contact_sensor.BaseContactSensor.compute_first_contact` and
+  :meth:`~isaaclab.sensors.contact_sensor.BaseContactSensor.compute_first_air` silently missing
+  touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283). Their
+  ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update interval
+  instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32 rounding
+  error of the sensor clock, so most transitions were dropped. Callers that relied on the previous
+  behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+* Fixed ``Se3SpaceMouse`` cleanup raising an exception when device initialization failed before
+  starting its listener thread.
+
+
+24.0.0 (2026-09-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Published :class:`~isaaclab.cloner.ReplicateSession` plans on entry and dispatched
+  them on exit. Empty :class:`~isaaclab.scene.InteractiveScene` configurations now author only
+  ``env_0``; direct workflows must finish setup with :func:`~isaaclab.cloner.clone_plan_from_env_0`
+  and :func:`~isaaclab.cloner.replicate`.
+
+
+23.1.0 (2026-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.actions.FixedTendonPositionAction`, an action term that commands
+  an articulation's fixed tendons. Tendons have their own index space, so a joint action term cannot
+  reach them; pair the two terms to cover a robot whose motors drive both.
+
+* Added :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`,
+  so a tendon position target can be commanded without the caller knowing which physics engine is
+  running.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.devices.Se2SpaceMouse` and :class:`~isaaclab.devices.Se3SpaceMouse` failing with
+  ``No device found by SpaceMouse`` when a supported 3Dconnexion device was connected. Detection matched the
+  HID product string exactly, which the ``libusb`` backend bundled in the ``hidapi`` wheels leaves empty
+  unless the process may open the USB node. Directly attached devices are now matched by their USB vendor
+  and product ids, with the product string kept as a fallback, and the errors raised when a device cannot be
+  found or opened name the enumerated devices and the required permissions.
+* Fixed SpaceMouse discovery giving up when the first supported device could not be opened. Discovery now
+  continues to the remaining devices and only reports the open failures if none of them could be opened.
+* Added the USB identifier of the 3Dconnexion SpaceNavigator, so the device added in :github:`7544` is also
+  detected when the HID backend cannot read its product string.
+* Fixed the ``us`` Asset Region Profile and all shipped Kit experiences to share the production asset root.
+* Restored :class:`~isaaclab.envs.LeappDeploymentEnv` as a public ``isaaclab.envs`` export.
+
+
 23.0.0 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~~
 

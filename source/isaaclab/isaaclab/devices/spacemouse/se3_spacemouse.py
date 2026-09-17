@@ -85,7 +85,9 @@ class Se3SpaceMouse(DeviceBase):
 
     def __del__(self):
         """Destructor for the class."""
-        self._thread.join()
+        thread = getattr(self, "_thread", None)
+        if thread is not None and thread.is_alive():
+            thread.join()
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""

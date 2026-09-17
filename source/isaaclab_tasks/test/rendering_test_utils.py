@@ -1556,7 +1556,7 @@ def rendering_test_shadow_hand(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
@@ -1650,7 +1650,7 @@ def rendering_test_shadow_hand_yellow_bg(
     comparison_scores: list[dict],
 ) -> None:
     """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
@@ -1708,7 +1708,7 @@ def rendering_test_cartpole(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
 
@@ -1857,7 +1857,7 @@ def rendering_test_lift_kuka(
 
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
         BASE_CAMERA_CFG,
@@ -2120,7 +2120,7 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     @configclass
     class TestFrankaCameraObservationsCfg:
@@ -2357,7 +2357,7 @@ def rendering_test_mpm_particles(
 
     import isaaclab.sim as sim_utils
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     # The reset event calls back into UR10ParticlePushEnv.randomize_push_scene, which places the
     # pile, so the task's own env class is required here rather than a plain ManagerBasedRLEnv.

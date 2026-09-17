@@ -33,7 +33,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,

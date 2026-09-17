@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner import add as clone_add
-from isaaclab.utils import find_unique_string_name
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, find_unique_string_name
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBaseCfg
@@ -41,7 +40,7 @@ class InteractiveSceneCfg:
         from isaaclab.assets import AssetBaseCfg
         from isaaclab.scene import InteractiveSceneCfg
         from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
