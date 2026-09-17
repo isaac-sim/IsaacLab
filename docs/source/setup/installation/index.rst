@@ -572,10 +572,6 @@ To create a project built on Isaac Lab, see :ref:`template-generator`.
 
    Isaac Lab wheels are published for major releases, not every patch release.
 
-   Isaac Lab 3.0 Early Access is published as Python package version ``3.0.0rc1``. The corresponding
-   source tag is ``v3.0.0-EA``, and the container tags are ``3.0.0-rc1`` and
-   ``3.0.0-rc1-kitless``.
-
 Installing an unreleased Git revision
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -594,6 +590,12 @@ resources as a released wheel:
 Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
 updating the lockfile can then select a newer Isaac Lab revision and dependency set.
 
+Installing the published wheel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not use the
+``[tool.uv.sources]`` Git entry from the previous workflow when installing the published wheel.
+
 Choose how you want uv to manage the dependency. Both workflows start with the base
 ``isaaclab`` package; add optional capabilities only when your project needs them.
 
@@ -601,38 +603,13 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
    .. tab-item:: uv project dependency
 
-      .. code-block:: bash
+      .. container:: highlight
 
-         uv init --python 3.12 my_isaaclab_project
-         cd my_isaaclab_project
+         .. parsed-literal::
 
-      Add the following settings to the generated ``pyproject.toml`` before installing Isaac Lab.
-      These release overrides also apply when adding extras or upgrading the lockfile:
-
-      .. code-block:: toml
-
-         [tool.uv]
-         index-strategy = "unsafe-best-match"
-         override-dependencies = [
-             "numpy>=2",
-             "mujoco~=3.11.0",
-             "mujoco-warp~=3.11.0",
-             "newton[sim]==1.5.2",
-             "newton-usd-schemas>=0.4.1",
-             "torch==2.11.0",
-             "torchvision==0.26.0",
-             "torchaudio==2.11.0",
-             "packaging>=20,<27",
-         ]
-
-         [[tool.uv.index]]
-         url = "https://pypi.nvidia.com"
-
-      Then add the released package:
-
-      .. code-block:: bash
-
-         uv add isaaclab==3.0.0rc1
+            uv init --python 3.12 my_isaaclab_project
+            cd my_isaaclab_project
+            uv add --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
 
    .. tab-item:: Standalone uv environment
 
@@ -642,38 +619,35 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
             :sync: linux-x86_64
 
-            .. code-block:: bash
+            .. container:: highlight
 
-               uv venv --python 3.12 env_isaaclab
-               source env_isaaclab/bin/activate
-               uv pip install isaaclab==3.0.0rc1 \
-                 --overrides https://raw.githubusercontent.com/isaac-sim/IsaacLab/v3.0.0-EA/tools/wheel_builder/uv-overrides.txt \
-                 --index https://pypi.nvidia.com \
-                 --index-strategy unsafe-best-match
+               .. parsed-literal::
+
+                  uv venv --python 3.12 env_isaaclab
+                  source env_isaaclab/bin/activate
+                  uv pip install --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
 
          .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
             :sync: windows-x86_64
 
-            .. code-block:: batch
+            .. container:: highlight
 
-               uv venv --python 3.12 env_isaaclab
-               env_isaaclab\Scripts\activate
-               uv pip install isaaclab==3.0.0rc1 ^
-                 --overrides https://raw.githubusercontent.com/isaac-sim/IsaacLab/v3.0.0-EA/tools/wheel_builder/uv-overrides.txt ^
-                 --index https://pypi.nvidia.com ^
-                 --index-strategy unsafe-best-match
+               .. parsed-literal::
+
+                  uv venv --python 3.12 env_isaaclab
+                  env_isaaclab\\Scripts\\activate
+                  uv pip install --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
 
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
             :sync: linux-aarch64
 
-            .. code-block:: bash
+            .. container:: highlight
 
-               uv venv --python 3.12 env_isaaclab
-               source env_isaaclab/bin/activate
-               uv pip install isaaclab==3.0.0rc1 \
-                 --overrides https://raw.githubusercontent.com/isaac-sim/IsaacLab/v3.0.0-EA/tools/wheel_builder/uv-overrides.txt \
-                 --index https://pypi.nvidia.com \
-                 --index-strategy unsafe-best-match
+               .. parsed-literal::
+
+                  uv venv --python 3.12 env_isaaclab
+                  source env_isaaclab/bin/activate
+                  uv pip install --index https://pypi.nvidia.com |isaaclab_wheel_requirement|
 
 The project workflow records the dependency in ``pyproject.toml`` and updates ``uv.lock``. Use it
 when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
@@ -684,11 +658,9 @@ or temporary work.
 Optional extras
 ~~~~~~~~~~~~~~~
 
-Add extras only when your project needs them. In a uv project configured above, use
-``uv add "isaaclab[<extra>]==3.0.0rc1"``; uv uses the saved index and overrides. In a standalone
-environment, replace ``isaaclab==3.0.0rc1`` in the install command with
-``"isaaclab[<extra>]==3.0.0rc1"``, keeping all index and override options.
-The ``importers`` and ``isaacsim`` extras have complete commands below.
+Add extras only when your project needs them. Add the extra name in brackets after ``isaaclab``
+in the install command, keeping the version pin and index. The ``importers`` and ``isaacsim``
+extras have dedicated commands below.
 
 .. list-table::
    :header-rows: 1
@@ -744,19 +716,6 @@ Installing the ``importers`` extra
 
 Install this extra to convert URDF and MJCF files without Isaac Sim.
 
-In a uv project with the release settings above:
-
-.. code-block:: bash
-
-   uv add "isaaclab[importers]==3.0.0rc1"
-
-In a standalone environment:
-
-.. warning::
-
-   Use the full command below. Without the overrides, the importer extra can downgrade packages
-   used by the base Isaac Lab install. The overrides keep Isaac Lab's tested versions.
-
 .. isaaclab-uv-importers-wheel-install::
 
 Installing the ``isaacsim`` extra
@@ -764,14 +723,6 @@ Installing the ``isaacsim`` extra
 
 Isaac Sim 6.1 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
 the tested overrides:
-
-In a uv project with the release settings above:
-
-.. code-block:: bash
-
-   uv add "isaaclab[isaacsim]==3.0.0rc1"
-
-In a standalone environment:
 
 .. isaaclab-uv-isaacsim-wheel-install::
 

@@ -17,10 +17,6 @@ from sphinx.util.docutils import SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
-_PUBLISHED_WHEEL_VERSION = "3.0.0rc1"
-_PUBLISHED_WHEEL_OVERRIDES_URL = (
-    "https://raw.githubusercontent.com/isaac-sim/IsaacLab/v3.0.0-EA/tools/wheel_builder/uv-overrides.txt"
-)
 
 
 def _branch(config) -> str:
@@ -220,19 +216,23 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
     has_content = False
 
     def run(self) -> list[nodes.Node]:
+        branch = self.config.isaaclab_wheel_source_tag
+        overrides_url = (
+            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
+        )
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[isaacsim]=={_PUBLISHED_WHEEL_VERSION}" \\
-     --overrides "{_PUBLISHED_WHEEL_OVERRIDES_URL}" \\
-     --index https://pypi.nvidia.com \\
+   uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
+     --overrides "{overrides_url}" \\
+     --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
 
 
 class IsaacLabUvImportersWheelInstall(SphinxDirective):
-    """Render the Isaac Lab standalone importer command with resolver overrides."""
+    """Render the Isaac Lab standalone importer command."""
 
     has_content = False
 
@@ -240,8 +240,7 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[importers]=={_PUBLISHED_WHEEL_VERSION}" \\
-     --overrides "{_PUBLISHED_WHEEL_OVERRIDES_URL}" \\
+   uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
      --index https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match
 """
@@ -337,6 +336,8 @@ def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torc
 def setup(app):
     """Register Isaac Lab documentation directives."""
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaaclab_wheel_version", "", "env")
+    app.add_config_value("isaaclab_wheel_source_tag", "", "env")
     app.add_config_value("isaacsim_version", "", "env")
     app.add_config_value("torch_version", "", "env")
     app.add_config_value("torchvision_version", "", "env")
