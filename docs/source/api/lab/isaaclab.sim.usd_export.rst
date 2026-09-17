@@ -60,7 +60,12 @@ are now always retained. Newton builder defaults require writeback only when con
 differently from native defaults and not superseded by source shape or material opinions.
 Material copies are shared between consumers requesting the same necessary override.
 
-Actuator configuration records affected joint/field identities without copying values.
+The actuator framework owns configuration-to-data bindings shared by imported-default
+reads and initialization override selection. ``ActuatorControl.get_joint_property_overrides``
+reports affected public fields and instance/joint masks before backend assignment;
+``ActuatorCollection`` retains only identities, not additional value snapshots. The exporter
+consumes those identities and the existing data-property USD decorators, without a separate
+actuator configuration table.
 ``None`` inherits the source; scalars and dictionaries select the whole actuator group,
 preserving the existing unmatched-dictionary zero-fill behavior. Explicit control can
 also require disabled solver gains. Only selected fields are read during export, and
