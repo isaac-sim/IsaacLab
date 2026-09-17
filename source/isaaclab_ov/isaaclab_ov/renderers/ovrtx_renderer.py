@@ -540,7 +540,9 @@ class OVRTXRenderer(BaseRenderer):
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
         self._cable_point_slices: list[wp.array] = []
 
-    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+    def _initialize_camera_render_data_from_spec_legacy(
+        self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
+    ) -> None:
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
@@ -946,7 +948,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data = OVRTXCameraRenderData(spec, self._device)
         try:
             if not self._initialized_scene:
-                self._initialize_from_spec(spec, render_data)
+                self._initialize_camera_render_data_from_spec(spec, render_data)
                 render_data.render_product_path = self._render_product_paths[0]
                 # Move the initial camera's handles into its render data, just like subsequent cameras.
                 if self._use_ovstage:
@@ -1701,11 +1703,13 @@ class OVRTXRenderer(BaseRenderer):
     # Dispatch methods — route to ovstage or legacy implementation
     # ---------------------------------------------------------------------------
 
-    def _initialize_from_spec(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+    def _initialize_camera_render_data_from_spec(
+        self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
+    ) -> None:
         if self._use_ovstage:
-            self._initialize_from_spec_ovstage(spec, render_data)
+            self._initialize_camera_render_data_from_spec_ovstage(spec, render_data)
         else:
-            self._initialize_from_spec_legacy(spec, render_data)
+            self._initialize_camera_render_data_from_spec_legacy(spec, render_data)
 
     @staticmethod
     def _discover_cable_segment_bindings() -> tuple[list[str], list[int], list[int], list[int]] | None:
@@ -1880,7 +1884,9 @@ class OVRTXRenderer(BaseRenderer):
         # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
         self._cable_point_tensors: list = []
 
-    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+    def _initialize_camera_render_data_from_spec_ovstage(
+        self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
+    ) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
 
         Args:
