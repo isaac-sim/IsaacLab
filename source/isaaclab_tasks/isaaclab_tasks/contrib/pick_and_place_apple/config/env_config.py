@@ -8,6 +8,8 @@
 import math
 import os
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -23,7 +25,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
 
 from .. import mdp
-from .camera_config import CameraPresets
+from .camera_config import FRONT_CAMERA_CFG, LEFT_WRIST_CAMERA_CFG, RIGHT_WRIST_CAMERA_CFG
 from .metadata import (
     ACTION_DIM,
     H2_ACTION_JOINT_ORDER,
@@ -303,9 +305,9 @@ class PnpAppleSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    front_camera = CameraPresets.h2_front_fisheye_camera(height=240, width=320)
-    left_wrist_camera = CameraPresets.left_shf3l_fisheye_camera(height=240, width=320)
-    right_wrist_camera = CameraPresets.right_shf3l_fisheye_camera(height=240, width=320)
+    front_camera = FRONT_CAMERA_CFG.replace(height=240, width=320)
+    left_wrist_camera = LEFT_WRIST_CAMERA_CFG.replace(height=240, width=320)
+    right_wrist_camera = RIGHT_WRIST_CAMERA_CFG.replace(height=240, width=320)
 
 
 @configclass
@@ -464,17 +466,14 @@ class PnpAppleEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = None
 
     def __post_init__(self):
-        from isaaclab_physx.physics import PhysxCfg
-
         self.decimation = 4
         self.episode_length_s = 20.0
         self.sim.dt = 1 / 120
         if self.sim.physics is None:
             self.sim.physics = PhysxCfg()
-        # self.sim.physics.enable_external_forces_every_iteration = True
-        # self.sim.physics.solve_articulation_contact_last = True
         self.sim.physics.gpu_max_num_partitions = 32
-        self.sim.render_interval = 2
+        # One render per environment step; the policy reads a camera only once per step.
+        self.sim.render_interval = 4
         # SimulationCfg.render only exists on IsaacLab builds that ship RenderCfg;
         # it is absent from the pinned checkout here, where the bare attribute
         # access raised AttributeError before the environment was ever built.

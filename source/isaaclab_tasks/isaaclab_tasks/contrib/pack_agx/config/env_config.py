@@ -8,6 +8,8 @@
 import math
 import os
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -23,7 +25,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
 
 from .. import mdp
-from .camera_config import CameraPresets
+from .camera_config import FRONT_CAMERA_CFG, LEFT_WRIST_CAMERA_CFG, RIGHT_WRIST_CAMERA_CFG
 from .metadata import (
     ACTION_DIM,
     H2_ACTION_JOINT_ORDER,
@@ -94,8 +96,13 @@ _FRAME0_POLICY_58_POS: tuple[float, ...] = (
     0.0884,
 )
 assert len(_FRAME0_POLICY_58_POS) == ACTION_DIM
-CUSTOM_JOINT_POS = dict(zip(POLICY_58_ORDER, _FRAME0_POLICY_58_POS, strict=True))
+
+# Arm + Sharpa-hand start pose for the pack_agx task, keyed by joint name.
+CUSTOM_JOINT_POS: dict[str, float] = dict(zip(POLICY_58_ORDER, _FRAME0_POLICY_58_POS, strict=True))
 CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
+assert "head_pitch_joint" not in POLICY_58_ORDER, (
+    "head must stay outside POLICY_58_ORDER so policy cannot lift the head"
+)
 
 
 # Task-specific start pose.
@@ -279,9 +286,9 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    front_camera = CameraPresets.h2_front_fisheye_camera(height=480, width=640)
-    left_wrist_camera = CameraPresets.left_shf3l_fisheye_camera(height=480, width=640)
-    right_wrist_camera = CameraPresets.right_shf3l_fisheye_camera(height=480, width=640)
+    front_camera = FRONT_CAMERA_CFG.replace(height=240, width=320)
+    left_wrist_camera = LEFT_WRIST_CAMERA_CFG.replace(height=240, width=320)
+    right_wrist_camera = RIGHT_WRIST_CAMERA_CFG.replace(height=240, width=320)
 
 
 @configclass
@@ -356,6 +363,7 @@ class ObservationsCfg:
 class EventCfg:
     """Reset the scene, then randomize the AGX Orin on the tabletop."""
 
+    # Patches on materials
     align_table_material = EventTermCfg(
         func=mdp.align_table_material,
         mode="startup",
@@ -381,6 +389,7 @@ class EventCfg:
             "albedo_brightness": 2.6,
         },
     )
+
     reset_scene = EventTermCfg(
         func=base_mdp.reset_scene_to_default,
         mode="reset",
@@ -472,17 +481,16 @@ class PackAgxOrinEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = None
 
     def __post_init__(self):
-        from isaaclab_physx.physics import PhysxCfg
-
         self.decimation = 4
         self.episode_length_s = 15.0
         self.sim.dt = 1 / 120
         if self.sim.physics is None:
             self.sim.physics = PhysxCfg()
         self.sim.physics.gpu_max_num_partitions = 32
+        # One render per environment step; the policy reads a camera only once per step.
         self.sim.render_interval = 4
+        # SimulationCfg.render only exists on IsaacLab builds that ship RenderCfg;
+        # it is absent from the pinned checkout here, where the bare attribute
+        # access raised AttributeError before the environment was ever built.
         if hasattr(self.sim, "render"):
             self.sim.render.antialiasing_mode = "DLAA"
-        self.scene.front_camera = CameraPresets.h2_front_fisheye_camera(height=240, width=320)
-        self.scene.left_wrist_camera = CameraPresets.left_shf3l_fisheye_camera(height=240, width=320)
-        self.scene.right_wrist_camera = CameraPresets.right_shf3l_fisheye_camera(height=240, width=320)

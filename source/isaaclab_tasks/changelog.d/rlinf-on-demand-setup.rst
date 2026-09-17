@@ -4,8 +4,6 @@ Added
 * Added the ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa`` and
   ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa-Eval`` environments, an RLinf GR00T pick-and-place
   task on the Unitree H2 + Sharpa Wave embodiment.
-* Added ``metadata``, ``robot_config``, ``camera_config`` and ``gr00t_config`` modules to each
-  H2 + Sharpa task, holding that task's joint-order metadata, articulation preset and camera presets.
 * Added the ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa`` and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa-Eval``
   environments, an RLinf GR00T N1.7 task packing an AGX Orin into its protective box with the
   Unitree H2 + Sharpa Wave embodiment.
@@ -16,8 +14,12 @@ Added
   dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
   SFT dataloader registered in RLinf.
 * Added ``POLICY_STATE_TO_ACTION_INDICES`` to each H2 + Sharpa task's ``gr00t_config``, publishing where the policy's 58-D joint state lands in H2's 75-D action vector. The RLinf extension reads it to build a hold-the-current-pose action; H2 interleaves the two hands, so the state is not a contiguous slice of the action.
-* Added ``isaaclab_tasks.contrib.rlinf_assets``, the asset roots the three RLinf post-training tasks
-  share, and ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` to point them at a local mirror.
+* Added the joint-order metadata, articulation presets, camera presets and GR00T modality layout each
+  H2 + Sharpa task needs, under its own ``config/`` package. The articulation itself is
+  ``isaaclab_assets.robots.unitree.H2_SHARPA_CFG`` and the head camera
+  ``isaaclab_assets.sensors.unitree.H2_HEAD_CAMERA_CFG``.
+* Added ``isaaclab_tasks.contrib.rlinf_assets``, the scene-asset roots the three RLinf post-training
+  tasks share, and ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` to point them at a local mirror.
 
 Changed
 ^^^^^^^
