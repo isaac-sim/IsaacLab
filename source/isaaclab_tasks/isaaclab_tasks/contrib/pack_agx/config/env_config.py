@@ -313,7 +313,12 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         robot_joint_state = ObsTerm(func=mdp.get_robot_joint_states)
-        robot_policy_joint_pos = ObsTerm(func=mdp.get_robot_policy_joint_positions)
+        robot_policy_joint_pos = ObsTerm(
+            func=mdp.joint_pos,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=POLICY_58_ORDER, preserve_order=True),
+            },
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -404,8 +409,11 @@ class EventCfg:
         y_range=(0.0, XY_RANGE),
     )
 
-    reset_task_stage = EventTermCfg(
-        func=mdp.reset_task_stage,
+    # Must run before any reset or step so the phase buffers exist.
+    init_task_phase = EventTermCfg(func=mdp.init_task_phase_state, mode="startup")
+
+    reset_task_phase = EventTermCfg(
+        func=mdp.reset_task_phase,
         mode="reset",
         params={
             "agx_orin_cfg": SceneEntityCfg("agx_orin"),
@@ -416,19 +424,19 @@ class EventCfg:
 
 @configclass
 class TerminationsCfg:
-    """Timeout and stage-based completion for RL post-training."""
+    """Timeout and phase-based completion for RL post-training."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
         func=mdp.task_success_termination,
         time_out=False,
-        params={"success_stage": 4},
+        params={"success_phase": 4, "print_log": False},
     )
 
 
 @configclass
 class RewardsCfg:
-    """Sparse stage rewards plus stage-specific positive progress shaping."""
+    """Sparse phase rewards: lift, align, seat, then release."""
 
     lift_agx = RewTerm(
         func=mdp.lift_agx_reward,
@@ -449,12 +457,16 @@ class RewardsCfg:
     align_agx = RewTerm(
         func=mdp.align_agx_reward,
         weight=1.0,
-        params={"distance_offset": 0.25},
+        # Dense shaping disabled: params={"distance_offset": 0.25},
     )
     seat_agx = RewTerm(
         func=mdp.seat_agx_reward,
         weight=1.0,
-        params={"target_offset": 0.25},
+        # Dense shaping disabled: params={"target_offset": 0.25},
+    )
+    release_agx = RewTerm(
+        func=mdp.release_agx_reward,
+        weight=1.0,
     )
 
 
