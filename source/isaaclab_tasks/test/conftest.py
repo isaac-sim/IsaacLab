@@ -27,6 +27,8 @@ def ovstage_variant(request, monkeypatch):
     if request.param == "ovstage":
         monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     else:
-        # Select legacy explicitly so both variants retain coverage when ovstage is the default.
-        monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
+        # Clear explicitly rather than relying on the variable being unset. An ambient
+        # ISAAC_LAB_OVRTX_USE_OVSTAGE=1 would otherwise make both variants exercise the ovstage
+        # path, silently dropping legacy coverage while still reporting two passing variants.
+        monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     return request.param

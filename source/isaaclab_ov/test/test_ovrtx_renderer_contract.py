@@ -382,10 +382,10 @@ def test_ovrtx_instance_segmentation_spec_follows_colorize_flag():
     )
 
 
-def test_ovrtx_use_ovstage_defaults_to_enabled(monkeypatch):
-    """The ovstage path is used by default while the legacy path remains an explicit fallback."""
+def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
+    """The ovstage path is off unless explicitly opted into, so existing deployments are unaffected."""
     monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
-    assert ovrtx_use_ovstage_enabled() is True
+    assert ovrtx_use_ovstage_enabled() is False
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
     assert ovrtx_use_ovstage_enabled() is False

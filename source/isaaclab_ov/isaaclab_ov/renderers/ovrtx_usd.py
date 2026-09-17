@@ -458,8 +458,7 @@ def export_stage_to_string(
     prim_paths: list[Sdf.Path] = []
 
     if keep_env_roots:
-        # Legacy ``renderer.clone_usd`` does not preserve nested instances. Expand them in the
-        # temporary export before OVRTX loads and clones it, without modifying the simulation stage.
+        # Native legacy cloning omits instanced visuals; expand only the renderer's copy.
         with Usd.EditContext(export_stage, export_session):
             for source_path in source_paths:
                 make_uninstanceable(source_path, stage=export_stage)
