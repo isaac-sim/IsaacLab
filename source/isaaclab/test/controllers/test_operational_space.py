@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
@@ -31,6 +33,7 @@ from isaaclab.controllers import OperationalSpaceController, OperationalSpaceCon
 ##
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
+from isaaclab.envs.mdp.actions.task_space_actions import OperationalSpaceControllerAction
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -122,8 +125,6 @@ def sim():
         ],
         device=sim.device,
     )
-    # These orientations also define task frames, whose transforms require unit quaternions.
-    ee_goal_abs_quad_set_b /= torch.linalg.vector_norm(ee_goal_abs_quad_set_b, dim=-1, keepdim=True)
     ee_goal_rel_pos_set = torch.tensor(
         [
             [0.2, 0.0, 0.0],
@@ -1176,8 +1177,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
         motion_stiffness_task=500.0,
-        # Avoid hitting joint limits during the large pose steps while centering the nullspace.
-        motion_damping_ratio_task=2.0,
+        motion_damping_ratio_task=1.0,
         nullspace_control="position",
         nullspace_stiffness=1.0,
     )
@@ -1337,6 +1337,51 @@ class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
     observations: _FloatingBaseOscObsCfg = _FloatingBaseOscObsCfg()
     decimation: int = 1
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=0.01)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("feedback_source", ["test_helper", "action"])
+def test_franka_velocity_feedback_matches_jacobian(sim, feedback_source):
+    """Both OSC callers must measure velocity at the link origin used by the Jacobian."""
+    sim_context, num_envs, robot_cfg, *_ = sim
+    robot = Articulation(cfg=robot_cfg)
+    sim_context.reset()
+    arm_joint_ids, _ = robot.find_joints("panda_joint.*")
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+
+    joint_vel = torch.zeros_like(robot.data.default_joint_vel.torch)
+    joint_vel[:, arm_joint_ids] = torch.linspace(0.1, 0.7, len(arm_joint_ids), device=sim_context.device)
+    robot.write_joint_state_to_sim_index(position=robot.data.default_joint_pos.torch, velocity=joint_vel)
+    sim_context.step(render=False)
+    robot.update(sim_context.get_physics_dt())
+
+    # Angular motion and the hand's COM offset must expose the reference-point mismatch.
+    assert not torch.allclose(
+        robot.data.body_com_vel_w.torch[:, ee_frame_idx, :3],
+        robot.data.body_link_vel_w.torch[:, ee_frame_idx, :3],
+        atol=1e-4,
+        rtol=1e-4,
+    )
+    if feedback_source == "test_helper":
+        states = _update_states(robot, ee_frame_idx, arm_joint_ids, sim_context, None, num_envs)
+        jacobian_b, _, _, _, ee_vel_b, _, _, _, _, joint_vel = states
+    else:
+        env = SimpleNamespace(scene={"robot": robot}, sim=sim_context, num_envs=num_envs, device=sim_context.device)
+        action_cfg = OperationalSpaceControllerActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            body_name="panda_hand",
+            controller_cfg=OperationalSpaceControllerCfg(target_types=["pose_abs"]),
+        )
+        action_term = OperationalSpaceControllerAction(action_cfg, env)
+        action_term._compute_ee_jacobian()
+        action_term._compute_ee_velocity()
+        jacobian_b, ee_vel_b = action_term._jacobian_b, action_term._ee_vel_b
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+
+    # With a stationary fixed base, the link twist must equal J(q) * q_dot.
+    expected_vel_b = torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+    torch.testing.assert_close(ee_vel_b, expected_vel_b, atol=1e-4, rtol=1e-4)
 
 
 @pytest.mark.isaacsim_ci
