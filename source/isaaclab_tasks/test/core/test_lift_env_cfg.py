@@ -14,12 +14,15 @@ from isaaclab.managers import CommandTerm
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.adr_curriculum import CurriculumCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.lift_env_cfg import RewardsCfg
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.hydra import resolve_presets
 
 
 class _MarkerSpy:
@@ -75,6 +78,24 @@ def test_rigid_lift_regularizes_action_rate_and_joint_velocity() -> None:
         "weight": -1e-1,
         "num_steps": 10000,
     }
+
+
+@pytest.mark.parametrize(
+    ("selected_presets", "expected_physics"),
+    [
+        ((), "mujoco"),
+        (("newton_mjwarp_vbd_proxy",), "mujoco"),
+        (("isaacsim_physx",), "physx"),
+        (("physx",), "physx"),
+    ],
+)
+def test_franka_soft_robot_physics_variant_matches_backend(
+    selected_presets: tuple[str, ...], expected_physics: str
+) -> None:
+    """The Franka USD physics payload must match the selected simulation backend."""
+    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
+
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
 
 
 def test_camera_normalization_is_stationary() -> None:
