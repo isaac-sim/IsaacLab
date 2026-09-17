@@ -69,6 +69,7 @@ class DeformableRegistryEntry:
     # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
+    has_nonzero_rest_angles: bool = False
     export_properties: dict[str, list] = field(default_factory=dict)
     initial_positions: list | None = None
 
@@ -279,8 +280,10 @@ def add_deformable_entry_to_builder(
     if env_idx == 0:
         entry.particle_offsets.clear()
         entry.particles_per_body = 0
+        entry.has_nonzero_rest_angles = False
 
     before_count = getattr(builder, "particle_count", 0)
+    edge_start = len(getattr(builder, "edge_rest_angle", ()))
     starts = {
         kind: getattr(builder, kind + "_count") for kind in {name.split("_", 1)[0] for name in entry.export_properties}
     }
@@ -349,6 +352,10 @@ def add_deformable_entry_to_builder(
         shape = np.asarray(target[start:]).shape
         target[start:] = np.asarray(values).reshape(shape).tolist()
     delta = after_count - before_count
+
+    # Record source geometry before initialization zeros the shared model, without saving its arrays.
+    rest_angles = getattr(builder, "edge_rest_angle", ())
+    entry.has_nonzero_rest_angles |= any(abs(rest_angles[i]) > 1e-7 for i in range(edge_start, len(rest_angles)))
 
     entry.particle_offsets.append(before_count)
     if env_idx == 0:
@@ -1036,8 +1043,9 @@ class DeformableObject(BaseDeformableObject):
         if model is not None:
             if hasattr(model, "edge_rest_angle"):
                 model.edge_rest_angle.zero_()
-                # This initialization override is absent from the authored rest geometry.
-                self._usd_override_fields.add("edge_rest_angle")
+                # Flat geometry reconstructs zero to float32 precision; avoid a redundant array opinion.
+                if self._registry_entry.has_nonzero_rest_angles:
+                    self._usd_override_fields.add("edge_rest_angle")
 
     """
     Internal simulation callbacks.

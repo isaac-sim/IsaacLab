@@ -605,7 +605,7 @@ def _spawn_bent_test_cloth(*args, **kwargs):
     return root
 
 
-def _add_test_deformables(cfg, volume):
+def _add_test_deformables(cfg, volume, flat=False):
     """Add two separately identified soft objects and a cable to the rigid scene fixture."""
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
@@ -616,7 +616,7 @@ def _add_test_deformables(cfg, volume):
     cfg.cloth = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cloth",
         spawn=sim_utils.MeshRectangleCfg(
-            func=_spawn_bent_test_cloth,
+            func=sim_utils.spawn_mesh_rectangle if flat else _spawn_bent_test_cloth,
             size=(0.2, 0.2),
             edge_refinement=1,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -650,7 +650,14 @@ def _add_test_deformables(cfg, volume):
 @pytest.mark.parametrize(
     "env_id,num_envs,solver_name",
     [(env_id, num_envs, solver) for solver in ("xpbd", "mujoco", "kamino") for env_id, num_envs in ((0, 1), (1, 2))]
-    + [(0, 1, "xpbd_passive"), (1, 2, "xpbd_cartesian"), (1, 2, "vbd"), (1, 2, "vbd_volume"), (1, 2, "coupled_proxy")],
+    + [
+        (0, 1, "xpbd_passive"),
+        (1, 2, "xpbd_cartesian"),
+        (1, 2, "vbd"),
+        (1, 2, "vbd_volume"),
+        (1, 2, "vbd_flat"),
+        (1, 2, "coupled_proxy"),
+    ],
 )
 def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs, solver_name):
     """Normal cfg initialization exports every body, fixed actuator property and authored collider."""
@@ -663,9 +670,10 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
 
     cfg = make_fixed_scene_cfg(tmp_path, num_envs=num_envs)
     volume = solver_name == "vbd_volume"
-    solver_name = solver_name.removesuffix("_volume")
+    flat = solver_name == "vbd_flat"
+    solver_name = solver_name.removesuffix("_volume").removesuffix("_flat")
     if solver_name in {"vbd", "coupled_proxy"}:
-        _add_test_deformables(cfg, volume)
+        _add_test_deformables(cfg, volume, flat)
     if solver_name == "coupled_proxy":
         cfg.cable = None
     cartesian = solver_name == "xpbd_cartesian"
@@ -732,7 +740,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
 
                 source_builder = newton.ModelBuilder()
                 add_exported_deformables_to_builder(scene.stage, source_builder)
-                assert np.any(np.abs(source_builder.edge_rest_angle) > 1e-3)
+                assert bool(np.any(np.abs(source_builder.edge_rest_angle) > 1e-3)) == (not flat)
                 np.testing.assert_array_equal(angles, 0)
             if solver_name == "coupled_proxy":
                 expected_coupled = _capture_coupled_physics(manager._solver, env_id, particle_paths)
@@ -756,6 +764,7 @@ def test_fixed_scene_configuration_uses_shared_export(tmp_path, env_id, num_envs
         if solver_name in {"vbd", "coupled_proxy"}:
             np.testing.assert_array_equal(model.edge_rest_angle.numpy(), angles)
     stage = Usd.Stage.Open(str(output))
+    assert not flat or not any(prim.GetAttribute("newton:export:edge_rest_angle") for prim in stage.Traverse())
     bodies = {str(prim.GetPath()) for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)}
     assert bodies == {
         f"/World/envs/env_{env_id}/Robot/Base",
