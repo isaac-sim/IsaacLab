@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from packaging import version
+
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg
@@ -183,7 +184,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                     )
 
             # remove deprecated policy configuration
-            agent_cfg.policy = MISSING
+            agent_cfg.policy = REQUIRED
 
         # Handle new distribution configuration
         if installed_version < _V5_0_0:
@@ -202,7 +203,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
 
 
 def _is_missing(value) -> bool:
-    return isinstance(value, type(MISSING))
+    return value is REQUIRED
 
 
 def _has_non_missing_attr(obj, attr_name: str) -> bool:
@@ -219,7 +220,7 @@ def _handle_empirical_normalization(policy_cfg, agent_cfg):
         policy_cfg.actor_obs_normalization = agent_cfg.empirical_normalization
     if _is_missing(policy_cfg.critic_obs_normalization):
         policy_cfg.critic_obs_normalization = agent_cfg.empirical_normalization
-    agent_cfg.empirical_normalization = MISSING
+    agent_cfg.empirical_normalization = REQUIRED
 
 
 def _clear_new_model_cfg(agent_cfg, model_name: str):
@@ -227,7 +228,7 @@ def _clear_new_model_cfg(agent_cfg, model_name: str):
         f"[WARNING]: The `{model_name}` model configuration is only used for rsl-rl >= 4.0.0. Consider updating rsl-rl"
         " or use the `policy` configuration for rsl-rl < 4.0.0."
     )
-    setattr(agent_cfg, model_name, MISSING)
+    setattr(agent_cfg, model_name, REQUIRED)
 
 
 def _validate_old_stochastic_cfg(model_cfg):
@@ -238,7 +239,7 @@ def _validate_old_stochastic_cfg(model_cfg):
         )
     # remove new distribution configuration
     if hasattr(model_cfg, "distribution_cfg"):
-        del model_cfg.distribution_cfg
+        model_cfg.distribution_cfg = REQUIRED
 
 
 def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
@@ -261,10 +262,10 @@ def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
             )
     # remove deprecated stochastic parameters
     if hasattr(model_cfg, "stochastic"):
-        del model_cfg.stochastic
+        model_cfg.stochastic = REQUIRED
     if hasattr(model_cfg, "init_noise_std"):
-        del model_cfg.init_noise_std
+        model_cfg.init_noise_std = REQUIRED
     if hasattr(model_cfg, "noise_std_type"):
-        del model_cfg.noise_std_type
+        model_cfg.noise_std_type = REQUIRED
     if hasattr(model_cfg, "state_dependent_std"):
-        del model_cfg.state_dependent_std
+        model_cfg.state_dependent_std = REQUIRED

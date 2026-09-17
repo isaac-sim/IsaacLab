@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from collections.abc import Sequence
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from isaaclab_contrib.actuators import ThrusterCfg
 
@@ -80,7 +80,7 @@ class MultirotorCfg(ArticulationCfg):
         - :class:`Multirotor`: Multirotor asset class
     """
 
-    class_type: type["Multirotor"] | str = config_field("{DIR}.multirotor:Multirotor")
+    class_type: type["Multirotor"] | str = "isaaclab_contrib.assets.multirotor.multirotor:Multirotor"
 
     @dataclass
     class InitialStateCfg(ArticulationCfg.InitialStateCfg):
@@ -95,7 +95,7 @@ class MultirotorCfg(ArticulationCfg):
         """
 
         # multirotor-specific initial state
-        rps: dict[str, float] = config_field({".*": 100.0})
+        rps: dict[str, float] = field(default_factory=lambda: {".*": 100.0})
         """Revolutions per second (RPS) of the thrusters. Default is 100 RPS.
 
         This can be specified as:
@@ -122,14 +122,14 @@ class MultirotorCfg(ArticulationCfg):
         """
 
     # multirotor-specific configuration
-    init_state: InitialStateCfg = config_field(InitialStateCfg())
+    init_state: InitialStateCfg = field(default_factory=InitialStateCfg)
     """Initial state of the multirotor object.
 
     This includes both the base articulation state (position, orientation, velocities)
     and multirotor-specific state (thruster RPS). See :class:`InitialStateCfg` for details.
     """
 
-    actuators: dict[str, ThrusterCfg] = config_field(MISSING)
+    actuators: dict[str, ThrusterCfg] = REQUIRED
     """Thruster actuators for the multirotor with corresponding thruster names.
 
     This dictionary maps actuator group names to their configurations. Each
@@ -154,7 +154,7 @@ class MultirotorCfg(ArticulationCfg):
     """
 
     # multirotor force application settings
-    thruster_force_direction: tuple[float, float, float] = config_field((0.0, 0.0, 1.0))
+    thruster_force_direction: tuple[float, float, float] = (0.0, 0.0, 1.0)
     """Default force direction in body-local frame for thrusters. Default is ``(0.0, 0.0, 1.0)``,
     which is upward along the Z-axis.
 
@@ -171,7 +171,7 @@ class MultirotorCfg(ArticulationCfg):
     Default: ``(0.0, 0.0, 1.0)`` (upward along Z-axis)
     """
 
-    allocation_matrix: Sequence[Sequence[float]] | None = config_field(None)
+    allocation_matrix: Sequence[Sequence[float]] | None = None
     """Allocation matrix for control allocation. Default is ``None``, which means that the thrusters
     are not used for control allocation.
 
@@ -201,7 +201,7 @@ class MultirotorCfg(ArticulationCfg):
         multirotor control, this should always be specified.
     """
 
-    rotor_directions: Sequence[int] | None = config_field(None)
+    rotor_directions: Sequence[int] | None = None
     """Sequence of rotor directions for each thruster. Default is ``None``, which means that the rotor directions
     are not specified.
 
@@ -231,8 +231,8 @@ class MultirotorCfg(ArticulationCfg):
 
     def __post_init__(self):
         """Post initialization validation."""
-        # Skip validation if actuators is MISSING
-        if self.actuators is MISSING:
+        # Skip validation if actuators is REQUIRED
+        if self.actuators is REQUIRED:
             return
 
         # Count the total number of thrusters from all actuator configs

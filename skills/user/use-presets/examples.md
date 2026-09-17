@@ -13,16 +13,15 @@
 Use this when the environment has one supported physics setup and no user-selectable variants.
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field
 from isaaclab_physx.physics import PhysxCfg
 
 
 @dataclass
 class MySimpleEnvCfg:
-    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysxCfg()))
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysxCfg()))
 ```
 
 This is enough when the task only supports PhysX and there are no renderer, sensor, event, or domain variants to expose.
@@ -34,11 +33,10 @@ The example below applies when the task's established default is PhysX. Preserve
 an explicit Newton or other backend default when adding more variants.
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -47,19 +45,28 @@ from isaaclab_tasks.utils import PresetCfg
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx: PhysxCfg = config_field(PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
-    ovphysx: OvPhysxCfg = config_field(OvPhysxCfg())
-    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
-    default: PhysxCfg = config_field(isaacsim_physx)
-    newton_mjwarp: NewtonCfg = config_field(NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(njmax=120, nconmax=15),
-        num_substeps=1,
-    ))
+    isaacsim_physx: PhysxCfg = field(
+        default_factory=lambda: PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    )
+    ovphysx: OvPhysxCfg = field(default_factory=OvPhysxCfg)
+    physx: PhysxAutoCfg = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15),
+            ovphysx=OvPhysxCfg(),
+        )
+    )
+    default: PhysxCfg = field(default_factory=lambda: PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    newton_mjwarp: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(njmax=120, nconmax=15),
+            num_substeps=1,
+        )
+    )
 
 
 @dataclass
 class MyMultiBackendEnvCfg:
-    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysicsCfg()))
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysicsCfg()))
 ```
 
 Command examples:
@@ -75,10 +82,9 @@ uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4
 Use domain presets for environment-specific variants such as camera output type.
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.utils import config_field
 from isaaclab_tasks.utils import PresetCfg
 
 
@@ -86,11 +92,11 @@ from isaaclab_tasks.utils import PresetCfg
 class CameraTaskCfg(PresetCfg):
     @dataclass
     class BaseCfg(DirectRLEnvCfg):
-        observation_space: list[int] = config_field([100, 100, 3])
+        observation_space: list[int] = field(default_factory=lambda: [100, 100, 3])
 
-    default: BaseCfg = config_field(BaseCfg())
-    rgb: BaseCfg = config_field(default)
-    depth: BaseCfg = config_field(BaseCfg(observation_space=[100, 100, 1]))
+    default: BaseCfg = field(default_factory=BaseCfg)
+    rgb: BaseCfg = field(default_factory=BaseCfg)
+    depth: BaseCfg = field(default_factory=lambda: CameraTaskCfg.BaseCfg(observation_space=[100, 100, 1]))
 ```
 
 Command examples:

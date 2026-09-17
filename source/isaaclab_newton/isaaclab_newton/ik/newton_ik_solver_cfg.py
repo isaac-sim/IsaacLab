@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from isaaclab.utils import config_field
-
 
 @dataclass
 class NewtonIKSolverCfg:
@@ -24,32 +22,32 @@ class NewtonIKSolverCfg:
     solver can be dropped in via config without changing callers.
     """
 
-    class_type: type | str = config_field("isaaclab_newton.ik.newton_ik_solver:NewtonIKSolver")
+    class_type: type | str = "isaaclab_newton.ik.newton_ik_solver:NewtonIKSolver"
     """Solver implementation, as a type or a ``"module:Class"`` string.
 
     Instantiated as ``class_type(cfg, model=..., num_envs=..., device=...,
     objectives=..., link_resolver=...)``.
     """
 
-    optimizer: str = config_field("lm")
+    optimizer: str = "lm"
     """Newton IK optimizer backend. Supported values are ``"lm"`` and ``"lbfgs"``."""
 
-    jacobian_mode: str = config_field("analytic")
+    jacobian_mode: str = "analytic"
     """Newton IK Jacobian backend. Supported values are ``"analytic"``, ``"autodiff"``, and ``"mixed"``."""
 
-    sampler: str = config_field("none")
+    sampler: str = "none"
     """Initial seed sampler. Supported values are ``"none"``, ``"gauss"``, ``"roberts"``, and ``"uniform"``."""
 
-    n_seeds: int = config_field(1)
+    n_seeds: int = 1
     """Number of candidate seeds per IK problem. Must be ``1`` when ``sampler="none"``."""
 
-    noise_std: float = config_field(0.1)
+    noise_std: float = 0.1
     """Gaussian sampling standard deviation used when ``sampler="gauss"``."""
 
-    rng_seed: int = config_field(12345)
+    rng_seed: int = 12345
     """Random seed used by stochastic samplers."""
 
-    iterations: int = config_field(24)
+    iterations: int = 24
     """Number of Newton IK solver iterations per action application.
 
     The default keeps manager-based action applications affordable while still
@@ -57,10 +55,10 @@ class NewtonIKSolverCfg:
     Increase this for harder targets or tighter residual requirements.
     """
 
-    step_size: float = config_field(1.0)
+    step_size: float = 1.0
     """LM step scale passed to Newton ``IKSolver.step``. Ignored by L-BFGS."""
 
-    lambda_initial: float = config_field(0.1)
+    lambda_initial: float = 0.1
     """Initial damping value for the Newton Levenberg-Marquardt optimizer.
 
     This moderate default favors stable updates near singular configurations

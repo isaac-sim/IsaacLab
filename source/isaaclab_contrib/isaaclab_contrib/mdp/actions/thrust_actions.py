@@ -49,10 +49,9 @@ class ThrustAction(ActionTerm):
     Example:
         .. code-block:: python
 
-            from dataclasses import dataclass
+            from dataclasses import dataclass, field
 
             from isaaclab.envs import ManagerBasedRLEnvCfg
-            from isaaclab.utils import config_field
             from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 
@@ -63,8 +62,8 @@ class ThrustAction(ActionTerm):
                 @dataclass
                 class ActionsCfg:
                     # Direct thrust control (normalized actions)
-                    thrust: ThrustActionCfg = config_field(
-                        ThrustActionCfg(
+                    thrust: ThrustActionCfg = field(
+                        default_factory=lambda: ThrustActionCfg(
                             asset_name="robot",
                             scale=5.0,  # Convert [-1, 1] to [-5, 5] N
                             use_default_offset=True,  # Add hover thrust as offset

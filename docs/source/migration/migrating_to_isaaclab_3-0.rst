@@ -106,9 +106,8 @@ Understand the new package boundaries first, then make environment configuration
 
       .. code-block:: python
 
-         from dataclasses import dataclass
+         from dataclasses import dataclass, field
 
-         from isaaclab.utils import config_field
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
@@ -430,8 +429,7 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab.physics import PhysxAutoCfg
-   from dataclasses import dataclass
-   from isaaclab.utils import config_field
+   from dataclasses import dataclass, field
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 

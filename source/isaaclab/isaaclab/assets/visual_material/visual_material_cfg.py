@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.sim.spawners.materials import VisualMaterialCfg as VisualMaterialSpawnerCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -19,11 +19,11 @@ class VisualMaterialCfg(AssetBaseCfg):
     path through :attr:`isaaclab.sim.spawners.from_files.from_files_cfg.FileCfg.visual_material_bindings`.
     """
 
-    class_type: type | str = config_field("{DIR}.visual_material:VisualMaterial")
-    cloning_contexts: tuple[str | type, ...] | None = config_field(())
-    spawn: VisualMaterialSpawnerCfg | None = config_field(MISSING)
+    class_type: type | str = "isaaclab.assets.visual_material.visual_material:VisualMaterial"
+    cloning_contexts: tuple[str | type, ...] | None = ()
+    spawn: VisualMaterialSpawnerCfg | None = REQUIRED
     """Material spawner, or ``None`` to wrap an existing material prim."""
-    channels: tuple[str, ...] = config_field(("color",))
+    channels: tuple[str, ...] = ("color",)
     """Numeric shader channels writable at runtime.
 
     Preview Surface supports ``color``, ``roughness``, ``metallic``, ``emissive_color``, and

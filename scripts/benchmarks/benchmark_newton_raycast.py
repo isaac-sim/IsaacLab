@@ -17,9 +17,8 @@ Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
@@ -76,15 +75,15 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
 
     @dataclass
     class RaycastBenchSceneCfg(InteractiveSceneCfg):
-        terrain: Any = config_field(
-            TerrainImporterCfg(
+        terrain: Any = field(
+            default_factory=lambda: TerrainImporterCfg(
                 prim_path="/World/ground",
                 terrain_type="generator",
                 terrain_generator=_make_terrain_cfg(num_envs, env_spacing),
             )
         )
-        body: Any = config_field(
-            RigidObjectCfg(
+        body: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/SensorBody",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.1, 0.1, 0.1),
@@ -94,8 +93,8 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
             )
         )
-        ray_caster: Any = config_field(
-            RayCasterCfg(
+        ray_caster: Any = field(
+            default_factory=lambda: RayCasterCfg(
                 class_type=LegacyRayCaster,
                 prim_path="{ENV_REGEX_NS}/SensorBody",
                 offset=offset,
@@ -104,8 +103,8 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
                 mesh_prim_paths=["/World/ground"],
             )
         )
-        newton_raycast: Any = config_field(
-            NewtonRaycastSensorCfg(
+        newton_raycast: Any = field(
+            default_factory=lambda: NewtonRaycastSensorCfg(
                 prim_path="{ENV_REGEX_NS}/SensorBody",
                 offset=offset,
                 pattern_cfg=pattern,

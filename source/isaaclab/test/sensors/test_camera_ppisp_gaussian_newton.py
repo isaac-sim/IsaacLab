@@ -37,13 +37,13 @@ import pytest
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 _REQUIRED_MODULES = ("isaaclab_newton", "newton")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
-_SKIP_MISSING_NEWTON = pytest.mark.skipif(
-    bool(_MISSING_MODULES),
-    reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_SKIP_REQUIRED_NEWTON = pytest.mark.skipif(
+    bool(_REQUIRED_MODULES),
+    reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
 )
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     # Launch Isaac Sim before importing modules that depend on an active app.
 
     from isaaclab.app import AppLauncher  # noqa: E402
@@ -122,7 +122,7 @@ def _newton_sim_cfg(device: str) -> SimulationCfg:
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
-@_SKIP_MISSING_NEWTON
+@_SKIP_REQUIRED_NEWTON
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
     """Wrapper PPISP via ``newton_warp`` must show the PPISP signatures.
 
@@ -147,7 +147,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
-@_SKIP_MISSING_NEWTON
+@_SKIP_REQUIRED_NEWTON
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_newton(device):
     """Newton Warp renderer controller output must match the equivalent static PPISP cfg."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
@@ -177,7 +177,7 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_new
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
-@_SKIP_MISSING_NEWTON
+@_SKIP_REQUIRED_NEWTON
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile(device):
     """Multi-tile wrapper PPISP via ``newton_warp`` must hold the same invariants
     independently for every tile.

@@ -5,7 +5,8 @@
 
 """Manager-based counterpart of the Shadow Hand handover task."""
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.sim as sim_utils
@@ -19,7 +20,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import config_field
 
 import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
@@ -43,21 +43,21 @@ from isaaclab_assets.robots.shadow_hand import (
 class HandoverManagerSceneCfg(InteractiveSceneCfg):
     """Two Shadow hands facing each other over a ground plane."""
 
-    num_envs: Any = config_field(2048)
-    env_spacing: Any = config_field(1.5)
-    replicate_physics: Any = config_field(True)
+    num_envs: Any = 2048
+    env_spacing: Any = 1.5
+    replicate_physics: Any = True
 
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(),
         )
     )
-    right_hand: RightHandCfg = config_field(RightHandCfg())
-    left_hand: LeftHandCfg = config_field(LeftHandCfg())
-    object: RigidObjectCfg = config_field(BALL_CFG)
-    light: Any = config_field(
-        AssetBaseCfg(
+    right_hand: RightHandCfg = field(default_factory=RightHandCfg)
+    left_hand: LeftHandCfg = field(default_factory=LeftHandCfg)
+    object: RigidObjectCfg = field(default_factory=lambda: deepcopy(BALL_CFG))
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/Light",
             spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
         )
@@ -68,8 +68,10 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Handover goal command."""
 
-    object_pose: Any = config_field(
-        mdp.HandoverCommandCfg(asset_name="object", success_distance_threshold=0.1, debug_vis=True)
+    object_pose: Any = field(
+        default_factory=lambda: mdp.HandoverCommandCfg(
+            asset_name="object", success_distance_threshold=0.1, debug_vis=True
+        )
     )
 
 
@@ -81,16 +83,16 @@ class ActionsCfg:
     Direct adapter reads each hand as its sixteen joints followed by its four tendons.
     """
 
-    right_hand: Any = config_field(
-        mdp.EMAJointPositionToLimitsActionCfg(
+    right_hand: Any = field(
+        default_factory=lambda: mdp.EMAJointPositionToLimitsActionCfg(
             asset_name="right_hand",
             joint_names=JOINT_NAMES,
             alpha=1.0,
             rescale_to_limits=True,
         )
     )
-    right_hand_tendons: Any = config_field(
-        mdp.FixedTendonPositionActionCfg(
+    right_hand_tendons: Any = field(
+        default_factory=lambda: mdp.FixedTendonPositionActionCfg(
             asset_name="right_hand",
             tendon_names=TENDON_NAMES,
             # the other four motors pull a tendon across a finger's middle and distal joints;
@@ -102,16 +104,16 @@ class ActionsCfg:
             clip={".*": TENDON_POSITION_LIMITS},
         )
     )
-    left_hand: Any = config_field(
-        mdp.EMAJointPositionToLimitsActionCfg(
+    left_hand: Any = field(
+        default_factory=lambda: mdp.EMAJointPositionToLimitsActionCfg(
             asset_name="left_hand",
             joint_names=JOINT_NAMES,
             alpha=1.0,
             rescale_to_limits=True,
         )
     )
-    left_hand_tendons: Any = config_field(
-        mdp.FixedTendonPositionActionCfg(
+    left_hand_tendons: Any = field(
+        default_factory=lambda: mdp.FixedTendonPositionActionCfg(
             asset_name="left_hand",
             tendon_names=TENDON_NAMES,
             # the other four motors pull a tendon across a finger's middle and distal joints;
@@ -129,37 +131,55 @@ class ActionsCfg:
 class PolicyCfg(ObsGroup):
     # Right agent: 133 hand dimensions followed by 24 object/goal dimensions.
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
-    right_joint_pos: Any = config_field(
-        ObsTerm(
+    right_joint_pos: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
         )
     )
-    right_joint_vel: Any = config_field(
-        ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")})
+    right_joint_vel: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
+        )
     )
-    right_fingertip_pose: Any = config_field(
-        ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)})
+    right_fingertip_pose: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)}
+        )
     )
-    right_fingertip_vel: Any = config_field(
-        ObsTerm(
+    right_fingertip_vel: Any = field(
+        default_factory=lambda: ObsTerm(
             func=reorient_mdp.fingertip_vel,
             params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
         )
     )
-    right_action: Any = config_field(ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"}))
+    right_action: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
+    )
     # A hand's motors span two action terms, so its previous command does too: without the tendon
     # term the policy sees 16 of the 20 actions it took, and the group falls 4 short of the 133
     # hand dimensions the Direct task lays out.
-    right_tendon_action: Any = config_field(ObsTerm(func=mdp.last_action, params={"action_name": "right_hand_tendons"}))
-    object_pos: Any = config_field(ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")}))
-    object_quat: Any = config_field(ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")}))
-    object_lin_vel: Any = config_field(ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")}))
-    object_ang_vel: Any = config_field(
-        ObsTerm(func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")})
+    right_tendon_action: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.last_action, params={"action_name": "right_hand_tendons"})
     )
-    goal_pose: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"}))
-    goal_quat_diff: Any = config_field(
-        ObsTerm(
+    object_pos: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+    )
+    object_quat: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+    )
+    object_lin_vel: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
+    )
+    object_ang_vel: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")}
+        )
+    )
+    goal_pose: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+    )
+    goal_quat_diff: Any = field(
+        default_factory=lambda: ObsTerm(
             func=reorient_mdp.goal_quat_diff,
             params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
         )
@@ -167,25 +187,31 @@ class PolicyCfg(ObsGroup):
 
     # Left agent: the same 157-dimensional layout.
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
-    left_joint_pos: Any = config_field(
-        ObsTerm(
+    left_joint_pos: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
         )
     )
-    left_joint_vel: Any = config_field(
-        ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")})
+    left_joint_vel: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
+        )
     )
-    left_fingertip_pose: Any = config_field(
-        ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)})
+    left_fingertip_pose: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)}
+        )
     )
-    left_fingertip_vel: Any = config_field(
-        ObsTerm(
+    left_fingertip_vel: Any = field(
+        default_factory=lambda: ObsTerm(
             func=reorient_mdp.fingertip_vel,
             params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)},
         )
     )
-    left_action: Any = config_field(ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"}))
-    left_tendon_action: Any = config_field(ObsTerm(func=mdp.last_action, params={"action_name": "left_hand_tendons"}))
+    left_action: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"}))
+    left_tendon_action: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.last_action, params={"action_name": "left_hand_tendons"})
+    )
 
     def __post_init__(self):
         self.enable_corruption = False
@@ -196,15 +222,15 @@ class PolicyCfg(ObsGroup):
 class ObservationsCfg:
     """Single-agent observations matching the Direct MARL adapter."""
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class RandomizationEventCfg:
     """Randomization of both hands and the object, applied on every physics backend."""
 
-    right_hand_joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    right_hand_joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             min_step_count_between_reset=720,
             mode="reset",
@@ -217,8 +243,8 @@ class RandomizationEventCfg:
             },
         )
     )
-    left_hand_joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    left_hand_joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             min_step_count_between_reset=720,
             mode="reset",
@@ -231,8 +257,8 @@ class RandomizationEventCfg:
             },
         )
     )
-    object_scale_mass: Any = config_field(
-        EventTerm(
+    object_scale_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             min_step_count_between_reset=720,
             mode="reset",
@@ -247,8 +273,8 @@ class RandomizationEventCfg:
     )
 
     # -- scene
-    reset_gravity: Any = config_field(
-        EventTerm(
+    reset_gravity: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_physics_scene_gravity,
             mode="interval",
             is_global_time=True,
@@ -266,8 +292,8 @@ class RandomizationEventCfg:
 class ResetEventCfg:
     """Reset distributions matching the Direct handover environment."""
 
-    reset_object: Any = config_field(
-        EventTerm(
+    reset_object: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_with_random_orientation,
             mode="reset",
             params={
@@ -278,8 +304,8 @@ class ResetEventCfg:
             },
         )
     )
-    reset_right_hand: Any = config_field(
-        EventTerm(
+    reset_right_hand: Any = field(
+        default_factory=lambda: EventTerm(
             func=reorient_mdp.reset_reorient_hand,
             mode="reset",
             params={
@@ -289,8 +315,8 @@ class ResetEventCfg:
             },
         )
     )
-    reset_left_hand: Any = config_field(
-        EventTerm(
+    reset_left_hand: Any = field(
+        default_factory=lambda: EventTerm(
             func=reorient_mdp.reset_reorient_hand,
             mode="reset",
             params={
@@ -311,16 +337,16 @@ class HandoverEventCfg(RandomizationEventCfg, ResetEventCfg):
 class HandoverEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the reset."""
 
-    randomized: Any = config_field(HandoverEventCfg())
-    default: Any = config_field(ResetEventCfg())
+    randomized: Any = field(default_factory=HandoverEventCfg)
+    default: Any = field(default_factory=ResetEventCfg)
 
 
 @dataclass
 class RewardsCfg:
     """Summed two-agent reward exposed by the Direct single-agent adapter."""
 
-    goal_distance: Any = config_field(
-        RewTerm(
+    goal_distance: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.handover_goal_distance_reward,
             weight=1.0,
             params={
@@ -340,26 +366,26 @@ class TerminationsCfg:
     environment, which stops at ``max_episode_length - 1``.
     """
 
-    object_out_of_reach: Any = config_field(
-        DoneTerm(
+    object_out_of_reach: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum,
             params={"minimum_height": 0.24, "asset_cfg": SceneEntityCfg("object")},
         )
     )
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 @dataclass
 class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based handover environment matching the Direct RSL-RL view."""
 
-    scene: HandoverManagerSceneCfg = config_field(HandoverManagerSceneCfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: HandoverEventPresetCfg = config_field(HandoverEventPresetCfg())
+    scene: HandoverManagerSceneCfg = field(default_factory=HandoverManagerSceneCfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: HandoverEventPresetCfg = field(default_factory=HandoverEventPresetCfg)
 
     def __post_init__(self):
         self.decimation = 2

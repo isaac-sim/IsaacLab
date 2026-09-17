@@ -5,9 +5,8 @@
 
 """Scene-level regression test for cloned visual materials and bindings."""
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -35,26 +34,26 @@ pytestmark = pytest.mark.integration
 @dataclass
 class _VisualMaterialSceneCfg(InteractiveSceneCfg):
     # Deliberately declared first: nested materials must wait for the heterogeneous Robot prototypes.
-    warm: Any = config_field(
-        VisualMaterialCfg(
+    warm: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/warm",
             spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         )
     )
-    cool: Any = config_field(
-        VisualMaterialCfg(
+    cool: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/cool",
             spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.8)),
         )
     )
-    shared: Any = config_field(
-        VisualMaterialCfg(
+    shared: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="/World/shared",
             spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.8, 0.1)),
         )
     )
-    robot: Any = config_field(
-        AssetBaseCfg(
+    robot: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.MultiAssetSpawnerCfg(
                 assets_cfg=[

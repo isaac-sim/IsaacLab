@@ -87,8 +87,8 @@ and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 
 .. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :start-at: camera: Any = config_field(
-   :end-before: height_scanner: Any = config_field(
+   :start-at: camera: Any = field(
+   :end-before: height_scanner: Any = field(
 
 Height scanner
 --------------
@@ -113,8 +113,8 @@ The entire configuration of the height-scanner is as follows:
 
 .. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :start-at: height_scanner: Any = config_field(
-   :end-before: contact_forces: Any = config_field(
+   :start-at: height_scanner: Any = field(
+   :end-before: contact_forces: Any = field(
 
 Contact sensor
 --------------
@@ -142,7 +142,7 @@ The entire configuration of the contact sensor is as follows:
 
 .. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :start-at: contact_forces: Any = config_field(
+   :start-at: contact_forces: Any = field(
    :lines: 1-3
 
 Running the simulation loop

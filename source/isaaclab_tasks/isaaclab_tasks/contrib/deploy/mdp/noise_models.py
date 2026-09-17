@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import config_field
+from dataclasses import field
+
+from isaaclab.utils import REQUIRED
 
 __all__ = [
     "ResetSampledConstantNoiseModel",
@@ -17,7 +19,7 @@ __all__ = [
 ]
 
 from collections.abc import Sequence
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
@@ -107,9 +109,9 @@ class ResetSampledConstantNoiseModel(NoiseModel):
 class ResetSampledConstantNoiseModelCfg(NoiseModelCfg):
     """Configuration for a noise model that samples noise ONLY during reset."""
 
-    class_type: type = config_field(ResetSampledConstantNoiseModel)
+    class_type: type = ResetSampledConstantNoiseModel
 
-    noise_cfg: NoiseCfg = config_field(MISSING)
+    noise_cfg: NoiseCfg = REQUIRED
     """The noise configuration for the noise.
 
     Based on this configuration, the noise is sampled at every reset of the noise model.
@@ -174,17 +176,17 @@ class ResetSampledQuaternionNoiseModelCfg(NoiseModelCfg):
     perturbation quaternion that is multiplied with the observed quaternion.
     """
 
-    class_type: type = config_field(ResetSampledQuaternionNoiseModel)
+    class_type: type = ResetSampledQuaternionNoiseModel
 
-    noise_cfg: ConstantNoiseCfg = config_field(ConstantNoiseCfg(bias=0.0))
+    noise_cfg: ConstantNoiseCfg = field(default_factory=lambda: ConstantNoiseCfg(bias=0.0))
     """Unused placeholder inherited from NoiseModelCfg. Quaternion perturbation is
     controlled by roll_range, pitch_range, and yaw_range instead."""
 
-    roll_range: tuple[float, float] = config_field((-0.01745, 0.01745))
+    roll_range: tuple[float, float] = (-0.01745, 0.01745)
     """Uniform range for roll perturbation in radians. Default is ±1 degree."""
 
-    pitch_range: tuple[float, float] = config_field((-0.01745, 0.01745))
+    pitch_range: tuple[float, float] = (-0.01745, 0.01745)
     """Uniform range for pitch perturbation in radians. Default is ±1 degree."""
 
-    yaw_range: tuple[float, float] = config_field((-0.01745, 0.01745))
+    yaw_range: tuple[float, float] = (-0.01745, 0.01745)
     """Uniform range for yaw perturbation in radians. Default is ±1 degree."""

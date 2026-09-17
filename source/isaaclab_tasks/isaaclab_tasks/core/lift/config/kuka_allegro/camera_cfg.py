@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.sim as sim_utils
@@ -11,7 +11,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
@@ -30,10 +30,10 @@ BASE_CAMERA_CFG = CameraCfg(
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
         convention="opengl",
     ),
-    data_types=MISSING,
+    data_types=REQUIRED,
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
-    width=MISSING,
-    height=MISSING,
+    width=REQUIRED,
+    height=REQUIRED,
     renderer_cfg=MultiBackendRendererCfg(),
 )
 
@@ -44,10 +44,10 @@ WRIST_CAMERA_CFG = CameraCfg(
         rot=(0.641, 0.641, -0.299, 0.299),
         convention="opengl",
     ),
-    data_types=MISSING,
+    data_types=REQUIRED,
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
-    width=MISSING,
-    height=MISSING,
+    width=REQUIRED,
+    height=REQUIRED,
     renderer_cfg=MultiBackendRendererCfg(),
 )
 
@@ -82,7 +82,7 @@ BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
     mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
     max_distance=2.5,
     data_types=["distance_to_image_plane"],
-    pattern_cfg=MISSING,
+    pattern_cfg=REQUIRED,
 )
 
 WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
@@ -95,7 +95,7 @@ WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
     mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
     max_distance=2.5,
     data_types=["distance_to_image_plane"],
-    pattern_cfg=MISSING,
+    pattern_cfg=REQUIRED,
     debug_vis=False,
 )
 
@@ -104,124 +104,222 @@ WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
 class BaseTiledCameraCfg(PresetCfg):
     """Tiled camera configurations"""
 
-    rgb64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=64, height=64))
-    rgb128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=128, height=128))
-    rgb256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=256, height=256))
-    depth64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=64, height=64))
-    depth128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=128, height=128))
-    depth256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=256, height=256))
-    albedo64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=64, height=64))
-    albedo128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=128, height=128))
-    albedo256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=256, height=256))
-    simple_shading_constant_diffuse64: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64)
+    rgb64: Any = field(default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=64, height=64))
+    rgb128: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=128, height=128)
     )
-    simple_shading_constant_diffuse128: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128)
+    rgb256: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=256, height=256)
     )
-    simple_shading_constant_diffuse256: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256)
+    depth64: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=64, height=64)
     )
-    simple_shading_diffuse_mdl64: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64)
+    depth128: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=128, height=128)
     )
-    simple_shading_diffuse_mdl128: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128)
+    depth256: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["depth"], width=256, height=256)
     )
-    simple_shading_diffuse_mdl256: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256)
+    albedo64: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=64, height=64)
     )
-    simple_shading_full_mdl64: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64)
+    albedo128: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=128, height=128)
     )
-    simple_shading_full_mdl128: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128)
+    albedo256: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["albedo"], width=256, height=256)
     )
-    simple_shading_full_mdl256: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256)
+    simple_shading_constant_diffuse64: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64
+        )
     )
-    semantic_segmentation64: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64)
+    simple_shading_constant_diffuse128: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128
+        )
     )
-    semantic_segmentation128: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128)
+    simple_shading_constant_diffuse256: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256
+        )
     )
-    semantic_segmentation256: Any = config_field(
-        replace_config(BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256)
+    simple_shading_diffuse_mdl64: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+        )
+    )
+    simple_shading_diffuse_mdl128: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+        )
+    )
+    simple_shading_diffuse_mdl256: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+        )
+    )
+    simple_shading_full_mdl64: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64
+        )
+    )
+    simple_shading_full_mdl128: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128
+        )
+    )
+    simple_shading_full_mdl256: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256
+        )
+    )
+    semantic_segmentation64: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64
+        )
+    )
+    semantic_segmentation128: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128
+        )
+    )
+    semantic_segmentation256: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256
+        )
     )
     # raycaster camera presets
-    raycaster_depth64: Any = config_field(
-        replace_config(BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=64, height=64))
+    raycaster_depth64: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=64, height=64)
+        )
     )
-    raycaster_depth128: Any = config_field(
-        replace_config(BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=128, height=128))
+    raycaster_depth128: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=128, height=128)
+        )
     )
-    raycaster_depth256: Any = config_field(
-        replace_config(BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=256, height=256))
+    raycaster_depth256: Any = field(
+        default_factory=lambda: replace_config(
+            BASE_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=256, height=256)
+        )
     )
-    default: Any = config_field(rgb64)
+    default: Any = field(
+        default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["rgb"], width=64, height=64)
+    )
 
 
 @dataclass
 class WristTiledCameraCfg(PresetCfg):
     """Tiled camera configurations"""
 
-    rgb64: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=64, height=64))
-    rgb128: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=128, height=128))
-    rgb256: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=256, height=256))
-    depth64: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=64, height=64))
-    depth128: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=128, height=128))
-    depth256: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=256, height=256))
-    albedo64: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=64, height=64))
-    albedo128: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=128, height=128))
-    albedo256: Any = config_field(replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=256, height=256))
-    simple_shading_constant_diffuse64: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64)
+    rgb64: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=64, height=64)
     )
-    simple_shading_constant_diffuse128: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128)
+    rgb128: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=128, height=128)
     )
-    simple_shading_constant_diffuse256: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256)
+    rgb256: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=256, height=256)
     )
-    simple_shading_diffuse_mdl64: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64)
+    depth64: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=64, height=64)
     )
-    simple_shading_diffuse_mdl128: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128)
+    depth128: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=128, height=128)
     )
-    simple_shading_diffuse_mdl256: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256)
+    depth256: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["depth"], width=256, height=256)
     )
-    simple_shading_full_mdl64: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64)
+    albedo64: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=64, height=64)
     )
-    simple_shading_full_mdl128: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128)
+    albedo128: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=128, height=128)
     )
-    simple_shading_full_mdl256: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256)
+    albedo256: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["albedo"], width=256, height=256)
     )
-    semantic_segmentation64: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64)
+    simple_shading_constant_diffuse64: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64
+        )
     )
-    semantic_segmentation128: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128)
+    simple_shading_constant_diffuse128: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128
+        )
     )
-    semantic_segmentation256: Any = config_field(
-        replace_config(WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256)
+    simple_shading_constant_diffuse256: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256
+        )
+    )
+    simple_shading_diffuse_mdl64: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64
+        )
+    )
+    simple_shading_diffuse_mdl128: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128
+        )
+    )
+    simple_shading_diffuse_mdl256: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256
+        )
+    )
+    simple_shading_full_mdl64: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64
+        )
+    )
+    simple_shading_full_mdl128: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128
+        )
+    )
+    simple_shading_full_mdl256: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256
+        )
+    )
+    semantic_segmentation64: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64
+        )
+    )
+    semantic_segmentation128: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128
+        )
+    )
+    semantic_segmentation256: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256
+        )
     )
     # raycaster camera presets
-    raycaster_depth64: Any = config_field(
-        replace_config(WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=64, height=64))
+    raycaster_depth64: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=64, height=64)
+        )
     )
-    raycaster_depth128: Any = config_field(
-        replace_config(WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=128, height=128))
+    raycaster_depth128: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=128, height=128)
+        )
     )
-    raycaster_depth256: Any = config_field(
-        replace_config(WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=256, height=256))
+    raycaster_depth256: Any = field(
+        default_factory=lambda: replace_config(
+            WRIST_RAYCASTER_CAMERA_CFG, pattern_cfg=replace_config(RAY_PATTERN, width=256, height=256)
+        )
     )
-    default: Any = config_field(rgb64)
+    default: Any = field(
+        default_factory=lambda: replace_config(WRIST_CAMERA_CFG, data_types=["rgb"], width=64, height=64)
+    )
 
 
 ############################
@@ -250,8 +348,8 @@ class SingleCameraObservationsCfg(StateObservationCfg):
     class BaseImageObsCfg(ObsGroup):
         """Camera observations for policy group."""
 
-        object_observation_b: Any = config_field(
-            ObsTerm(
+        object_observation_b: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.vision_camera,
                 noise=Unoise(n_min=-0.0, n_max=0.0),
                 clip=(-1.0, 1.0),
@@ -261,7 +359,7 @@ class SingleCameraObservationsCfg(StateObservationCfg):
 
     # image groups keep the group default of no history: a stack of frames per step costs more
     # memory than the state groups' history and the state groups already carry the temporal signal
-    base_image: BaseImageObsCfg = config_field(BaseImageObsCfg())
+    base_image: BaseImageObsCfg = field(default_factory=BaseImageObsCfg)
 
 
 @dataclass
@@ -270,8 +368,8 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
 
     @dataclass
     class WristImageObsCfg(ObsGroup):
-        wrist_observation: Any = config_field(
-            ObsTerm(
+        wrist_observation: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.vision_camera,
                 noise=Unoise(n_min=-0.0, n_max=0.0),
                 clip=(-1.0, 1.0),
@@ -279,4 +377,4 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
             )
         )
 
-    wrist_image: WristImageObsCfg = config_field(WristImageObsCfg())
+    wrist_image: WristImageObsCfg = field(default_factory=WristImageObsCfg)

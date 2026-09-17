@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -17,7 +17,7 @@ from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -49,8 +49,8 @@ _FRANKA_STACK_IK_REL_INIT_JOINT_POS: dict[str, float] = {
 class EventCfg:
     """Configuration for events."""
 
-    randomize_franka_joint_state: Any = config_field(
-        EventTerm(
+    randomize_franka_joint_state: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_joint_by_gaussian_offset,
             mode="reset",
             params={
@@ -61,8 +61,8 @@ class EventCfg:
         )
     )
 
-    randomize_cube_positions: Any = config_field(
-        EventTerm(
+    randomize_cube_positions: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -73,8 +73,8 @@ class EventCfg:
         )
     )
 
-    randomize_light: Any = config_field(
-        EventTerm(
+    randomize_light: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_scene_lighting_domelight,
             mode="reset",
             params={
@@ -100,8 +100,8 @@ class EventCfg:
         )
     )
 
-    randomize_table_visual_material: Any = config_field(
-        EventTerm(
+    randomize_table_visual_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_visual_texture_material,
             mode="reset",
             params={
@@ -127,8 +127,8 @@ class EventCfg:
         )
     )
 
-    randomize_robot_arm_visual_texture: Any = config_field(
-        EventTerm(
+    randomize_robot_arm_visual_texture: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_visual_texture_material,
             mode="reset",
             params={
@@ -161,23 +161,23 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        object: Any = config_field(ObsTerm(func=mdp.object_obs))
-        cube_positions: Any = config_field(ObsTerm(func=mdp.cube_positions_in_world_frame))
-        cube_orientations: Any = config_field(ObsTerm(func=mdp.cube_orientations_in_world_frame))
-        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pos))
-        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_quat))
-        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
-        table_cam: Any = config_field(
-            ObsTerm(
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        object: Any = field(default_factory=lambda: ObsTerm(func=mdp.object_obs))
+        cube_positions: Any = field(default_factory=lambda: ObsTerm(func=mdp.cube_positions_in_world_frame))
+        cube_orientations: Any = field(default_factory=lambda: ObsTerm(func=mdp.cube_orientations_in_world_frame))
+        eef_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_pos))
+        eef_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_quat))
+        gripper_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_pos))
+        table_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False},
             )
         )
-        wrist_cam: Any = config_field(
-            ObsTerm(
+        wrist_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False},
             )
@@ -191,8 +191,8 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp_1: Any = config_field(
-            ObsTerm(
+        grasp_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -201,8 +201,8 @@ class ObservationsCfg:
                 },
             )
         )
-        stack_1: Any = config_field(
-            ObsTerm(
+        stack_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_stacked,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -211,8 +211,8 @@ class ObservationsCfg:
                 },
             )
         )
-        grasp_2: Any = config_field(
-            ObsTerm(
+        grasp_2: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -227,17 +227,17 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    subtask_terms: SubtaskCfg = field(default_factory=SubtaskCfg)
 
 
 @dataclass
 class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
-    observations: ObservationsCfg = config_field(ObservationsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
 
     # Evaluation settings
-    eval_mode: Any = config_field(False)
-    eval_type: Any = config_field(None)
+    eval_mode: Any = False
+    eval_type: Any = None
 
     def __post_init__(self):
         # post init of parent

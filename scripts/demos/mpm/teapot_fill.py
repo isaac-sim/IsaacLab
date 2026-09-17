@@ -27,14 +27,15 @@ from __future__ import annotations
 import argparse
 import math
 from collections.abc import Callable
-from dataclasses import MISSING
+from copy import deepcopy
+from dataclasses import field
 from typing import Any
 
 import numpy as np
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
@@ -605,10 +606,10 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
     class DemoMeshCfg(sim_utils.MeshCfg):
         """Demo-local exact triangle-mesh asset config."""
 
-        func: Callable | str = config_field(clone(spawn_demo_mesh))
-        vertices: list[list[float]] = config_field(MISSING)
-        faces: list[list[int]] = config_field(MISSING)
-        mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = config_field(None)
+        func: Callable | str = field(default_factory=lambda: clone(spawn_demo_mesh))
+        vertices: list[list[float]] = REQUIRED
+        faces: list[list[int]] = REQUIRED
+        mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = None
 
     island_cfg = None
     if island_usd is not None:
@@ -643,10 +644,10 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
     class TeapotFillSceneCfg(InteractiveSceneCfg):
         """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
 
-        island: AssetBaseCfg | None = config_field(island_cfg)
+        island: AssetBaseCfg | None = field(default_factory=lambda: deepcopy(island_cfg))
 
-        tabletop_collider: Any = config_field(
-            AssetBaseCfg(
+        tabletop_collider: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="{ENV_REGEX_NS}/TabletopCollider",
                 spawn=sim_utils.CuboidCfg(
                     size=(2.0 * TABLE_HALF_EXTENTS[0], 2.0 * TABLE_HALF_EXTENTS[1], 2.0 * TABLE_HALF_EXTENTS[2]),
@@ -672,10 +673,10 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
             )
         )
 
-        catch_bowl_visual: AssetBaseCfg | None = config_field(bowl_visual_cfg)
+        catch_bowl_visual: AssetBaseCfg | None = field(default_factory=lambda: deepcopy(bowl_visual_cfg))
 
-        catch_bowl_collider: Any = config_field(
-            AssetBaseCfg(
+        catch_bowl_collider: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="{ENV_REGEX_NS}/CatchBowlCollider",
                 spawn=DemoMeshCfg(
                     vertices=(BOWL_SCALE * bowl_vertices).tolist(),
@@ -700,8 +701,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
 
         # Utah Teapot: free for any use; credit as the (Modified) Utah Teapot
         # (Univ. of Utah); provided "as is", no warranty.
-        container: Any = config_field(
-            RigidObjectCfg(
+        container: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/PourContainer",
                 # Re-spawn the source geometry as one exact triangle mesh. The USD
                 # asset's authored convex decomposition is unsuitable for a hollow
@@ -731,8 +732,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
             )
         )
 
-        fluid: Any = config_field(
-            MPMObjectCfg(
+        fluid: Any = field(
+            default_factory=lambda: MPMObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Fluid",
                 spawn=MPMPointsCfg(
                     positions=fluid_points.tolist(),
@@ -756,10 +757,12 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
             )
         )
 
-        ground: Any = config_field(AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg()))
+        ground: Any = field(
+            default_factory=lambda: AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+        )
 
-        dome_light: Any = config_field(
-            AssetBaseCfg(
+        dome_light: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/DomeLight",
                 spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
             )

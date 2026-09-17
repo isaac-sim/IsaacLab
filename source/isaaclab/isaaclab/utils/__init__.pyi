@@ -55,11 +55,12 @@ __all__ = [
     "get_isaac_sim_version",
     "compare_versions",
     "configclass",
-    "config_field",
+    "REQUIRED",
     "config_to_dict",
     "update_config",
     "replace_config",
     "copy_config",
+    "resolve_config",
     "validate_config",
     "checked_apply",
 ]
@@ -113,12 +114,13 @@ from .string import (
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
 from .configclass import (
+    REQUIRED,
     checked_apply,
-    config_field,
     config_to_dict,
     configclass,
     copy_config,
     replace_config,
+    resolve_config,
     update_config,
     validate_config,
 )

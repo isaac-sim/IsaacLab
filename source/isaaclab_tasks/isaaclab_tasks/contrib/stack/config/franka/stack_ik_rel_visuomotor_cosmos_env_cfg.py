@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.sim as sim_utils
@@ -11,7 +11,6 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import config_field
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
@@ -27,29 +26,29 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        object: Any = config_field(ObsTerm(func=mdp.object_obs))
-        cube_positions: Any = config_field(ObsTerm(func=mdp.cube_positions_in_world_frame))
-        cube_orientations: Any = config_field(ObsTerm(func=mdp.cube_orientations_in_world_frame))
-        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pos))
-        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_quat))
-        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
-        table_cam: Any = config_field(
-            ObsTerm(
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        object: Any = field(default_factory=lambda: ObsTerm(func=mdp.object_obs))
+        cube_positions: Any = field(default_factory=lambda: ObsTerm(func=mdp.cube_positions_in_world_frame))
+        cube_orientations: Any = field(default_factory=lambda: ObsTerm(func=mdp.cube_orientations_in_world_frame))
+        eef_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_pos))
+        eef_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_quat))
+        gripper_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_pos))
+        table_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False},
             )
         )
-        wrist_cam: Any = config_field(
-            ObsTerm(
+        wrist_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False},
             )
         )
-        table_cam_segmentation: Any = config_field(
-            ObsTerm(
+        table_cam_segmentation: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={
                     "sensor_cfg": SceneEntityCfg("table_cam"),
@@ -58,14 +57,14 @@ class ObservationsCfg:
                 },
             )
         )
-        table_cam_normals: Any = config_field(
-            ObsTerm(
+        table_cam_normals: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "normals", "normalize": True},
             )
         )
-        table_cam_depth: Any = config_field(
-            ObsTerm(
+        table_cam_depth: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={
                     "sensor_cfg": SceneEntityCfg("table_cam"),
@@ -83,8 +82,8 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp_1: Any = config_field(
-            ObsTerm(
+        grasp_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -93,8 +92,8 @@ class ObservationsCfg:
                 },
             )
         )
-        stack_1: Any = config_field(
-            ObsTerm(
+        stack_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_stacked,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -103,8 +102,8 @@ class ObservationsCfg:
                 },
             )
         )
-        grasp_2: Any = config_field(
-            ObsTerm(
+        grasp_2: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -119,13 +118,13 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    subtask_terms: SubtaskCfg = field(default_factory=SubtaskCfg)
 
 
 @dataclass
 class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.FrankaCubeStackVisuomotorEnvCfg):
-    observations: ObservationsCfg = config_field(ObservationsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
 
     def __post_init__(self):
         # post init of parent

@@ -8,7 +8,6 @@
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
@@ -83,9 +82,9 @@ class DummySensor(SensorBase):
 
 @dataclass
 class DummySensorCfg(SensorBaseCfg):
-    class_type: Any = config_field(DummySensor)
+    class_type: Any = DummySensor
 
-    prim_path: Any = config_field("{ENV_REGEX_NS}/Cube/dummy_sensor")
+    prim_path: Any = "{ENV_REGEX_NS}/Cube/dummy_sensor"
 
 
 def _populate_scene():

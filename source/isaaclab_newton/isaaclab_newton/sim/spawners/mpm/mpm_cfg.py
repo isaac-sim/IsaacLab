@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from isaaclab.sim.spawners.materials.visual_materials_cfg import VisualMaterialCfg
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -26,37 +26,37 @@ class MPMParticleMaterialCfg:
     The defaults model a dry sand-like granular material.
     """
 
-    density: float = config_field(1000.0)
+    density: float = 1000.0
     """Particle material density [kg/m^3] used to derive particle mass."""
 
-    young_modulus: float = config_field(1.0e15)
+    young_modulus: float = 1.0e15
     """Young's modulus [Pa]."""
 
-    poisson_ratio: float = config_field(0.3)
+    poisson_ratio: float = 0.3
     """Dimensionless Poisson's ratio for elasticity."""
 
-    viscosity: float = config_field(0.0)
+    viscosity: float = 0.0
     """Plastic viscosity [Pa·s]."""
 
-    friction: float = config_field(0.68)
+    friction: float = 0.68
     """Dimensionless particle friction coefficient."""
 
-    damping: float = config_field(0.0)
+    damping: float = 0.0
     """Elastic damping relaxation time [s]."""
 
-    yield_pressure: float = config_field(1.0e12)
+    yield_pressure: float = 1.0e12
     """Pressure at which the material yields [Pa]."""
 
-    tensile_yield_ratio: float = config_field(0.0)
+    tensile_yield_ratio: float = 0.0
     """Dimensionless tensile-to-compressive yield ratio."""
 
-    yield_stress: float = config_field(0.0)
+    yield_stress: float = 0.0
     """Von Mises yield stress [Pa]."""
 
-    hardening: float = config_field(0.0)
+    hardening: float = 0.0
     """Dimensionless plastic hardening factor."""
 
-    dilatancy: float = config_field(0.0)
+    dilatancy: float = 0.0
     """Dimensionless granular dilatancy factor."""
 
 
@@ -69,18 +69,18 @@ class MPMParticleSpawnerCfg(SpawnerCfg):
     Lab's scene and cloning machinery.
     """
 
-    func: Callable | str = config_field("{DIR}.mpm:spawn_mpm_particles")
+    func: Callable | str = "isaaclab_newton.sim.spawners.mpm.mpm:spawn_mpm_particles"
 
-    material: MPMParticleMaterialCfg = config_field(MPMParticleMaterialCfg())
+    material: MPMParticleMaterialCfg = field(default_factory=MPMParticleMaterialCfg)
     """Physical material values applied to generated particles."""
 
-    visual_color: Sequence[float] = config_field((0.7, 0.6, 0.4))
+    visual_color: Sequence[float] = (0.7, 0.6, 0.4)
     """RGB display color for particle visualization."""
 
-    visual_material: VisualMaterialCfg | None = config_field(None)
+    visual_material: VisualMaterialCfg | None = None
     """Optional visual-material spawner configuration bound to each particle cloud."""
 
-    visual_update_frequency: int = config_field(1)
+    visual_update_frequency: int = 1
     """USD-stage particle visualization update frequency in render frames."""
 
 
@@ -88,23 +88,23 @@ class MPMParticleSpawnerCfg(SpawnerCfg):
 class MPMGridCfg(MPMParticleSpawnerCfg):
     """Generate a regular MPM particle lattice in an axis-aligned local box."""
 
-    lower: Sequence[float] = config_field(MISSING)
+    lower: Sequence[float] = REQUIRED
     """Lower local-space corner [m], shape ``(3,)``."""
 
-    upper: Sequence[float] = config_field(MISSING)
+    upper: Sequence[float] = REQUIRED
     """Upper local-space corner [m], shape ``(3,)``."""
 
-    voxel_size: float = config_field(MISSING)
+    voxel_size: float = REQUIRED
     """Target MPM voxel size [m], used with :attr:`particles_per_cell` to choose lattice resolution."""
 
-    particles_per_cell: float = config_field(1.0)
+    particles_per_cell: float = 1.0
     """Particle resolution multiplier applied independently along each axis.
 
     For example, ``2`` doubles the lattice resolution along every axis and
     therefore creates approximately eight times as many particles in 3D.
     """
 
-    particle_placement: Literal["boundary", "cell_center"] = config_field("boundary")
+    particle_placement: Literal["boundary", "cell_center"] = "boundary"
     """Particle placement convention.
 
     ``"boundary"`` preserves the original behavior by emitting particles on
@@ -113,20 +113,20 @@ class MPMGridCfg(MPMParticleSpawnerCfg):
     box mass.
     """
 
-    jitter: float = config_field(0.0)
+    jitter: float = 0.0
     """Width of Newton's uniform per-axis jitter interval [m].
 
     Newton samples each position component in ``[-jitter / 2, jitter / 2]``.
     """
 
-    mass: float | None = config_field(None)
+    mass: float | None = None
     """Per-particle mass [kg].
 
     If ``None``, mass is derived from the generated lattice-cell volume and
     :attr:`material` density.
     """
 
-    radius: float | None = config_field(None)
+    radius: float | None = None
     """Particle radius [m].
 
     If ``None``, cell-centered placement uses the equal-volume radius whose
@@ -139,17 +139,17 @@ class MPMGridCfg(MPMParticleSpawnerCfg):
 class MPMPointsCfg(MPMParticleSpawnerCfg):
     """Generate MPM particles from explicit local-space positions."""
 
-    positions: Sequence[Sequence[float]] = config_field(MISSING)
+    positions: Sequence[Sequence[float]] = REQUIRED
     """Local-space particle positions [m], shape ``(num_particles, 3)``."""
 
-    velocities: Sequence[Sequence[float]] | None = config_field(None)
+    velocities: Sequence[Sequence[float]] | None = None
     """Local-space particle velocities [m/s], shape ``(num_particles, 3)``.
 
     If ``None``, all initial velocities are zero.
     """
 
-    mass: float | Sequence[float] = config_field(1.0)
+    mass: float | Sequence[float] = 1.0
     """Positive particle masses [kg], either scalar or one value per particle."""
 
-    radius: float | Sequence[float] = config_field(0.01)
+    radius: float | Sequence[float] = 0.01
     """Positive particle radii [m], either scalar or one value per particle."""

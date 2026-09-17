@@ -4,10 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the frame transformer sensor.")
@@ -51,19 +52,23 @@ class FrameTransformerSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # robot
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # Rigid Object
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(1, 1, 1),
@@ -77,8 +82,8 @@ class FrameTransformerSensorSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    specific_transforms: Any = config_field(
-        FrameTransformerCfg(
+    specific_transforms: Any = field(
+        default_factory=lambda: FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             target_frames=[
                 FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT"),
@@ -88,16 +93,16 @@ class FrameTransformerSensorSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    cube_transform: Any = config_field(
-        FrameTransformerCfg(
+    cube_transform: Any = field(
+        default_factory=lambda: FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Cube")],
             debug_vis=False,
         )
     )
 
-    robot_transforms: Any = config_field(
-        FrameTransformerCfg(
+    robot_transforms: Any = field(
+        default_factory=lambda: FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/.*")],
             debug_vis=False,

@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
@@ -15,27 +15,27 @@ from isaaclab_tasks.utils import PresetCfg
 
 @dataclass
 class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(16)
-    max_iterations: Any = config_field(3000)
-    save_interval: Any = config_field(250)
-    experiment_name: Any = config_field("shadow_hand")
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 16
+    max_iterations: Any = 3000
+    save_interval: Any = 250
+    experiment_name: Any = "shadow_hand"
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -56,36 +56,38 @@ class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 class ShadowHandManagerPPORunnerCfg(PresetCfg):
     """``presets=asymmetric`` feeds the critic the privileged observation group."""
 
-    default: Any = config_field(ShadowHandPPORunnerCfg())
-    asymmetric: Any = config_field(
-        replace_config(ShadowHandPPORunnerCfg(), obs_groups={"actor": ["policy"], "critic": ["critic"]})
+    default: Any = field(default_factory=ShadowHandPPORunnerCfg)
+    asymmetric: Any = field(
+        default_factory=lambda: replace_config(
+            ShadowHandPPORunnerCfg(), obs_groups={"actor": ["policy"], "critic": ["critic"]}
+        )
     )
 
 
 @dataclass
 class ShadowHandCameraFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(64)
-    max_iterations: Any = config_field(5000)
-    save_interval: Any = config_field(250)
-    experiment_name: Any = config_field("shadow_hand_camera")
-    obs_groups: Any = config_field({"actor": ["policy"], "critic": ["critic"]})
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 64
+    max_iterations: Any = 5000
+    save_interval: Any = 250
+    experiment_name: Any = "shadow_hand_camera"
+    obs_groups: Any = field(default_factory=lambda: {"actor": ["policy"], "critic": ["critic"]})
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[1024, 512, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[1024, 512, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

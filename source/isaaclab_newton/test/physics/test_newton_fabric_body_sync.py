@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
+from dataclasses import field
+
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -35,8 +36,8 @@ from isaaclab.utils import math as math_utils
 
 @dataclass
 class _RenderSceneCfg(InteractiveSceneCfg):
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -51,8 +52,8 @@ class _RenderSceneCfg(InteractiveSceneCfg):
 
 @dataclass
 class _CableRenderSceneCfg(InteractiveSceneCfg):
-    cable: CableObjectCfg = config_field(
-        CableObjectCfg(
+    cable: CableObjectCfg = field(
+        default_factory=lambda: CableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cable",
             spawn=CableCfg(
                 positions=((0.0, 0.0, 1.0), (0.0, 0.2, 1.0), (0.0, 0.4, 1.0), (0.0, 0.6, 1.0)),

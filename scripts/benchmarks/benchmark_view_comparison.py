@@ -26,9 +26,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
 
@@ -149,8 +149,8 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
 
     @dataclass
     class _SceneCfg(InteractiveSceneCfg):
-        cube: RigidObjectCfg = config_field(
-            RigidObjectCfg(
+        cube: RigidObjectCfg = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.2, 0.2, 0.2),

@@ -47,8 +47,7 @@ Below is an example skeleton of a task config class:
    from isaaclab.envs import DirectRLEnvCfg
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sim import SimulationCfg
-   from dataclasses import dataclass
-   from isaaclab.utils import config_field
+   from dataclasses import dataclass, field
    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
    @dataclass

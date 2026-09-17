@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.envs.mdp as manipulation_mdp
@@ -12,7 +12,6 @@ from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.utils import config_field
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -24,18 +23,18 @@ from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, LEG_JOINT_NAMES
 
 @dataclass
 class DigitLocoManipRewards(DigitRewards):
-    joint_deviation_arms: Any = config_field(None)
+    joint_deviation_arms: Any = None
 
-    joint_vel_hip_yaw: Any = config_field(
-        RewTerm(
+    joint_vel_hip_yaw: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_vel_l2,
             weight=-0.001,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_leg_hip_yaw"])},
         )
     )
 
-    left_ee_pos_tracking: Any = config_field(
-        RewTerm(
+    left_ee_pos_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=manipulation_mdp.position_command_error,
             weight=-2.0,
             params={
@@ -45,8 +44,8 @@ class DigitLocoManipRewards(DigitRewards):
         )
     )
 
-    left_ee_pos_tracking_fine_grained: Any = config_field(
-        RewTerm(
+    left_ee_pos_tracking_fine_grained: Any = field(
+        default_factory=lambda: RewTerm(
             func=manipulation_mdp.position_command_error_tanh,
             weight=2.0,
             params={
@@ -57,8 +56,8 @@ class DigitLocoManipRewards(DigitRewards):
         )
     )
 
-    left_end_effector_orientation_tracking: Any = config_field(
-        RewTerm(
+    left_end_effector_orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=manipulation_mdp.orientation_command_error,
             weight=-0.2,
             params={
@@ -68,8 +67,8 @@ class DigitLocoManipRewards(DigitRewards):
         )
     )
 
-    right_ee_pos_tracking: Any = config_field(
-        RewTerm(
+    right_ee_pos_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=manipulation_mdp.position_command_error,
             weight=-2.0,
             params={
@@ -79,8 +78,8 @@ class DigitLocoManipRewards(DigitRewards):
         )
     )
 
-    right_ee_pos_tracking_fine_grained: Any = config_field(
-        RewTerm(
+    right_ee_pos_tracking_fine_grained: Any = field(
+        default_factory=lambda: RewTerm(
             func=manipulation_mdp.position_command_error_tanh,
             weight=2.0,
             params={
@@ -91,8 +90,8 @@ class DigitLocoManipRewards(DigitRewards):
         )
     )
 
-    right_end_effector_orientation_tracking: Any = config_field(
-        RewTerm(
+    right_end_effector_orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=manipulation_mdp.orientation_command_error,
             weight=-0.2,
             params={
@@ -109,69 +108,69 @@ class DigitLocoManipObservations:
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        base_lin_vel: Any = config_field(
-            ObsTerm(
+        base_lin_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.base_lin_vel,
                 noise=Unoise(n_min=-0.1, n_max=0.1),
             )
         )
-        base_ang_vel: Any = config_field(
-            ObsTerm(
+        base_ang_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.base_ang_vel,
                 noise=Unoise(n_min=-0.2, n_max=0.2),
             )
         )
-        projected_gravity: Any = config_field(
-            ObsTerm(
+        projected_gravity: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.projected_gravity,
                 noise=Unoise(n_min=-0.05, n_max=0.05),
             )
         )
-        velocity_commands: Any = config_field(
-            ObsTerm(
+        velocity_commands: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.generated_commands,
                 params={"command_name": "base_velocity"},
             )
         )
-        left_ee_pose_command: Any = config_field(
-            ObsTerm(
+        left_ee_pose_command: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.generated_commands,
                 params={"command_name": "left_ee_pose"},
             )
         )
-        right_ee_pose_command: Any = config_field(
-            ObsTerm(
+        right_ee_pose_command: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.generated_commands,
                 params={"command_name": "right_ee_pose"},
             )
         )
-        joint_pos: Any = config_field(
-            ObsTerm(
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES + ARM_JOINT_NAMES)},
                 noise=Unoise(n_min=-0.01, n_max=0.01),
             )
         )
-        joint_vel: Any = config_field(
-            ObsTerm(
+        joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES + ARM_JOINT_NAMES)},
                 noise=Unoise(n_min=-1.5, n_max=1.5),
             )
         )
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    policy: Any = config_field(PolicyCfg())
+    policy: Any = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class DigitLocoManipCommands:
-    base_velocity: Any = config_field(
-        mdp.UniformVelocityCommandCfg(
+    base_velocity: Any = field(
+        default_factory=lambda: mdp.UniformVelocityCommandCfg(
             asset_name="robot",
             resampling_time_range=(10.0, 10.0),
             rel_standing_envs=0.25,
@@ -187,8 +186,8 @@ class DigitLocoManipCommands:
         )
     )
 
-    left_ee_pose: Any = config_field(
-        mdp.UniformPoseCommandCfg(
+    left_ee_pose: Any = field(
+        default_factory=lambda: mdp.UniformPoseCommandCfg(
             asset_name="robot",
             body_name="left_arm_wrist_yaw",
             resampling_time_range=(1.0, 3.0),
@@ -204,8 +203,8 @@ class DigitLocoManipCommands:
         )
     )
 
-    right_ee_pose: Any = config_field(
-        mdp.UniformPoseCommandCfg(
+    right_ee_pose: Any = field(
+        default_factory=lambda: mdp.UniformPoseCommandCfg(
             asset_name="robot",
             body_name="right_arm_wrist_yaw",
             resampling_time_range=(1.0, 3.0),
@@ -225,8 +224,8 @@ class DigitLocoManipCommands:
 @dataclass
 class DigitEvents(EventsCfg):
     # Add an external force to simulate a payload being carried.
-    left_hand_force: Any = config_field(
-        EventTermCfg(
+    left_hand_force: Any = field(
+        default_factory=lambda: EventTermCfg(
             func=mdp.apply_external_force_torque,
             mode="interval",
             interval_range_s=(10.0, 15.0),
@@ -238,8 +237,8 @@ class DigitEvents(EventsCfg):
         )
     )
 
-    right_hand_force: Any = config_field(
-        EventTermCfg(
+    right_hand_force: Any = field(
+        default_factory=lambda: EventTermCfg(
             func=mdp.apply_external_force_torque,
             mode="interval",
             interval_range_s=(10.0, 15.0),
@@ -254,9 +253,9 @@ class DigitEvents(EventsCfg):
 
 @dataclass
 class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
-    rewards: DigitLocoManipRewards = config_field(DigitLocoManipRewards())
-    observations: DigitLocoManipObservations = config_field(DigitLocoManipObservations())
-    commands: DigitLocoManipCommands = config_field(DigitLocoManipCommands())
+    rewards: DigitLocoManipRewards = field(default_factory=DigitLocoManipRewards)
+    observations: DigitLocoManipObservations = field(default_factory=DigitLocoManipObservations)
+    commands: DigitLocoManipCommands = field(default_factory=DigitLocoManipCommands)
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):

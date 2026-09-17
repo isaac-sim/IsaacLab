@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
@@ -87,13 +86,15 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     still be selected via the ``presets`` CLI argument.
     """
 
-    prim_path: str = config_field("{ENV_REGEX_NS}/Camera")
-    offset: CameraCfg.OffsetCfg = config_field(
-        CameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world")
+    prim_path: str = "{ENV_REGEX_NS}/Camera"
+    offset: CameraCfg.OffsetCfg = field(
+        default_factory=lambda: CameraCfg.OffsetCfg(
+            pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
+        )
     )
-    data_types: list[str] = config_field([])
-    spawn: sim_utils.PinholeCameraCfg = config_field(
-        sim_utils.PinholeCameraCfg(
+    data_types: list[str] = field(default_factory=list)
+    spawn: sim_utils.PinholeCameraCfg = field(
+        default_factory=lambda: sim_utils.PinholeCameraCfg(
             spawn_path="/World/envs/env_0/Camera",
             focal_length=24.0,
             focus_distance=400.0,
@@ -101,9 +102,9 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
             clipping_range=(0.1, 20.0),
         )
     )
-    width: int = config_field(120)
-    height: int = config_field(120)
-    renderer_cfg: MultiBackendRendererCfg = config_field(MultiBackendRendererCfg())
+    width: int = 120
+    height: int = 120
+    renderer_cfg: MultiBackendRendererCfg = field(default_factory=MultiBackendRendererCfg)
 
 
 @dataclass
@@ -124,38 +125,44 @@ class ShadowHandTiledCameraCfg(PresetCfg):
         presets = newton_renderer, rgb
     """
 
-    default: _ShadowHandBaseTiledCameraCfg = config_field(
-        _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth", "semantic_segmentation"])
+    default: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth", "semantic_segmentation"])
     )
     """Default: RGB + depth + semantic segmentation (7 CNN input channels)."""
 
-    full: _ShadowHandBaseTiledCameraCfg = config_field(
-        _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth", "semantic_segmentation"])
+    full: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth", "semantic_segmentation"])
     )
     """Full modalities: RGB + depth + semantic segmentation (7 channels). Alias for default."""
 
-    rgb: _ShadowHandBaseTiledCameraCfg = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["rgb"]))
+    rgb: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["rgb"])
+    )
     """RGB only (3 CNN input channels)."""
 
-    albedo: _ShadowHandBaseTiledCameraCfg = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["albedo"]))
+    albedo: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["albedo"])
+    )
     """Albedo (3 CNN input channels)."""
 
-    simple_shading_constant_diffuse: _ShadowHandBaseTiledCameraCfg = config_field(
-        _ShadowHandBaseTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    simple_shading_constant_diffuse: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
     )
     """Simple shading with constant diffuse (3 CNN input channels)."""
 
-    simple_shading_diffuse_mdl: _ShadowHandBaseTiledCameraCfg = config_field(
-        _ShadowHandBaseTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    simple_shading_diffuse_mdl: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
     )
     """Simple shading with diffuse MDL (3 CNN input channels)."""
 
-    simple_shading_full_mdl: _ShadowHandBaseTiledCameraCfg = config_field(
-        _ShadowHandBaseTiledCameraCfg(data_types=["simple_shading_full_mdl"])
+    simple_shading_full_mdl: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["simple_shading_full_mdl"])
     )
     """Simple shading with full MDL (3 CNN input channels)."""
 
-    depth: _ShadowHandBaseTiledCameraCfg = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["depth"]))
+    depth: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["depth"])
+    )
     """Depth only (1 channel).
 
     .. warning::
@@ -168,8 +175,8 @@ class ShadowHandTiledCameraCfg(PresetCfg):
             presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
-    semantic_segmentation: _ShadowHandBaseTiledCameraCfg = config_field(
-        _ShadowHandBaseTiledCameraCfg(data_types=["semantic_segmentation"])
+    semantic_segmentation: _ShadowHandBaseTiledCameraCfg = field(
+        default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["semantic_segmentation"])
     )
     """Semantic segmentation (3 CNN input channels)."""
 
@@ -177,14 +184,14 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 @dataclass
 class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # scene
-    scene: InteractiveSceneCfg = config_field(
-        InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = field(
+        default_factory=lambda: InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
     )
 
     # camera — data-type and renderer backend selectable via CLI presets
-    tiled_camera: ShadowHandTiledCameraCfg = config_field(ShadowHandTiledCameraCfg())
-    feature_extractor: FeatureExtractorCfg = config_field(
-        FeatureExtractorCfg(
+    tiled_camera: ShadowHandTiledCameraCfg = field(default_factory=ShadowHandTiledCameraCfg)
+    feature_extractor: FeatureExtractorCfg = field(
+        default_factory=lambda: FeatureExtractorCfg(
             pretrained_checkpoint=preset(  # type: ignore[arg-type]
                 default=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
                 newton_mjwarp=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
@@ -196,8 +203,8 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     )
 
     # env
-    observation_space: Any = config_field(164 + 27)  # state observation + vision CNN embedding
-    state_space: Any = config_field(187 + 27)  # asymmetric states + vision CNN embedding
+    observation_space: Any = field(default_factory=lambda: 164 + 27)  # state observation + vision CNN embedding
+    state_space: Any = field(default_factory=lambda: 187 + 27)  # asymmetric states + vision CNN embedding
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""

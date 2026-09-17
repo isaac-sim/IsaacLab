@@ -217,8 +217,7 @@ For a multi-backend task, the preset wrapper belongs in
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab.sim import SimulationCfg
-   from dataclasses import dataclass
-   from isaaclab.utils import config_field
+   from dataclasses import dataclass, field
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
@@ -227,19 +226,19 @@ For a multi-backend task, the preset wrapper belongs in
 
    @dataclass
    class PhysicsCfg(PresetCfg):
-       isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
-       ovphysx: OvPhysxCfg = config_field(OvPhysxCfg())
-       physx: PhysxAutoCfg = config_field(PhysxAutoCfg(
-           isaacsim_physx=isaacsim_physx,
-           ovphysx=ovphysx,
+       isaacsim_physx: PhysxCfg = field(default_factory=PhysxCfg)
+       ovphysx: OvPhysxCfg = field(default_factory=OvPhysxCfg)
+       physx: PhysxAutoCfg = field(default_factory=lambda: PhysxAutoCfg(
+           isaacsim_physx=PhysxCfg(),
+           ovphysx=OvPhysxCfg(),
        ))
-       default: PhysxCfg = config_field(isaacsim_physx)
-       newton_mjwarp: NewtonCfg = config_field(NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+       default: PhysxCfg = field(default_factory=PhysxCfg)
+       newton_mjwarp: NewtonCfg = field(default_factory=lambda: NewtonCfg(solver_cfg=MJWarpSolverCfg()))
 
 
    @dataclass
    class MyEnvCfg:
-       sim: SimulationCfg = config_field(SimulationCfg(physics=PhysicsCfg()))
+       sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysicsCfg()))
 
 Keep backend-specific values inside named configurations whenever possible.
 This keeps task logic shared and makes every supported choice visible from the

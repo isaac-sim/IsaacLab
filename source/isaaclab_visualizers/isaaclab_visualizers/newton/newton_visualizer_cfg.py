@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import config_field
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -27,11 +26,11 @@ class NewtonVisualizerCfg(VisualizerCfg):
         OpenGL rasterizer or :class:`NewtonRTXVisualizerCfg` for the OVRTX path tracer.
     """
 
-    class_type: type[NewtonGLVisualizer] | str = config_field("{DIR}.newton_visualizer:NewtonGLVisualizer")
+    class_type: type[NewtonGLVisualizer] | str = "isaaclab_visualizers.newton.newton_visualizer:NewtonGLVisualizer"
     """Deprecated alias for the Newton GL visualizer implementation."""
 
     # Deprecated alias: "newton" routes to the GL backend via simulation_context._VISUALIZER_ALIASES.
-    visualizer_type: str = config_field("newton_gl")
+    visualizer_type: str = "newton_gl"
 
     def __post_init__(self) -> None:
         if parent_post_init := getattr(super(), "__post_init__", None):
@@ -44,49 +43,49 @@ class NewtonVisualizerCfg(VisualizerCfg):
                 stacklevel=3,
             )
 
-    window_width: int = config_field(1920)
+    window_width: int = 1920
     """Window width in pixels."""
 
-    window_height: int = config_field(1080)
+    window_height: int = 1080
     """Window height in pixels."""
 
-    headless: bool = config_field(False)
+    headless: bool = False
     """Run the Newton viewer without requiring a display server."""
 
-    update_frequency: int = config_field(1)
+    update_frequency: int = 1
     """Visualizer update frequency (renders every N simulation frames)."""
 
-    world_spacing: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+    world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Visual spacing between simulation worlds along each axis [m].
 
     Non-zero axes arrange visible worlds in a compact grid without changing their simulated poses.
     """
 
-    show_joints: bool = config_field(False)
+    show_joints: bool = False
     """Show joint visualization."""
 
-    show_contacts: bool = config_field(False)
+    show_contacts: bool = False
     """Show contact visualization."""
 
-    show_collision: bool = config_field(False)
+    show_collision: bool = False
     """Show collision visualization."""
 
-    show_springs: bool = config_field(False)
+    show_springs: bool = False
     """Show spring visualization."""
 
-    show_inertia_boxes: bool = config_field(False)
+    show_inertia_boxes: bool = False
     """Show inertia box visualization."""
 
-    show_com: bool = config_field(False)
+    show_com: bool = False
     """Show center of mass visualization."""
 
-    show_particles: bool = config_field(False)
+    show_particles: bool = False
     """Show particle visualization."""
 
-    particle_color: tuple[float, float, float] | None = config_field(None)
+    particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
 
-    enable_picking: bool = config_field(True)
+    enable_picking: bool = True
     """Enable right-click dragging with Newton rigid-body solvers.
 
     Supported coupled solvers may expose dragging through a rigid-body entry.
@@ -94,22 +93,22 @@ class NewtonVisualizerCfg(VisualizerCfg):
     physics. MPM particles are not pickable.
     """
 
-    enable_shadows: bool = config_field(True)
+    enable_shadows: bool = True
     """Enable shadow rendering."""
 
-    enable_sky: bool = config_field(True)
+    enable_sky: bool = True
     """Enable procedural sky rendering when ``background_color`` is ``None``."""
 
-    enable_wireframe: bool = config_field(False)
+    enable_wireframe: bool = False
     """Enable wireframe rendering."""
 
-    sky_upper_color: tuple[float, float, float] = config_field((0.2, 0.4, 0.6))
+    sky_upper_color: tuple[float, float, float] = (0.2, 0.4, 0.6)
     """Sky upper color RGB [0, 1]."""
 
-    sky_lower_color: tuple[float, float, float] = config_field((0.5, 0.6, 0.7))
+    sky_lower_color: tuple[float, float, float] = (0.5, 0.6, 0.7)
     """Sky lower color RGB [0, 1]."""
 
-    light_color: tuple[float, float, float] = config_field((1.0, 1.0, 1.0))
+    light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0, 1]."""
 
 
@@ -125,13 +124,13 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     sidebar combo, keeping per-step overhead zero when the panel is closed.
     """
 
-    class_type: type[NewtonGLVisualizer] | str = config_field("{DIR}.newton_visualizer:NewtonGLVisualizer")
+    class_type: type[NewtonGLVisualizer] | str = "isaaclab_visualizers.newton.newton_visualizer:NewtonGLVisualizer"
     """Visualizer implementation class."""
 
-    visualizer_type: str = config_field("newton_gl")
+    visualizer_type: str = "newton_gl"
     """Visualizer selector identifier. Do not change."""
 
-    streaming_view: bool = config_field(True)
+    streaming_view: bool = True
     """Enable the tiled streaming camera panel.
 
     Overrides the base-class default of ``False``.  The panel starts **hidden** so there
@@ -155,17 +154,17 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     unsupported because ``ViewerRTX.log_image`` has no display sink.
     """
 
-    class_type: type[NewtonRTXVisualizer] | str = config_field("{DIR}.newton_visualizer:NewtonRTXVisualizer")
+    class_type: type[NewtonRTXVisualizer] | str = "isaaclab_visualizers.newton.newton_visualizer:NewtonRTXVisualizer"
     """Visualizer implementation class."""
 
-    visualizer_type: str = config_field("newton_rtx")
+    visualizer_type: str = "newton_rtx"
     """Visualizer selector identifier. Do not change."""
 
-    rtx_environment: str = config_field("default")
+    rtx_environment: str = "default"
     """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
 
-    render_settings: dict[str, Any] = config_field(dict())
+    render_settings: dict[str, Any] = field(default_factory=dict)
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
 
     ``usd_type_name`` names an ``Sdf.ValueTypeNames`` member, as a string so the config stays

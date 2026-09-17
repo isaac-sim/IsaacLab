@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.assets import SurfaceGripperCfg
@@ -20,7 +20,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -124,12 +124,14 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
 class EventCfg:
     """Configuration for events."""
 
-    reset_all: Any = config_field(
-        EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    reset_all: Any = field(
+        default_factory=lambda: EventTerm(
+            func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True}
+        )
     )
 
-    randomize_cube_positions: Any = config_field(
-        EventTerm(
+    randomize_cube_positions: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -154,31 +156,31 @@ class ObservationGalbotLeftArmGripperCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
 
-        object: Any = config_field(
-            ObsTerm(
+        object: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_abs_obs_in_base_frame,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
                 },
             )
         )
-        cube_positions: Any = config_field(
-            ObsTerm(
+        cube_positions: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.cube_poses_in_base_frame, params={"robot_cfg": SceneEntityCfg("robot"), "return_key": "pos"}
             )
         )
-        cube_orientations: Any = config_field(
-            ObsTerm(
+        cube_orientations: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.cube_poses_in_base_frame, params={"robot_cfg": SceneEntityCfg("robot"), "return_key": "quat"}
             )
         )
 
-        eef_pos: Any = config_field(
-            ObsTerm(
+        eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.ee_frame_pose_in_base_frame,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -187,8 +189,8 @@ class ObservationGalbotLeftArmGripperCfg:
                 },
             )
         )
-        eef_quat: Any = config_field(
-            ObsTerm(
+        eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.ee_frame_pose_in_base_frame,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -197,8 +199,8 @@ class ObservationGalbotLeftArmGripperCfg:
                 },
             )
         )
-        gripper_pos: Any = config_field(
-            ObsTerm(
+        gripper_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.gripper_pos,
             )
         )
@@ -211,8 +213,8 @@ class ObservationGalbotLeftArmGripperCfg:
     class SubtaskCfg(ObservationsCfg.SubtaskCfg):
         """Observations for subtask group."""
 
-        grasp_1: Any = config_field(
-            ObsTerm(
+        grasp_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -221,8 +223,8 @@ class ObservationGalbotLeftArmGripperCfg:
                 },
             )
         )
-        stack_1: Any = config_field(
-            ObsTerm(
+        stack_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_stacked,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -231,8 +233,8 @@ class ObservationGalbotLeftArmGripperCfg:
                 },
             )
         )
-        grasp_2: Any = config_field(
-            ObsTerm(
+        grasp_2: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -250,14 +252,14 @@ class ObservationGalbotLeftArmGripperCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        table_cam: Any = config_field(
-            ObsTerm(
+        table_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False},
             )
         )
-        wrist_cam: Any = config_field(
-            ObsTerm(
+        wrist_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False},
             )
@@ -267,9 +269,9 @@ class ObservationGalbotLeftArmGripperCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
-    policy: PolicyCfg = config_field(PolicyCfg())
-    rgb_camera: RGBCameraPolicyCfg = config_field(RGBCameraPolicyCfg())
+    subtask_terms: SubtaskCfg = field(default_factory=SubtaskCfg)
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    rgb_camera: RGBCameraPolicyCfg = field(default_factory=RGBCameraPolicyCfg)
 
 
 @dataclass

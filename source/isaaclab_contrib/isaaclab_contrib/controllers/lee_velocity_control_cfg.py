@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from .lee_controller_base_cfg import LeeControllerBaseCfg
 from .lee_velocity_control import LeeVelController
@@ -20,10 +20,10 @@ class LeeVelControllerCfg(LeeControllerBaseCfg):
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
     """
 
-    class_type: type = config_field(LeeVelController)
+    class_type: type = LeeVelController
     """The class type for the velocity controller."""
 
-    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = config_field(MISSING)
+    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = REQUIRED
     """Velocity error proportional gain range about body axes [unitless].
 
     This is a tuple of two tuples containing the minimum and maximum gains for each axis (x, y, z).

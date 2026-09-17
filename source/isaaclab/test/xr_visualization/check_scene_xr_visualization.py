@@ -13,9 +13,8 @@ This script checks if the XR visualization widgets are visible from the camera.
 
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -58,11 +57,15 @@ class SimpleSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
 

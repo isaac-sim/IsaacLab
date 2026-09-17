@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
@@ -14,26 +14,26 @@ from ..sub_terrain_cfg import SubTerrainBaseCfg
 class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The base configuration for height field terrains."""
 
-    convert_to_heightfield: bool = config_field(True)
+    convert_to_heightfield: bool = True
     """Whether the sub-terrain should be converted to a heightfield. Defaults to True.
 
     Height field terrains are generated from a height field, so the conversion reproduces them exactly.
     """
 
-    border_width: float = config_field(0.0)
+    border_width: float = 0.0
     """The width of the border/padding around the terrain (in m). Defaults to 0.0.
 
     The border width is subtracted from the :obj:`size` of the terrain. If non-zero, it must be
     greater than or equal to the :obj:`horizontal scale`.
     """
 
-    horizontal_scale: float = config_field(0.1)
+    horizontal_scale: float = 0.1
     """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1."""
 
-    vertical_scale: float = config_field(0.005)
+    vertical_scale: float = 0.005
     """The discretization of the terrain along the z axis (in m). Defaults to 0.005."""
 
-    slope_threshold: float | None = config_field(None)
+    slope_threshold: float | None = None
     """The slope threshold above which surfaces are made vertical. Defaults to None,
     in which case no correction is applied."""
 
@@ -47,15 +47,15 @@ Different height field terrain configurations.
 class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a random uniform height field terrain."""
 
-    function: str = config_field("{DIR}.hf_terrains:random_uniform_terrain")
+    function: str = "isaaclab.terrains.height_field.hf_terrains:random_uniform_terrain"
 
-    noise_range: tuple[float, float] = config_field(MISSING)
+    noise_range: tuple[float, float] = REQUIRED
     """The minimum and maximum height noise (i.e. along z) of the terrain (in m)."""
 
-    noise_step: float = config_field(MISSING)
+    noise_step: float = REQUIRED
     """The minimum height (in m) change between two points."""
 
-    downsampled_scale: float | None = config_field(None)
+    downsampled_scale: float | None = None
     """The distance between two randomly sampled points on the terrain. Defaults to None,
     in which case the :obj:`horizontal scale` is used.
 
@@ -68,15 +68,15 @@ class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
 class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid sloped height field terrain."""
 
-    function: str = config_field("{DIR}.hf_terrains:pyramid_sloped_terrain")
+    function: str = "isaaclab.terrains.height_field.hf_terrains:pyramid_sloped_terrain"
 
-    slope_range: tuple[float, float] = config_field(MISSING)
+    slope_range: tuple[float, float] = REQUIRED
     """The slope of the terrain (in radians)."""
 
-    platform_width: float = config_field(1.0)
+    platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
-    inverted: bool = config_field(False)
+    inverted: bool = False
     """Whether the pyramid is inverted. Defaults to False.
 
     If True, the terrain is inverted such that the platform is at the bottom and the slopes are upwards.
@@ -93,25 +93,25 @@ class HfInvertedPyramidSlopedTerrainCfg(HfPyramidSlopedTerrainCfg):
         the naming convention of the other terrains.
     """
 
-    inverted: bool = config_field(True)
+    inverted: bool = True
 
 
 @dataclass
 class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid stairs height field terrain."""
 
-    function: str = config_field("{DIR}.hf_terrains:pyramid_stairs_terrain")
+    function: str = "isaaclab.terrains.height_field.hf_terrains:pyramid_stairs_terrain"
 
-    step_height_range: tuple[float, float] = config_field(MISSING)
+    step_height_range: tuple[float, float] = REQUIRED
     """The minimum and maximum height of the steps (in m)."""
 
-    step_width: float = config_field(MISSING)
+    step_width: float = REQUIRED
     """The width of the steps (in m)."""
 
-    platform_width: float = config_field(1.0)
+    platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
-    inverted: bool = config_field(False)
+    inverted: bool = False
     """Whether the pyramid stairs is inverted. Defaults to False.
 
     If True, the terrain is inverted such that the platform is at the bottom and the stairs are upwards.
@@ -128,31 +128,31 @@ class HfInvertedPyramidStairsTerrainCfg(HfPyramidStairsTerrainCfg):
         the naming convention of the other terrains.
     """
 
-    inverted: bool = config_field(True)
+    inverted: bool = True
 
 
 @dataclass
 class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a discrete obstacles height field terrain."""
 
-    function: str = config_field("{DIR}.hf_terrains:discrete_obstacles_terrain")
+    function: str = "isaaclab.terrains.height_field.hf_terrains:discrete_obstacles_terrain"
 
-    obstacle_height_mode: str = config_field("choice")
+    obstacle_height_mode: str = "choice"
     """The mode to use for the obstacle height. Defaults to "choice".
 
     The following modes are supported: "choice", "fixed".
     """
 
-    obstacle_width_range: tuple[float, float] = config_field(MISSING)
+    obstacle_width_range: tuple[float, float] = REQUIRED
     """The minimum and maximum width of the obstacles (in m)."""
 
-    obstacle_height_range: tuple[float, float] = config_field(MISSING)
+    obstacle_height_range: tuple[float, float] = REQUIRED
     """The minimum and maximum height of the obstacles (in m)."""
 
-    num_obstacles: int = config_field(MISSING)
+    num_obstacles: int = REQUIRED
     """The number of obstacles to generate."""
 
-    platform_width: float = config_field(1.0)
+    platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
 
@@ -160,12 +160,12 @@ class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
 class HfWaveTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a wave height field terrain."""
 
-    function: str = config_field("{DIR}.hf_terrains:wave_terrain")
+    function: str = "isaaclab.terrains.height_field.hf_terrains:wave_terrain"
 
-    amplitude_range: tuple[float, float] = config_field(MISSING)
+    amplitude_range: tuple[float, float] = REQUIRED
     """The minimum and maximum amplitude of the wave (in m)."""
 
-    num_waves: int = config_field(1)
+    num_waves: int = 1
     """The number of waves to generate. Defaults to 1."""
 
 
@@ -173,19 +173,19 @@ class HfWaveTerrainCfg(HfTerrainBaseCfg):
 class HfSteppingStonesTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a stepping stones height field terrain."""
 
-    function: str = config_field("{DIR}.hf_terrains:stepping_stones_terrain")
+    function: str = "isaaclab.terrains.height_field.hf_terrains:stepping_stones_terrain"
 
-    stone_height_max: float = config_field(MISSING)
+    stone_height_max: float = REQUIRED
     """The maximum height of the stones (in m)."""
 
-    stone_width_range: tuple[float, float] = config_field(MISSING)
+    stone_width_range: tuple[float, float] = REQUIRED
     """The minimum and maximum width of the stones (in m)."""
 
-    stone_distance_range: tuple[float, float] = config_field(MISSING)
+    stone_distance_range: tuple[float, float] = REQUIRED
     """The minimum and maximum distance between stones (in m)."""
 
-    holes_depth: float = config_field(-10.0)
+    holes_depth: float = -10.0
     """The depth of the holes (negative obstacles). Defaults to -10.0."""
 
-    platform_width: float = config_field(1.0)
+    platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""

@@ -19,10 +19,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import field
 
 import pytest
-
-from isaaclab.utils import config_field
 
 
 def _make_parser() -> argparse.ArgumentParser:
@@ -260,15 +259,15 @@ def test_bucket_variants_routes_by_target_match():
 
     @dataclass
     class _PhysVariant(PhysicsCfg):
-        class_type: str = config_field("mock")
+        class_type: str = "mock"
 
     @dataclass
     class _PhysWrapper(PhysicsCfg):
         # Mirrors NewtonCfg's "wrapper holds an inner solver" shape: still
         # subclasses PhysicsCfg, so the base-class isinstance check still
         # buckets it correctly regardless of any nested member type.
-        class_type: str = config_field("mock_wrapper")
-        inner: object = config_field(None)
+        class_type: str = "mock_wrapper"
+        inner: object = None
 
     @dataclass
     class _RendVariant(RendererCfg):
@@ -389,7 +388,7 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     @dataclass
     class _HelpPhysCfg(PhysicsCfg):
-        class_type: str = config_field("mock")
+        class_type: str = "mock"
 
     @dataclass
     class _HelpRendCfg(RendererCfg):
@@ -401,17 +400,19 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     @dataclass
     class _PhysOnlyCfg:
-        physics: object = config_field(preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg()))
+        physics: object = field(
+            default_factory=lambda: preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg())
+        )
 
     @dataclass
     class _DomainOnlyCfg:
-        weight: object = config_field(preset(default=1.0, light=0.5, heavy=2.0))
+        weight: object = field(default_factory=lambda: preset(default=1.0, light=0.5, heavy=2.0))
 
     @dataclass
     class _MixedCfg:
-        physics: object = config_field(preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg()))
-        renderer: object = config_field(preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg()))
-        weight: object = config_field(preset(default=1.0, light=0.5, heavy=2.0))
+        physics: object = field(default_factory=lambda: preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg()))
+        renderer: object = field(default_factory=lambda: preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg()))
+        weight: object = field(default_factory=lambda: preset(default=1.0, light=0.5, heavy=2.0))
 
     builders = {
         "empty": _EmptyCfg,

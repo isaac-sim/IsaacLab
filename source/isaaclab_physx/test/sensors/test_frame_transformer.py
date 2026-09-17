@@ -5,10 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -58,17 +59,17 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
     # articulation - robot
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # sensors - frame transformer (filled inside unit test)
-    frame_transformer: FrameTransformerCfg = config_field(None)
+    frame_transformer: FrameTransformerCfg = None
 
     # block
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -677,10 +678,12 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
     class MultiRobotSceneCfg(InteractiveSceneCfg):
         """Scene with two robots having bodies with same names."""
 
-        terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+        terrain: Any = field(
+            default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        )
 
         # Frame transformer will be set after config creation (needs source_robot parameter)
-        frame_transformer: FrameTransformerCfg = config_field(None)  # type: ignore
+        frame_transformer: FrameTransformerCfg = None  # type: ignore
 
     # Use multiple envs for env patterns, single env for direct paths
     num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1

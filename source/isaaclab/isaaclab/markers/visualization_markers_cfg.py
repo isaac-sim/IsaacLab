@@ -7,11 +7,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from isaaclab.markers import VisualizationMarkers
@@ -21,17 +21,17 @@ if TYPE_CHECKING:
 class VisualizationMarkersCfg:
     """A class to configure a :class:`VisualizationMarkers`."""
 
-    prim_path: str = config_field(MISSING)
+    prim_path: str = REQUIRED
     """The prim path where the :class:`UsdGeom.PointInstancer` will be created."""
 
-    markers: dict[str, SpawnerCfg] = config_field(MISSING)
+    markers: dict[str, SpawnerCfg] = REQUIRED
     """The dictionary of marker configurations.
 
     The key is the name of the marker, and the value is the configuration of the marker.
     The key is used to identify the marker in the class.
     """
 
-    class_type: type[VisualizationMarkers] | str = config_field("{DIR}.visualization_markers:VisualizationMarkers")
+    class_type: type[VisualizationMarkers] | str = "isaaclab.markers.visualization_markers:VisualizationMarkers"
     """The class to use for the visualization markers.
 
     Defaults to :class:`isaaclab.markers.VisualizationMarkers`.

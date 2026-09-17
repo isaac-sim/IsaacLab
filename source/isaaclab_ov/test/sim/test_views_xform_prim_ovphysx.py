@@ -10,11 +10,9 @@ Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import field, replace
 
 import pytest
-
-from isaaclab.utils import config_field
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -160,8 +158,8 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 
 @dataclass
 class _OvPhysxFrameViewSceneCfg(InteractiveSceneCfg):
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),

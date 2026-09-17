@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
@@ -19,7 +19,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -43,11 +43,11 @@ class ArlTrackPositionStateBasedSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a flying robot."""
 
     # robots
-    robot: MultirotorCfg = config_field(MISSING)
+    robot: MultirotorCfg = REQUIRED
 
     # lights
-    sky_light: Any = config_field(
-        AssetBaseCfg(
+    sky_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/skyLight",
             spawn=sim_utils.DomeLightCfg(
                 intensity=750.0,
@@ -66,8 +66,8 @@ class ArlTrackPositionStateBasedSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    target_pose: Any = config_field(
-        DroneUniformPoseCommandCfg(
+    target_pose: Any = field(
+        default_factory=lambda: DroneUniformPoseCommandCfg(
             asset_name="robot",
             body_name="base_link",
             resampling_time_range=(10.0, 10.0),
@@ -88,8 +88,8 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    thrust_command: Any = config_field(
-        mdp.ThrustActionCfg(
+    thrust_command: Any = field(
+        default_factory=lambda: mdp.ThrustActionCfg(
             asset_name="robot",
             scale=3.0,
             offset=3.0,
@@ -114,18 +114,28 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_link_position: Any = config_field(ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1)))
-        base_orientation: Any = config_field(ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1)))
-        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
-        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
-        last_action: Any = config_field(ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        base_link_position: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        )
+        base_orientation: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        )
+        base_lin_vel: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        )
+        base_ang_vel: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        )
+        last_action: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -134,8 +144,8 @@ class EventCfg:
 
     # reset
 
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -164,8 +174,8 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    distance_to_goal_exp: Any = config_field(
-        RewTerm(
+    distance_to_goal_exp: Any = field(
+        default_factory=lambda: RewTerm(
             func=distance_to_goal_exp,
             weight=25.0,
             params={
@@ -175,39 +185,39 @@ class RewardsCfg:
             },
         )
     )
-    flat_orientation_l2: Any = config_field(
-        RewTerm(
+    flat_orientation_l2: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.flat_orientation_l2,
             weight=1.0,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
     )
-    yaw_aligned: Any = config_field(
-        RewTerm(
+    yaw_aligned: Any = field(
+        default_factory=lambda: RewTerm(
             func=yaw_aligned,
             weight=2.0,
             params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0},
         )
     )
-    lin_vel_xyz_exp: Any = config_field(
-        RewTerm(
+    lin_vel_xyz_exp: Any = field(
+        default_factory=lambda: RewTerm(
             func=lin_vel_xyz_exp,
             weight=2.5,
             params={"asset_cfg": SceneEntityCfg("robot"), "std": 2.0},
         )
     )
-    ang_vel_xyz_exp: Any = config_field(
-        RewTerm(
+    ang_vel_xyz_exp: Any = field(
+        default_factory=lambda: RewTerm(
             func=ang_vel_xyz_exp,
             weight=10.0,
             params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0},
         )
     )
-    action_rate_l2: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.05))
-    action_magnitude_l2: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.05))
+    action_rate_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-0.05))
+    action_magnitude_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-0.05))
 
-    termination_penalty: Any = config_field(
-        RewTerm(
+    termination_penalty: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.is_terminated,
             weight=-5.0,
         )
@@ -218,8 +228,10 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
-    crash: Any = config_field(DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": -3.0}))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
+    crash: Any = field(
+        default_factory=lambda: DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": -3.0})
+    )
 
 
 ##
@@ -232,17 +244,17 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the state-based drone pose-control environment."""
 
     # Scene settings
-    scene: ArlTrackPositionStateBasedSceneCfg = config_field(
-        ArlTrackPositionStateBasedSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ArlTrackPositionStateBasedSceneCfg = field(
+        default_factory=lambda: ArlTrackPositionStateBasedSceneCfg(num_envs=4096, env_spacing=2.5)
     )
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

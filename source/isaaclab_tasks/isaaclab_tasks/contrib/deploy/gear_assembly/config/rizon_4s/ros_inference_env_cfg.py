@@ -10,7 +10,6 @@ import torch
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.utils import config_field
 
 from .joint_pos_env_cfg import Rizon4sGearAssemblyEnvCfg
 
@@ -48,10 +47,10 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
     # ║  PLAY-MODE SCENE SETUP — edit to match your real-world setup        ║
     # ╚══════════════════════════════════════════════════════════════════════╝
 
-    GEAR_TYPE: str = config_field("gear_large")
-    GEAR_BASE_POS: tuple = config_field((0.481, -0.073, -0.005))
-    GEAR_BASE_ROT: tuple = config_field((0.0, 0.0, -0.70711, 0.70711))
-    GEAR_Z_OFFSET: float = config_field(0.0675)
+    GEAR_TYPE: str = "gear_large"
+    GEAR_BASE_POS: tuple = (0.481, -0.073, -0.005)
+    GEAR_BASE_ROT: tuple = (0.0, 0.0, -0.70711, 0.70711)
+    GEAR_Z_OFFSET: float = 0.0675
 
     # ╔══════════════════════════════════════════════════════════════════════╗
     # ║  PLAY-MODE OBSERVATION OVERRIDES — set to None to use simulated     ║
@@ -61,8 +60,8 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
     # ║               shaft_quat(4)]                                         ║
     # ╚══════════════════════════════════════════════════════════════════════╝
 
-    OBS_SHAFT_POS: tuple | None = config_field(None)  # e.g. (0.481, -0.028, -0.005)
-    OBS_SHAFT_QUAT: tuple | None = config_field(None)  # e.g. (0.0, 0.0, -0.70711, 0.70711)
+    OBS_SHAFT_POS: tuple | None = None  # e.g. (0.481, -0.028, -0.005)
+    OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, -0.70711, 0.70711)
 
     def __post_init__(self):
         # post init of parent

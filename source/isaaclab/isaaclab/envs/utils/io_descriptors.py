@@ -6,10 +6,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
-
-from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     import torch
@@ -30,49 +28,49 @@ class GenericActionIODescriptor:
     It can be extended as needed to add more information about the action term that is being described.
     """
 
-    mdp_type: str = config_field("Action")
+    mdp_type: str = "Action"
     """The type of MDP that the action term belongs to."""
 
-    name: str = config_field(None)
+    name: str = None
     """The name of the action term.
 
     By default, the name of the action term class is used.
     """
 
-    full_path: str = config_field(None)
+    full_path: str = None
     """The full path of the action term class.
 
     By default, python's will retrieve the path from the file that the action term class is defined in
     and the name of the action term class.
     """
 
-    description: str = config_field(None)
+    description: str = None
     """The description of the action term.
 
     By default, the docstring of the action term class is used.
     """
 
-    shape: tuple[int, ...] = config_field(None)
+    shape: tuple[int, ...] = None
     """The shape of the action term.
 
     This should be populated by the user."""
 
-    dtype: str = config_field(None)
+    dtype: str = None
     """The dtype of the action term.
 
     This should be populated by the user."""
 
-    action_type: str = config_field(None)
+    action_type: str = None
     """The type of the action term.
 
     This attribute is purely informative and should be populated by the user."""
 
-    extras: dict[str, Any] = config_field({})
+    extras: dict[str, Any] = field(default_factory=dict)
     """Extra information about the action term.
 
     This attribute is purely informative and should be populated by the user."""
 
-    export: bool = config_field(True)
+    export: bool = True
     """Whether to export the action term.
 
     Should be set to False if the class is not meant to be exported.
@@ -87,14 +85,14 @@ class GenericObservationIODescriptor:
     It can be extended as needed to add more information about the observation term that is being described.
     """
 
-    mdp_type: str = config_field("Observation")
-    name: str = config_field(None)
-    full_path: str = config_field(None)
-    description: str = config_field(None)
-    shape: tuple[int, ...] = config_field(None)
-    dtype: str = config_field(None)
-    observation_type: str = config_field(None)
-    extras: dict[str, Any] = config_field({})
+    mdp_type: str = "Observation"
+    name: str = None
+    full_path: str = None
+    description: str = None
+    shape: tuple[int, ...] = None
+    dtype: str = None
+    observation_type: str = None
+    extras: dict[str, Any] = field(default_factory=dict)
 
 
 # These are defined to help with type hinting

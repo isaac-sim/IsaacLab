@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from isaaclab_ov.physics import OvPhysxCfg
@@ -31,10 +31,10 @@ class PhysicsCfg:
     are read directly from :class:`SimulationCfg` by the physics manager.
     """
 
-    class_type: type[PhysicsManager] | Any = config_field(MISSING)
+    class_type: type[PhysicsManager] | Any = REQUIRED
     """The physics manager class to use. Must be set by subclasses."""
 
-    deterministic: bool = config_field(False)
+    deterministic: bool = False
     """Whether to request reproducible physics from the backend. Defaults to False.
 
     This is the backend-agnostic form of the request, set by the ``--deterministic`` command-line
@@ -52,13 +52,13 @@ class PhysicsCfg:
 class PhysxAutoCfg(PhysicsCfg):
     """PhysX configuration resolved to a concrete backend at launch."""
 
-    class_type: Any = config_field(None)
+    class_type: Any = None
     """Unused because this configuration is resolved before simulation construction."""
 
-    isaacsim_physx: PhysxCfg | None = config_field(None)
+    isaacsim_physx: PhysxCfg | None = None
     """Concrete Isaac Sim PhysX configuration, or ``None`` when unavailable."""
 
-    ovphysx: OvPhysxCfg | None = config_field(None)
+    ovphysx: OvPhysxCfg | None = None
     """Concrete OvPhysX configuration, or ``None`` when OvPhysX is unsupported."""
 
 

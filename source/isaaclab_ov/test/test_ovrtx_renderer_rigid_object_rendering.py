@@ -23,17 +23,17 @@ from rigid_object_rendering_contract import (  # noqa: E402
 )
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "ovphysx", "isaaclab_newton", "newton")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 _OVSTAGE_AVAILABLE = importlib.util.find_spec("ovstage") is not None
 
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.rendering,
     pytest.mark.isaacsim_ci,
-    pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"),
+    pytest.mark.skipif(bool(_REQUIRED_MODULES), reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}"),
 ]
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402

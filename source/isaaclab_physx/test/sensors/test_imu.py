@@ -5,10 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -52,8 +53,8 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
             max_init_terrain_level=None,
@@ -61,8 +62,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # rigid objects - balls
-    balls: Any = config_field(
-        RigidObjectCfg(
+    balls: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ball",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             spawn=sim_utils.SphereCfg(
@@ -75,8 +76,8 @@ class MySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
             spawn=sim_utils.CuboidCfg(
@@ -90,14 +91,14 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # articulations - robot
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot"))
     # pendulum1 - uses merge_fixed_joints=True (same as pendulum2) so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level
     # (the solver uses velocity_iteration_count=0). A non-physics imu_link Xform is
     # created programmatically in the test fixture (see setup_sim).
-    pendulum: Any = config_field(
-        ArticulationCfg(
+    pendulum: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/pendulum",
             spawn=sim_utils.UrdfFileCfg(
                 fix_base=True,
@@ -120,8 +121,8 @@ class MySceneCfg(InteractiveSceneCfg):
     # pendulum2 - uses merge_fixed_joints=True so that the fixed-joint child links (base, imu_link)
     # are merged into their parents during URDF XML pre-processing. A non-physics imu_link Xform
     # is created programmatically in the test fixture to test indirect IMU attachment (see setup_sim).
-    pendulum2: Any = config_field(
-        ArticulationCfg(
+    pendulum2: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/pendulum2",
             spawn=sim_utils.UrdfFileCfg(
                 fix_base=True,
@@ -143,11 +144,11 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # sensors - imu (filled inside unit test)
-    imu_ball: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/ball"))
-    imu_cube: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
-    imu_robot_imu_link: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link"))
-    imu_robot_base: ImuCfg = config_field(
-        ImuCfg(
+    imu_ball: ImuCfg = field(default_factory=lambda: ImuCfg(prim_path="{ENV_REGEX_NS}/ball"))
+    imu_cube: ImuCfg = field(default_factory=lambda: ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
+    imu_robot_imu_link: ImuCfg = field(default_factory=lambda: ImuCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link"))
+    imu_robot_base: ImuCfg = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/robot/base",
             offset=ImuCfg.OffsetCfg(
                 pos=POS_OFFSET,
@@ -155,8 +156,8 @@ class MySceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    imu_robot_norb: ImuCfg = config_field(
-        ImuCfg(
+    imu_robot_norb: ImuCfg = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/robot/LF_HIP/LF_hip_fixed",
             offset=ImuCfg.OffsetCfg(
                 pos=POS_OFFSET,
@@ -168,13 +169,13 @@ class MySceneCfg(InteractiveSceneCfg):
     # kinematic tree.  With merge_fixed_joints=True the hierarchy for simple_2_link.urdf is:
     #   Geometry/world/link_1  (base merged into world, imu_link merged into link_1)
     # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
-    imu_indirect_pendulum_link: ImuCfg = config_field(
-        ImuCfg(
+    imu_indirect_pendulum_link: ImuCfg = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
         )
     )
-    imu_indirect_pendulum_base: ImuCfg = config_field(
-        ImuCfg(
+    imu_indirect_pendulum_base: ImuCfg = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
             offset=ImuCfg.OffsetCfg(
                 pos=PEND_POS_OFFSET,
@@ -182,13 +183,13 @@ class MySceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    imu_pendulum_imu_link: ImuCfg = config_field(
-        ImuCfg(
+    imu_pendulum_imu_link: ImuCfg = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
         )
     )
-    imu_pendulum_base: ImuCfg = config_field(
-        ImuCfg(
+    imu_pendulum_base: ImuCfg = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1",
             offset=ImuCfg.OffsetCfg(
                 pos=PEND_POS_OFFSET,
@@ -521,9 +522,9 @@ def test_env_ids_propagation(setup_sim):
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
-    cube: Any = config_field(
-        RigidObjectCfg(
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
             spawn=sim_utils.CuboidCfg(
@@ -534,7 +535,7 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    imu_cube: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
+    imu_cube: ImuCfg = field(default_factory=lambda: ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
 
 
 def test_no_stale_data_after_scene_reset():

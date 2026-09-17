@@ -30,7 +30,6 @@ import torch
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.utils import config_field
 
 
 @dataclass
@@ -43,7 +42,7 @@ class SO101PoseIKControllerCfg(DifferentialIKControllerCfg):
     :attr:`~DifferentialIKControllerCfg.joint_limit_avoidance_margin`) are inherited from the core config.
     """
 
-    orientation_joint_names: tuple[str, ...] | None = config_field(None)
+    orientation_joint_names: tuple[str, ...] | None = None
     """Names of the joints permitted to serve the orientation task rows. When set, every other
     joint's orientation-Jacobian columns are zeroed, so those joints serve **position only** while
     orientation is solved purely by the listed joints (position still uses all joints). ``None``

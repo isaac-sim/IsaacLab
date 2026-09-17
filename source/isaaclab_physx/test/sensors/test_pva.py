@@ -5,10 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -53,8 +54,8 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
             max_init_terrain_level=None,
@@ -62,8 +63,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # rigid objects - balls
-    balls: Any = config_field(
-        RigidObjectCfg(
+    balls: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ball",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
             spawn=sim_utils.SphereCfg(
@@ -76,8 +77,8 @@ class MySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
             spawn=sim_utils.CuboidCfg(
@@ -91,14 +92,14 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # articulations - robot
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot"))
     # pendulum1 - uses merge_fixed_joints=True (same as pendulum2) so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level
     # (the solver uses velocity_iteration_count=0). A non-physics imu_link Xform is
     # created programmatically in the test fixture (see setup_sim).
-    pendulum: Any = config_field(
-        ArticulationCfg(
+    pendulum: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/pendulum",
             spawn=sim_utils.UrdfFileCfg(
                 fix_base=True,
@@ -121,8 +122,8 @@ class MySceneCfg(InteractiveSceneCfg):
     # pendulum2 - uses merge_fixed_joints=True so that the fixed-joint child links (base, imu_link)
     # are merged into their parents during URDF XML pre-processing. A non-physics imu_link Xform
     # is created programmatically in the test fixture to test indirect PVA attachment (see setup_sim).
-    pendulum2: Any = config_field(
-        ArticulationCfg(
+    pendulum2: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/pendulum2",
             spawn=sim_utils.UrdfFileCfg(
                 fix_base=True,
@@ -144,11 +145,11 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # sensors - pva (filled inside unit test)
-    pva_ball: PvaCfg = config_field(PvaCfg(prim_path="{ENV_REGEX_NS}/ball"))
-    pva_cube: PvaCfg = config_field(PvaCfg(prim_path="{ENV_REGEX_NS}/cube"))
-    pva_robot_imu_link: PvaCfg = config_field(PvaCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link"))
-    pva_robot_base: PvaCfg = config_field(
-        PvaCfg(
+    pva_ball: PvaCfg = field(default_factory=lambda: PvaCfg(prim_path="{ENV_REGEX_NS}/ball"))
+    pva_cube: PvaCfg = field(default_factory=lambda: PvaCfg(prim_path="{ENV_REGEX_NS}/cube"))
+    pva_robot_imu_link: PvaCfg = field(default_factory=lambda: PvaCfg(prim_path="{ENV_REGEX_NS}/robot/imu_link"))
+    pva_robot_base: PvaCfg = field(
+        default_factory=lambda: PvaCfg(
             prim_path="{ENV_REGEX_NS}/robot/base",
             offset=PvaCfg.OffsetCfg(
                 pos=POS_OFFSET,
@@ -156,8 +157,8 @@ class MySceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    pva_robot_norb: PvaCfg = config_field(
-        PvaCfg(
+    pva_robot_norb: PvaCfg = field(
+        default_factory=lambda: PvaCfg(
             prim_path="{ENV_REGEX_NS}/robot/LF_HIP/LF_hip_fixed",
             offset=PvaCfg.OffsetCfg(
                 pos=POS_OFFSET,
@@ -169,15 +170,15 @@ class MySceneCfg(InteractiveSceneCfg):
     # kinematic tree.  With merge_fixed_joints=True the hierarchy for simple_2_link.urdf is:
     #   Geometry/world/link_1  (base merged into world, imu_link merged into link_1)
     # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
-    pva_indirect_pendulum_link: PvaCfg = config_field(
-        PvaCfg(
+    pva_indirect_pendulum_link: PvaCfg = field(
+        default_factory=lambda: PvaCfg(
             prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
             debug_vis=not app_launcher._headless,
             visualizer_cfg=replace_config(RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/imu_link"),
         )
     )
-    pva_indirect_pendulum_base: PvaCfg = config_field(
-        PvaCfg(
+    pva_indirect_pendulum_base: PvaCfg = field(
+        default_factory=lambda: PvaCfg(
             prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
             offset=PvaCfg.OffsetCfg(
                 pos=PEND_POS_OFFSET,
@@ -187,15 +188,15 @@ class MySceneCfg(InteractiveSceneCfg):
             visualizer_cfg=replace_config(GREEN_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/base"),
         )
     )
-    pva_pendulum_imu_link: PvaCfg = config_field(
-        PvaCfg(
+    pva_pendulum_imu_link: PvaCfg = field(
+        default_factory=lambda: PvaCfg(
             prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
             debug_vis=not app_launcher._headless,
             visualizer_cfg=replace_config(RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/imu_link"),
         )
     )
-    pva_pendulum_base: PvaCfg = config_field(
-        PvaCfg(
+    pva_pendulum_base: PvaCfg = field(
+        default_factory=lambda: PvaCfg(
             prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1",
             offset=PvaCfg.OffsetCfg(
                 pos=PEND_POS_OFFSET,
@@ -800,9 +801,9 @@ def test_env_ids_propagation(setup_sim):
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
-    cube: Any = config_field(
-        RigidObjectCfg(
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
             spawn=sim_utils.CuboidCfg(
@@ -813,7 +814,7 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    pva_cube: PvaCfg = config_field(PvaCfg(prim_path="{ENV_REGEX_NS}/cube"))
+    pva_cube: PvaCfg = field(default_factory=lambda: PvaCfg(prim_path="{ENV_REGEX_NS}/cube"))
 
 
 def test_no_stale_data_after_scene_reset():

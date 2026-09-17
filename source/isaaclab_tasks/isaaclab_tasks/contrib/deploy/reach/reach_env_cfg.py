@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.sim as sim_utils
@@ -17,7 +17,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -34,8 +34,8 @@ class SceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
     # world
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
@@ -43,18 +43,18 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     # robots
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
         )
     )
 
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
@@ -72,10 +72,10 @@ class SceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    ee_pose: Any = config_field(
-        mdp.UniformPoseCommandCfg(
+    ee_pose: Any = field(
+        default_factory=lambda: mdp.UniformPoseCommandCfg(
             asset_name="robot",
-            body_name=MISSING,
+            body_name=REQUIRED,
             resampling_time_range=(4.0, 4.0),
             debug_vis=True,
             ranges=mdp.UniformPoseCommandCfg.Ranges(
@@ -83,7 +83,7 @@ class CommandsCfg:
                 pos_y=(-0.2, 0.2),
                 pos_z=(0.15, 0.5),
                 roll=(0.0, 0.0),
-                pitch=MISSING,  # depends on end-effector axis
+                pitch=REQUIRED,  # depends on end-effector axis
                 yaw=(-3.14, 3.14),
             ),
         )
@@ -94,8 +94,8 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: ActionTerm = config_field(MISSING)
-    gripper_action: ActionTerm | None = config_field(None)
+    arm_action: ActionTerm = REQUIRED
+    gripper_action: ActionTerm | None = None
 
 
 @dataclass
@@ -107,24 +107,26 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0)))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0)))
-        pose_command: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"}))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        pose_command: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
+        )
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -134,8 +136,8 @@ class EventCfg:
         )
     )
 
-    robot_joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    robot_joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             min_step_count_between_reset=200,
             mode="reset",
@@ -149,8 +151,8 @@ class EventCfg:
         )
     )
 
-    joint_friction: Any = config_field(
-        EventTerm(
+    joint_friction: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_joint_parameters,
             min_step_count_between_reset=200,
             mode="reset",
@@ -168,8 +170,8 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    end_effector_keypoint_tracking: Any = config_field(
-        RewTerm(
+    end_effector_keypoint_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.keypoint_command_error,
             weight=-1.5,
             params={
@@ -179,8 +181,8 @@ class RewardsCfg:
             },
         )
     )
-    end_effector_keypoint_tracking_exp: Any = config_field(
-        RewTerm(
+    end_effector_keypoint_tracking_exp: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.keypoint_command_error_exp,
             weight=1.5,
             params={
@@ -193,15 +195,15 @@ class RewardsCfg:
         )
     )
 
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.005))
-    action: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.005))
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-0.005))
+    action: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-0.005))
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 ##
@@ -214,15 +216,15 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the end-effector pose tracking environment that has been deployed on a real robot."""
 
     # Scene settings
-    scene: SceneCfg = config_field(SceneCfg(num_envs=4096, env_spacing=2.5))
+    scene: SceneCfg = field(default_factory=lambda: SceneCfg(num_envs=4096, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

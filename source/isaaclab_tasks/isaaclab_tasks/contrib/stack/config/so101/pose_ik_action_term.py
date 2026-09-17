@@ -10,8 +10,8 @@ from :mod:`.pose_ik_action` (which holds the pure-data :class:`~.pose_ik_action.
 because subclassing :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`
 forces an eager ``from pxr import UsdPhysics`` at import time.  The env cfg must be constructable
 without Kit (see ``test/core/test_env_cfg_no_forbidden_imports.py``), so the cfg only references
-this term lazily via a ``"{DIR}.pose_ik_action_term:SO101PoseIKAction"`` string ``class_type`` that
-:meth:`cfg.validate` resolves after Kit has launched.
+this term lazily via an absolute import string in ``class_type`` that the configuration resolves after Kit has
+launched.
 """
 
 from __future__ import annotations

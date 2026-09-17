@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -24,41 +22,43 @@ class FrankaPourResetDatasetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         """Bounded state-dependent exploration for contact-rich manipulation."""
 
         # Keep the configured standard-deviation range below the action clamp.
-        std_range: tuple[float, float] = config_field((0.15, 0.75))
+        std_range: tuple[float, float] = (0.15, 0.75)
 
     # 96 policy steps span 3.2 s at 30 Hz.
-    num_steps_per_env: Any = config_field(96)
-    max_iterations: Any = config_field(3000)
+    num_steps_per_env: Any = 96
+    max_iterations: Any = 3000
     # Reset-dataset learning requires complete episodes for its first outcome cohort.
-    init_at_random_ep_len: Any = config_field(False)
-    save_interval: Any = config_field(25)
-    clip_actions: Any = config_field(1.0)
-    logger: Any = config_field("tensorboard")
-    obs_groups: Any = config_field({"actor": ["policy", "media"], "critic": ["policy", "media", "privileged"]})
-    experiment_name: Any = config_field("franka_pour")
-    run_name: Any = config_field("reset_dataset")
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    init_at_random_ep_len: Any = False
+    save_interval: Any = 25
+    clip_actions: Any = 1.0
+    logger: Any = "tensorboard"
+    obs_groups: Any = field(
+        default_factory=lambda: {"actor": ["policy", "media"], "critic": ["policy", "media", "privileged"]}
+    )
+    experiment_name: Any = "franka_pour"
+    run_name: Any = "reset_dataset"
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 256, 128, 64],
             activation="elu",
             # Observations are physically scaled at their source, so empirical normalization is not
             # needed.
             obs_normalization=False,
-            distribution_cfg=ExplorationDistributionCfg(
+            distribution_cfg=FrankaPourResetDatasetPPORunnerCfg.ExplorationDistributionCfg(
                 init_std=0.60,
                 std_type="log",
             ),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 256, 128, 64],
             activation="elu",
             obs_normalization=False,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

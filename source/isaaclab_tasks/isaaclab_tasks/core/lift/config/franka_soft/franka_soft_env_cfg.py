@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
@@ -42,7 +42,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -62,6 +62,7 @@ from ... import mdp
 ##
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
+from copy import deepcopy
 from typing import Any
 
 ##
@@ -101,8 +102,8 @@ FRANKA_CAMERA_CFG = CameraCfg(
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
-    newton_mjwarp_vbd_proxy: DeformableObjectCfg = config_field(
-        DeformableObjectCfg(
+    newton_mjwarp_vbd_proxy: DeformableObjectCfg = field(
+        default_factory=lambda: DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Deformable",
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
             spawn=sim_utils.MeshCuboidCfg(
@@ -122,8 +123,8 @@ class DeformableCfg(PresetCfg):
         )
     )
 
-    physx: DeformableObjectCfg = config_field(
-        DeformableObjectCfg(
+    physx: DeformableObjectCfg = field(
+        default_factory=lambda: DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Deformable",
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
             spawn=sim_utils.MeshCuboidCfg(
@@ -142,15 +143,53 @@ class DeformableCfg(PresetCfg):
             ),
         )
     )
-    isaacsim_physx: Any = config_field(physx)
+    isaacsim_physx: Any = field(
+        default_factory=lambda: DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Deformable",
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
+            spawn=sim_utils.MeshCuboidCfg(
+                size=(0.3, 0.04, 0.04),
+                edge_refinement=8.0,
+                deformable_props=PhysxDeformableBodyPropertiesCfg(),
+                collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+                physics_material=PhysxDeformableBodyMaterialCfg(
+                    density=1000.0,
+                    youngs_modulus=YOUNGS_MODULUS,
+                    poissons_ratio=POISSONS_RATIO,
+                    static_friction=10.0,
+                    dynamic_friction=10.0,
+                ),
+            ),
+        )
+    )
 
-    default: Any = config_field(newton_mjwarp_vbd_proxy)
+    default: Any = field(
+        default_factory=lambda: DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Deformable",
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
+            spawn=sim_utils.MeshCuboidCfg(
+                size=(0.3, 0.04, 0.04),
+                edge_refinement=8.0,
+                deformable_props=NewtonDeformableBodyPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+                physics_material=NewtonDeformableBodyMaterialCfg(
+                    density=1000.0,
+                    k_mu=YOUNGS_MODULUS / (2.0 * (1.0 + POISSONS_RATIO)),
+                    k_lambda=(
+                        YOUNGS_MODULUS * POISSONS_RATIO / ((1.0 + POISSONS_RATIO) * (1.0 - 2.0 * POISSONS_RATIO))
+                    ),
+                    particle_radius=0.0025,
+                ),
+            ),
+        )
+    )
 
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    newton_mjwarp_vbd_proxy: NewtonCfg = config_field(
-        NewtonCfg(
+    newton_mjwarp_vbd_proxy: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=CouplerProxyCfg(
                 entries=[
                     CouplerEntryCfg(
@@ -194,11 +233,54 @@ class PhysicsCfg(PresetCfg):
         )
     )
 
-    isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
+    isaacsim_physx: PhysxCfg = field(default_factory=PhysxCfg)
 
-    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
+    physx: PhysxAutoCfg = field(default_factory=lambda: PhysxAutoCfg(isaacsim_physx=PhysxCfg()))
 
-    default: Any = config_field(newton_mjwarp_vbd_proxy)
+    default: Any = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=CouplerProxyCfg(
+                entries=[
+                    CouplerEntryCfg(
+                        name="rigid",
+                        solver_cfg=MJWarpSolverCfg(
+                            cone="elliptic",
+                            ls_iterations=20,
+                            integrator="implicitfast",
+                        ),
+                        bodies=[r"/World/envs/env_[^/]+/Robot"],
+                    ),
+                    CouplerEntryCfg(
+                        name="soft",
+                        solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=256),
+                        all_particles=True,
+                        include_static_shapes=True,
+                    ),
+                ],
+                proxies=[
+                    CouplerProxyMappingCfg(
+                        source="rigid",
+                        destination="soft",
+                        bodies=[
+                            r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                            r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
+                        ],
+                        collide_interval=1,
+                        collision_pipeline=NewtonCollisionPipelineCfg(
+                            enable_rigid_soft_full_surface_contact=True,
+                        ),
+                    )
+                ],
+                iterations=1,
+            ),
+            soft_contact_cfg=NewtonSoftContactCfg(
+                soft_contact_ke=8.0e3,
+                soft_contact_kd=1.0e-2,
+                soft_contact_mu=10.0,
+            ),
+            num_substeps=2,
+        )
+    )
 
 
 ##
@@ -210,11 +292,13 @@ class PhysicsCfg(PresetCfg):
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
-    robot: ArticulationCfg = config_field(replace_config(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     # end-effector frame for reward shaping
-    ee_frame: FrameTransformerCfg = config_field(
-        FrameTransformerCfg(
+    ee_frame: FrameTransformerCfg = field(
+        default_factory=lambda: FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0",
             debug_vis=False,
             target_frames=[
@@ -230,13 +314,13 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    deformable: DeformableCfg = config_field(DeformableCfg())
+    deformable: DeformableCfg = field(default_factory=DeformableCfg)
 
     # static table collider with its top surface at z = 0. Kept invisible: the success
     # visualizer renders the visible table, colored by whether the goal is reached
     # (see CommandsCfg).
-    table: AssetBaseCfg = config_field(
-        AssetBaseCfg(
+    table: AssetBaseCfg = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
             spawn=TABLE_SPAWN_CFG,
@@ -244,8 +328,8 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     # ground plane
-    ground: AssetBaseCfg = config_field(
-        AssetBaseCfg(
+    ground: AssetBaseCfg = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, -1.05]),
             spawn=GroundPlaneCfg(),
@@ -253,8 +337,8 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    sky_light: Any = config_field(
-        AssetBaseCfg(
+    sky_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/skyLight",
             spawn=sim_utils.DomeLightCfg(
                 intensity=750.0,
@@ -322,7 +406,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
     """Franka soft scene with a base camera."""
 
-    base_camera: CameraCfg = config_field(FRANKA_CAMERA_CFG)
+    base_camera: CameraCfg = field(default_factory=lambda: deepcopy(FRANKA_CAMERA_CFG))
 
 
 ##
@@ -334,8 +418,8 @@ class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
 class CommandsCfg:
     """Commands for the deformable goal pose (xyz + identity quat in robot root frame)."""
 
-    deformable_pose: Any = config_field(
-        mdp.DeformableUniformPoseCommandCfg(
+    deformable_pose: Any = field(
+        default_factory=lambda: mdp.DeformableUniformPoseCommandCfg(
             asset_name="robot",
             object_name="deformable",
             resampling_time_range=(5.0, 5.0),
@@ -373,12 +457,14 @@ class CommandsCfg:
 class _JointActionsCfg:
     """7-dim relative joint-position arm targets + 1-dim limit-rescaled gripper."""
 
-    arm_action: Any = config_field(
-        mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=["panda_joint.*"], scale=0.03)
+    arm_action: Any = field(
+        default_factory=lambda: mdp.RelativeJointPositionActionCfg(
+            asset_name="robot", joint_names=["panda_joint.*"], scale=0.03
+        )
     )
 
-    gripper_action: Any = config_field(
-        mdp.JointPositionToLimitsActionCfg(
+    gripper_action: Any = field(
+        default_factory=lambda: mdp.JointPositionToLimitsActionCfg(
             asset_name="robot", joint_names=["panda_finger_joint1"], rescale_to_limits=True
         )
     )
@@ -388,8 +474,8 @@ class _JointActionsCfg:
 class _IkActionsCfg:
     """7-dim absolute end-effector pose (xyz + quaternion) via differential IK + 1-dim binary gripper."""
 
-    arm_action: Any = config_field(
-        mdp.DifferentialInverseKinematicsActionCfg(
+    arm_action: Any = field(
+        default_factory=lambda: mdp.DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
@@ -403,8 +489,8 @@ class _IkActionsCfg:
         )
     )
 
-    gripper_action: Any = config_field(
-        mdp.BinaryJointPositionActionCfg(
+    gripper_action: Any = field(
+        default_factory=lambda: mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_finger_joint1"],
             open_command_expr={"panda_finger_joint1": 0.04},
@@ -417,11 +503,11 @@ class _IkActionsCfg:
 class ActionsCfg(PresetCfg):
     """Action-space presets: joint-space for RL, task-space IK for scripted end-effector control."""
 
-    joint: _JointActionsCfg = config_field(_JointActionsCfg())
+    joint: _JointActionsCfg = field(default_factory=_JointActionsCfg)
 
-    ik: _IkActionsCfg = config_field(_IkActionsCfg())
+    ik: _IkActionsCfg = field(default_factory=_IkActionsCfg)
 
-    default: Any = config_field(joint)
+    default: Any = field(default_factory=_JointActionsCfg)
 
 
 @dataclass
@@ -430,24 +516,24 @@ class ObservationsCfg:
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        deformable_sampled_points: Any = config_field(
-            ObsTerm(
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        deformable_sampled_points: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.DeformableSampledPointsInRobotRootFrame,
                 params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
             )
         )
-        target_position: Any = config_field(
-            ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
+        target_position: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
         )
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -456,10 +542,10 @@ class FrankaCameraObservationsCfg:
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        target_position: Any = config_field(
-            ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
+        target_position: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
         )
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
@@ -467,8 +553,8 @@ class FrankaCameraObservationsCfg:
 
     @dataclass
     class ProprioCfg(ObsGroup):
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
@@ -476,8 +562,8 @@ class FrankaCameraObservationsCfg:
 
     @dataclass
     class PerceptionCfg(ObsGroup):
-        deformable_sampled_points: Any = config_field(
-            ObsTerm(
+        deformable_sampled_points: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.DeformableSampledPointsInRobotRootFrame,
                 params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
             )
@@ -489,8 +575,8 @@ class FrankaCameraObservationsCfg:
 
     @dataclass
     class BaseImageCfg(ObsGroup):
-        image: Any = config_field(
-            ObsTerm(
+        image: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=env_mdp.image,
                 params={
                     "sensor_cfg": SceneEntityCfg("base_camera"),
@@ -501,18 +587,18 @@ class FrankaCameraObservationsCfg:
             )
         )
 
-    policy: PolicyCfg = config_field(PolicyCfg())
-    proprio: ProprioCfg = config_field(ProprioCfg())
-    perception: PerceptionCfg = config_field(PerceptionCfg())
-    base_image: BaseImageCfg = config_field(BaseImageCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    proprio: ProprioCfg = field(default_factory=ProprioCfg)
+    perception: PerceptionCfg = field(default_factory=PerceptionCfg)
+    base_image: BaseImageCfg = field(default_factory=BaseImageCfg)
 
 
 @dataclass
 class EventCfg:
     """Reset events: robot to default joint config, deformable with small position randomization."""
 
-    reset_robot_arm_joints: Any = config_field(
-        EventTerm(
+    reset_robot_arm_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_scale,
             mode="reset",
             params={
@@ -523,8 +609,8 @@ class EventCfg:
         )
     )
 
-    reset_robot_gripper_joints: Any = config_field(
-        EventTerm(
+    reset_robot_gripper_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_shared_offset,
             mode="reset",
             params={
@@ -534,8 +620,8 @@ class EventCfg:
         )
     )
 
-    reset_deformable: Any = config_field(
-        EventTerm(
+    reset_deformable: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_nodal_state_uniform,
             mode="reset",
             params={
@@ -546,8 +632,8 @@ class EventCfg:
         )
     )
 
-    variable_gravity: Any = config_field(
-        EventTerm(
+    variable_gravity: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_physics_scene_gravity,
             mode="reset",
             params={
@@ -562,24 +648,24 @@ class EventCfg:
 class RewardsCfg:
     """Lift-to-target reward for a deformable object."""
 
-    reaching_deformable: Any = config_field(
-        RewTerm(
+    reaching_deformable: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.deformable_com_ee_distance,
             params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
             weight=5.0,
         )
     )
 
-    lifting_deformable: Any = config_field(
-        RewTerm(
+    lifting_deformable: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.deformable_lifting,
             params={"std": 0.1, "minimal_height": 0.02, "asset_cfg": SceneEntityCfg("deformable")},
             weight=5.0,
         )
     )
 
-    deformable_goal_tracking: Any = config_field(
-        RewTerm(
+    deformable_goal_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.DeformableComGoalDistance,
             params={
                 "std": 0.3,
@@ -592,8 +678,8 @@ class RewardsCfg:
         )
     )
 
-    success_bonus: Any = config_field(
-        RewTerm(
+    success_bonus: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.deformable_com_goal_reached,
             params={
                 "minimal_height": 0.0,
@@ -605,22 +691,22 @@ class RewardsCfg:
         )
     )
 
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-1e-3))
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-1e-3))
 
 
 @dataclass
 class CurriculumCfg:
     """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
 
-    action_rate: Any = config_field(
-        CurrTerm(
+    action_rate: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 15000}
         )
     )
 
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
-    gravity: Any = config_field(
-        CurrTerm(
+    gravity: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.gravity_range_linear,
             params={
                 "event_name": "variable_gravity",
@@ -637,10 +723,10 @@ class CurriculumCfg:
 class TerminationsCfg:
     """Time out + workspace bounds termination."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    deformable_out_of_bounds: Any = config_field(
-        DoneTerm(
+    deformable_out_of_bounds: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.deformable_outside_bounds,
             params={
                 "x_bounds": (0.0, 1.0),
@@ -651,15 +737,15 @@ class TerminationsCfg:
         )
     )
 
-    ee_below_table: Any = config_field(
-        DoneTerm(
+    ee_below_table: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.ee_below_minimum,
             params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
         )
     )
 
-    joint_vel_out_of_limit: Any = config_field(
-        DoneTerm(
+    joint_vel_out_of_limit: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.joint_vel_out_of_sim_limit,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
@@ -673,37 +759,45 @@ class TerminationsCfg:
 
 @dataclass
 class FrankaSoftSceneCfg(PresetCfg):
-    newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = config_field(
-        _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
+    newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = field(
+        default_factory=lambda: _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
     )
 
     # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: _FrankaSoftSceneCfg = config_field(
-        _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    physx: _FrankaSoftSceneCfg = field(
+        default_factory=lambda: _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     )
-    isaacsim_physx: Any = config_field(physx)
+    isaacsim_physx: Any = field(
+        default_factory=lambda: _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    )
 
-    default: Any = config_field(newton_mjwarp_vbd_proxy)
+    default: Any = field(
+        default_factory=lambda: _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
+    )
 
 
 @dataclass
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
-    newton_mjwarp_vbd_proxy: _FrankaSoftCameraSceneCfg = config_field(
-        _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
+    newton_mjwarp_vbd_proxy: _FrankaSoftCameraSceneCfg = field(
+        default_factory=lambda: _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
     )
-    physx: _FrankaSoftCameraSceneCfg = config_field(
-        _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
+    physx: _FrankaSoftCameraSceneCfg = field(
+        default_factory=lambda: _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
     )
-    isaacsim_physx: Any = config_field(physx)
-    default: Any = config_field(newton_mjwarp_vbd_proxy)
+    isaacsim_physx: Any = field(
+        default_factory=lambda: _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
+    )
+    default: Any = field(
+        default_factory=lambda: _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
+    )
 
 
 @dataclass
 class _FrankaSoftVisualizerCfg(VisualizerCfg):
-    window_width: int = config_field(1920)
-    window_height: int = config_field(1080)
+    window_width: int = 1920
+    window_height: int = 1080
 
 
 @dataclass
@@ -711,16 +805,16 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a soft beam to a target pose."""
 
     # Scene settings
-    scene: FrankaSoftSceneCfg = config_field(FrankaSoftSceneCfg())
+    scene: FrankaSoftSceneCfg = field(default_factory=FrankaSoftSceneCfg)
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    curriculum: CurriculumCfg = config_field(CurriculumCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    curriculum: CurriculumCfg = field(default_factory=CurriculumCfg)
 
     def __post_init__(self) -> None:
         # general settings
@@ -749,8 +843,8 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
 class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
     """Visual Franka volume-deformable lifting environment."""
 
-    scene: FrankaSoftCameraSceneCfg = config_field(FrankaSoftCameraSceneCfg())
-    observations: FrankaCameraObservationsCfg = config_field(FrankaCameraObservationsCfg())
+    scene: FrankaSoftCameraSceneCfg = field(default_factory=FrankaSoftCameraSceneCfg)
+    observations: FrankaCameraObservationsCfg = field(default_factory=FrankaCameraObservationsCfg)
 
     def __post_init__(self) -> None:
         if parent_post_init := getattr(super(), "__post_init__", None):

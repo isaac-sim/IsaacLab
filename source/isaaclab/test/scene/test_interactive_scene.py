@@ -5,10 +5,10 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -40,8 +40,8 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # articulation
-    robot: Any = config_field(
-        ArticulationCfg(
+    robot: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
@@ -52,8 +52,8 @@ class MySceneCfg(InteractiveSceneCfg):
         )
     )
     # rigid object
-    rigid_obj: Any = config_field(
-        RigidObjectCfg(
+    rigid_obj: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/RigidObj",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.5),

@@ -59,17 +59,16 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from dataclasses import dataclass
+        from dataclasses import dataclass, field
 
-        from isaaclab.utils import config_field
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 
         @dataclass
         class MyManagerCfg:
-            my_term_1: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(...))
-            my_term_2: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(...))
-            my_term_3: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(...))
+            my_term_1: ManagerTermBaseCfg = field(default_factory=lambda: ManagerTermBaseCfg(...))
+            my_term_2: ManagerTermBaseCfg = field(default_factory=lambda: ManagerTermBaseCfg(...))
+            my_term_3: ManagerTermBaseCfg = field(default_factory=lambda: ManagerTermBaseCfg(...))
 
 
         # define manager instance

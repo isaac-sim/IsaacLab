@@ -20,9 +20,9 @@ class MeasurementData:
         artefacts: Artifact tuples of (path, label). Defaults to an empty list.
     """
 
-    measurements: Sequence[Measurement] = field(default_factory=lambda: [])
-    metadata: Sequence[MetadataBase] = field(default_factory=lambda: [])
-    artefacts: Sequence[tuple[Path, str]] = field(default_factory=lambda: [])  # (path, artefact-label)
+    measurements: Sequence[Measurement] = field(default_factory=list)
+    metadata: Sequence[MetadataBase] = field(default_factory=list)
+    artefacts: Sequence[tuple[Path, str]] = field(default_factory=list)  # (path, artefact-label)
 
 
 class MeasurementDataRecorder:

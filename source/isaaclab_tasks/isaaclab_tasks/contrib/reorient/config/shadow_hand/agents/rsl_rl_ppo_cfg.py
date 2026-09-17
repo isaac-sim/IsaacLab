@@ -3,38 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlRNNModelCfg
 
 
 @dataclass
 class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(16)
-    max_iterations: Any = config_field(10000)
-    save_interval: Any = config_field(250)
-    experiment_name: Any = config_field("shadow_hand_openai_ff")
-    obs_groups: Any = config_field({"actor": ["policy"], "critic": ["critic"]})
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 16
+    max_iterations: Any = 10000
+    save_interval: Any = 250
+    experiment_name: Any = "shadow_hand_openai_ff"
+    obs_groups: Any = field(default_factory=lambda: {"actor": ["policy"], "critic": ["critic"]})
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[400, 400, 200, 100],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -55,9 +53,9 @@ class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 class ShadowHandAsymLSTMPPORunnerCfg(ShadowHandAsymFFPPORunnerCfg):
     """RSL-RL recurrent policy configuration for the asymmetric OpenAI observations."""
 
-    experiment_name: Any = config_field("shadow_hand_openai_lstm")
-    actor: Any = config_field(
-        RslRlRNNModelCfg(
+    experiment_name: Any = "shadow_hand_openai_lstm"
+    actor: Any = field(
+        default_factory=lambda: RslRlRNNModelCfg(
             hidden_dims=[400, 400, 200, 100],
             activation="elu",
             obs_normalization=True,
@@ -67,8 +65,8 @@ class ShadowHandAsymLSTMPPORunnerCfg(ShadowHandAsymFFPPORunnerCfg):
             rnn_num_layers=1,
         )
     )
-    critic: Any = config_field(
-        RslRlRNNModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlRNNModelCfg(
             hidden_dims=[512, 512, 256, 128],
             activation="elu",
             obs_normalization=True,

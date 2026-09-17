@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -24,17 +24,17 @@ class PreviewSurfaceCfg(VisualMaterialCfg):
     See :meth:`spawn_preview_surface` for more information.
     """
 
-    func: Callable | str = config_field("{DIR}.visual_materials:spawn_preview_surface")
+    func: Callable | str = "isaaclab.sim.spawners.materials.visual_materials:spawn_preview_surface"
 
-    diffuse_color: tuple[float, float, float] = config_field((0.18, 0.18, 0.18))
+    diffuse_color: tuple[float, float, float] = (0.18, 0.18, 0.18)
     """The RGB diffusion color. This is the base color of the surface. Defaults to a dark gray."""
-    emissive_color: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+    emissive_color: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """The RGB emission component of the surface. Defaults to black."""
-    roughness: float = config_field(0.5)
+    roughness: float = 0.5
     """The roughness for specular lobe. Ranges from 0 (smooth) to 1 (rough). Defaults to 0.5."""
-    metallic: float = config_field(0.0)
+    metallic: float = 0.0
     """The metallic component. Ranges from 0 (dielectric) to 1 (metal). Defaults to 0."""
-    opacity: float = config_field(1.0)
+    opacity: float = 1.0
     """The opacity of the surface. Ranges from 0 (transparent) to 1 (opaque). Defaults to 1.
 
     Note:
@@ -49,9 +49,9 @@ class MdlFileCfg(VisualMaterialCfg):
     See :meth:`spawn_from_mdl_file` for more information.
     """
 
-    func: Callable | str = config_field("{DIR}.visual_materials:spawn_from_mdl_file")
+    func: Callable | str = "isaaclab.sim.spawners.materials.visual_materials:spawn_from_mdl_file"
 
-    mdl_path: str = config_field(MISSING)
+    mdl_path: str = REQUIRED
     """The path to the MDL material.
 
     NVIDIA Omniverse provides various MDL materials in the NVIDIA Nucleus.
@@ -63,17 +63,17 @@ class MdlFileCfg(VisualMaterialCfg):
     For example, to use the "Aluminum_Anodized" material, you can set the path to:
     ``{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl``.
     """
-    project_uvw: bool | None = config_field(None)
+    project_uvw: bool | None = None
     """Whether to project the UVW coordinates of the material. Defaults to None.
 
     If None, then the default setting in the MDL material will be used.
     """
-    albedo_brightness: float | None = config_field(None)
+    albedo_brightness: float | None = None
     """Multiplier for the diffuse color of the material. Defaults to None.
 
     If None, then the default setting in the MDL material will be used.
     """
-    texture_scale: tuple[float, float] | None = config_field(None)
+    texture_scale: tuple[float, float] | None = None
     """The scale of the texture. Defaults to None.
 
     If None, then the default setting in the MDL material will be used.
@@ -84,11 +84,11 @@ class MdlFileCfg(VisualMaterialCfg):
 class PbrMdlCfg(MdlFileCfg):
     """Configuration parameters for the OmniPBR MDL material."""
 
-    mdl_path: str = config_field("OmniPBR.mdl")
+    mdl_path: str = "OmniPBR.mdl"
     """Path to the OmniPBR material definition."""
-    diffuse_color_constant: tuple[float, float, float] = config_field((0.18, 0.18, 0.18))
+    diffuse_color_constant: tuple[float, float, float] = (0.18, 0.18, 0.18)
     """Constant linear RGB albedo."""
-    reflection_roughness_constant: float | None = config_field(None)
+    reflection_roughness_constant: float | None = None
     """Constant surface roughness. The material default is used when None."""
 
 
@@ -103,18 +103,18 @@ class GlassMdlCfg(VisualMaterialCfg):
         The default values are taken from the glass material in the NVIDIA Nucleus.
     """
 
-    func: Callable | str = config_field("{DIR}.visual_materials:spawn_from_mdl_file")
+    func: Callable | str = "isaaclab.sim.spawners.materials.visual_materials:spawn_from_mdl_file"
 
-    mdl_path: str = config_field("OmniGlass.mdl")
+    mdl_path: str = "OmniGlass.mdl"
     """The path to the MDL material. Defaults to the glass material in the NVIDIA Nucleus."""
-    glass_color: tuple[float, float, float] = config_field((1.0, 1.0, 1.0))
+    glass_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """The RGB color or tint of the glass. Defaults to white."""
-    frosting_roughness: float = config_field(0.0)
+    frosting_roughness: float = 0.0
     """The amount of reflectivity of the surface. Ranges from 0 (perfectly clear) to 1 (frosted).
     Defaults to 0."""
-    thin_walled: bool = config_field(False)
+    thin_walled: bool = False
     """Whether to perform thin-walled refraction. Defaults to False."""
-    glass_ior: float = config_field(1.491)
+    glass_ior: float = 1.491
     """The incidence of refraction to control how much light is bent when passing through the glass.
     Defaults to 1.491, which is the IOR of glass.
     """

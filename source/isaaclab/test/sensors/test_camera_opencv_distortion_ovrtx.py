@@ -23,23 +23,22 @@ Notes:
 from __future__ import annotations
 
 import importlib.util
+from dataclasses import field
 from typing import Any
 
 import numpy as np
 import pytest
 
-from isaaclab.utils import config_field
-
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
-_SKIP_MISSING_OVRTX = pytest.mark.skipif(
-    bool(_MISSING_MODULES),
-    reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_SKIP_REQUIRED_OVRTX = pytest.mark.skipif(
+    bool(_REQUIRED_MODULES),
+    reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
 )
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     from dataclasses import dataclass
 
     import torch
@@ -76,21 +75,23 @@ _CAM_EYE = (0.0, 0.0, 2.5)
 _CAM_TARGET = (1.75, 0.0, 0.0)
 
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
 
     @dataclass
     class _DistortionSceneCfg(InteractiveSceneCfg):
         """The grid-textured ground plane, a dome light and an off-screen anchor body for Newton."""
 
-        ground: Any = config_field(AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg()))
-        dome_light: Any = config_field(
-            AssetBaseCfg(
+        ground: Any = field(
+            default_factory=lambda: AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+        )
+        dome_light: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/DomeLight",
                 spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9)),
             )
         )
-        anchor: Any = config_field(
-            RigidObjectCfg(
+        anchor: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Anchor",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.01, 0.01, 0.01),
@@ -166,7 +167,7 @@ def _render_grid(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarr
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 def test_opencv_distortion_changes_ovrtx_render(device):
     """OVRTX must render the distorted and zero-coefficient cameras meaningfully differently."""
     distorted, _ = _render_grid(_pinhole_distortion(True), device=device)
@@ -182,7 +183,7 @@ def test_opencv_distortion_changes_ovrtx_render(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
     """The OVRTX camera reports intrinsics matching the authored, non-square, off-center calibration."""
     _rgb, k = _render_grid(_pinhole_distortion(True), device=device)
@@ -197,7 +198,7 @@ def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 def test_opencv_fisheye_distortion_renders_through_ovrtx(device):
     """OVRTX honors the OpenCV fisheye schema: its render differs meaningfully from the pinhole projection.
 

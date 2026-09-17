@@ -11,7 +11,7 @@ import math
 import os
 import struct
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal
 
@@ -34,7 +34,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -320,8 +320,8 @@ def _configure_media_fill(cfg: FrankaPourResetDatasetEnvCfg) -> None:
 class PourSceneCfg(InteractiveSceneCfg):
     """Lift-table scene with resolved source cup, receiver, and MPM media."""
 
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
             spawn=UsdFileCfg(
@@ -330,20 +330,20 @@ class PourSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    plane: Any = config_field(
-        AssetBaseCfg(
+    plane: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
             spawn=GroundPlaneCfg(),
         )
     )
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
     )
-    robot: Any = config_field(replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
     robot.spawn.func = spawn_franka_with_arm_collisions
     robot.spawn.articulation_props.enabled_self_collisions = True
@@ -372,17 +372,17 @@ class PourSceneCfg(InteractiveSceneCfg):
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 
-    source_cup: RigidObjectCfg = config_field(_source_cup_asset_cfg())
-    target_cup: RigidObjectCfg = config_field(_target_cup_asset_cfg())
-    media: MPMObjectCfg = config_field(_media_asset_cfg())
+    source_cup: RigidObjectCfg = field(default_factory=_source_cup_asset_cfg)
+    target_cup: RigidObjectCfg = field(default_factory=_target_cup_asset_cfg)
+    media: MPMObjectCfg = field(default_factory=_media_asset_cfg)
 
 
 @dataclass
 class ActionsCfg:
     """Filtered arm deltas and a binary gripper command."""
 
-    arm_action: Any = config_field(
-        mdp.EMARelativeJointPositionActionCfg(
+    arm_action: Any = field(
+        default_factory=lambda: mdp.EMARelativeJointPositionActionCfg(
             asset_name="robot",
             joint_names=[f"panda_joint{index}" for index in range(1, 8)],
             preserve_order=True,
@@ -391,8 +391,8 @@ class ActionsCfg:
             alpha=0.20,
         )
     )
-    gripper_action: Any = config_field(
-        mdp.CurriculumGripperPositionActionCfg(
+    gripper_action: Any = field(
+        default_factory=lambda: mdp.CurriculumGripperPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_finger.*"],
             alpha=1.0 - (1.0 - 0.2) ** (1.0 / 3.0),
@@ -412,33 +412,35 @@ class ResetDatasetObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Robot, cup, and target state available to the actor."""
 
-        arm_q: Any = config_field(
-            ObsTerm(
+        arm_q: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
                 scale=0.3,
             )
         )
-        arm_qd: Any = config_field(
-            ObsTerm(
+        arm_qd: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
                 scale=0.05,
             )
         )
-        time_remaining: Any = config_field(ObsTerm(func=mdp.time_remaining_obs))
-        pour_target_fraction: Any = config_field(ObsTerm(func=mdp.pour_target_fraction_obs))
-        tcp_pose: Any = config_field(ObsTerm(func=mdp.tcp_pose_obs))
-        cup_pose: Any = config_field(ObsTerm(func=mdp.cup_pose_obs))
-        target_pose: Any = config_field(ObsTerm(func=mdp.target_pose_obs))
-        tcp_to_grasp_position_c: Any = config_field(ObsTerm(func=mdp.tcp_to_grasp_position_c_obs, scale=10.0))
-        grasp_to_tcp_quat: Any = config_field(ObsTerm(func=mdp.grasp_to_tcp_quat_obs))
-        target_position_c: Any = config_field(ObsTerm(func=mdp.target_position_c_obs, scale=5.0))
-        finger_position: Any = config_field(ObsTerm(func=mdp.finger_position_obs, scale=25.0))
-        finger_velocity: Any = config_field(ObsTerm(func=mdp.finger_velocity_obs, scale=5.0))
-        gripper_target: Any = config_field(ObsTerm(func=mdp.gripper_target_obs, scale=25.0))
-        gripper_contact: Any = config_field(ObsTerm(func=mdp.gripper_contact_obs, scale=250.0))
-        last_action: Any = config_field(ObsTerm(func=mdp.last_action, scale=0.2))
+        time_remaining: Any = field(default_factory=lambda: ObsTerm(func=mdp.time_remaining_obs))
+        pour_target_fraction: Any = field(default_factory=lambda: ObsTerm(func=mdp.pour_target_fraction_obs))
+        tcp_pose: Any = field(default_factory=lambda: ObsTerm(func=mdp.tcp_pose_obs))
+        cup_pose: Any = field(default_factory=lambda: ObsTerm(func=mdp.cup_pose_obs))
+        target_pose: Any = field(default_factory=lambda: ObsTerm(func=mdp.target_pose_obs))
+        tcp_to_grasp_position_c: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.tcp_to_grasp_position_c_obs, scale=10.0)
+        )
+        grasp_to_tcp_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.grasp_to_tcp_quat_obs))
+        target_position_c: Any = field(default_factory=lambda: ObsTerm(func=mdp.target_position_c_obs, scale=5.0))
+        finger_position: Any = field(default_factory=lambda: ObsTerm(func=mdp.finger_position_obs, scale=25.0))
+        finger_velocity: Any = field(default_factory=lambda: ObsTerm(func=mdp.finger_velocity_obs, scale=5.0))
+        gripper_target: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_target_obs, scale=25.0))
+        gripper_contact: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_contact_obs, scale=250.0))
+        last_action: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action, scale=0.2))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -449,16 +451,16 @@ class ResetDatasetObservationsCfg:
     class MediaCfg(ObsGroup):
         """Permutation-invariant particle and cup-motion state."""
 
-        cup_velocity: Any = config_field(
-            ObsTerm(
+        cup_velocity: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.normalized_cup_velocity_obs,
                 params={"max_surface_speed": 0.5, "surface_radius": 0.13},
                 clip=(-2.0, 2.0),
             )
         )
-        particle_fractions: Any = config_field(ObsTerm(func=mdp.particle_fractions_obs))
-        particle_source_state: Any = config_field(ObsTerm(func=mdp.particle_source_state_obs))
-        particle_transfer: Any = config_field(ObsTerm(func=mdp.particle_transfer_obs))
+        particle_fractions: Any = field(default_factory=lambda: ObsTerm(func=mdp.particle_fractions_obs))
+        particle_source_state: Any = field(default_factory=lambda: ObsTerm(func=mdp.particle_source_state_obs))
+        particle_transfer: Any = field(default_factory=lambda: ObsTerm(func=mdp.particle_transfer_obs))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -469,37 +471,41 @@ class ResetDatasetObservationsCfg:
     class PrivilegedCfg(ObsGroup):
         """Exact simulation state available only to the asymmetric critic."""
 
-        success_dwell: Any = config_field(ObsTerm(func=mdp.success_dwell_obs))
-        lost_grasp_dwell: Any = config_field(ObsTerm(func=mdp.lost_grasp_dwell_obs))
+        success_dwell: Any = field(default_factory=lambda: ObsTerm(func=mdp.success_dwell_obs))
+        lost_grasp_dwell: Any = field(default_factory=lambda: ObsTerm(func=mdp.lost_grasp_dwell_obs))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    policy: PolicyCfg = config_field(PolicyCfg())
-    media: MediaCfg = config_field(MediaCfg())
-    privileged: PrivilegedCfg = config_field(PrivilegedCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    media: MediaCfg = field(default_factory=MediaCfg)
+    privileged: PrivilegedCfg = field(default_factory=PrivilegedCfg)
 
 
 @dataclass
 class ResetDatasetRewardsCfg:
     """Terminal-sparse pouring reward with small action regularizers."""
 
-    success: Any = config_field(RewTerm(func=mdp.pour_success_bonus, weight=5.0))
-    action_magnitude: Any = config_field(RewTerm(func=mdp.action_l2, weight=-1.0e-4))
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-1.0e-4))
-    failure: Any = config_field(RewTerm(func=mdp.terminal_failure, weight=-1.0, params={"include_time_out": False}))
+    success: Any = field(default_factory=lambda: RewTerm(func=mdp.pour_success_bonus, weight=5.0))
+    action_magnitude: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-1.0e-4))
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-1.0e-4))
+    failure: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.terminal_failure, weight=-1.0, params={"include_time_out": False})
+    )
 
 
 @dataclass
 class TerminationsCfg:
     """Safety failures, immediate particle-transfer success, and neutral timeout."""
 
-    failure: Any = config_field(DoneTerm(func=mdp.nonfinite_failure))
-    extreme_rigid_state: Any = config_field(DoneTerm(func=mdp.extreme_rigid_state))
-    source_receiver_overlap: Any = config_field(DoneTerm(func=mdp.source_receiver_overlap, params={"clearance": 0.001}))
-    lost_grasp: Any = config_field(
-        DoneTerm(
+    failure: Any = field(default_factory=lambda: DoneTerm(func=mdp.nonfinite_failure))
+    extreme_rigid_state: Any = field(default_factory=lambda: DoneTerm(func=mdp.extreme_rigid_state))
+    source_receiver_overlap: Any = field(
+        default_factory=lambda: DoneTerm(func=mdp.source_receiver_overlap, params={"clearance": 0.001})
+    )
+    lost_grasp: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.lost_lifted_grasp,
             params={
                 "dwell_time_s": 0.05,
@@ -510,11 +516,11 @@ class TerminationsCfg:
             },
         )
     )
-    spill: Any = config_field(DoneTerm(func=mdp.excessive_spill, params={"terminate": True}))
-    particle_out_of_bounds: Any = config_field(DoneTerm(func=mdp.particle_out_of_bounds))
-    success: Any = config_field(DoneTerm(func=mdp.immediate_pour_success, params={}))
-    learning_progress_context: Any = config_field(
-        DoneTerm(
+    spill: Any = field(default_factory=lambda: DoneTerm(func=mdp.excessive_spill, params={"terminate": True}))
+    particle_out_of_bounds: Any = field(default_factory=lambda: DoneTerm(func=mdp.particle_out_of_bounds))
+    success: Any = field(default_factory=lambda: DoneTerm(func=mdp.immediate_pour_success, params={}))
+    learning_progress_context: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.PourResetLearningProgress,
             params={
                 "minimum_progress": 0.08,
@@ -537,72 +543,74 @@ class TerminationsCfg:
             },
         )
     )
-    time_out: Any = config_field(DoneTerm(func=mdp.unsuccessful_time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.unsuccessful_time_out, time_out=True))
 
 
 @dataclass
 class EventsCfg:
     """Reset the scene from the row selected by the curriculum term."""
 
-    reset_scene: Any = config_field(EventTerm(func=mdp.reset_pour_scene, mode="reset"))
+    reset_scene: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_pour_scene, mode="reset"))
 
 
 @dataclass
 class ResetDatasetCurriculumCfg:
     """Adaptive replay over the validated external reset dataset."""
 
-    reset_dataset: Any = config_field(CurrTerm(func=mdp.PourResetDatasetCurriculum))
+    reset_dataset: Any = field(default_factory=lambda: CurrTerm(func=mdp.PourResetDatasetCurriculum))
 
 
 @dataclass
 class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     """Registered Franka Pour task using an externally generated reset dataset."""
 
-    scene: PourSceneCfg = config_field(PourSceneCfg(num_envs=2, env_spacing=2.5, replicate_physics=True))
-    observations: ResetDatasetObservationsCfg = config_field(ResetDatasetObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    rewards: ResetDatasetRewardsCfg = config_field(ResetDatasetRewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventsCfg = config_field(EventsCfg())
-    curriculum: ResetDatasetCurriculumCfg = config_field(ResetDatasetCurriculumCfg())
+    scene: PourSceneCfg = field(
+        default_factory=lambda: PourSceneCfg(num_envs=2, env_spacing=2.5, replicate_physics=True)
+    )
+    observations: ResetDatasetObservationsCfg = field(default_factory=ResetDatasetObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    rewards: ResetDatasetRewardsCfg = field(default_factory=ResetDatasetRewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventsCfg = field(default_factory=EventsCfg)
+    curriculum: ResetDatasetCurriculumCfg = field(default_factory=ResetDatasetCurriculumCfg)
 
-    tcp_body_name: str = config_field("panda_hand")
-    tcp_offset_pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.107))
-    tcp_offset_rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
-    grasp_contact_ke: float = config_field(1.0e5)
-    grasp_contact_kd: float = config_field(5.0e2)
-    grasp_contact_kf: float = config_field(1.0e3)
-    collider_margin: float = config_field(0.002)
+    tcp_body_name: str = "panda_hand"
+    tcp_offset_pos: tuple[float, float, float] = (0.0, 0.0, 0.107)
+    tcp_offset_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    grasp_contact_ke: float = 1.0e5
+    grasp_contact_kd: float = 5.0e2
+    grasp_contact_kf: float = 1.0e3
+    collider_margin: float = 0.002
 
-    source_fill_level: float = config_field(_MEDIA_FILL_LEVEL)
+    source_fill_level: float = _MEDIA_FILL_LEVEL
     """Initial source-cup fill height as a fraction of the usable cavity height."""
 
-    pour_target_frac: float = config_field(0.70)
+    pour_target_frac: float = 0.70
     """Fraction of the initial particles that must reach the receiver for success."""
 
-    particle_count_margin: float = config_field(0.003)
-    spill_table_height: float = config_field(0.0)
-    max_spill_fraction: float = config_field(0.10)
-    success_dwell_time_s: float = config_field(0.15)
-    success_min_lift_height: float = config_field(0.05)
+    particle_count_margin: float = 0.003
+    spill_table_height: float = 0.0
+    max_spill_fraction: float = 0.10
+    success_dwell_time_s: float = 0.15
+    success_min_lift_height: float = 0.05
 
-    state_bound_joint_position_margin: float = config_field(0.05)
-    state_bound_max_joint_velocity: float = config_field(20.0)
-    state_bound_max_cup_linear_velocity: float = config_field(10.0)
-    state_bound_max_cup_angular_velocity: float = config_field(50.0)
-    particle_workspace_lower_bound: tuple[float, float, float] = config_field((-1.0, -1.0, -0.5))
-    particle_workspace_upper_bound: tuple[float, float, float] = config_field((1.5, 1.0, 1.5))
+    state_bound_joint_position_margin: float = 0.05
+    state_bound_max_joint_velocity: float = 20.0
+    state_bound_max_cup_linear_velocity: float = 10.0
+    state_bound_max_cup_angular_velocity: float = 50.0
+    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -0.5)
+    particle_workspace_upper_bound: tuple[float, float, float] = (1.5, 1.0, 1.5)
 
-    particle_max_velocity: float = config_field(10.0)
-    mpm_cell_capacity_alignment: int = config_field(512)
-    mpm_cell_cap_override: int | None = config_field(None)
+    particle_max_velocity: float = 10.0
+    mpm_cell_capacity_alignment: int = 512
+    mpm_cell_cap_override: int | None = None
 
-    reset_dataset_path: str = config_field(FRANKA_POUR_RESET_DATASET_ASSET_ID)
-    reset_dataset_content_sha256: str | None = config_field(None)
-    reset_dataset_top_grasp_count: int | None = config_field(None)
-    reset_dataset_sampling_mode: Literal["adaptive", "uniform"] = config_field("adaptive")
-    reset_dataset_sampler: ResetDatasetSamplerCfg = config_field(
-        ResetDatasetSamplerCfg(
+    reset_dataset_path: str = FRANKA_POUR_RESET_DATASET_ASSET_ID
+    reset_dataset_content_sha256: str | None = None
+    reset_dataset_top_grasp_count: int | None = None
+    reset_dataset_sampling_mode: Literal["adaptive", "uniform"] = "adaptive"
+    reset_dataset_sampler: ResetDatasetSamplerCfg = field(
+        default_factory=lambda: ResetDatasetSamplerCfg(
             monitored_history_len=50,
             target_success_rate=0.50,
             kappa=1.0,
@@ -611,7 +619,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
             uniform_fraction=0.50,
         )
     )
-    curriculum_freeze: bool = config_field(False)
+    curriculum_freeze: bool = False
 
     def __post_init__(self):
         """Set the canonical control rate, horizon, viewer, and coupled Newton solver."""

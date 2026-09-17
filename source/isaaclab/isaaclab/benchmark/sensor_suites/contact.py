@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-from isaaclab.utils import config_field
 
 from ..measurements import SingleMeasurement
 from ..micro import LatencyBenchmarkRunner, LatencySample, measure_latency
@@ -46,9 +45,11 @@ def create_contact_sensor_scene_cfg(
     class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
         """Scene with one cube and one contact sensor per environment."""
 
-        terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
-        cube: Any = config_field(
-            RigidObjectCfg(
+        terrain: Any = field(
+            default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        )
+        cube: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.5, 0.5, 0.5),
@@ -59,8 +60,8 @@ def create_contact_sensor_scene_cfg(
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
             )
         )
-        contact_sensor: Any = config_field(
-            ContactSensorCfg(
+        contact_sensor: Any = field(
+            default_factory=lambda: ContactSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Cube",
                 track_air_time=True,
                 update_period=0.0,

@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import config_field
-
 """Base classes for legacy retargeting.
 
 .. deprecated::
@@ -31,9 +29,9 @@ class RetargeterCfg:
         Use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop` instead.
     """
 
-    sim_device: str = config_field("cpu")
+    sim_device: str = "cpu"
     # Concrete retargeter class to construct for this config. Set by each retargeter module.
-    retargeter_type: type[RetargeterBase] | None = config_field(None)
+    retargeter_type: type[RetargeterBase] | None = None
 
 
 class RetargeterBase(ABC):

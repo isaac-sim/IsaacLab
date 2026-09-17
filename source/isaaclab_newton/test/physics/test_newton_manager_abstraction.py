@@ -64,6 +64,7 @@ from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.utils import resolve_config
 
 # ---------------------------------------------------------------------------
 # Lightweight (no sim) parametrisation
@@ -161,10 +162,7 @@ def test_solver_cfg_class_type_resolves_to_subclass(
     solver_cfg_factory, expected_manager, _solver_cls, _single_state, _pipeline
 ):
     """Each ``*SolverCfg.class_type`` resolves to its matching manager subclass."""
-    solver_cfg = solver_cfg_factory()
-    # ``class_type`` is a lazy ``"module:Class"`` reference; calling its
-    # ``_resolve()`` returns the actual class. ``__name__`` works without
-    # forcing import (LazyType caches metadata) and is sufficient identity.
+    solver_cfg = resolve_config(solver_cfg_factory())
     assert solver_cfg.class_type.__name__ == expected_manager.__name__
 
 

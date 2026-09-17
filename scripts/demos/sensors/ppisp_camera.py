@@ -19,9 +19,8 @@ the Newton Warp or Isaac RTX renderer.
 
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -150,17 +149,17 @@ from isaaclab.sensors import Camera, CameraCfg
 class PpispCameraSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 
-    env_spacing: float = config_field(20.0)
+    env_spacing: float = 20.0
 
-    input_scene: Any = config_field(
-        AssetBaseCfg(
+    input_scene: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Scene",
             spawn=sim_utils.UsdFileCfg(usd_path=""),
         )
     )
 
-    anchor: Any = config_field(
-        RigidObjectCfg(
+    anchor: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Anchor",
             spawn=sim_utils.CuboidCfg(
                 size=(0.01, 0.01, 0.01),

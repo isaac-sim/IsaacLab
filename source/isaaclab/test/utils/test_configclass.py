@@ -10,18 +10,26 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import MISSING, asdict, dataclass, field
+from copy import deepcopy
+from dataclasses import asdict, dataclass, field
 from functools import wraps
 from typing import Any, ClassVar
 
 import pytest
 import torch
 
-from isaaclab.utils import config_field, config_to_dict, copy_config, replace_config, update_config, validate_config
+from isaaclab.utils import (
+    REQUIRED,
+    config_to_dict,
+    copy_config,
+    replace_config,
+    resolve_config,
+    update_config,
+    validate_config,
+)
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
-from isaaclab.utils.string import ResolvableString
 
 pytestmark = pytest.mark.unit
 
@@ -83,47 +91,49 @@ def double(x):
 
 @dataclass
 class ModifierCfg:
-    params: dict[str, Any] = config_field({"A": 1, "B": 2})
+    params: dict[str, Any] = field(default_factory=lambda: {"A": 1, "B": 2})
 
 
 @dataclass
 class ViewerCfg:
-    eye: list = config_field([7.5, 7.5, 7.5])  # field missing on purpose
+    eye: list = field(default_factory=lambda: [7.5, 7.5, 7.5])  # field missing on purpose
     lookat: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 @dataclass
 class EnvCfg:
-    num_envs: int = config_field(double(28))  # uses function for assignment
-    episode_length: int = config_field(2000)
-    viewer: ViewerCfg = config_field(ViewerCfg())
+    num_envs: int = field(default_factory=lambda: double(28))  # uses function for assignment
+    episode_length: int = 2000
+    viewer: ViewerCfg = field(default_factory=ViewerCfg)
 
 
 @dataclass
 class RobotDefaultStateCfg:
-    pos: Any = config_field((0.0, 0.0, 0.0))  # type annotation missing on purpose (immutable)
-    rot: tuple = config_field((0.0, 0.0, 0.0, 1.0))  # xyzw format
-    dof_pos: tuple = config_field((0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
-    dof_vel: Any = config_field([0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # type annotation missing on purpose (mutable)
+    pos: Any = (0.0, 0.0, 0.0)  # type annotation missing on purpose (immutable)
+    rot: tuple = (0.0, 0.0, 0.0, 1.0)  # xyzw format
+    dof_pos: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    dof_vel: Any = field(
+        default_factory=lambda: [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    )  # type annotation missing on purpose (mutable)
 
 
 @dataclass
 class BasicDemoCfg:
     """Dummy configuration class."""
 
-    device_id: int = config_field(0)
-    env: EnvCfg = config_field(EnvCfg())
-    robot_default_state: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
-    list_config: Any = config_field([ModifierCfg(), ModifierCfg(params={"A": 3, "B": 4})])
+    device_id: int = 0
+    env: EnvCfg = field(default_factory=EnvCfg)
+    robot_default_state: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
+    list_config: Any = field(default_factory=lambda: [ModifierCfg(), ModifierCfg(params={"A": 3, "B": 4})])
 
 
 @dataclass
 class BasicDemoPostInitCfg:
     """Dummy configuration class."""
 
-    device_id: int = config_field(0)
-    env: EnvCfg = config_field(EnvCfg())
-    robot_default_state: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
+    device_id: int = 0
+    env: EnvCfg = field(default_factory=EnvCfg)
+    robot_default_state: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
 
     def __post_init__(self):
         self.device_id = 1
@@ -134,18 +144,18 @@ class BasicDemoPostInitCfg:
 class BasicDemoTorchCfg:
     """Dummy configuration class with a torch tensor ."""
 
-    some_number: int = config_field(0)
-    some_tensor: torch.Tensor = config_field(torch.Tensor([1, 2, 3]))
+    some_number: int = 0
+    some_tensor: torch.Tensor = field(default_factory=lambda: torch.Tensor([1, 2, 3]))
 
 
 @dataclass
 class BasicActuatorCfg:
     """Dummy configuration class for ActuatorBase config."""
 
-    joint_names_expr: list[str] = config_field(["some_string"])
-    joint_parameter_lookup: list[list[float]] = config_field([[1, 2, 3], [4, 5, 6]])
-    stiffness: float = config_field(1.0)
-    damping: float = config_field(2.0)
+    joint_names_expr: list[str] = field(default_factory=lambda: ["some_string"])
+    joint_parameter_lookup: list[list[float]] = field(default_factory=lambda: [[1, 2, 3], [4, 5, 6]])
+    stiffness: float = 1.0
+    damping: float = 2.0
 
 
 """
@@ -157,18 +167,18 @@ Dummy configuration to check type annotations ordering.
 class TypeAnnotationOrderingDemoCfg:
     """Config class with type annotations."""
 
-    anymal: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
-    unitree: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
-    franka: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
+    anymal: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
+    unitree: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
+    franka: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
 
 
 @dataclass
 class NonTypeAnnotationOrderingDemoCfg:
     """Config class without type annotations."""
 
-    anymal: Any = config_field(RobotDefaultStateCfg())
-    unitree: Any = config_field(RobotDefaultStateCfg())
-    franka: Any = config_field(RobotDefaultStateCfg())
+    anymal: Any = field(default_factory=RobotDefaultStateCfg)
+    unitree: Any = field(default_factory=RobotDefaultStateCfg)
+    franka: Any = field(default_factory=RobotDefaultStateCfg)
 
 
 @dataclass
@@ -182,21 +192,21 @@ class InheritedNonTypeAnnotationOrderingDemoCfg(NonTypeAnnotationOrderingDemoCfg
 class MixedAnnotationOrderingDemoCfg:
     """Config class with type annotations on only some attributes."""
 
-    plane: Any = config_field(RobotDefaultStateCfg())
-    robot: Any = config_field(RobotDefaultStateCfg())
-    peg: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
-    hole: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
-    camera: Any = config_field(RobotDefaultStateCfg())
-    light: Any = config_field(RobotDefaultStateCfg())
+    plane: Any = field(default_factory=RobotDefaultStateCfg)
+    robot: Any = field(default_factory=RobotDefaultStateCfg)
+    peg: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
+    hole: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
+    camera: Any = field(default_factory=RobotDefaultStateCfg)
+    light: Any = field(default_factory=RobotDefaultStateCfg)
 
 
 @dataclass
 class InheritedMixedAnnotationOrderingDemoCfg(MixedAnnotationOrderingDemoCfg):
     """Inherited config class with type annotations on only some attributes."""
 
-    table: Any = config_field(RobotDefaultStateCfg())
-    sensor: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())
-    marker: Any = config_field(RobotDefaultStateCfg())
+    table: Any = field(default_factory=RobotDefaultStateCfg)
+    sensor: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)
+    marker: Any = field(default_factory=RobotDefaultStateCfg)
 
 
 """
@@ -208,28 +218,28 @@ Dummy configuration: Inheritance
 class ParentDemoCfg:
     """Dummy parent configuration with missing fields."""
 
-    a: int = config_field(MISSING)  # add new missing field
-    b: Any = config_field(2)  # type annotation missing on purpose
-    c: RobotDefaultStateCfg = config_field(MISSING)  # add new missing field
-    m: RobotDefaultStateCfg = config_field(RobotDefaultStateCfg())  # Add class type with defaults
-    j: list[str] = config_field(MISSING)  # add new missing field
-    i: list[str] = config_field(MISSING)  # add new missing field
-    func: Callable = config_field(MISSING)  # add new missing field
+    a: int = REQUIRED  # add new missing field
+    b: Any = 2  # type annotation missing on purpose
+    c: RobotDefaultStateCfg = REQUIRED  # add new missing field
+    m: RobotDefaultStateCfg = field(default_factory=RobotDefaultStateCfg)  # Add class type with defaults
+    j: list[str] = REQUIRED  # add new missing field
+    i: list[str] = REQUIRED  # add new missing field
+    func: Callable = REQUIRED  # add new missing field
 
 
 @dataclass
 class ChildADemoCfg(ParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
-    func: Any = config_field(dummy_function1)  # set default value for missing field
-    c: Any = config_field(RobotDefaultStateCfg())  # set default value for missing field
+    func: Any = dummy_function1  # set default value for missing field
+    c: Any = field(default_factory=RobotDefaultStateCfg)  # set default value for missing field
 
-    func_2: Callable = config_field(MISSING)  # add new missing field
-    d: int = config_field(MISSING)  # add new missing field
-    k: list[str] = config_field(["c", "d"])
-    e: ViewerCfg = config_field(MISSING)  # add new missing field
+    func_2: Callable = REQUIRED  # add new missing field
+    d: int = REQUIRED  # add new missing field
+    k: list[str] = field(default_factory=lambda: ["c", "d"])
+    e: ViewerCfg = REQUIRED  # add new missing field
 
-    dummy_class: Any = config_field(DummyClass)
+    dummy_class: Any = field(default_factory=lambda: deepcopy(DummyClass))
 
     def __post_init__(self):
         self.b = 3  # change value of existing field
@@ -241,8 +251,8 @@ class ChildADemoCfg(ParentDemoCfg):
 class ChildBDemoCfg(ParentDemoCfg):
     """Dummy child configuration to test inheritance across instances."""
 
-    a: Any = config_field(100)  # set default value for missing field
-    j: Any = config_field(["3", "4"])  # set default value for missing field
+    a: Any = 100  # set default value for missing field
+    j: Any = field(default_factory=lambda: ["3", "4"])  # set default value for missing field
 
     def __post_init__(self):
         self.b = 8  # change value of existing field
@@ -253,8 +263,8 @@ class ChildBDemoCfg(ParentDemoCfg):
 class ChildChildDemoCfg(ChildADemoCfg):
     """Dummy child configuration with missing fields."""
 
-    func_2: Any = config_field(dummy_function2)
-    d: Any = config_field(2)  # set default value for missing field
+    func_2: Any = field(default_factory=lambda: deepcopy(dummy_function2))
+    d: Any = 2  # set default value for missing field
 
     def __post_init__(self):
         """Post initialization function."""
@@ -273,12 +283,12 @@ Configuration with class inside.
 class DummyClassCfg:
     """Dummy class configuration with class type."""
 
-    class_name_1: type = config_field(DummyClass)
-    class_name_2: type[DummyClass] = config_field(DummyClass)
-    class_name_3: Any = config_field(DummyClass)
+    class_name_1: type = DummyClass
+    class_name_2: type[DummyClass] = DummyClass
+    class_name_3: Any = field(default_factory=lambda: deepcopy(DummyClass))
     class_name_4: ClassVar[type[DummyClass]] = DummyClass
 
-    b: str = config_field("dummy")
+    b: str = "dummy"
 
 
 """
@@ -298,13 +308,13 @@ class OutsideClassCfg:
         class InsideInsideClassCfg:
             """Dummy configuration with class type."""
 
-            u: list[int] = config_field([1, 2, 3])
+            u: list[int] = field(default_factory=lambda: [1, 2, 3])
 
-        class_type: type = config_field(DummyClass)
-        b: str = config_field("dummy")
+        class_type: type = DummyClass
+        b: str = "dummy"
 
-    inside: InsideClassCfg = config_field(InsideClassCfg())
-    x: int = config_field(20)
+    inside: InsideClassCfg = field(default_factory=InsideClassCfg)
+    x: int = 20
 
     def __post_init__(self):
         self.inside.b = "dummy_changed"
@@ -319,18 +329,18 @@ Dummy configuration: Functions
 class FunctionsDemoCfg:
     """Dummy configuration class with functions as attributes."""
 
-    func: Any = config_field(dummy_function1)
-    wrapped_func: Any = config_field(wrapped_dummy_function3)
-    func_in_dict: Any = config_field({"func": dummy_function1})
+    func: Any = dummy_function1
+    wrapped_func: Any = field(default_factory=lambda: deepcopy(wrapped_dummy_function3))
+    func_in_dict: Any = field(default_factory=lambda: {"func": dummy_function1})
 
 
 @dataclass
 class FunctionImplementedDemoCfg:
     """Dummy configuration class with functions as attributes."""
 
-    func: Any = config_field(dummy_function1)
-    a: int = config_field(5)
-    k: Any = config_field(100.0)
+    func: Any = dummy_function1
+    a: int = 5
+    k: Any = 100.0
 
     def set_a(self, a: int):
         self.a = a
@@ -340,7 +350,7 @@ class FunctionImplementedDemoCfg:
 class ClassFunctionImplementedDemoCfg:
     """Dummy configuration class with function members defined in the class."""
 
-    a: int = config_field(5)
+    a: int = 5
 
     def instance_method(self):
         print("Value of a: ", self.a)
@@ -367,8 +377,8 @@ Dummy configuration: Nested dictionaries
 class NestedDictAndListCfg:
     """Dummy configuration class with nested dictionaries and lists."""
 
-    dict_1: dict = config_field({"dict_2": {"func": dummy_function1}})
-    list_1: list[EnvCfg] = config_field([EnvCfg(), EnvCfg()])
+    dict_1: dict = field(default_factory=lambda: {"dict_2": {"func": dummy_function1}})
+    list_1: list[EnvCfg] = field(default_factory=lambda: [EnvCfg(), EnvCfg()])
 
 
 """
@@ -380,7 +390,7 @@ Dummy configuration: Missing attributes
 class MissingParentDemoCfg:
     """Dummy parent configuration with missing fields."""
 
-    a: int = config_field(MISSING)
+    a: int = REQUIRED
 
     @dataclass
     class InsideClassCfg:
@@ -390,24 +400,28 @@ class MissingParentDemoCfg:
         class InsideInsideClassCfg:
             """Inner inner dummy configuration."""
 
-            a: str = config_field(MISSING)
+            a: str = REQUIRED
 
-        inside: str = config_field(MISSING)
-        inside_dict: Any = config_field({"a": MISSING})
-        inside_nested_dict: Any = config_field({"a": {"b": "hello", "c": MISSING, "d": InsideInsideClassCfg()}})
-        inside_tuple: Any = config_field((10, MISSING, 20))
-        inside_list: Any = config_field([MISSING, MISSING, 2])
+        inside: str = REQUIRED
+        inside_dict: Any = field(default_factory=lambda: {"a": REQUIRED})
+        inside_nested_dict: Any = field(
+            default_factory=lambda: {
+                "a": {"b": "hello", "c": REQUIRED, "d": MissingParentDemoCfg.InsideClassCfg.InsideInsideClassCfg()}
+            }
+        )
+        inside_tuple: Any = (10, REQUIRED, 20)
+        inside_list: Any = field(default_factory=lambda: [REQUIRED, REQUIRED, 2])
 
-    b: InsideClassCfg = config_field(InsideClassCfg())
+    b: InsideClassCfg = field(default_factory=InsideClassCfg)
 
 
 @dataclass
 class MissingChildDemoCfg(MissingParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
-    c: Callable = config_field(MISSING)
-    d: int | None = config_field(None)
-    e: dict = config_field({})
+    c: Callable = REQUIRED
+    d: int | None = None
+    e: dict = field(default_factory=dict)
 
 
 """
@@ -680,12 +694,12 @@ def test_wrap_resolvable_strings_handles_cyclic_containers():
     assert cfg.payload["tuple"][1]["back"] is cfg.payload
 
 
-def test_dir_resolution_uses_declaring_class_for_inherited_field():
-    """{DIR} expansion should use the field declaring class, not subclass module."""
+def test_callable_strings_remain_plain_strings():
+    """Standard dataclasses should not apply framework-specific string processing."""
 
     @dataclass
     class _BaseCfg:
-        class_type: type | str = config_field("{DIR}.base_mod:BaseSymbol")
+        class_type: type | str = "test_configclass.base_mod:BaseSymbol"
 
     @dataclass
     class _ChildCfg(_BaseCfg):
@@ -693,8 +707,7 @@ def test_dir_resolution_uses_declaring_class_for_inherited_field():
 
     cfg = _ChildCfg()
 
-    assert isinstance(cfg.class_type, ResolvableString)
-    assert str(cfg.class_type) == "test_configclass.base_mod:BaseSymbol"
+    assert cfg.class_type == "test_configclass.base_mod:BaseSymbol"
 
 
 def test_standard_field_does_not_apply_config_string_resolution():
@@ -713,12 +726,12 @@ def test_standard_field_does_not_apply_config_string_resolution():
     assert cfg.class_type == "{DIR}.base_mod:BaseSymbol"
 
 
-def test_config_field_supports_frozen_configs():
+def test_dataclass_field_supports_frozen_configs():
     """Configuration fields should work with frozen standard dataclasses."""
 
-    @dataclass(frozen=True)
+    @dataclass(frozen=True, kw_only=True)
     class FrozenCfg:
-        values: list[int] = config_field([1, 2])
+        values: list[int] = field(default_factory=lambda: [1, 2])
 
     first = FrozenCfg()
     second = copy_config(first)
@@ -727,16 +740,16 @@ def test_config_field_supports_frozen_configs():
     assert first.values is not second.values
 
 
-def test_config_field_supports_dataclass_subclasses():
+def test_dataclass_field_supports_dataclass_subclasses():
     """Configuration fields should follow standard dataclass inheritance."""
 
     @dataclass
     class ParentCfg:
-        values: list[int] = config_field([1, 2])
+        values: list[int] = field(default_factory=lambda: [1, 2])
 
     @dataclass
     class ChildCfg(ParentCfg):
-        runtime_cache: list[int] | None = config_field(None)
+        runtime_cache: list[int] | None = None
 
     cfg = ChildCfg()
 
@@ -744,18 +757,20 @@ def test_config_field_supports_dataclass_subclasses():
     assert cfg.runtime_cache is None
 
 
-def test_config_field_supports_class_body_customization_and_references():
-    """Defaults can be customized and reused while a dataclass body is being declared."""
+def test_dataclass_field_supports_reusable_default_factories():
+    """A factory function can provide customized, independent nested defaults."""
 
     @dataclass
     class NestedCfg:
-        values: list[int] = config_field([1])
+        values: list[int] = field(default_factory=lambda: [1])
+
+    def make_nested_cfg() -> NestedCfg:
+        return NestedCfg(values=[1, 2])
 
     @dataclass
     class ParentCfg:
-        primary: NestedCfg = config_field(NestedCfg())
-        primary.values.append(2)
-        secondary: NestedCfg = config_field(primary)
+        primary: NestedCfg = field(default_factory=make_nested_cfg)
+        secondary: NestedCfg = field(default_factory=make_nested_cfg)
 
     first = ParentCfg()
     second = ParentCfg()
@@ -940,6 +955,21 @@ def test_functions_config():
     assert cfg.func_in_dict["func"]() == 1
 
 
+def test_resolve_config_resolves_callable_strings_recursively():
+    """Callable strings resolve explicitly at a configuration consumer boundary."""
+
+    @dataclass
+    class LazyCallableCfg:
+        func: Callable | str = "math:sin"
+        nested: dict[str, Callable | str] = field(default_factory=lambda: {"sqrt": "math:sqrt"})
+
+    cfg = LazyCallableCfg()
+
+    assert resolve_config(cfg) is cfg
+    assert cfg.func(0.0) == 0.0
+    assert cfg.nested["sqrt"](9.0) == 3.0
+
+
 def test_function_impl_config():
     """Tests having function defined in the class instance."""
     cfg = FunctionImplementedDemoCfg()
@@ -1008,12 +1038,12 @@ def test_update_functions_config_with_functions():
     assert cfg.func_in_dict["func"]() == 2
 
 
-def test_config_field_supports_missing_values():
+def test_dataclass_field_supports_missing_values():
     """Explicitly annotated fields should retain the validation sentinel."""
 
     @dataclass
     class MissingValueCfg:
-        value: int = config_field(MISSING)
+        value: int = REQUIRED
 
     with pytest.raises(TypeError, match="value"):
         validate_config(MissingValueCfg())
@@ -1024,9 +1054,9 @@ def test_required_argument_for_missing_type_in_config():
 
     @dataclass
     class MissingTypeDemoCfg:
-        a: int = config_field(1)
-        b: Any = config_field(2)
-        c: int = config_field(MISSING)
+        a: int = 1
+        b: Any = 2
+        c: int = REQUIRED
 
     # should complain that 'c' is missed in positional arguments
     # TODO: Uncomment this when we move to 3.10.
@@ -1067,20 +1097,20 @@ def test_config_inheritance_independence():
     # Test various combinations of initialization
     # and defaults across inherited members in
     # instances to verify independence between the subclasses
-    assert isinstance(cfg_a.a, type(MISSING))
+    assert cfg_a.a is REQUIRED
     assert cfg_b.a == 100
     assert cfg_a.b == 3
     assert cfg_b.b == 8
     assert cfg_a.c == RobotDefaultStateCfg()
-    assert isinstance(cfg_b.c, type(MISSING))
+    assert cfg_b.c is REQUIRED
     assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
     assert cfg_b.m.rot == (0.0, 0.0, 0.0, 1.0)
-    assert isinstance(cfg_a.j, type(MISSING))
+    assert cfg_a.j is REQUIRED
     assert cfg_b.j == ["3", "4"]
     assert cfg_a.i == ["a", "b"]
     assert cfg_b.i == ["1", "2"]
     assert cfg_a.func == dummy_function1
-    assert isinstance(cfg_b.func, type(MISSING))
+    assert cfg_b.func is REQUIRED
 
     # Explicitly assert that members are not the same object
     # for different levels and kinds of data types
@@ -1214,8 +1244,8 @@ def test_checked_apply_forwards_all_fields():
 
     @dataclass
     class WrapperCfg:
-        gap: float = config_field(0.01)
-        margin: float = config_field(0.0)
+        gap: float = 0.01
+        margin: float = 0.0
 
     @plain_dataclass
     class UpstreamLike:
@@ -1241,8 +1271,8 @@ def test_checked_apply_raises_on_missing_target_field():
 
     @dataclass
     class WrapperCfg:
-        margin: float = config_field(0.01)
-        renamed_in_upstream: float = config_field(0.0)
+        margin: float = 0.01
+        renamed_in_upstream: float = 0.0
 
     @plain_dataclass
     class UpstreamMissingField:

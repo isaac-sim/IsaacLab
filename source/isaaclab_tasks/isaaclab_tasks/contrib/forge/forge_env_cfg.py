@@ -3,13 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import config_field
 
 from isaaclab_tasks.contrib.factory.factory_env_cfg import (
     OBS_DIM_CFG,
@@ -49,25 +48,25 @@ class ForgeCtrlCfg(CtrlCfg):
     Manipulation under Uncertainty". https://arxiv.org/abs/2408.04587
     """
 
-    ema_factor_range: Any = config_field([0.025, 0.1])
-    default_task_prop_gains: Any = config_field([565.0, 565.0, 565.0, 28.0, 28.0, 28.0])
-    task_prop_gains_noise_level: Any = config_field([0.41, 0.41, 0.41, 0.41, 0.41, 0.41])
-    pos_threshold_noise_level: Any = config_field([0.25, 0.25, 0.25])
-    rot_threshold_noise_level: Any = config_field([0.29, 0.29, 0.29])
-    default_dead_zone: Any = config_field([5.0, 5.0, 5.0, 1.0, 1.0, 1.0])
+    ema_factor_range: Any = field(default_factory=lambda: [0.025, 0.1])
+    default_task_prop_gains: Any = field(default_factory=lambda: [565.0, 565.0, 565.0, 28.0, 28.0, 28.0])
+    task_prop_gains_noise_level: Any = field(default_factory=lambda: [0.41, 0.41, 0.41, 0.41, 0.41, 0.41])
+    pos_threshold_noise_level: Any = field(default_factory=lambda: [0.25, 0.25, 0.25])
+    rot_threshold_noise_level: Any = field(default_factory=lambda: [0.29, 0.29, 0.29])
+    default_dead_zone: Any = field(default_factory=lambda: [5.0, 5.0, 5.0, 1.0, 1.0, 1.0])
 
 
 @dataclass
 class ForgeObsRandCfg(ObsRandCfg):
-    fingertip_pos: Any = config_field(0.00025)
-    fingertip_rot_deg: Any = config_field(0.1)
-    ft_force: Any = config_field(1.0)
+    fingertip_pos: Any = 0.00025
+    fingertip_rot_deg: Any = 0.1
+    ft_force: Any = 1.0
 
 
 @dataclass
 class EventCfg:
-    object_scale_mass: Any = config_field(
-        EventTerm(
+    object_scale_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="reset",
             params={
@@ -79,8 +78,8 @@ class EventCfg:
         )
     )
 
-    held_physics_material: Any = config_field(
-        EventTerm(
+    held_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -93,8 +92,8 @@ class EventCfg:
         )
     )
 
-    fixed_physics_material: Any = config_field(
-        EventTerm(
+    fixed_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -107,8 +106,8 @@ class EventCfg:
         )
     )
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -121,8 +120,8 @@ class EventCfg:
         )
     )
 
-    dead_zone_thresholds: Any = config_field(
-        EventTerm(
+    dead_zone_thresholds: Any = field(
+        default_factory=lambda: EventTerm(
             func=randomize_dead_zone,
             mode="interval",
             interval_range_s=(2.0, 2.0),  # (0.25, 0.25)
@@ -132,16 +131,16 @@ class EventCfg:
 
 @dataclass
 class ForgeEnvCfg(FactoryEnvCfg):
-    action_space: int = config_field(7)
-    obs_rand: ForgeObsRandCfg = config_field(ForgeObsRandCfg())
-    ctrl: ForgeCtrlCfg = config_field(ForgeCtrlCfg())
-    task: ForgeTask = config_field(ForgeTask())
-    events: EventCfg = config_field(EventCfg())
+    action_space: int = 7
+    obs_rand: ForgeObsRandCfg = field(default_factory=ForgeObsRandCfg)
+    ctrl: ForgeCtrlCfg = field(default_factory=ForgeCtrlCfg)
+    task: ForgeTask = field(default_factory=ForgeTask)
+    events: EventCfg = field(default_factory=EventCfg)
 
-    ft_smoothing_factor: float = config_field(0.25)
+    ft_smoothing_factor: float = 0.25
 
-    obs_order: list = config_field(
-        [
+    obs_order: list = field(
+        default_factory=lambda: [
             "fingertip_pos_rel_fixed",
             "fingertip_quat",
             "ee_linvel",
@@ -150,8 +149,8 @@ class ForgeEnvCfg(FactoryEnvCfg):
             "force_threshold",
         ]
     )
-    state_order: list = config_field(
-        [
+    state_order: list = field(
+        default_factory=lambda: [
             "fingertip_pos",
             "fingertip_quat",
             "ee_linvel",
@@ -174,20 +173,20 @@ class ForgeEnvCfg(FactoryEnvCfg):
 
 @dataclass
 class ForgeTaskPegInsertCfg(ForgeEnvCfg):
-    task_name: Any = config_field("peg_insert")
-    task: Any = config_field(ForgePegInsert())
-    episode_length_s: Any = config_field(10.0)
+    task_name: Any = "peg_insert"
+    task: Any = field(default_factory=ForgePegInsert)
+    episode_length_s: Any = 10.0
 
 
 @dataclass
 class ForgeTaskGearMeshCfg(ForgeEnvCfg):
-    task_name: Any = config_field("gear_mesh")
-    task: Any = config_field(ForgeGearMesh())
-    episode_length_s: Any = config_field(20.0)
+    task_name: Any = "gear_mesh"
+    task: Any = field(default_factory=ForgeGearMesh)
+    episode_length_s: Any = 20.0
 
 
 @dataclass
 class ForgeTaskNutThreadCfg(ForgeEnvCfg):
-    task_name: Any = config_field("nut_thread")
-    task: Any = config_field(ForgeNutThread())
-    episode_length_s: Any = config_field(30.0)
+    task_name: Any = "nut_thread"
+    task: Any = field(default_factory=ForgeNutThread)
+    episode_length_s: Any = 30.0

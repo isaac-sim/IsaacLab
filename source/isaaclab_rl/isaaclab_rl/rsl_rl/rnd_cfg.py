@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -19,7 +19,7 @@ class RslRlRndCfg:
     class WeightScheduleCfg:
         """Configuration for the weight schedule."""
 
-        mode: str = config_field("constant")
+        mode: str = "constant"
         """The type of weight schedule. Defaults to "constant"."""
 
     @dataclass
@@ -30,19 +30,19 @@ class RslRlRndCfg:
         between :attr:`initial_step` and before :attr:`final_step`.
         """
 
-        mode: str = config_field("linear")
+        mode: str = "linear"
         """The type of weight schedule. Defaults to "linear"."""
 
-        final_value: float = config_field(MISSING)
+        final_value: float = REQUIRED
         """The final value of the weight parameter."""
 
-        initial_step: int = config_field(MISSING)
+        initial_step: int = REQUIRED
         """The initial step of the weight schedule.
 
         For steps before this step, the weight is the initial value specified in :attr:`RslRlRndCfg.weight`.
         """
 
-        final_step: int = config_field(MISSING)
+        final_step: int = REQUIRED
         """The final step of the weight schedule.
 
         For steps after this step, the weight is the final value specified in :attr:`final_value`.
@@ -55,46 +55,46 @@ class RslRlRndCfg:
         This schedule sets the weight to the value specified in :attr:`final_value` at step :attr:`final_step`.
         """
 
-        mode: str = config_field("step")
+        mode: str = "step"
         """The type of weight schedule. Defaults to "step"."""
 
-        final_step: int = config_field(MISSING)
+        final_step: int = REQUIRED
         """The final step of the weight schedule.
 
         For steps after this step, the weight is the value specified in :attr:`final_value`.
         """
 
-        final_value: float = config_field(MISSING)
+        final_value: float = REQUIRED
         """The final value of the weight parameter."""
 
-    weight: float = config_field(0.0)
+    weight: float = 0.0
     """The weight for the RND reward (also known as intrinsic reward). Defaults to 0.0.
 
     Similar to other reward terms, the RND reward is scaled by this weight.
     """
 
-    weight_schedule: WeightScheduleCfg | None = config_field(None)
+    weight_schedule: WeightScheduleCfg | None = None
     """The weight schedule for the RND reward. Defaults to None, which means the weight is constant."""
 
-    reward_normalization: bool = config_field(False)
+    reward_normalization: bool = False
     """Whether to normalize the RND reward. Defaults to False."""
 
-    state_normalization: bool = config_field(False)
+    state_normalization: bool = False
     """Whether to normalize the RND state. Defaults to False."""
 
-    learning_rate: float = config_field(1e-3)
+    learning_rate: float = 1e-3
     """The learning rate for the RND module. Defaults to 1e-3."""
 
-    num_outputs: int = config_field(1)
+    num_outputs: int = 1
     """The number of outputs for the RND module. Defaults to 1."""
 
-    predictor_hidden_dims: list[int] = config_field([-1])
+    predictor_hidden_dims: list[int] = field(default_factory=lambda: [-1])
     """The hidden dimensions for the RND predictor network. Defaults to [-1].
 
     If the list contains -1, then the hidden dimensions are the same as the input dimensions.
     """
 
-    target_hidden_dims: list[int] = config_field([-1])
+    target_hidden_dims: list[int] = field(default_factory=lambda: [-1])
     """The hidden dimensions for the RND target network. Defaults to [-1].
 
     If the list contains -1, then the hidden dimensions are the same as the input dimensions.

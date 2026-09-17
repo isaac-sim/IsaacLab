@@ -15,9 +15,8 @@ hit the terrain (with sphere markers at the hit points), gray where they miss.
 
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
@@ -66,12 +65,14 @@ WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
 class HeightfieldSceneCfg(InteractiveSceneCfg):
     """Wave heightfield with a floating sensor body."""
 
-    terrain: Any = config_field(
-        TerrainImporterCfg(prim_path="/World/ground", terrain_type="generator", terrain_generator=WAVE_TERRAIN_CFG)
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
+            prim_path="/World/ground", terrain_type="generator", terrain_generator=WAVE_TERRAIN_CFG
+        )
     )
 
-    body: Any = config_field(
-        RigidObjectCfg(
+    body: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             spawn=sim_utils.CuboidCfg(
                 size=(0.4, 0.25, 0.1),
@@ -83,8 +84,8 @@ class HeightfieldSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    raycast: Any = config_field(
-        NewtonRaycastSensorCfg(
+    raycast: Any = field(
+        default_factory=lambda: NewtonRaycastSensorCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             pattern_cfg=GridPatternCfg(resolution=0.25, size=(1.5, 1.0)),
             ray_alignment="base",

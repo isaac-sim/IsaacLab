@@ -7,13 +7,13 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -65,36 +65,36 @@ class GelSightRenderCfg:
             )
     """
 
-    base_data_path: str = config_field(f"{ISAACLAB_NUCLEUS_DIR}/TacSL")
+    base_data_path: str = f"{ISAACLAB_NUCLEUS_DIR}/TacSL"
     """Base path to the directory containing sensor calibration data. Defaults to
     Isaac Lab Nucleus directory at ``{ISAACLAB_NUCLEUS_DIR}/TacSL``.
     """
 
-    sensor_data_dir_name: str = config_field(MISSING)
+    sensor_data_dir_name: str = REQUIRED
     """Directory name containing the sensor calibration and background data.
 
     This should be a relative path (directory name) inside the :attr:`base_data_path`.
     """
 
-    background_path: str = config_field("bg.jpg")
+    background_path: str = "bg.jpg"
     """Filename of the background image within the data directory."""
 
-    calib_path: str = config_field("polycalib.npz")
+    calib_path: str = "polycalib.npz"
     """Filename of the polynomial calibration data within the data directory."""
 
-    real_background: str = config_field("real_bg.npy")
+    real_background: str = "real_bg.npy"
     """Filename of the real background data within the data directory."""
 
-    image_height: int = config_field(MISSING)
+    image_height: int = REQUIRED
     """Height of the tactile image in pixels."""
 
-    image_width: int = config_field(MISSING)
+    image_width: int = REQUIRED
     """Width of the tactile image in pixels."""
 
-    num_bins: int = config_field(120)
+    num_bins: int = 120
     """Number of bins for gradient magnitude and direction quantization."""
 
-    mm_per_pixel: float = config_field(MISSING)
+    mm_per_pixel: float = REQUIRED
     """Millimeters per pixel conversion factor for reconstructing 2D tactile image from the height map."""
 
 
@@ -111,10 +111,12 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     It can capture tactile RGB/depth images and compute penalty-based contact forces.
     """
 
-    class_type: type[VisuoTactileSensor] | str = config_field("{DIR}.visuotactile_sensor:VisuoTactileSensor")
+    class_type: type[VisuoTactileSensor] | str = (
+        "isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor:VisuoTactileSensor"
+    )
 
     # Sensor type and capabilities
-    render_cfg: GelSightRenderCfg = config_field(MISSING)
+    render_cfg: GelSightRenderCfg = REQUIRED
     """Configuration for GelSight sensor rendering.
 
     This defines the rendering parameters for converting depth maps to realistic tactile images.
@@ -126,17 +128,17 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
 
     """
 
-    enable_camera_tactile: bool = config_field(True)
+    enable_camera_tactile: bool = True
     """Whether to enable camera-based tactile sensing."""
 
-    enable_force_field: bool = config_field(True)
+    enable_force_field: bool = True
     """Whether to enable force field tactile sensing."""
 
     # Force field configuration
-    tactile_array_size: tuple[int, int] = config_field(MISSING)
+    tactile_array_size: tuple[int, int] = REQUIRED
     """Number of tactile points for force field sensing in (rows, cols) format."""
 
-    tactile_margin: float = config_field(MISSING)
+    tactile_margin: float = REQUIRED
     """Margin for tactile point generation (in meters).
 
     This parameter defines the exclusion margin from the edges of the elastomer mesh when generating
@@ -144,7 +146,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     of the sensor surface where geometry might be unstable or less relevant for contact.
     """
 
-    contact_object_prim_path_expr: str | None = config_field(None)
+    contact_object_prim_path_expr: str | None = None
     """Prim path expression to find the contact object for force field computation.
 
     This specifies the object that will make contact with the tactile sensor. The sensor will automatically
@@ -162,24 +164,24 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """
 
     # Force field physics parameters
-    normal_contact_stiffness: float = config_field(1.0)
+    normal_contact_stiffness: float = 1.0
     """Normal contact stiffness for penalty-based force computation."""
 
-    friction_coefficient: float = config_field(2.0)
+    friction_coefficient: float = 2.0
     """Friction coefficient for shear forces."""
 
-    tangential_stiffness: float = config_field(0.1)
+    tangential_stiffness: float = 0.1
     """Tangential stiffness for shear forces."""
 
-    camera_cfg: CameraCfg | None = config_field(None)
+    camera_cfg: CameraCfg | None = None
     """Camera configuration for tactile RGB/depth sensing.
 
     If None, camera-based sensing will be disabled even if :attr:`enable_camera_tactile` is True.
     """
 
     # Visualization
-    visualizer_cfg: VisualizationMarkersCfg = config_field(
-        replace_config(VISUO_TACTILE_SENSOR_MARKER_CFG, prim_path="/Visuals/TactileSensor")
+    visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: replace_config(VISUO_TACTILE_SENSOR_MARKER_CFG, prim_path="/Visuals/TactileSensor")
     )
     """The configuration object for the visualization markers.
 
@@ -187,8 +189,8 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
         This attribute is only used when debug visualization is enabled.
     """
 
-    trimesh_vis_tactile_points: bool = config_field(False)
+    trimesh_vis_tactile_points: bool = False
     """Whether to visualize tactile points for debugging using trimesh. Defaults to False."""
 
-    visualize_sdf_closest_pts: bool = config_field(False)
+    visualize_sdf_closest_pts: bool = False
     """Whether to visualize SDF closest points for debugging. Defaults to False."""

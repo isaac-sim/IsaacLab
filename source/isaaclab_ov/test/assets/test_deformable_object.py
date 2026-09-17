@@ -14,7 +14,7 @@ import multiprocessing
 import queue
 import sys
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import ovphysx.types  # noqa: F401
@@ -34,7 +34,6 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import config_field
 
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
@@ -48,8 +47,8 @@ wp.init()
 class DeformableSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration for cloned volume deformables."""
 
-    deformable: DeformableObjectCfg = config_field(
-        DeformableObjectCfg(
+    deformable: DeformableObjectCfg = field(
+        default_factory=lambda: DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             spawn=pre_tetrahedralized_deformable_spawn_cfg(),
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
@@ -61,15 +60,15 @@ class DeformableSceneCfg(InteractiveSceneCfg):
 class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration for cloned deformable and rigid assets."""
 
-    deformable: DeformableObjectCfg = config_field(
-        DeformableObjectCfg(
+    deformable: DeformableObjectCfg = field(
+        default_factory=lambda: DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             spawn=pre_tetrahedralized_deformable_spawn_cfg(),
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
     )
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),
@@ -85,15 +84,15 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
 class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration with two rigid variants and a deformable."""
 
-    deformable: DeformableObjectCfg = config_field(
-        DeformableObjectCfg(
+    deformable: DeformableObjectCfg = field(
+        default_factory=lambda: DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             spawn=pre_tetrahedralized_deformable_spawn_cfg(),
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
     )
-    shape: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    shape: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Shape",
             spawn=sim_utils.MultiAssetSpawnerCfg(
                 assets_cfg=[

@@ -10,14 +10,14 @@ from __future__ import annotations
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
 import pytest
 import torch
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import config_field, config_to_dict, modifiers, update_config
+from isaaclab.utils import config_to_dict, modifiers, update_config
 
 pytestmark = pytest.mark.unit
 
@@ -78,12 +78,12 @@ class HistoryObservationsCfg:
     class PolicyCfg(ObservationGroupCfg):
         """Policy observation group configuration."""
 
-        dummy: ObservationTermCfg = config_field(ObservationTermCfg(func=dummy_observation))
+        dummy: ObservationTermCfg = field(default_factory=lambda: ObservationTermCfg(func=dummy_observation))
 
         def __post_init__(self):
             self.history_length = 5
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 def test_class_modifier_roundtrip_preserves_func_and_params():

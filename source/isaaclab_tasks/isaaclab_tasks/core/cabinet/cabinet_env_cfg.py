@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from dataclasses import MISSING, dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -27,7 +28,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import REQUIRED, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -93,22 +94,54 @@ class CabinetSimCfg(PresetCfg):
     finer physics timestep (1/600 s) while PhysX keeps its default (1/60 s).
     """
 
-    isaacsim_physx: SimulationCfg = config_field(
-        SimulationCfg(
+    isaacsim_physx: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 60,
             render_interval=1,
             physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
             default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
         )
     )
-    ovphysx: SimulationCfg = config_field(replace_config(isaacsim_physx, physics=OvPhysxCfg()))
-    physx: SimulationCfg = config_field(
-        replace_config(
-            isaacsim_physx, physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
+    ovphysx: SimulationCfg = field(
+        default_factory=lambda: replace_config(
+            SimulationCfg(
+                dt=1 / 60,
+                render_interval=1,
+                physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+                default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+            ),
+            physics=OvPhysxCfg(),
         )
     )
-    newton_mjwarp: SimulationCfg = config_field(
-        SimulationCfg(
+    physx: SimulationCfg = field(
+        default_factory=lambda: replace_config(
+            SimulationCfg(
+                dt=1 / 60,
+                render_interval=1,
+                physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+                default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+            ),
+            physics=PhysxAutoCfg(
+                isaacsim_physx=SimulationCfg(
+                    dt=1 / 60,
+                    render_interval=1,
+                    physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+                    default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+                ).physics,
+                ovphysx=replace_config(
+                    SimulationCfg(
+                        dt=1 / 60,
+                        render_interval=1,
+                        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+                        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+                    ),
+                    physics=OvPhysxCfg(),
+                ).physics,
+            ),
+        )
+    )
+    newton_mjwarp: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 600,
             render_interval=1,
             default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
@@ -125,7 +158,24 @@ class CabinetSimCfg(PresetCfg):
             ),
         )
     )
-    default: SimulationCfg = config_field(newton_mjwarp)
+    default: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
+            dt=1 / 600,
+            render_interval=1,
+            default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+            physics=NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(
+                    njmax=90,
+                    nconmax=100,
+                    cone="pyramidal",
+                    integrator="implicitfast",
+                    impratio=1,
+                ),
+                num_substeps=1,
+                debug_mode=False,
+            ),
+        )
+    )
 
 
 @dataclass
@@ -136,11 +186,11 @@ class CabinetDecimationCfg(PresetCfg):
     different rates.
     """
 
-    isaacsim_physx: int = config_field(1)
-    ovphysx: int = config_field(isaacsim_physx)
-    physx: int = config_field(isaacsim_physx)
-    newton_mjwarp: int = config_field(10)
-    default: int = config_field(newton_mjwarp)
+    isaacsim_physx: int = 1
+    ovphysx: int = 1
+    physx: int = 1
+    newton_mjwarp: int = 10
+    default: int = 10
 
 
 ##
@@ -157,14 +207,14 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     """
 
     # robot and end-effector frames -- set by a robot-specific subclass
-    robot: ArticulationCfg = config_field(MISSING)
-    ee_frame: FrameTransformerCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
+    ee_frame: FrameTransformerCfg = REQUIRED
 
-    cabinet: Any = config_field(CABINET_CFG)
+    cabinet: Any = field(default_factory=lambda: deepcopy(CABINET_CFG))
 
     # drawer handle frame, aligned with the end-effector frame
-    cabinet_frame: Any = config_field(
-        FrameTransformerCfg(
+    cabinet_frame: Any = field(
+        default_factory=lambda: FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
             debug_vis=True,
             visualizer_cfg=replace_config(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/CabinetFrameTransformer"),
@@ -182,10 +232,10 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     )
 
     # plane
-    plane: Any = config_field(PLANE_CFG)
+    plane: Any = field(default_factory=lambda: deepcopy(PLANE_CFG))
 
     # lights
-    light: Any = config_field(LIGHT_CFG)
+    light: Any = field(default_factory=lambda: deepcopy(LIGHT_CFG))
 
 
 ##
@@ -197,8 +247,8 @@ class CabinetSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
-    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
+    arm_action: mdp.JointPositionActionCfg = REQUIRED
+    gripper_action: mdp.BinaryJointPositionActionCfg = REQUIRED
 
 
 @dataclass
@@ -209,40 +259,40 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        cabinet_joint_pos: Any = config_field(
-            ObsTerm(
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        cabinet_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
             )
         )
-        cabinet_joint_vel: Any = config_field(
-            ObsTerm(
+        cabinet_joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
             )
         )
-        rel_ee_drawer_distance: Any = config_field(ObsTerm(func=mdp.rel_ee_drawer_distance))
+        rel_ee_drawer_distance: Any = field(default_factory=lambda: ObsTerm(func=mdp.rel_ee_drawer_distance))
 
         # the raw action is unbounded; feeding it back unclipped lets the critic and the policy
         # inflate each other without limit
-        actions: Any = config_field(ObsTerm(func=mdp.last_action, clip=(-5.0, 5.0)))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action, clip=(-5.0, 5.0)))
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -255,8 +305,8 @@ class EventCfg:
         )
     )
 
-    cabinet_physics_material: Any = config_field(
-        EventTerm(
+    cabinet_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -269,10 +319,10 @@ class EventCfg:
         )
     )
 
-    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -288,29 +338,33 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # 1. Approach the handle
-    approach_ee_handle: Any = config_field(RewTerm(func=mdp.approach_ee_handle, weight=2.0, params={"threshold": 0.2}))
-    align_ee_handle: Any = config_field(RewTerm(func=mdp.align_ee_handle, weight=0.5))
+    approach_ee_handle: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.approach_ee_handle, weight=2.0, params={"threshold": 0.2})
+    )
+    align_ee_handle: Any = field(default_factory=lambda: RewTerm(func=mdp.align_ee_handle, weight=0.5))
 
     # 2. Grasp the handle
-    approach_gripper_handle: Any = config_field(
-        RewTerm(func=mdp.approach_gripper_handle, weight=5.0, params={"offset": MISSING})
+    approach_gripper_handle: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.approach_gripper_handle, weight=5.0, params={"offset": REQUIRED})
     )
-    align_grasp_around_handle: Any = config_field(RewTerm(func=mdp.align_grasp_around_handle, weight=0.125))
-    grasp_handle: Any = config_field(
-        RewTerm(
+    align_grasp_around_handle: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.align_grasp_around_handle, weight=0.125)
+    )
+    grasp_handle: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.grasp_handle,
             weight=0.5,
             params={
                 "threshold": 0.03,
-                "open_joint_pos": MISSING,
-                "asset_cfg": SceneEntityCfg("robot", joint_names=MISSING),
+                "open_joint_pos": REQUIRED,
+                "asset_cfg": SceneEntityCfg("robot", joint_names=REQUIRED),
             },
         )
     )
 
     # 3. Open the drawer
-    open_drawer_bonus: Any = config_field(
-        RewTerm(
+    open_drawer_bonus: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.open_drawer_bonus,
             weight=7.5,
             params={
@@ -319,8 +373,8 @@ class RewardsCfg:
             },
         )
     )
-    multi_stage_open_drawer: Any = config_field(
-        RewTerm(
+    multi_stage_open_drawer: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.multi_stage_open_drawer,
             weight=1.0,
             params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
@@ -328,15 +382,15 @@ class RewardsCfg:
     )
 
     # 4. Penalize actions for cosmetic reasons
-    action_rate_l2: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-1e-2))
-    joint_vel: Any = config_field(RewTerm(func=mdp.joint_vel_l2, weight=-0.0001))
+    action_rate_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-1e-2))
+    joint_vel: Any = field(default_factory=lambda: RewTerm(func=mdp.joint_vel_l2, weight=-0.0001))
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 ##
@@ -348,18 +402,18 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
-    sim: CabinetSimCfg = config_field(CabinetSimCfg())
+    sim: CabinetSimCfg = field(default_factory=CabinetSimCfg)
     # Scene settings
-    scene: CabinetSceneCfg = config_field(CabinetSceneCfg(num_envs=4096, env_spacing=2.0))
+    scene: CabinetSceneCfg = field(default_factory=lambda: CabinetSceneCfg(num_envs=4096, env_spacing=2.0))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
-    decimation: int = config_field(CabinetDecimationCfg())
+    decimation: int = field(default_factory=CabinetDecimationCfg)
 
     def __post_init__(self):
         """Post initialization."""

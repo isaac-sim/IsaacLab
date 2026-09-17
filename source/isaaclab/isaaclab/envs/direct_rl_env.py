@@ -12,7 +12,6 @@ import sys
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
-from dataclasses import MISSING
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -23,7 +22,7 @@ from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils import validate_config
+from isaaclab.utils import REQUIRED, validate_config
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -663,17 +662,17 @@ class DirectRLEnv(gym.Env):
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:
             logger.warning("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
-            if isinstance(self.cfg.action_space, type(MISSING)):
+            if self.cfg.action_space is REQUIRED:
                 self.cfg.action_space = self.cfg.num_actions
         if self.cfg.num_observations is not None:
             logger.warning(
                 "DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead."
             )
-            if isinstance(self.cfg.observation_space, type(MISSING)):
+            if self.cfg.observation_space is REQUIRED:
                 self.cfg.observation_space = self.cfg.num_observations
         if self.cfg.num_states is not None:
             logger.warning("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
-            if isinstance(self.cfg.state_space, type(MISSING)):
+            if self.cfg.state_space is REQUIRED:
                 self.cfg.state_space = self.cfg.num_states
 
         # set up spaces

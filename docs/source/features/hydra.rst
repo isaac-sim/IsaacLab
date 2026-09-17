@@ -110,7 +110,7 @@ For example, in the Cartpole environment:
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
     :start-at: class ObservationsCfg
-    :end-at: policy: PolicyCfg = config_field(PolicyCfg())
+    :end-at: policy: PolicyCfg = field(default_factory=PolicyCfg)
     :emphasize-lines: 9
 
 we could modify ``joint_pos_rel`` to compute absolute positions instead of relative positions with
@@ -129,8 +129,8 @@ Elements in dictionaries are handled as parameters in the hierarchy. For example
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
-    :start-at: reset_cart_position: Any = config_field(
-    :end-before: reset_pole_position: Any = config_field(
+    :start-at: reset_cart_position: Any = field(
+    :end-before: reset_pole_position: Any = field(
 
 the ``position_range`` parameter can be modified with ``env.events.reset_cart_position.params.position_range="[-2.0, 2.0]"``.
 This example shows two noteworthy points:
@@ -151,7 +151,7 @@ For example, for the configuration of the Cartpole camera environment:
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py
     :language: python
     :start-at: class CartpoleTiledCameraCfg
-    :end-at: observation_space: Any = config_field([3, 96, 96])
+    :end-at: observation_space: Any = field(default_factory=lambda: [3, 96, 96])
 
 The configuration declares the single-frame channel count and a default spatial size.
 At environment initialization, ``CartpoleCameraEnv`` rebuilds ``observation_space`` from
@@ -251,21 +251,20 @@ override is given:
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from dataclasses import dataclass
-    from isaaclab.utils import config_field
+    from dataclasses import dataclass, field
     from isaaclab_newton.physics import NewtonCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @dataclass
     class PhysicsPresetsCfg(PresetCfg):
-        isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
-        default: PhysxCfg = config_field(isaacsim_physx)
-        newton_mjwarp: NewtonCfg = config_field(NewtonCfg())
+        isaacsim_physx: PhysxCfg = field(default_factory=PhysxCfg)
+        default: PhysxCfg = field(default_factory=PhysxCfg)
+        newton_mjwarp: NewtonCfg = field(default_factory=NewtonCfg)
 
     @dataclass
     class MyEnvCfg:
-        sim: SimulationCfg = config_field(SimulationCfg(physics=PhysicsPresetsCfg()))
+        sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysicsPresetsCfg()))
 
 Physics is owned by :class:`~isaaclab.sim.SimulationCfg`, so the preset's config
 path is ``env.sim.physics``. For backend selection, prefer the typed selector:
@@ -291,12 +290,12 @@ disabled unless explicitly selected:
     @dataclass
     class CameraPresetCfg(PresetCfg):
         default: None = None
-        small: CameraSettingsCfg = config_field(CameraSettingsCfg())
-        large: CameraSettingsCfg = config_field(CameraSettingsCfg(width=256, height=256))
+        small: CameraSettingsCfg = field(default_factory=CameraSettingsCfg)
+        large: CameraSettingsCfg = field(default_factory=lambda: CameraSettingsCfg(width=256, height=256))
 
     @dataclass
     class SceneCfg:
-        camera: CameraPresetCfg = config_field(CameraPresetCfg())
+        camera: CameraPresetCfg = field(default_factory=CameraPresetCfg)
 
 Here, ``env.scene.camera`` resolves to ``None`` by default. A registered task using
 this config can activate the large camera with the path selector

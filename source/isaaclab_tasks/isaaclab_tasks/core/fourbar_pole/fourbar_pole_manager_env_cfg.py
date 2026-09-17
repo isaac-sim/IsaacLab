@@ -5,7 +5,7 @@
 
 import copy
 import math
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_newton.physics import (
     KaminoPADMMCfg,
@@ -23,7 +23,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.fourbar_pole.mdp as mdp
@@ -50,9 +50,9 @@ class FourbarPolePhysicsCfg(PresetCfg):
     ``physics=`` selector. Additional backends will be added later.
     """
 
-    default: NewtonCfg = config_field(MISSING)
-    newton_kamino: NewtonCfg = config_field(
-        NewtonCfg(
+    default: NewtonCfg = REQUIRED
+    newton_kamino: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=KaminoPADMMSolverCfg(
                 integrator="euler",
                 use_fk_solver=True,
@@ -80,19 +80,21 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
     """Configuration for a fourbar-pole scene."""
 
     # ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
         )
     )
 
     # fourbar-pole
-    robot: ArticulationCfg = config_field(replace_config(FOURBAR_POLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(FOURBAR_POLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/DomeLight",
             spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
         )
@@ -108,8 +110,10 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort: Any = config_field(
-        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["ground_to_crank"], scale=50.0)
+    joint_effort: Any = field(
+        default_factory=lambda: mdp.JointEffortActionCfg(
+            asset_name="robot", joint_names=["ground_to_crank"], scale=50.0
+        )
     )
 
 
@@ -122,34 +126,34 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # pole encoded as (cos, sin, vel) to avoid the +-pi wrap discontinuity during swing-up
-        pole_cos: Any = config_field(
-            ObsTerm(
+        pole_cos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_cos,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"])},
             )
         )
-        pole_sin: Any = config_field(
-            ObsTerm(
+        pole_sin: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_sin,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"])},
             )
         )
-        pole_vel: Any = config_field(
-            ObsTerm(
+        pole_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"])},
             )
         )
 
         # crank encoded with (pos, vel). No wrapping possible due to joint limits.
-        crank_pos: Any = config_field(
-            ObsTerm(
+        crank_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["ground_to_crank"])},
             )
         )
-        crank_vel: Any = config_field(
-            ObsTerm(
+        crank_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=["ground_to_crank"])},
             )
@@ -160,7 +164,7 @@ class ObservationsCfg:
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -168,8 +172,8 @@ class EventCfg:
     """Configuration for events."""
 
     # reset crank around its default (0) so the cart starts at varied positions
-    reset_crank_position: Any = config_field(
-        EventTerm(
+    reset_crank_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -181,8 +185,8 @@ class EventCfg:
     )
 
     # reset pole around its default (0) with a small perturbation
-    reset_pole_position: Any = config_field(
-        EventTerm(
+    reset_pole_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -199,8 +203,8 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Primary task + success tracking: swing the pole up and keep it upright (cos is maximal upright)
-    pole_upright: Any = config_field(
-        RewTerm(
+    pole_upright: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.pole_upright,
             weight=1.0,
             params={
@@ -211,24 +215,24 @@ class RewardsCfg:
         )
     )
     # (2) Shaping: damp the pole angular velocity to settle at the top
-    pole_vel: Any = config_field(
-        RewTerm(
+    pole_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_vel_l1,
             weight=-0.01,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"])},
         )
     )
     # (3) Shaping: discourage excessive crank motion
-    crank_vel: Any = config_field(
-        RewTerm(
+    crank_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_vel_l1,
             weight=-0.05,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["ground_to_crank"])},
         )
     )
     # (4) Shaping: penalize control effort
-    effort: Any = config_field(
-        RewTerm(
+    effort: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.action_l2,
             weight=-0.01,
         )
@@ -240,7 +244,7 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     # Time out only -- the pole must be free to hang and the parallelogram is geometrically bounded.
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 ##
@@ -253,14 +257,16 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the fourbar-pole swing-up environment."""
 
     # Scene settings
-    scene: FourbarPoleSceneCfg = config_field(FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True))
+    scene: FourbarPoleSceneCfg = field(
+        default_factory=lambda: FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
+    )
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    events: EventCfg = config_field(EventCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
 
     # Post initialization
     def __post_init__(self) -> None:

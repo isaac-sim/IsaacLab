@@ -16,9 +16,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 
 """
 
+from dataclasses import field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 """Launch Isaac Sim Simulator first."""
 
@@ -77,8 +78,8 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground: Any = config_field(
-        TerrainImporterCfg(
+    ground: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             max_init_terrain_level=None,
             terrain_type="generator",
@@ -89,16 +90,20 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # robot
-    robot: ArticulationCfg = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     # sensors
-    camera: Any = config_field(
-        CameraCfg(
+    camera: Any = field(
+        default_factory=lambda: CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
             update_period=0.1,
             height=480,
@@ -110,8 +115,8 @@ class SensorsSceneCfg(InteractiveSceneCfg):
             offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
         )
     )
-    tiled_camera: Any = config_field(
-        CameraCfg(
+    tiled_camera: Any = field(
+        default_factory=lambda: CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
             update_period=0.1,
             height=480,
@@ -121,8 +126,8 @@ class SensorsSceneCfg(InteractiveSceneCfg):
             offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
         )
     )
-    raycast_camera: Any = config_field(
-        RayCasterCameraCfg(
+    raycast_camera: Any = field(
+        default_factory=lambda: RayCasterCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             mesh_prim_paths=["/World/ground"],
             update_period=0.1,

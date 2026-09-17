@@ -7,11 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .physx_manager import PhysxManager
@@ -40,14 +39,14 @@ class PhysxCfg(PhysicsCfg):
     # PhysX Scene Settings
     # ------------------------------------------------------------------
 
-    class_type: type[PhysxManager] | str = config_field("{DIR}.physx_manager:PhysxManager")
+    class_type: type[PhysxManager] | str = "isaaclab_physx.physics.physx_manager:PhysxManager"
     """The class type of the PhysxManager."""
 
     # ------------------------------------------------------------------
     # Solver Settings
     # ------------------------------------------------------------------
 
-    solver_type: Literal[0, 1] = config_field(1)
+    solver_type: Literal[0, 1] = 1
     """The type of solver to use. Default is 1 (TGS).
 
     Available solvers:
@@ -56,7 +55,7 @@ class PhysxCfg(PhysicsCfg):
     * :obj:`1`: TGS (Temporal Gauss-Seidel)
     """
 
-    solve_articulation_contact_last: bool = config_field(False)
+    solve_articulation_contact_last: bool = False
     """Changes the ordering inside the articulation solver. Default is False.
 
     PhysX employs a strict ordering for handling constraints in an articulation. The outcome of
@@ -75,7 +74,7 @@ class PhysxCfg(PhysicsCfg):
         This parameter is only available with Isaac Sim 5.1.
     """
 
-    min_position_iteration_count: int = config_field(1)
+    min_position_iteration_count: int = 1
     """Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 1.
 
     .. note::
@@ -85,7 +84,7 @@ class PhysxCfg(PhysicsCfg):
         the range ``[min_position_iteration_count, max_position_iteration_count]``.
     """
 
-    max_position_iteration_count: int = config_field(255)
+    max_position_iteration_count: int = 255
     """Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.
 
     .. note::
@@ -95,7 +94,7 @@ class PhysxCfg(PhysicsCfg):
         the range ``[min_position_iteration_count, max_position_iteration_count]``.
     """
 
-    min_velocity_iteration_count: int = config_field(0)
+    min_velocity_iteration_count: int = 0
     """Minimum number of solver velocity iterations (rigid bodies, cloth, particles etc.). Default is 0.
 
     .. note::
@@ -105,7 +104,7 @@ class PhysxCfg(PhysicsCfg):
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
     """
 
-    max_velocity_iteration_count: int = config_field(255)
+    max_velocity_iteration_count: int = 255
     """Maximum number of solver velocity iterations (rigid bodies, cloth, particles etc.). Default is 255.
 
     .. note::
@@ -115,7 +114,7 @@ class PhysxCfg(PhysicsCfg):
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
     """
 
-    enable_scene_query_support: bool = config_field(False)
+    enable_scene_query_support: bool = False
     """Enable/disable scene query support for collision shapes. Default is False.
 
     This flag allows performing collision queries (raycasts, sweeps, and overlaps) on actors and
@@ -131,11 +130,11 @@ class PhysxCfg(PhysicsCfg):
         to work properly.
     """
 
-    enable_ccd: bool = config_field(False)
+    enable_ccd: bool = False
     """Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.
     Default is False."""
 
-    enable_stabilization: bool = config_field(False)
+    enable_stabilization: bool = False
     """Enable/disable additional stabilization pass in solver. Default is False.
 
     .. note::
@@ -148,7 +147,7 @@ class PhysxCfg(PhysicsCfg):
         Enabling this flag may lead to incorrect contact forces report from the contact sensor.
     """
 
-    enable_external_forces_every_iteration: bool = config_field(True)
+    enable_external_forces_every_iteration: bool = True
     """Enable/disable external forces every position iteration in the TGS solver. Default is True.
 
     When using the TGS solver (:attr:`solver_type` is 1), this flag allows enabling external forces
@@ -165,7 +164,7 @@ class PhysxCfg(PhysicsCfg):
         This flag is deprecated and will be removed in a future PhysX release.
     """
 
-    enable_enhanced_determinism: bool = config_field(False)
+    enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.
 
     For more information on PhysX determinism, please check `here`_.
@@ -173,59 +172,59 @@ class PhysxCfg(PhysicsCfg):
     .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/RigidBodyDynamics.html#enhanced-determinism
     """
 
-    bounce_threshold_velocity: float = config_field(0.5)
+    bounce_threshold_velocity: float = 0.5
     """Relative velocity threshold for contacts to bounce (in m/s). Default is 0.5 m/s."""
 
-    friction_offset_threshold: float = config_field(0.04)
+    friction_offset_threshold: float = 0.04
     """Threshold for contact point to experience friction force (in m). Default is 0.04 m."""
 
-    friction_correlation_distance: float = config_field(0.025)
+    friction_correlation_distance: float = 0.025
     """Distance threshold for merging contacts into a single friction anchor point (in m). Default is 0.025 m."""
 
     # ------------------------------------------------------------------
     # GPU Buffer Settings
     # ------------------------------------------------------------------
 
-    gpu_max_rigid_contact_count: int = config_field(2**23)
+    gpu_max_rigid_contact_count: int = field(default_factory=lambda: 2**23)
     """Size of rigid contact stream buffer allocated in pinned host memory. Default is 2 ** 23."""
 
-    gpu_max_rigid_patch_count: int = config_field(5 * 2**15)
+    gpu_max_rigid_patch_count: int = field(default_factory=lambda: 5 * 2**15)
     """Size of the rigid contact patch stream buffer allocated in pinned host memory. Default is 5 * 2 ** 15."""
 
-    gpu_found_lost_pairs_capacity: int = config_field(2**21)
+    gpu_found_lost_pairs_capacity: int = field(default_factory=lambda: 2**21)
     """Capacity of found and lost buffers allocated in GPU global memory. Default is 2 ** 21.
 
     This is used for the found/lost pair reports in the BP.
     """
 
-    gpu_found_lost_aggregate_pairs_capacity: int = config_field(2**25)
+    gpu_found_lost_aggregate_pairs_capacity: int = field(default_factory=lambda: 2**25)
     """Capacity of found and lost buffers in aggregate system allocated in GPU global memory.
     Default is 2 ** 25.
 
     This is used for the found/lost pair reports in AABB manager.
     """
 
-    gpu_total_aggregate_pairs_capacity: int = config_field(2**21)
+    gpu_total_aggregate_pairs_capacity: int = field(default_factory=lambda: 2**21)
     """Capacity of total number of aggregate pairs allocated in GPU global memory. Default is 2 ** 21."""
 
-    gpu_collision_stack_size: int = config_field(2**26)
+    gpu_collision_stack_size: int = field(default_factory=lambda: 2**26)
     """Size of the collision stack buffer allocated in pinned host memory. Default is 2 ** 26."""
 
-    gpu_heap_capacity: int = config_field(2**26)
+    gpu_heap_capacity: int = field(default_factory=lambda: 2**26)
     """Initial capacity of the GPU and pinned host memory heaps. Additional memory will be allocated
     if more memory is required. Default is 2 ** 26."""
 
-    gpu_temp_buffer_capacity: int = config_field(2**24)
+    gpu_temp_buffer_capacity: int = field(default_factory=lambda: 2**24)
     """Capacity of temp buffer allocated in pinned host memory. Default is 2 ** 24."""
 
-    gpu_max_num_partitions: int = config_field(8)
+    gpu_max_num_partitions: int = 8
     """Limitation for the partitions in the GPU dynamics pipeline. Default is 8.
 
     This variable must be power of 2. A value greater than 32 is currently not supported. Range: (1, 32)
     """
 
-    gpu_max_soft_body_contacts: int = config_field(2**20)
+    gpu_max_soft_body_contacts: int = field(default_factory=lambda: 2**20)
     """Size of soft body contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
 
-    gpu_max_particle_contacts: int = config_field(2**20)
+    gpu_max_particle_contacts: int = field(default_factory=lambda: 2**20)
     """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""

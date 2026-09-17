@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -14,7 +14,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -36,8 +36,8 @@ class EventCfg:
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose: Any = config_field(
-        EventTerm(
+    init_franka_arm_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.set_default_joint_pose,
             mode="startup",
             params={
@@ -46,8 +46,8 @@ class EventCfg:
         )
     )
 
-    randomize_franka_joint_state: Any = config_field(
-        EventTerm(
+    randomize_franka_joint_state: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_joint_by_gaussian_offset,
             mode="reset",
             params={
@@ -58,8 +58,8 @@ class EventCfg:
         )
     )
 
-    randomize_cubes_in_focus: Any = config_field(
-        EventTerm(
+    randomize_cubes_in_focus: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_rigid_objects_in_focus,
             mode="reset",
             params={

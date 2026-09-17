@@ -17,9 +17,8 @@ miss.
 
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
@@ -72,14 +71,14 @@ def _falling_box_cfg(index: int) -> RigidObjectCfg:
 class MovingGeometrySceneCfg(InteractiveSceneCfg):
     """Ground plane, falling boxes, a sweeping bar, and a hovering sensor."""
 
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    box_0: Any = config_field(_falling_box_cfg(0))
-    box_1: Any = config_field(_falling_box_cfg(1))
-    box_2: Any = config_field(_falling_box_cfg(2))
+    box_0: Any = field(default_factory=lambda: _falling_box_cfg(0))
+    box_1: Any = field(default_factory=lambda: _falling_box_cfg(1))
+    box_2: Any = field(default_factory=lambda: _falling_box_cfg(2))
 
-    bar: Any = config_field(
-        RigidObjectCfg(
+    bar: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Bar",
             spawn=sim_utils.CuboidCfg(
                 size=(3.5, 0.3, 0.3),
@@ -91,8 +90,8 @@ class MovingGeometrySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    body: Any = config_field(
-        RigidObjectCfg(
+    body: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             spawn=sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.1),
@@ -104,8 +103,8 @@ class MovingGeometrySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    raycast: Any = config_field(
-        NewtonRaycastSensorCfg(
+    raycast: Any = field(
+        default_factory=lambda: NewtonRaycastSensorCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             # Start the rays below the carrier body so they do not hit it.
             offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, -0.1)),

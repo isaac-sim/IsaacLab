@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import config_field
 
 from ..asset_base_cfg import AssetBaseCfg
 
@@ -22,16 +20,16 @@ class RigidObjectCfg(AssetBaseCfg):
     class InitialStateCfg(AssetBaseCfg.InitialStateCfg):
         """Initial state of the rigid body."""
 
-        lin_vel: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        lin_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Linear velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
-        ang_vel: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        ang_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Angular velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
 
     ##
     # Initialize configurations.
     ##
 
-    class_type: type["RigidObject"] | str = config_field("{DIR}.rigid_object:RigidObject")
+    class_type: type["RigidObject"] | str = "isaaclab.assets.rigid_object.rigid_object:RigidObject"
 
-    init_state: InitialStateCfg = config_field(InitialStateCfg())
+    init_state: InitialStateCfg = field(default_factory=InitialStateCfg)
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""

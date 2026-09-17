@@ -11,7 +11,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import config_field
 
 from .keyboard_schema import (
     DEFAULT_BUCKET_SIZES,
@@ -33,49 +32,49 @@ class KeyboardSpawnerCfg(SpawnerCfg):
     articulations under ``parts/part_*``.
     """
 
-    func: Callable | str = config_field("{DIR}.keyboard_usd:spawn_keyboard")
+    func: Callable | str = "isaaclab_tasks.contrib.keyboard.keyboards.keyboard_usd:spawn_keyboard"
 
-    family: KeyboardFamily = config_field("random")
+    family: KeyboardFamily = "random"
     """Keyboard layout family. ``"random"`` samples from :attr:`families`."""
 
-    families: tuple[str, ...] = config_field(DEFAULT_FAMILIES)
+    families: tuple[str, ...] = DEFAULT_FAMILIES
     """Candidate families when :attr:`family` is ``"random"``."""
 
-    style: str | None = config_field(None)
+    style: str | None = None
     """Optional style archetype name. ``None`` samples a compatible style."""
 
-    seed: int = config_field(0)
+    seed: int = 0
     """Seed for deterministic generation."""
 
-    topology_mode: TopologyMode = config_field("exact")
+    topology_mode: TopologyMode = "exact"
     """Key-slot topology. Padded modes are intended for ablation benchmarks."""
 
-    max_slots: int = config_field(DEFAULT_MAX_SLOTS)
+    max_slots: int = DEFAULT_MAX_SLOTS
     """Maximum key slots for ``global_padded`` topology."""
 
-    bucket_sizes: tuple[int, ...] = config_field(DEFAULT_BUCKET_SIZES)
+    bucket_sizes: tuple[int, ...] = DEFAULT_BUCKET_SIZES
     """Canonical slot counts for ``bucketed`` topology."""
 
-    partition_mode: PartitionMode = config_field("single")
+    partition_mode: PartitionMode = "single"
     """Articulation partitioning mode."""
 
-    partition_dof: int = config_field(DEFAULT_PARTITION_DOF)
+    partition_dof: int = DEFAULT_PARTITION_DOF
     """DOF per fixed-DOF partition."""
 
-    partition_tail_policy: PartitionTailPolicy = config_field("pad_tail")
+    partition_tail_policy: PartitionTailPolicy = "pad_tail"
     """Tail policy for fixed-DOF partitions."""
 
-    use_tapered_keycaps: bool = config_field(True)
+    use_tapered_keycaps: bool = True
     """Whether keycaps use tapered visual meshes."""
 
-    include_case_collision: bool = config_field(True)
+    include_case_collision: bool = True
     """Whether the generated case collides with the robot."""
 
-    key_collision_margin: float = config_field(0.0015)
+    key_collision_margin: float = 0.0015
     """Inset applied to key collision boxes [m]."""
 
-    case_collision_margin: float = config_field(0.001)
+    case_collision_margin: float = 0.001
     """Inset applied to the case collision box [m]."""
 
-    strict_validation: bool = config_field(True)
+    strict_validation: bool = True
     """Whether structural validation errors raise an exception."""

@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
@@ -18,29 +16,29 @@ from isaaclab_rl.rsl_rl import (
 
 @dataclass
 class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
-    num_steps_per_env: Any = config_field(120)
-    max_iterations: Any = config_field(300)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("anymal_d_flat")
-    obs_groups: Any = config_field({"student": ["policy"], "teacher": ["policy"]})
-    student: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 120
+    max_iterations: Any = 300
+    save_interval: Any = 50
+    experiment_name: Any = "anymal_d_flat"
+    obs_groups: Any = field(default_factory=lambda: {"student": ["policy"], "teacher": ["policy"]})
+    student: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[128, 128, 128],
             activation="elu",
             obs_normalization=False,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.1),
         )
     )
-    teacher: Any = config_field(
-        RslRlMLPModelCfg(
+    teacher: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[128, 128, 128],
             activation="elu",
             obs_normalization=False,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.0),
         )
     )
-    algorithm: Any = config_field(
-        RslRlDistillationAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlDistillationAlgorithmCfg(
             num_learning_epochs=2,
             learning_rate=1.0e-3,
             gradient_length=15,
@@ -50,8 +48,8 @@ class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
 
 @dataclass
 class AnymalDFlatDistillationRunnerRecurrentCfg(AnymalDFlatDistillationRunnerCfg):
-    student: Any = config_field(
-        RslRlRNNModelCfg(
+    student: Any = field(
+        default_factory=lambda: RslRlRNNModelCfg(
             hidden_dims=[128, 128, 128],
             activation="elu",
             obs_normalization=False,
@@ -61,8 +59,8 @@ class AnymalDFlatDistillationRunnerRecurrentCfg(AnymalDFlatDistillationRunnerCfg
             rnn_num_layers=1,
         )
     )
-    teacher: Any = config_field(
-        RslRlRNNModelCfg(
+    teacher: Any = field(
+        default_factory=lambda: RslRlRNNModelCfg(
             hidden_dims=[128, 128, 128],
             activation="elu",
             obs_normalization=False,

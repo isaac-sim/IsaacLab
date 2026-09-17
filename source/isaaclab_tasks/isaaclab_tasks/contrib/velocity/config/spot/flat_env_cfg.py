@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import (
@@ -26,7 +26,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -39,11 +39,13 @@ from isaaclab_tasks.utils import PresetCfg
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx: Any = config_field(PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
-    default: Any = config_field(isaacsim_physx)
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    isaacsim_physx: Any = field(default_factory=lambda: PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(isaacsim_physx=PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    )
+    default: Any = field(default_factory=lambda: PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15))
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=130,
                 nconmax=40,
@@ -58,7 +60,9 @@ class PhysicsCfg(PresetCfg):
             default_shape_cfg=NewtonShapeCfg(margin=0.01),
         )
     )
-    newton_kamino: Any = config_field(NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64)))
+    newton_kamino: Any = field(
+        default_factory=lambda: NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
+    )
 
 
 ##
@@ -90,8 +94,10 @@ COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
 class SpotActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos: Any = config_field(
-        mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.2, use_default_offset=True)
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=[".*"], scale=0.2, use_default_offset=True
+        )
     )
 
 
@@ -99,8 +105,8 @@ class SpotActionsCfg:
 class SpotCommandsCfg:
     """Command specifications for the MDP."""
 
-    base_velocity: Any = config_field(
-        mdp.UniformVelocityCommandCfg(
+    base_velocity: Any = field(
+        default_factory=lambda: mdp.UniformVelocityCommandCfg(
             asset_name="robot",
             resampling_time_range=(10.0, 10.0),
             rel_standing_envs=0.1,
@@ -123,52 +129,52 @@ class SpotObservationsCfg:
         """Observations for policy group."""
 
         # `` observation terms (order preserved)
-        base_lin_vel: Any = config_field(
-            ObsTerm(
+        base_lin_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.base_lin_vel,
                 params={"asset_cfg": SceneEntityCfg("robot")},
                 noise=Unoise(n_min=-0.1, n_max=0.1),
             )
         )
-        base_ang_vel: Any = config_field(
-            ObsTerm(
+        base_ang_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.base_ang_vel,
                 params={"asset_cfg": SceneEntityCfg("robot")},
                 noise=Unoise(n_min=-0.1, n_max=0.1),
             )
         )
-        projected_gravity: Any = config_field(
-            ObsTerm(
+        projected_gravity: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.projected_gravity,
                 params={"asset_cfg": SceneEntityCfg("robot")},
                 noise=Unoise(n_min=-0.05, n_max=0.05),
             )
         )
-        velocity_commands: Any = config_field(
-            ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        velocity_commands: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         )
-        joint_pos: Any = config_field(
-            ObsTerm(
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={"asset_cfg": SceneEntityCfg("robot")},
                 noise=Unoise(n_min=-0.05, n_max=0.05),
             )
         )
-        joint_vel: Any = config_field(
-            ObsTerm(
+        joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("robot")},
                 noise=Unoise(n_min=-0.5, n_max=0.5),
             )
         )
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -176,8 +182,8 @@ class SpotNewtonEventCfg:
     """Newton event configuration for Spot (reset + interval only)."""
 
     # reset
-    base_external_force_torque: Any = config_field(
-        EventTerm(
+    base_external_force_torque: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.apply_external_force_torque,
             mode="reset",
             params={
@@ -188,8 +194,8 @@ class SpotNewtonEventCfg:
         )
     )
 
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -207,8 +213,8 @@ class SpotNewtonEventCfg:
         )
     )
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=spot_mdp.reset_joints_around_default,
             mode="reset",
             params={
@@ -220,8 +226,8 @@ class SpotNewtonEventCfg:
     )
 
     # interval
-    push_robot: Any = config_field(
-        EventTerm(
+    push_robot: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.push_by_setting_velocity,
             mode="interval",
             interval_range_s=(10.0, 15.0),
@@ -238,8 +244,8 @@ class SpotStartupEventCfg:
     """PhysX-only startup randomization for Spot."""
 
     # startup
-    physics_material: Any = config_field(
-        EventTerm(
+    physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -252,8 +258,8 @@ class SpotStartupEventCfg:
         )
     )
 
-    add_base_mass: Any = config_field(
-        EventTerm(
+    add_base_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="startup",
             params={
@@ -272,18 +278,18 @@ class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
 
 @dataclass
 class SpotEventCfg(PresetCfg):
-    physx: Any = config_field(SpotPhysxEventCfg())
-    isaacsim_physx: Any = config_field(physx)
-    default: Any = config_field(isaacsim_physx)
-    newton_mjwarp: Any = config_field(SpotNewtonEventCfg())
-    newton_kamino: Any = config_field(newton_mjwarp)
+    physx: Any = field(default_factory=SpotPhysxEventCfg)
+    isaacsim_physx: Any = field(default_factory=SpotPhysxEventCfg)
+    default: Any = field(default_factory=SpotPhysxEventCfg)
+    newton_mjwarp: Any = field(default_factory=SpotNewtonEventCfg)
+    newton_kamino: Any = field(default_factory=SpotNewtonEventCfg)
 
 
 @dataclass
 class SpotRewardsCfg:
     # -- task
-    air_time: Any = config_field(
-        RewardTermCfg(
+    air_time: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.air_time_reward,
             weight=5.0,
             params={
@@ -294,22 +300,22 @@ class SpotRewardsCfg:
             },
         )
     )
-    base_angular_velocity: Any = config_field(
-        RewardTermCfg(
+    base_angular_velocity: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.base_angular_velocity_reward,
             weight=5.0,
             params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
         )
     )
-    base_linear_velocity: Any = config_field(
-        RewardTermCfg(
+    base_linear_velocity: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.base_linear_velocity_reward,
             weight=5.0,
             params={"std": 1.0, "ramp_rate": 0.5, "ramp_at_vel": 1.0, "asset_cfg": SceneEntityCfg("robot")},
         )
     )
-    foot_clearance: Any = config_field(
-        RewardTermCfg(
+    foot_clearance: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.foot_clearance_reward,
             weight=0.5,
             params={
@@ -320,8 +326,8 @@ class SpotRewardsCfg:
             },
         )
     )
-    gait: Any = config_field(
-        RewardTermCfg(
+    gait: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.GaitReward,
             weight=10.0,
             params={
@@ -336,24 +342,28 @@ class SpotRewardsCfg:
     )
 
     # -- penalties
-    action_smoothness: Any = config_field(RewardTermCfg(func=spot_mdp.action_smoothness_penalty, weight=-1.0))
-    air_time_variance: Any = config_field(
-        RewardTermCfg(
+    action_smoothness: Any = field(
+        default_factory=lambda: RewardTermCfg(func=spot_mdp.action_smoothness_penalty, weight=-1.0)
+    )
+    air_time_variance: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.air_time_variance_penalty,
             weight=-1.0,
             params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
         )
     )
-    base_motion: Any = config_field(
-        RewardTermCfg(func=spot_mdp.base_motion_penalty, weight=-2.0, params={"asset_cfg": SceneEntityCfg("robot")})
+    base_motion: Any = field(
+        default_factory=lambda: RewardTermCfg(
+            func=spot_mdp.base_motion_penalty, weight=-2.0, params={"asset_cfg": SceneEntityCfg("robot")}
+        )
     )
-    base_orientation: Any = config_field(
-        RewardTermCfg(
+    base_orientation: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.base_orientation_penalty, weight=-3.0, params={"asset_cfg": SceneEntityCfg("robot")}
         )
     )
-    foot_slip: Any = config_field(
-        RewardTermCfg(
+    foot_slip: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.foot_slip_penalty,
             weight=-0.5,
             params={
@@ -363,15 +373,15 @@ class SpotRewardsCfg:
             },
         )
     )
-    joint_acc: Any = config_field(
-        RewardTermCfg(
+    joint_acc: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.joint_acceleration_penalty,
             weight=-1.0e-4,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_h[xy]")},
         )
     )
-    joint_pos: Any = config_field(
-        RewardTermCfg(
+    joint_pos: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.joint_position_penalty,
             weight=-0.7,
             params={
@@ -381,15 +391,15 @@ class SpotRewardsCfg:
             },
         )
     )
-    joint_torques: Any = config_field(
-        RewardTermCfg(
+    joint_torques: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.joint_torques_penalty,
             weight=-5.0e-4,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
         )
     )
-    joint_vel: Any = config_field(
-        RewardTermCfg(
+    joint_vel: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=spot_mdp.joint_velocity_penalty,
             weight=-1.0e-2,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_h[xy]")},
@@ -401,15 +411,15 @@ class SpotRewardsCfg:
 class SpotTerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
-    body_contact: Any = config_field(
-        DoneTerm(
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
+    body_contact: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.illegal_contact,
             params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["body", ".*leg"]), "threshold": 1.0},
         )
     )
-    terrain_out_of_bounds: Any = config_field(
-        DoneTerm(
+    terrain_out_of_bounds: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.terrain_out_of_bounds,
             params={"asset_cfg": SceneEntityCfg("robot"), "distance_buffer": 3.0},
             time_out=True,
@@ -421,17 +431,17 @@ class SpotTerminationsCfg:
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for the Spot robot in a flat environment."""
 
-    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysicsCfg()))
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysicsCfg()))
 
     # Basic settings
-    observations: SpotObservationsCfg = config_field(SpotObservationsCfg())
-    actions: SpotActionsCfg = config_field(SpotActionsCfg())
-    commands: SpotCommandsCfg = config_field(SpotCommandsCfg())
+    observations: SpotObservationsCfg = field(default_factory=SpotObservationsCfg)
+    actions: SpotActionsCfg = field(default_factory=SpotActionsCfg)
+    commands: SpotCommandsCfg = field(default_factory=SpotCommandsCfg)
 
     # MDP setting
-    rewards: SpotRewardsCfg = config_field(SpotRewardsCfg())
-    terminations: SpotTerminationsCfg = config_field(SpotTerminationsCfg())
-    events: SpotEventCfg = config_field(SpotEventCfg())
+    rewards: SpotRewardsCfg = field(default_factory=SpotRewardsCfg)
+    terminations: SpotTerminationsCfg = field(default_factory=SpotTerminationsCfg)
+    events: SpotEventCfg = field(default_factory=SpotEventCfg)
 
     def __post_init__(self):
         # post init of parent

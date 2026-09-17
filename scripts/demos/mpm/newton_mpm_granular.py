@@ -22,10 +22,10 @@ from __future__ import annotations
 
 import argparse
 import math
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular demo.")
 parser.add_argument(
@@ -147,22 +147,22 @@ def create_scene_cfg():
     class GranularSceneCfg(InteractiveSceneCfg):
         """Scene containing static colliders and one Newton MPM object."""
 
-        ground: Any = config_field(
-            AssetBaseCfg(
+        ground: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/Ground",
                 spawn=sim_utils.GroundPlaneCfg(),
             )
         )
 
-        dome_light: Any = config_field(
-            AssetBaseCfg(
+        dome_light: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/DomeLight",
                 spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
             )
         )
 
-        media: Any = config_field(
-            MPMObjectCfg(
+        media: Any = field(
+            default_factory=lambda: MPMObjectCfg(
                 prim_path="{ENV_REGEX_NS}/GranularMedia",
                 spawn=MPMGridCfg(
                     lower=EMIT_LO,

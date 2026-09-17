@@ -37,7 +37,6 @@ once per device.
 
 from __future__ import annotations
 
-from dataclasses import MISSING
 from enum import Enum
 
 import pytest
@@ -45,7 +44,7 @@ import torch
 import warp as wp
 from flaky import flaky
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -148,9 +147,9 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
     This contains the expected values in the configuration to simplify test fixtures.
     """
 
-    contact_pose: torch.Tensor = config_field(MISSING)
+    contact_pose: torch.Tensor = REQUIRED
     """6D pose of the rigid object under test when it is in contact with the ground surface."""
-    non_contact_pose: torch.Tensor = config_field(MISSING)
+    non_contact_pose: torch.Tensor = REQUIRED
     """6D pose of the rigid object under test when it is not in contact."""
 
 
@@ -158,22 +157,22 @@ class ContactSensorRigidObjectCfg(RigidObjectCfg):
 class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Configuration of the scene used by the contact sensor test."""
 
-    terrain: TerrainImporterCfg = config_field(MISSING)
+    terrain: TerrainImporterCfg = REQUIRED
     """Terrain configuration within the scene."""
 
-    shape: ContactSensorRigidObjectCfg = config_field(MISSING)
+    shape: ContactSensorRigidObjectCfg = REQUIRED
     """RigidObject contact prim configuration."""
 
-    contact_sensor: ContactSensorCfg = config_field(MISSING)
+    contact_sensor: ContactSensorCfg = REQUIRED
     """Contact sensor configuration."""
 
-    shape_2: ContactSensorRigidObjectCfg = config_field(None)
+    shape_2: ContactSensorRigidObjectCfg = None
     """RigidObject contact prim configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second prim used for testing contact filtering.
     """
 
-    contact_sensor_2: ContactSensorCfg = config_field(None)
+    contact_sensor_2: ContactSensorCfg = None
     """Contact sensor configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second contact sensor used for testing contact filtering.

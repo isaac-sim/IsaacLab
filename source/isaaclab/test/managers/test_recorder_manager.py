@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 import h5py
@@ -18,7 +18,6 @@ import torch
 
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import config_field
 
 pytestmark = pytest.mark.unit
 
@@ -56,18 +55,18 @@ class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     class DummyResetRecorderTermCfg(RecorderTermCfg):
         """Configuration for the dummy reset recorder term."""
 
-        class_type: type[RecorderTerm] = config_field(DummyResetRecorderTerm)
+        class_type: type[RecorderTerm] = DummyResetRecorderTerm
 
     @dataclass
     class DummyStepRecorderTermCfg(RecorderTermCfg):
         """Configuration for the dummy step recorder term."""
 
-        class_type: type[RecorderTerm] = config_field(DummyStepRecorderTerm)
+        class_type: type[RecorderTerm] = DummyStepRecorderTerm
 
-    record_reset_term: Any = config_field(DummyResetRecorderTermCfg())
-    record_step_term: Any = config_field(DummyStepRecorderTermCfg())
+    record_reset_term: Any = field(default_factory=DummyResetRecorderTermCfg)
+    record_step_term: Any = field(default_factory=DummyStepRecorderTermCfg)
 
-    dataset_export_mode: Any = config_field(DatasetExportMode.EXPORT_ALL)
+    dataset_export_mode: Any = DatasetExportMode.EXPORT_ALL
 
 
 def get_file_contents(file_name: str, num_steps: int) -> dict[str, np.ndarray]:
@@ -103,18 +102,18 @@ class DummyEnvCfg:
     class DummySimCfg:
         """Configuration for the dummy sim."""
 
-        dt: float = config_field(0.01)
-        render_interval: int = config_field(1)
+        dt: float = 0.01
+        render_interval: int = 1
 
     @dataclass
     class DummySceneCfg:
         """Configuration for the dummy scene."""
 
-        num_envs: int = config_field(1)
+        num_envs: int = 1
 
-    decimation: int = config_field(1)
-    sim: DummySimCfg = config_field(DummySimCfg())
-    scene: DummySceneCfg = config_field(DummySceneCfg())
+    decimation: int = 1
+    sim: DummySimCfg = field(default_factory=DummySimCfg)
+    scene: DummySceneCfg = field(default_factory=DummySceneCfg)
 
 
 class DummySimulation:

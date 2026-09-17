@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.actuators import ActuatorBaseCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from ..asset_base_cfg import AssetBaseCfg
 from .ordering import ArticulationOrderingConvention
@@ -27,24 +27,24 @@ class ArticulationCfg(AssetBaseCfg):
         """Initial state of the articulation."""
 
         # root velocity
-        lin_vel: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        lin_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Linear velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
-        ang_vel: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        ang_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Angular velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
 
         # joint state
-        joint_pos: dict[str, float] = config_field({".*": 0.0})
+        joint_pos: dict[str, float] = field(default_factory=lambda: {".*": 0.0})
         """Joint positions of the joints. Defaults to 0.0 for all joints."""
-        joint_vel: dict[str, float] = config_field({".*": 0.0})
+        joint_vel: dict[str, float] = field(default_factory=lambda: {".*": 0.0})
         """Joint velocities of the joints. Defaults to 0.0 for all joints."""
 
     ##
     # Initialize configurations.
     ##
 
-    class_type: type[Articulation] | str = config_field("{DIR}.articulation:Articulation")
+    class_type: type[Articulation] | str = "isaaclab.assets.articulation.articulation:Articulation"
 
-    articulation_root_prim_path: str | None = config_field(None)
+    articulation_root_prim_path: str | None = None
     """Path to the articulation root prim under the :attr:`prim_path`. Defaults to None, in which case the class
     will search for a prim with the USD ArticulationRootAPI on it.
 
@@ -56,10 +56,10 @@ class ArticulationCfg(AssetBaseCfg):
     The path must start with a slash (`/`).
     """
 
-    init_state: InitialStateCfg = config_field(InitialStateCfg())
+    init_state: InitialStateCfg = field(default_factory=InitialStateCfg)
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
 
-    soft_joint_pos_limit_factor: float = config_field(1.0)
+    soft_joint_pos_limit_factor: float = 1.0
     """Fraction specifying the range of joint position limits (parsed from the asset) to use. Defaults to 1.0.
 
     The soft joint position limits are scaled by this factor to specify a safety region within the simulated
@@ -69,7 +69,7 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
-    joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = config_field(None)
+    joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public joint-name ordering convention or complete explicit permutation.
 
     Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
@@ -83,7 +83,7 @@ class ArticulationCfg(AssetBaseCfg):
     articulation initialization only, not each step.
     """
 
-    body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = config_field(None)
+    body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public body-name ordering convention or complete explicit permutation.
 
     Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
@@ -101,13 +101,13 @@ class ArticulationCfg(AssetBaseCfg):
     the root body.
     """
 
-    actuators: dict[str, ActuatorBaseCfg] = config_field(MISSING)
+    actuators: dict[str, ActuatorBaseCfg] = REQUIRED
     """Actuators for the robot with corresponding joint names.
 
     Each joint can belong to at most one actuator group.
     """
 
-    actuator_value_resolution_debug_print: Any = config_field(False)
+    actuator_value_resolution_debug_print: Any = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
 
@@ -120,7 +120,7 @@ class ArticulationCfg(AssetBaseCfg):
         on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
         is not configured for Newton-native actuators.
         """
-        if self.actuators is MISSING:
+        if self.actuators is REQUIRED:
             return
         from isaaclab.sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
 

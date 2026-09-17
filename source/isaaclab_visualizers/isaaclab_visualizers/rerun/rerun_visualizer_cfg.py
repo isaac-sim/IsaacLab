@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import config_field
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -21,22 +20,22 @@ if TYPE_CHECKING:
 class RerunVisualizerCfg(VisualizerCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
 
-    class_type: type[RerunVisualizer] | str = config_field("{DIR}.rerun_visualizer:RerunVisualizer")
+    class_type: type[RerunVisualizer] | str = "isaaclab_visualizers.rerun.rerun_visualizer:RerunVisualizer"
     """Visualizer implementation class."""
 
-    visualizer_type: str = config_field("rerun")
+    visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
 
-    app_id: str = config_field("isaaclab-simulation")
+    app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""
 
-    web_port: int = config_field(9090)
+    web_port: int = 9090
     """Port of the local rerun web viewer whose URL is logged during initialization."""
 
-    grpc_port: int = config_field(9876)
+    grpc_port: int = 9876
     """Port of the rerun gRPC server (used when serving web viewer externally)."""
 
-    bind_address: str | None = config_field("0.0.0.0")
+    bind_address: str | None = "0.0.0.0"
     """Host used for endpoint formatting and reuse checks.
 
     Notes:
@@ -45,16 +44,16 @@ class RerunVisualizerCfg(VisualizerCfg):
     - Local browser links normalize common loopback/wildcard hosts to ``127.0.0.1``.
     """
 
-    open_browser: bool = config_field(False)
+    open_browser: bool = False
     """Whether to attempt opening the rerun web viewer URL in a browser.
 
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    keep_historical_data: bool = config_field(False)
+    keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
-    keep_scalar_history: bool = config_field(False)
+    keep_scalar_history: bool = False
     """Accumulate scalars as a time-series in the Rerun timeline (True = live plot history, False = constant memory).
 
     When :attr:`~isaaclab.visualizers.VisualizerCfg.enable_live_plots` is ``True`` (the default),
@@ -63,11 +62,11 @@ class RerunVisualizerCfg(VisualizerCfg):
     not needed, but note this will disable live plot curves.
     """
 
-    show_particles: bool = config_field(True)
+    show_particles: bool = True
     """Whether to show model particles.
 
     Disable this option to reduce streaming overhead for large particle clouds.
     """
 
-    record_to_rrd: str | None = config_field(None)
+    record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""

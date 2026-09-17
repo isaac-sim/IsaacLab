@@ -4,10 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the raycaster sensor.")
@@ -53,8 +54,8 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/Ground",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
@@ -64,15 +65,17 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # robot
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
-    ray_caster: Any = config_field(
-        RayCasterCfg(
+    ray_caster: Any = field(
+        default_factory=lambda: RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             update_period=1 / 60,
             offset=RayCasterCfg.OffsetCfg(pos=(0, 0, 0.5)),

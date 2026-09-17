@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
@@ -18,7 +19,6 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import config_field
 
 from isaaclab_tasks.contrib.nist import mdp
 from isaaclab_tasks.contrib.nist.factory_presets import (
@@ -40,8 +40,8 @@ class FactoryObservationsCfg:
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        end_effector_vel_lin_ang_b: Any = config_field(
-            ObsTerm(
+        end_effector_vel_lin_ang_b: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.asset_link_velocity_in_root_asset_frame,
                 params={
                     "target_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
@@ -50,8 +50,8 @@ class FactoryObservationsCfg:
             )
         )
 
-        end_effector_pose: Any = config_field(
-            ObsTerm(
+        end_effector_pose: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.target_asset_pose_in_root_asset_frame,
                 params={
                     "target_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
@@ -61,8 +61,8 @@ class FactoryObservationsCfg:
             )
         )
 
-        held_asset_in_fixed_asset_frame: ObsTerm = config_field(
-            ObsTerm(
+        held_asset_in_fixed_asset_frame: ObsTerm = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.target_asset_pose_in_root_asset_frame,
                 params={
                     "target_asset_cfg": SceneEntityCfg("held_asset"),
@@ -72,8 +72,8 @@ class FactoryObservationsCfg:
             )
         )
 
-        fixed_asset_in_end_effector_frame: ObsTerm = config_field(
-            ObsTerm(
+        fixed_asset_in_end_effector_frame: ObsTerm = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.target_asset_pose_in_root_asset_frame,
                 params={
                     "target_asset_cfg": SceneEntityCfg("fixed_asset"),
@@ -83,25 +83,25 @@ class FactoryObservationsCfg:
             )
         )
 
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos))
 
-        prev_action: Any = config_field(ObsTerm(func=mdp.last_action))
+        prev_action: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
             self.history_length = 5
 
-    policy: PolicyCfg = config_field(PolicyCfg())
-    critic: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    critic: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class FactoryEventCfg:
     """Events specifications for Factory"""
 
-    held_asset_material: Any = config_field(
-        EventTerm(
+    held_asset_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,  # type: ignore
             mode="startup",
             params={
@@ -115,8 +115,8 @@ class FactoryEventCfg:
     )
 
     # Increase diagonal inertia to prevent contact-induced angular instability.
-    held_asset_inertia: Any = config_field(
-        EventTerm(
+    held_asset_inertia: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_inertia,
             mode="startup",
             params={
@@ -128,8 +128,8 @@ class FactoryEventCfg:
         )
     )
 
-    fixed_asset_material: Any = config_field(
-        EventTerm(
+    fixed_asset_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,  # type: ignore
             mode="startup",
             params={
@@ -142,8 +142,8 @@ class FactoryEventCfg:
         )
     )
 
-    robot_material: Any = config_field(
-        EventTerm(
+    robot_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,  # type: ignore
             mode="startup",
             params={
@@ -156,11 +156,11 @@ class FactoryEventCfg:
         )
     )
 
-    reset_strategies: Any = config_field(ACCUMULATOR_RESET)
+    reset_strategies: Any = field(default_factory=lambda: deepcopy(ACCUMULATOR_RESET))
 
     # The curriculum restores gravity as task difficulty rises.
-    variable_gravity: EventTerm | None = config_field(
-        EventTerm(
+    variable_gravity: EventTerm | None = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_physics_scene_gravity,
             mode="reset",
             params={"operation": "abs", "gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))},
@@ -172,29 +172,29 @@ class FactoryEventCfg:
 class FactoryRewardsCfg:
     """Reward terms for Factory. Success is terminal and carries the dominant weight."""
 
-    action_l2: Any = config_field(RewTerm(func=mdp.action_l2_clamped, weight=-1e-4))
-    action_rate_l2: Any = config_field(RewTerm(func=mdp.action_rate_l2_clamped, weight=-1e-4))
-    joint_effort: Any = config_field(
-        RewTerm(
+    action_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2_clamped, weight=-1e-4))
+    action_rate_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2_clamped, weight=-1e-4))
+    joint_effort: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_torques_l2,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names="(?!panda_joint7$|panda_finger_.*$).*")},
             weight=-1e-4,
         )
     )
-    early_termination: Any = config_field(
-        RewTerm(func=mdp.is_terminated_term, params={"term_keys": "abnormal"}, weight=-0.01)
+    early_termination: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.is_terminated_term, params={"term_keys": "abnormal"}, weight=-0.01)
     )
-    success_reward: Any = config_field(RewTerm(func=mdp.success_reward, weight=100.0))
+    success_reward: Any = field(default_factory=lambda: RewTerm(func=mdp.success_reward, weight=100.0))
 
 
 @dataclass
 class FactoryTerminationsCfg:
     """Termination terms for Factory. Reaching the assembled pose ends the episode."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    oob: Any = config_field(
-        DoneTerm(
+    oob: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.out_of_bound,
             params={
                 "asset_cfg": SceneEntityCfg("held_asset"),
@@ -203,8 +203,8 @@ class FactoryTerminationsCfg:
         )
     )
 
-    progress_context: Any = config_field(
-        DoneTerm(
+    progress_context: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.progress_context,
             params={
                 "success_threshold": 0.001,
@@ -216,29 +216,29 @@ class FactoryTerminationsCfg:
         )
     )
 
-    abnormal: Any = config_field(
-        DoneTerm(
+    abnormal: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.joint_vel_out_of_limit,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint[1-6]")},
         )
     )
 
-    wrist_limit: Any = config_field(
-        DoneTerm(
+    wrist_limit: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.joint_vel_out_of_manual_limit,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint7"), "max_velocity": 8.0},
         )
     )
 
-    success: Any = config_field(DoneTerm(func=mdp.success_termination))
+    success: Any = field(default_factory=lambda: DoneTerm(func=mdp.success_termination))
 
 
 @dataclass
 class FactoryCurriculumsCfg:
     """Curriculum terms for Factory."""
 
-    difficulty_scheduler: Any = config_field(
-        CurrTerm(
+    difficulty_scheduler: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.DifficultyScheduler,
             params={
                 "max_difficulty": 10,
@@ -251,8 +251,8 @@ class FactoryCurriculumsCfg:
         )
     )
 
-    gravity_adr: CurrTerm | None = config_field(
-        CurrTerm(
+    gravity_adr: CurrTerm | None = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "events.variable_gravity.params.gravity_distribution_params",
@@ -276,8 +276,8 @@ class FactoryCurriculumsCfg:
 class FactoryPhysicsCfg(PresetCfg):
     """Factory physics backend presets."""
 
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             solver_type=1,
             max_position_iteration_count=192,
             max_velocity_iteration_count=1,
@@ -291,8 +291,8 @@ class FactoryPhysicsCfg(PresetCfg):
             gpu_found_lost_pairs_capacity=2**22,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
@@ -314,24 +314,54 @@ class FactoryPhysicsCfg(PresetCfg):
             use_cuda_graph=True,
         )
     )
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
-    default: Any = config_field(isaacsim_physx)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                solver_type=1,
+                max_position_iteration_count=192,
+                max_velocity_iteration_count=1,
+                bounce_threshold_velocity=0.2,
+                friction_offset_threshold=0.01,
+                friction_correlation_distance=0.00625,
+                gpu_max_rigid_contact_count=2**23,
+                gpu_max_rigid_patch_count=2**23,
+                gpu_collision_stack_size=2**32 - 1,
+                gpu_max_num_partitions=1,
+                gpu_found_lost_pairs_capacity=2**22,
+            )
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: PhysxCfg(
+            solver_type=1,
+            max_position_iteration_count=192,
+            max_velocity_iteration_count=1,
+            bounce_threshold_velocity=0.2,
+            friction_offset_threshold=0.01,
+            friction_correlation_distance=0.00625,
+            gpu_max_rigid_contact_count=2**23,
+            gpu_max_rigid_patch_count=2**23,
+            gpu_collision_stack_size=2**32 - 1,
+            gpu_max_num_partitions=1,
+            gpu_found_lost_pairs_capacity=2**22,
+        )
+    )
 
 
 @dataclass
 class FactoryActionsCfg:
     """Franka joint actions for Factory."""
 
-    arm_action: Any = config_field(
-        mdp.RelativeJointPositionActionCfg(
+    arm_action: Any = field(
+        default_factory=lambda: mdp.RelativeJointPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             scale={"(?!panda_joint7$).*": 0.02, "panda_joint7": 0.2},
             use_zero_offset=True,
         )
     )
-    gripper_action: Any = config_field(
-        mdp.BinaryJointPositionActionCfg(
+    gripper_action: Any = field(
+        default_factory=lambda: mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_finger_.*"],
             open_command_expr={"panda_finger_.*": 0.04},
@@ -344,14 +374,14 @@ class FactoryActionsCfg:
 class FactoryEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the Franka Factory environment."""
 
-    scene: FactorySceneCfg = config_field(FactorySceneCfg())
-    observations: FactoryObservationsCfg = config_field(FactoryObservationsCfg())
-    events: FactoryEventCfg = config_field(FactoryEventCfg())
-    terminations: FactoryTerminationsCfg = config_field(FactoryTerminationsCfg())
-    rewards: FactoryRewardsCfg = config_field(FactoryRewardsCfg())
-    curriculum: FactoryCurriculumsCfg = config_field(FactoryCurriculumsCfg())
-    viewer: ViewerCfg = config_field(ViewerCfg(eye=(0.0, 0.8, 0.4), lookat=(0.0, 0.0, 0.4)))
-    actions: FactoryActionsCfg = config_field(FactoryActionsCfg())
+    scene: FactorySceneCfg = field(default_factory=FactorySceneCfg)
+    observations: FactoryObservationsCfg = field(default_factory=FactoryObservationsCfg)
+    events: FactoryEventCfg = field(default_factory=FactoryEventCfg)
+    terminations: FactoryTerminationsCfg = field(default_factory=FactoryTerminationsCfg)
+    rewards: FactoryRewardsCfg = field(default_factory=FactoryRewardsCfg)
+    curriculum: FactoryCurriculumsCfg = field(default_factory=FactoryCurriculumsCfg)
+    viewer: ViewerCfg = field(default_factory=lambda: ViewerCfg(eye=(0.0, 0.8, 0.4), lookat=(0.0, 0.0, 0.4)))
+    actions: FactoryActionsCfg = field(default_factory=FactoryActionsCfg)
 
     # Post initialization
     def __post_init__(self) -> None:

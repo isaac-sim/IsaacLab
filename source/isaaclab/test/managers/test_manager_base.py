@@ -14,7 +14,7 @@ require an Isaac Sim launch, so they can run without AppLauncher.
 
 from collections import namedtuple
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,7 +23,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
-from isaaclab.utils import config_field, config_to_dict, modifiers, update_config
+from isaaclab.utils import config_to_dict, modifiers, update_config
 
 pytestmark = pytest.mark.integration
 
@@ -75,17 +75,17 @@ def reset_dummy2_to_zero(env, env_ids: torch.Tensor):
 class OpaqueCfg:
     """Configuration that is outside ``ManagerBase`` ownership."""
 
-    func: str = config_field(f"{__name__}:reset_dummy2_to_zero")
+    func: str = f"{__name__}:reset_dummy2_to_zero"
 
 
 @dataclass
 class NestedFieldTermCfg(ManagerTermBaseCfg):
     """Manager term with owned and opaque fields outside ``params``."""
 
-    nested_term: ManagerTermBaseCfg = config_field(ManagerTermBaseCfg(func=increment_dummy1_by_one))
-    modifier: modifiers.ModifierCfg = config_field(modifiers.ModifierCfg(func=increment_dummy1_by_one))
-    metadata: dict[str, str] = config_field({"func": f"{__name__}:reset_dummy2_to_zero"})
-    opaque: OpaqueCfg = config_field(OpaqueCfg())
+    nested_term: ManagerTermBaseCfg = field(default_factory=lambda: ManagerTermBaseCfg(func=increment_dummy1_by_one))
+    modifier: modifiers.ModifierCfg = field(default_factory=lambda: modifiers.ModifierCfg(func=increment_dummy1_by_one))
+    metadata: dict[str, str] = field(default_factory=lambda: {"func": f"{__name__}:reset_dummy2_to_zero"})
+    opaque: OpaqueCfg = field(default_factory=OpaqueCfg)
 
 
 class reset_dummy2_to_zero_class(ManagerTermBase):

@@ -198,8 +198,7 @@ sync:
 .. code:: python
 
     from isaaclab.physics import PhysxAutoCfg
-    from dataclasses import dataclass
-    from isaaclab.utils import config_field
+    from dataclasses import dataclass, field
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -22,7 +22,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MultiAssetSpawnerCfg, SimulationCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -50,8 +50,8 @@ class KeyboardAssetCfg(PresetCfg):
 
     # PhysX: 18 articulation roots/env under ``parts/part_*`` (its ArticulationView flattens them).
     # (Octi) partitioned keyboard investigate if topologies can be harnessed to improve performance
-    default: Any = config_field(
-        ArticulationCfg(
+    default: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/Keyboard",
             articulation_root_prim_path="/parts/part_.*",
             spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_partitioned), random_choice=False),
@@ -67,24 +67,86 @@ class KeyboardAssetCfg(PresetCfg):
     )
     # Newton: one 108-DOF articulation/env, root auto-resolved at ``prim_path`` (Newton's
     # ArticulationData reads only the first articulation per env, so separate parts would be invisible).
-    newton_mjwarp: Any = config_field(
-        replace_config(
-            default,
+    newton_mjwarp: Any = field(
+        default_factory=lambda: replace_config(
+            ArticulationCfg(
+                prim_path="{ENV_REGEX_NS}/Keyboard",
+                articulation_root_prim_path="/parts/part_.*",
+                spawn=MultiAssetSpawnerCfg(
+                    assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_partitioned), random_choice=False
+                ),
+                init_state=ArticulationCfg.InitialStateCfg(
+                    # Pose used by the training checkpoint: centered in the SO-101 workspace and rotated -90 degrees.
+                    pos=(0.285, 0.0, 0.01),
+                    rot=(0.0, 0.0, -0.7071068, 0.7071068),  # -90 deg about Z (xyzw)
+                    joint_pos={"key_.*_joint": 0.0},
+                    joint_vel={"key_.*_joint": 0.0},
+                ),
+                actuators={},
+            ),
             articulation_root_prim_path=None,
             spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
         )
     )
-    isaacsim_physx: Any = config_field(default)
-    physx: Any = config_field(default)
-    default: Any = config_field(newton_mjwarp)
+    isaacsim_physx: Any = field(
+        default_factory=lambda: ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Keyboard",
+            articulation_root_prim_path="/parts/part_.*",
+            spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_partitioned), random_choice=False),
+            init_state=ArticulationCfg.InitialStateCfg(
+                # Pose used by the training checkpoint: centered in the SO-101 workspace and rotated -90 degrees.
+                pos=(0.285, 0.0, 0.01),
+                rot=(0.0, 0.0, -0.7071068, 0.7071068),  # -90 deg about Z (xyzw)
+                joint_pos={"key_.*_joint": 0.0},
+                joint_vel={"key_.*_joint": 0.0},
+            ),
+            actuators={},
+        )
+    )
+    physx: Any = field(
+        default_factory=lambda: ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Keyboard",
+            articulation_root_prim_path="/parts/part_.*",
+            spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_partitioned), random_choice=False),
+            init_state=ArticulationCfg.InitialStateCfg(
+                # Pose used by the training checkpoint: centered in the SO-101 workspace and rotated -90 degrees.
+                pos=(0.285, 0.0, 0.01),
+                rot=(0.0, 0.0, -0.7071068, 0.7071068),  # -90 deg about Z (xyzw)
+                joint_pos={"key_.*_joint": 0.0},
+                joint_vel={"key_.*_joint": 0.0},
+            ),
+            actuators={},
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: replace_config(
+            ArticulationCfg(
+                prim_path="{ENV_REGEX_NS}/Keyboard",
+                articulation_root_prim_path="/parts/part_.*",
+                spawn=MultiAssetSpawnerCfg(
+                    assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_partitioned), random_choice=False
+                ),
+                init_state=ArticulationCfg.InitialStateCfg(
+                    # Pose used by the training checkpoint: centered in the SO-101 workspace and rotated -90 degrees.
+                    pos=(0.285, 0.0, 0.01),
+                    rot=(0.0, 0.0, -0.7071068, 0.7071068),  # -90 deg about Z (xyzw)
+                    joint_pos={"key_.*_joint": 0.0},
+                    joint_vel={"key_.*_joint": 0.0},
+                ),
+                actuators={},
+            ),
+            articulation_root_prim_path=None,
+            spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
+        )
+    )
 
 
 @dataclass
 class SO101SceneCfg(InteractiveSceneCfg):
     """SO-101 keyboard-typing scene."""
 
-    robot: ArticulationCfg = config_field(
-        replace_config(
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(
             SO101_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=replace_config(
@@ -104,11 +166,11 @@ class SO101SceneCfg(InteractiveSceneCfg):
     )
 
     # keyboard
-    keyboard: ArticulationCfg = config_field(KeyboardAssetCfg())
+    keyboard: ArticulationCfg = field(default_factory=KeyboardAssetCfg)
 
     # contact sensor
-    robot_contact: Any = config_field(
-        ContactSensorCfg(
+    robot_contact: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/.*",
             update_period=0.0,
             history_length=1,
@@ -117,8 +179,8 @@ class SO101SceneCfg(InteractiveSceneCfg):
     )
 
     # plane
-    plane: Any = config_field(
-        AssetBaseCfg(
+    plane: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(),
             spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
@@ -127,8 +189,8 @@ class SO101SceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    sky_light: Any = config_field(
-        AssetBaseCfg(
+    sky_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/skyLight",
             spawn=sim_utils.DomeLightCfg(
                 intensity=750.0,
@@ -142,8 +204,8 @@ class SO101SceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    typing: Any = config_field(
-        mdp.LetterTypingCommandCfg(
+    typing: Any = field(
+        default_factory=lambda: mdp.LetterTypingCommandCfg(
             asset_name="robot",
             object_name="keyboard",
             resampling_time_range=(10.0, 10.0),
@@ -197,7 +259,9 @@ class CommandsCfg:
 
 @dataclass
 class SO101RelJointPosActionCfg:
-    action: Any = config_field(mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.02))
+    action: Any = field(
+        default_factory=lambda: mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.02)
+    )
 
 
 @dataclass
@@ -208,23 +272,27 @@ class SO101ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        target_keys_onehot: Any = config_field(ObsTerm(func=mdp.target_keys_onehot, params={"command_name": "typing"}))
-        typed_keys_onehot: Any = config_field(ObsTerm(func=mdp.typed_keys_onehot, params={"command_name": "typing"}))
+        target_keys_onehot: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.target_keys_onehot, params={"command_name": "typing"})
+        )
+        typed_keys_onehot: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.typed_keys_onehot, params={"command_name": "typing"})
+        )
 
     @dataclass
     class ProprioObsCfg(ObsGroup):
         """Observations for proprioception group."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0)))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0)))
 
     @dataclass
     class PerceptionObsCfg(ObsGroup):
         """Observations for perception group."""
 
-        key_positions: Any = config_field(
-            ObsTerm(
+        key_positions: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.key_positions_b,
                 clip=(-2.0, 2.0),
                 params={
@@ -240,17 +308,17 @@ class SO101ObservationsCfg:
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    proprio: ProprioObsCfg = config_field(ProprioObsCfg())
-    perception: PerceptionObsCfg = config_field(PerceptionObsCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    proprio: ProprioObsCfg = field(default_factory=ProprioObsCfg)
+    perception: PerceptionObsCfg = field(default_factory=PerceptionObsCfg)
 
 
 @dataclass
 class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
-    reset_keyboard: Any = config_field(
-        EventTerm(
+    reset_keyboard: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -270,16 +338,20 @@ class EventCfg:
 
 @dataclass
 class SO101ReorientRewardCfg:
-    typing_progress: Any = config_field(
-        RewTerm(func=mdp.letter_typing_progress, weight=2.0, params={"command_name": "typing"})
+    typing_progress: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.letter_typing_progress, weight=2.0, params={"command_name": "typing"})
     )
 
-    success: Any = config_field(RewTerm(func=mdp.typing_success, weight=50.0, params={"command_name": "typing"}))
+    success: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.typing_success, weight=50.0, params={"command_name": "typing"})
+    )
 
-    mechanical_power: Any = config_field(RewTerm(func=mdp.mechanical_power, weight=-0.0005))
+    mechanical_power: Any = field(default_factory=lambda: RewTerm(func=mdp.mechanical_power, weight=-0.0005))
 
-    early_termination: Any = config_field(
-        RewTerm(func=mdp.is_terminated_term, weight=-10, params={"term_keys": ["abnormal_robot"]})
+    early_termination: Any = field(
+        default_factory=lambda: RewTerm(
+            func=mdp.is_terminated_term, weight=-10, params={"term_keys": ["abnormal_robot"]}
+        )
     )
 
 
@@ -287,18 +359,18 @@ class SO101ReorientRewardCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    abnormal_robot: Any = config_field(DoneTerm(func=mdp.joint_vel_out_of_limit))
+    abnormal_robot: Any = field(default_factory=lambda: DoneTerm(func=mdp.joint_vel_out_of_limit))
 
-    excessive_contact: Any = config_field(
-        DoneTerm(
+    excessive_contact: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.illegal_contact,
             params={"sensor_cfg": SceneEntityCfg("robot_contact"), "threshold": 20.0},
         )
     )
 
-    success: Any = config_field(DoneTerm(func=mdp.typing_complete, params={"command_name": "typing"}))
+    success: Any = field(default_factory=lambda: DoneTerm(func=mdp.typing_complete, params={"command_name": "typing"}))
 
 
 @dataclass
@@ -306,16 +378,16 @@ class PhysicsCfg(PresetCfg):
     # Octi: note
     # physx is usable but extremely slow for this task and is only for evaluation purposes
     # for training please only use newton_mjwarp.
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             bounce_threshold_velocity=0.01,
             gpu_max_rigid_patch_count=16 * 5 * 2**15,
             gpu_found_lost_pairs_capacity=2**27,
             gpu_total_aggregate_pairs_capacity=2**27,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
@@ -334,20 +406,50 @@ class PhysicsCfg(PresetCfg):
             debug_mode=False,
         )
     )
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
-    default: Any = config_field(newton_mjwarp)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                bounce_threshold_velocity=0.01,
+                gpu_max_rigid_patch_count=16 * 5 * 2**15,
+                gpu_found_lost_pairs_capacity=2**27,
+                gpu_total_aggregate_pairs_capacity=2**27,
+            )
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=600,
+                nconmax=600,
+                impratio=1.0,
+                cone="pyramidal",
+                update_data_interval=2,
+                iterations=100,
+                ls_iterations=15,
+                use_mujoco_contacts=False,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(),
+            default_shape_cfg=NewtonShapeCfg(),
+            num_substeps=2,
+            debug_mode=False,
+        )
+    )
 
 
 @dataclass
 class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
-    scene: SO101SceneCfg = config_field(SO101SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=True))
-    observations: SO101ObservationsCfg = config_field(SO101ObservationsCfg())
-    actions: SO101RelJointPosActionCfg = config_field(SO101RelJointPosActionCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
-    rewards: SO101ReorientRewardCfg = config_field(SO101ReorientRewardCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysicsCfg(), dt=0.01))
+    scene: SO101SceneCfg = field(
+        default_factory=lambda: SO101SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=True)
+    )
+    observations: SO101ObservationsCfg = field(default_factory=SO101ObservationsCfg)
+    actions: SO101RelJointPosActionCfg = field(default_factory=SO101RelJointPosActionCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
+    rewards: SO101ReorientRewardCfg = field(default_factory=SO101ReorientRewardCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysicsCfg(), dt=0.01))
 
     def __post_init__(self):
         self.decimation = 4  # 100 Hz sim -> 25 Hz control

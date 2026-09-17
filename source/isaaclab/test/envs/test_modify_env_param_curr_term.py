@@ -5,10 +5,10 @@
 
 """Test curriculum-based environment parameter modification."""
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -44,8 +44,10 @@ def replace_value(env, env_id, data, value, num_steps):
 class ActionsCfg:
     """Action specifications for the curriculum test environment."""
 
-    joint_effort: Any = config_field(
-        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    joint_effort: Any = field(
+        default_factory=lambda: mdp.JointEffortActionCfg(
+            asset_name="robot", joint_names=["slider_to_cart"], scale=100.0
+        )
     )
 
 
@@ -57,17 +59,17 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Policy observation group."""
 
-        joint_pos_rel: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_pos_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Reset event specifications for the curriculum test environment."""
 
-    reset_cart_position: Any = config_field(
-        EventTerm(
+    reset_cart_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -83,8 +85,8 @@ class EventCfg:
 class CurriculumsCfg:
     """Curriculum specifications under test."""
 
-    modify_observation_joint_pos: Any = config_field(
-        CurrTerm(
+    modify_observation_joint_pos: Any = field(
+        default_factory=lambda: CurrTerm(
             # test writing a term's func.
             func=mdp.modify_term_cfg,
             params={
@@ -96,8 +98,8 @@ class CurriculumsCfg:
     )
 
     # test writing a term's param that involves dictionary.
-    modify_reset_joint_pos: Any = config_field(
-        CurrTerm(
+    modify_reset_joint_pos: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "events.reset_cart_position.params.position_range",
@@ -108,8 +110,8 @@ class CurriculumsCfg:
     )
 
     # test writing a non_term env parameter using modify_env_param.
-    modify_episode_max_length: Any = config_field(
-        CurrTerm(
+    modify_episode_max_length: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_env_param,
             params={
                 "address": "cfg.episode_length_s",
@@ -124,13 +126,13 @@ class CurriculumsCfg:
 class CurriculumTestEnvCfg(ManagerBasedRLEnvCfg):
     """Minimal cart-pole environment configuration for curriculum tests."""
 
-    scene: CartpoleTestSceneCfg = config_field(CartpoleTestSceneCfg(num_envs=16, env_spacing=4.0))
-    actions: ActionsCfg = config_field(ActionsCfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    rewards: EmptyManagerCfg = config_field(EmptyManagerCfg())
-    terminations: EmptyManagerCfg = config_field(EmptyManagerCfg())
-    curriculum: CurriculumsCfg = config_field(CurriculumsCfg())
+    scene: CartpoleTestSceneCfg = field(default_factory=lambda: CartpoleTestSceneCfg(num_envs=16, env_spacing=4.0))
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    rewards: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+    terminations: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+    curriculum: CurriculumsCfg = field(default_factory=CurriculumsCfg)
 
     def __post_init__(self) -> None:
         """Set the simulation timing used by the test."""

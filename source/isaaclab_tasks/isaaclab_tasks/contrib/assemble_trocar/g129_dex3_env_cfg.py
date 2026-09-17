@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -18,7 +18,6 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
@@ -90,16 +89,18 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     """Scene configuration for the assemble_trocar task (robot + objects + lights)."""
 
     # humanoid robot configuration
-    robot: ArticulationCfg = config_field(
-        G1RobotPresets.g1_29dof_dex3_base_fix(init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: G1RobotPresets.g1_29dof_dex3_base_fix(
+            init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
+        )
     )
     # add camera configuration
-    front_camera: Any = config_field(CameraPresets.g1_front_camera())
-    left_wrist_camera: Any = config_field(CameraPresets.left_dex3_wrist_camera())
-    right_wrist_camera: Any = config_field(CameraPresets.right_dex3_wrist_camera())
+    front_camera: Any = field(default_factory=CameraPresets.g1_front_camera)
+    left_wrist_camera: Any = field(default_factory=CameraPresets.left_dex3_wrist_camera)
+    right_wrist_camera: Any = field(default_factory=CameraPresets.right_dex3_wrist_camera)
 
-    scene: Any = config_field(
-        AssetBaseCfg(
+    scene: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Scene",
             spawn=UsdFileCfg(
                 usd_path=f"{USD_ROOT}/scene03.usd",
@@ -107,8 +108,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    trocar_1: Any = config_field(
-        RigidObjectCfg(
+    trocar_1: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/trocar_1",
             spawn=UsdFileCfg(
                 usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
@@ -125,8 +126,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    trocar_2: Any = config_field(
-        RigidObjectCfg(
+    trocar_2: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/trocar_2",
             spawn=UsdFileCfg(
                 usd_path=(
@@ -144,8 +145,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    tray: Any = config_field(
-        ArticulationCfg(
+    tray: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/surgical_tray",
             spawn=UsdFileCfg(
                 usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
@@ -158,8 +159,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     )
 
     # Lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(
                 color=(0.75, 0.75, 0.75),
@@ -176,8 +177,8 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """defines the action configuration related to robot control, using direct joint angle control"""
 
-    joint_pos: Any = config_field(
-        mdp.JointPositionActionCfg(
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=joint_names,
             scale=1.0,
@@ -200,9 +201,9 @@ class ObservationsCfg:
         """
 
         # robot joint state observation
-        robot_joint_state: Any = config_field(ObsTerm(func=mdp.get_robot_body_joint_states))
+        robot_joint_state: Any = field(default_factory=lambda: ObsTerm(func=mdp.get_robot_body_joint_states))
         # dex3 hand joint state observation
-        robot_dex3_joint_state: Any = config_field(ObsTerm(func=mdp.get_robot_dex3_joint_states))
+        robot_dex3_joint_state: Any = field(default_factory=lambda: ObsTerm(func=mdp.get_robot_dex3_joint_states))
 
         def __post_init__(self):
             """post initialization function
@@ -215,20 +216,20 @@ class ObservationsCfg:
     class CameraImagesCfg(ObsGroup):
         """Observations from the robot's cameras."""
 
-        front_camera: Any = config_field(
-            ObsTerm(
+        front_camera: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb", "normalize": False},
             )
         )
-        left_wrist_camera: Any = config_field(
-            ObsTerm(
+        left_wrist_camera: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "data_type": "rgb", "normalize": False},
             )
         )
-        right_wrist_camera: Any = config_field(
-            ObsTerm(
+        right_wrist_camera: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "data_type": "rgb", "normalize": False},
             )
@@ -239,8 +240,8 @@ class ObservationsCfg:
 
     # observation groups
     # create policy observation group instance
-    policy: PolicyCfg = config_field(PolicyCfg())
-    camera_images: CameraImagesCfg = config_field(CameraImagesCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    camera_images: CameraImagesCfg = field(default_factory=CameraImagesCfg)
 
 
 @dataclass
@@ -248,11 +249,11 @@ class TerminationsCfg:
     """Termination conditions for the environment."""
 
     # Time out termination
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
     # Task success termination (all stages completed)
-    task_success: Any = config_field(
-        DoneTerm(
+    task_success: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.task_success_termination,
             time_out=False,  # This is a success termination, not a failure
             params={
@@ -261,8 +262,8 @@ class TerminationsCfg:
             },
         )
     )
-    object_drop: Any = config_field(
-        DoneTerm(
+    object_drop: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.object_drop_termination,
             time_out=True,  # Treat as timeout/failure
             params={
@@ -286,8 +287,8 @@ class RewardsCfg:
     """
 
     # Stage machine — weight=0, runs before all reward terms to update task stage
-    update_stage: Any = config_field(
-        RewTerm(
+    update_stage: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.update_task_stage,
             weight=0.0,
             params={
@@ -308,8 +309,8 @@ class RewardsCfg:
     )
 
     # Stage 0: Lift trocars
-    lift_trocars: Any = config_field(
-        RewTerm(
+    lift_trocars: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.lift_trocars_reward,
             weight=1.0,
             params={
@@ -324,8 +325,8 @@ class RewardsCfg:
     )
 
     # Stage 1: Tip alignment (find hole)
-    tip_alignment: Any = config_field(
-        RewTerm(
+    tip_alignment: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.trocar_tip_alignment_reward,
             weight=1.0,  # Give 1.0 reward when stage 1->2 completes
             params={
@@ -339,8 +340,8 @@ class RewardsCfg:
     )
 
     # Stage 2: Insertion (push in)
-    insert_trocars: Any = config_field(
-        RewTerm(
+    insert_trocars: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.trocar_insertion_reward,
             weight=1.0,  # Give 1.0 reward when stage 2->3 completes
             params={
@@ -356,8 +357,8 @@ class RewardsCfg:
     )
 
     # Stage 3: Placement (place in tray)
-    placement_trocars: Any = config_field(
-        RewTerm(
+    placement_trocars: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.trocar_placement_reward,
             weight=1.0,  # Give 1.0 reward when stage 3->4 completes
             params={
@@ -379,14 +380,14 @@ class EventCfg:
     """Event configuration for scene reset."""
 
     # Reset scene when episode terminates (timeout or success)
-    reset_scene: Any = config_field(EventTermCfg(func=base_mdp.reset_scene_to_default, mode="reset"))
+    reset_scene: Any = field(default_factory=lambda: EventTermCfg(func=base_mdp.reset_scene_to_default, mode="reset"))
 
     # Reset task stage tracker when environment resets
-    reset_task_stage: Any = config_field(EventTermCfg(func=mdp.reset_task_stage, mode="reset"))
+    reset_task_stage: Any = field(default_factory=lambda: EventTermCfg(func=mdp.reset_task_stage, mode="reset"))
 
     # Random rotation for tray and trocars
-    reset_tray_random_rotation: Any = config_field(
-        EventTermCfg(
+    reset_tray_random_rotation: Any = field(
+        default_factory=lambda: EventTermCfg(
             func=mdp.reset_tray_with_random_rotation,
             mode="reset",
             params={
@@ -406,24 +407,24 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     """
 
     # scene settings
-    scene: AssembleTrocarSceneCfg = config_field(
-        AssembleTrocarSceneCfg(
+    scene: AssembleTrocarSceneCfg = field(
+        default_factory=lambda: AssembleTrocarSceneCfg(
             num_envs=1,
             env_spacing=6.0,
             replicate_physics=True,
         )
     )
     # basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    commands: Any = config_field(None)
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    curriculum: Any = config_field(None)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    commands: Any = None
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    curriculum: Any = None
 
-    num_rerenders_on_reset: int = config_field(1)
+    num_rerenders_on_reset: int = 1
 
     def __post_init__(self):
         """Post initialization."""
@@ -461,8 +462,8 @@ class EventCfgFixTrayRotation(EventCfg):
         - Angle unit is degrees.
     """
 
-    reset_tray_random_rotation: Any = config_field(
-        EventTermCfg(
+    reset_tray_random_rotation: Any = field(
+        default_factory=lambda: EventTermCfg(
             func=mdp.reset_tray_with_random_rotation,
             mode="reset",
             params={
@@ -487,4 +488,4 @@ class G1AssembleTrocarEvalEnvCfg(G1AssembleTrocarEnvCfg):
     """
 
     # Override events to enforce deterministic per-env tray yaw on every reset.
-    events: EventCfgFixTrayRotation = config_field(EventCfgFixTrayRotation())
+    events: EventCfgFixTrayRotation = field(default_factory=EventCfgFixTrayRotation)

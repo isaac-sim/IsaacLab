@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from .sensor_base import SensorBase
@@ -16,13 +16,13 @@ if TYPE_CHECKING:
 class SensorBaseCfg:
     """Configuration parameters for a sensor."""
 
-    class_type: type["SensorBase"] = config_field(MISSING)
+    class_type: type["SensorBase"] = REQUIRED
     """The associated sensor class.
 
     The class should inherit from :class:`isaaclab.sensors.sensor_base.SensorBase`.
     """
 
-    cloning_contexts: tuple[str | type, ...] | None = config_field(())
+    cloning_contexts: tuple[str | type, ...] | None = ()
     """Cloning contexts for this sensor. Defaults to no explicit cloning context.
 
     Sensors carry no physics of their own. When the sensor has a spawner, USD replication is
@@ -31,7 +31,7 @@ class SensorBaseCfg:
     :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
     """
 
-    prim_path: str = config_field(MISSING)
+    prim_path: str = REQUIRED
     """Prim path (or expression) to the sensor.
 
     .. note::
@@ -42,8 +42,8 @@ class SensorBaseCfg:
 
     """
 
-    update_period: float = config_field(0.0)
+    update_period: float = 0.0
     """Update period of the sensor buffers (in seconds). Defaults to 0.0 (update every step)."""
 
-    debug_vis: bool = config_field(False)
+    debug_vis: bool = False
     """Whether to visualize the sensor. Defaults to False."""

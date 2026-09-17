@@ -6,7 +6,7 @@
 """Heterogeneous OpenArm-lift, Franka-cabinet, and UR10-reach environment configuration."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
@@ -23,7 +23,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import FRAME_MARKER_CFG, SPHERE_MARKER_CFG, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as add_scene
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.lift.config.openarm.joint_pos_env_cfg import OpenArmCubeLiftEnvCfg
@@ -126,39 +126,39 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
 class ActionsCfg:
     """Task-headed action specification with a fixed global dimension of 22."""
 
-    lift_arm_action: Any = config_field(
-        mdp.SelectedJointPositionActionCfg(
+    lift_arm_action: Any = field(
+        default_factory=lambda: mdp.SelectedJointPositionActionCfg(
             asset_name=_LIFT_ROBOT,
             joint_names=["openarm_joint.*"],
             scale=0.5,
         )
     )
-    lift_gripper_action: Any = config_field(
-        mdp.SelectedBinaryJointPositionActionCfg(
+    lift_gripper_action: Any = field(
+        default_factory=lambda: mdp.SelectedBinaryJointPositionActionCfg(
             asset_name=_LIFT_ROBOT,
             joint_names=["openarm_finger_joint.*"],
             open_command=0.044,
             close_command=0.0,
         )
     )
-    cabinet_arm_action: Any = config_field(
-        mdp.SelectedJointPositionActionCfg(
+    cabinet_arm_action: Any = field(
+        default_factory=lambda: mdp.SelectedJointPositionActionCfg(
             asset_name=_CABINET_ROBOT,
             joint_names=["panda_joint.*"],
             scale=1.0,
             joint_limit_margin=0.02,
         )
     )
-    cabinet_gripper_action: Any = config_field(
-        mdp.SelectedBinaryJointPositionActionCfg(
+    cabinet_gripper_action: Any = field(
+        default_factory=lambda: mdp.SelectedBinaryJointPositionActionCfg(
             asset_name=_CABINET_ROBOT,
             joint_names=["panda_finger.*"],
             open_command=0.04,
             close_command=0.0,
         )
     )
-    reach_action: Any = config_field(
-        mdp.SelectedJointPositionActionCfg(
+    reach_action: Any = field(
+        default_factory=lambda: mdp.SelectedJointPositionActionCfg(
             asset_name=_REACH_ROBOT,
             joint_names=[".*"],
             scale=0.5,
@@ -170,8 +170,8 @@ class ActionsCfg:
 class CommandsCfg:
     """Goal commands for lift and reach environments."""
 
-    lift_pose: Any = config_field(
-        mdp.SelectedUniformPoseCommandCfg(
+    lift_pose: Any = field(
+        default_factory=lambda: mdp.SelectedUniformPoseCommandCfg(
             reference_cfg=_selection(_LIFT_ROBOT),
             tracked_cfg=_lift_object_cfg(),
             resampling_time_range=(5.0, 5.0),
@@ -187,8 +187,8 @@ class CommandsCfg:
             ),
         )
     )
-    reach_pose: Any = config_field(
-        mdp.SelectedUniformPoseCommandCfg(
+    reach_pose: Any = field(
+        default_factory=lambda: mdp.SelectedUniformPoseCommandCfg(
             reference_cfg=_selection(_REACH_ROBOT),
             tracked_cfg=_reach_robot_cfg(),
             resampling_time_range=(4.0, 4.0),
@@ -214,83 +214,85 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Policy observations."""
 
-        task_id: Any = config_field(ObsTerm(func=mdp.task_encoding, params={"task_asset_cfgs": _task_asset_cfgs()}))
+        task_id: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.task_encoding, params={"task_asset_cfgs": _task_asset_cfgs()})
+        )
 
-        lift_joint_pos: Any = config_field(
-            ObsTerm(
+        lift_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.selected_joint_pos_rel,
                 params={"asset_cfg": _lift_joint_cfg()},
             )
         )
-        lift_joint_vel: Any = config_field(
-            ObsTerm(
+        lift_joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.selected_joint_vel_rel,
                 params={"asset_cfg": _lift_joint_cfg()},
             )
         )
-        lift_object_position: Any = config_field(
-            ObsTerm(
+        lift_object_position: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.lift_object_position_b,
                 params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg()},
             )
         )
-        lift_command: Any = config_field(
-            ObsTerm(func=base_mdp.generated_commands, params={"command_name": "lift_pose"})
+        lift_command: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.generated_commands, params={"command_name": "lift_pose"})
         )
 
-        cabinet_joint_pos: Any = config_field(
-            ObsTerm(
+        cabinet_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.selected_joint_pos_rel,
                 params={"asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*")},
             )
         )
-        cabinet_joint_vel: Any = config_field(
-            ObsTerm(
+        cabinet_joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.selected_joint_vel_rel,
                 params={"asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*")},
             )
         )
-        cabinet_drawer: Any = config_field(
-            ObsTerm(func=mdp.cabinet_drawer_state, params={"cabinet_cfg": _cabinet_cfg()})
+        cabinet_drawer: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.cabinet_drawer_state, params={"cabinet_cfg": _cabinet_cfg()})
         )
-        cabinet_ee_handle: Any = config_field(
-            ObsTerm(
+        cabinet_ee_handle: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.cabinet_ee_to_handle,
                 params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
             )
         )
 
-        reach_joint_pos: Any = config_field(
-            ObsTerm(
+        reach_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.selected_joint_pos_rel,
                 params={"asset_cfg": _selection(_REACH_ROBOT, joint_names=".*")},
             )
         )
-        reach_joint_vel: Any = config_field(
-            ObsTerm(
+        reach_joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.selected_joint_vel_rel,
                 params={"asset_cfg": _selection(_REACH_ROBOT, joint_names=".*")},
             )
         )
-        reach_command: Any = config_field(
-            ObsTerm(func=base_mdp.generated_commands, params={"command_name": "reach_pose"})
+        reach_command: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.generated_commands, params={"command_name": "reach_pose"})
         )
 
-        actions: Any = config_field(ObsTerm(func=base_mdp.last_action, clip=(-5.0, 5.0)))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=base_mdp.last_action, clip=(-5.0, 5.0)))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Selection-aware reset events."""
 
-    reset_scene: Any = config_field(
-        EventTerm(
+    reset_scene: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_multitask_scene,
             mode="reset",
             params={
@@ -311,22 +313,22 @@ class EventCfg:
 class RewardsCfg:
     """Task rewards adapted from the three homogeneous tasks."""
 
-    lift_approach: Any = config_field(
-        RewTerm(
+    lift_approach: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.lift_ee_object_distance,
             weight=0.11,
             params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg(), "std": 0.1},
         )
     )
-    lift_height: Any = config_field(
-        RewTerm(
+    lift_height: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.lift_object_height,
             weight=1.5,
             params={"object_cfg": _lift_object_cfg(), "minimum_height": 0.04},
         )
     )
-    lift_goal: Any = config_field(
-        RewTerm(
+    lift_goal: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.LiftGoalTracking,
             weight=1.6,
             params={
@@ -339,8 +341,8 @@ class RewardsCfg:
             },
         )
     )
-    lift_goal_fine: Any = config_field(
-        RewTerm(
+    lift_goal_fine: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.lift_goal_tracking,
             weight=0.5,
             params={
@@ -352,8 +354,8 @@ class RewardsCfg:
             },
         )
     )
-    lift_action_rate: Any = config_field(
-        RewTerm(
+    lift_action_rate: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_action_rate_l2,
             weight=-0.00001,
             params={
@@ -362,44 +364,44 @@ class RewardsCfg:
             },
         )
     )
-    lift_joint_vel: Any = config_field(
-        RewTerm(
+    lift_joint_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_joint_vel_l2,
             weight=-0.00001,
             params={"asset_cfg": _lift_joint_cfg()},
         )
     )
 
-    cabinet_approach: Any = config_field(
-        RewTerm(
+    cabinet_approach: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.cabinet_approach_ee_handle,
             weight=2.0,
             params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg(), "threshold": 0.2},
         )
     )
-    cabinet_align: Any = config_field(
-        RewTerm(
+    cabinet_align: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.cabinet_align_ee_handle,
             weight=0.5,
             params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
         )
     )
-    cabinet_approach_gripper: Any = config_field(
-        RewTerm(
+    cabinet_approach_gripper: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.cabinet_approach_gripper,
             weight=5.0,
             params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg(), "offset": 0.04},
         )
     )
-    cabinet_align_grasp: Any = config_field(
-        RewTerm(
+    cabinet_align_grasp: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.cabinet_align_grasp,
             weight=0.125,
             params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
         )
     )
-    cabinet_grasp: Any = config_field(
-        RewTerm(
+    cabinet_grasp: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.cabinet_grasp_handle,
             weight=0.5,
             params={
@@ -410,8 +412,8 @@ class RewardsCfg:
             },
         )
     )
-    cabinet_open: Any = config_field(
-        RewTerm(
+    cabinet_open: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.CabinetOpenDrawerBonus,
             weight=7.5,
             params={
@@ -421,15 +423,15 @@ class RewardsCfg:
             },
         )
     )
-    cabinet_stages: Any = config_field(
-        RewTerm(
+    cabinet_stages: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.cabinet_multi_stage_open,
             weight=1.0,
             params={"robot_cfg": _cabinet_robot_cfg(), "cabinet_cfg": _cabinet_cfg()},
         )
     )
-    cabinet_action_rate: Any = config_field(
-        RewTerm(
+    cabinet_action_rate: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_action_rate_l2,
             weight=-0.01,
             params={
@@ -438,51 +440,51 @@ class RewardsCfg:
             },
         )
     )
-    cabinet_joint_vel: Any = config_field(
-        RewTerm(
+    cabinet_joint_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_joint_vel_l2,
             weight=-0.0001,
             params={"asset_cfg": _selection(_CABINET_ROBOT), "max_velocity": 50.0},
         )
     )
 
-    reach_position: Any = config_field(
-        RewTerm(
+    reach_position: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.reach_position_error,
             weight=-0.2,
             params={"robot_cfg": _reach_robot_cfg(), "command_name": "reach_pose"},
         )
     )
-    reach_orientation: Any = config_field(
-        RewTerm(
+    reach_orientation: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.reach_orientation_error,
             weight=-0.1,
             params={"robot_cfg": _reach_robot_cfg(), "command_name": "reach_pose"},
         )
     )
-    reach_success: Any = config_field(
-        RewTerm(
+    reach_success: Any = field(
+        default_factory=lambda: RewTerm(
             func=base_mdp.is_terminated_term,
             weight=10.0,
             params={"term_keys": ["reach_success"]},
         )
     )
-    reach_action_rate: Any = config_field(
-        RewTerm(
+    reach_action_rate: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_action_rate_l2,
             weight=-0.0001,
             params={"task_asset_cfg": _selection(_REACH_ROBOT), "action_term_names": ("reach_action",)},
         )
     )
-    reach_action_l2: Any = config_field(
-        RewTerm(
+    reach_action_l2: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_action_l2,
             weight=-0.005,
             params={"task_asset_cfg": _selection(_REACH_ROBOT), "action_term_names": ("reach_action",)},
         )
     )
-    reach_joint_vel: Any = config_field(
-        RewTerm(
+    reach_joint_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.selected_joint_vel_l2,
             weight=-0.0001,
             params={"asset_cfg": _selection(_REACH_ROBOT)},
@@ -494,8 +496,8 @@ class RewardsCfg:
 class TerminationsCfg:
     """Task-specific success, failure, and timeout conditions."""
 
-    reach_success: Any = config_field(
-        DoneTerm(
+    reach_success: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.reach_success,
             params={
                 "robot_cfg": _reach_robot_cfg(),
@@ -505,14 +507,14 @@ class TerminationsCfg:
             },
         )
     )
-    lift_object_dropped: Any = config_field(
-        DoneTerm(
+    lift_object_dropped: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.lift_object_dropped,
             params={"object_cfg": _lift_object_cfg(), "minimum_height": -0.05},
         )
     )
-    cabinet_state_invalid: Any = config_field(
-        DoneTerm(
+    cabinet_state_invalid: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.articulation_state_invalid,
             params={
                 "asset_cfg": _selection(_CABINET_ROBOT, joint_names=".*"),
@@ -521,8 +523,8 @@ class TerminationsCfg:
             },
         )
     )
-    time_out: Any = config_field(
-        DoneTerm(
+    time_out: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.task_time_out,
             time_out=True,
             params={"task_asset_cfgs": _task_asset_cfgs(), "episode_lengths_s": (6.0, 8.0, 12.0)},
@@ -534,8 +536,8 @@ class TerminationsCfg:
 class CurriculumCfg:
     """OpenArm lift penalty curriculum."""
 
-    lift_action_rate: Any = config_field(
-        CurrTerm(
+    lift_action_rate: Any = field(
+        default_factory=lambda: CurrTerm(
             func=base_mdp.modify_reward_weight,
             params={
                 "term_name": "lift_action_rate",
@@ -544,8 +546,8 @@ class CurriculumCfg:
             },
         )
     )
-    lift_joint_vel: Any = config_field(
-        CurrTerm(
+    lift_joint_vel: Any = field(
+        default_factory=lambda: CurrTerm(
             func=base_mdp.modify_reward_weight,
             params={
                 "term_name": "lift_joint_vel",
@@ -560,14 +562,14 @@ class CurriculumCfg:
 class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based heterogeneous manipulation training environment."""
 
-    scene: InteractiveSceneCfg = config_field(_make_scene_cfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    curriculum: CurriculumCfg = config_field(CurriculumCfg())
+    scene: InteractiveSceneCfg = field(default_factory=_make_scene_cfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    curriculum: CurriculumCfg = field(default_factory=CurriculumCfg)
 
     def __post_init__(self):
         """Configure a common PhysX control clock for all three tasks."""

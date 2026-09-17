@@ -20,9 +20,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView performance across backends.")
 parser.add_argument("--num_envs", type=int, default=100, help="Number of environments to simulate.")
@@ -60,8 +60,8 @@ from isaaclab.sim.views import UsdFrameView
 
 @dataclass
 class _NewtonSceneCfg(InteractiveSceneCfg):
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),

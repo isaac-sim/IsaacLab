@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg
@@ -12,7 +12,6 @@ from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import config_field
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
@@ -29,21 +28,23 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True))
+    scene: ObjectTableSceneCfg = field(
+        default_factory=lambda: ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    )
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: Any = config_field(EventCfg())
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: Any = field(default_factory=EventCfg)
 
     # Unused managers
-    commands: Any = config_field(None)
-    rewards: Any = config_field(None)
-    curriculum: Any = config_field(None)
+    commands: Any = None
+    rewards: Any = None
+    curriculum: Any = None
 
     # Temporary directory for URDF files
-    temp_urdf_dir: Any = config_field(tempfile.gettempdir())
+    temp_urdf_dir: Any = field(default_factory=tempfile.gettempdir)
 
     def __post_init__(self):
         """Post initialization."""

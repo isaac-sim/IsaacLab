@@ -14,7 +14,6 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils import config_field
 
 
 @dataclass
@@ -28,10 +27,10 @@ class NewtonDeformableMaterialCfg:
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    density: float = config_field(1.0)
+    density: float = 1.0
     """The material density [kg/m^3]. Defaults to 1.0 kg/m^3."""
 
-    particle_radius: float = config_field(0.008)
+    particle_radius: float = 0.008
     """Particle radius [m] used by the Newton backend."""
 
 
@@ -43,17 +42,15 @@ class NewtonDeformableBodyMaterialCfg(DeformableBodyMaterialBaseCfg, NewtonDefor
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    func: Callable | str = config_field(
-        "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
-    )
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
-    k_mu: float = config_field(1e5)
+    k_mu: float = 1e5
     """First Lame material parameter [Pa]. Defaults to 1e5 Pa."""
 
-    k_lambda: float = config_field(1e5)
+    k_lambda: float = 1e5
     """Second Lame material parameter [Pa]. Defaults to 1e5 Pa."""
 
-    k_damp: float = config_field(0.0)
+    k_damp: float = 0.0
     """Damping stiffness for tetrahedral elements [Pa*s]. Defaults to 0.0."""
 
 
@@ -65,23 +62,21 @@ class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCf
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    func: Callable | str = config_field(
-        "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
-    )
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
-    tri_ke: float = config_field(1e4)
+    tri_ke: float = 1e4
     """Triangle area-preserving stiffness [Pa]. Used by Newton backend for cloth meshes."""
 
-    tri_ka: float = config_field(1e4)
+    tri_ka: float = 1e4
     """Triangle area stiffness [Pa]. Used by Newton backend for cloth meshes."""
 
-    tri_kd: float = config_field(1.5e-6)
+    tri_kd: float = 1.5e-6
     """Triangle area damping [Pa*s]. Used by Newton backend for cloth meshes."""
 
-    edge_ke: float = config_field(5.0)
+    edge_ke: float = 5.0
     """Bending stiffness [N*m]. Used by Newton backend for cloth meshes."""
 
-    edge_kd: float = config_field(1e-2)
+    edge_kd: float = 1e-2
     """Bending damping [N*m*s]. Used by Newton backend for cloth meshes."""
 
 
@@ -113,40 +108,40 @@ class NewtonMaterialCfg(RigidBodyMaterialFragment):
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonMaterialAPI"
 
-    torsional_friction: float | None = config_field(None)
+    torsional_friction: float | None = None
     """Torsional friction coefficient (resistance to spinning at a contact point) [dimensionless].
 
     Writes ``newton:torsionalFriction``. Range: [0, inf).
     """
 
-    rolling_friction: float | None = config_field(None)
+    rolling_friction: float | None = None
     """Rolling friction coefficient (resistance to rolling motion) [dimensionless].
 
     Writes ``newton:rollingFriction``. Range: [0, inf).
     """
 
-    contact_stiffness: float | None = config_field(None)
+    contact_stiffness: float | None = None
     """Contact normal-force stiffness [N/m].
 
     Writes ``newton:contactStiffness``. Replaces the deprecated per-shape ``ke`` contact parameter;
     used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
     """
 
-    contact_damping: float | None = config_field(None)
+    contact_damping: float | None = None
     """Contact normal-force damping coefficient [N·s/m].
 
     Writes ``newton:contactDamping``. Replaces the deprecated per-shape ``kd`` contact parameter;
     used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
     """
 
-    contact_friction_gain: float | None = config_field(None)
+    contact_friction_gain: float | None = None
     """Friction-force stiffness gain used by the tangential (friction) contact response [N·s/m].
 
     Writes ``newton:contactFrictionGain``. Replaces the deprecated per-shape ``kf`` contact
     parameter; used by the SemiImplicit and Featherstone solvers.
     """
 
-    contact_adhesion: float | None = config_field(None)
+    contact_adhesion: float | None = None
     """Contact adhesion distance: shapes closer than this threshold experience an attractive
     (adhesive) force [m].
 

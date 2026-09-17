@@ -5,7 +5,7 @@
 
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import yaml
 
@@ -13,7 +13,6 @@ from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
 
-from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
@@ -39,136 +38,136 @@ class CuroboPlannerCfg:
     """
 
     # Robot configuration
-    robot_config_file: str | None = config_field(None)
+    robot_config_file: str | None = None
     """cuRobo robot configuration file (path defined by curobo api)."""
 
-    robot_name: str = config_field("")
+    robot_name: str = ""
     """Robot name for visualization and identification."""
 
-    ee_link_name: str | None = config_field(None)
+    ee_link_name: str | None = None
     """End-effector link name (auto-detected from robot config if None)."""
 
     # Gripper configuration
-    gripper_joint_names: list[str] = config_field([])
+    gripper_joint_names: list[str] = field(default_factory=list)
     """Names of gripper joints."""
 
-    gripper_open_positions: dict[str, float] = config_field({})
+    gripper_open_positions: dict[str, float] = field(default_factory=dict)
     """Open gripper positions for cuRobo to update spheres"""
 
-    gripper_closed_positions: dict[str, float] = config_field({})
+    gripper_closed_positions: dict[str, float] = field(default_factory=dict)
     """Closed gripper positions for cuRobo to update spheres"""
 
     # Hand link configuration (for contact planning)
-    hand_link_names: list[str] = config_field([])
+    hand_link_names: list[str] = field(default_factory=list)
     """Names of hand/finger links to disable during contact planning."""
 
     # Attachment configuration
-    attached_object_link_name: str = config_field("attached_object")
+    attached_object_link_name: str = "attached_object"
     """Name of the link used for attaching objects."""
 
     # World configuration
-    world_config_file: str = config_field("collision_table.yml")
+    world_config_file: str = "collision_table.yml"
     """CuRobo world configuration file (without path)."""
 
     # Static objects to not update in the world model
-    static_objects: list[str] = config_field([])
+    static_objects: list[str] = field(default_factory=list)
     """Names of static objects to not update in the world model."""
 
     # Optional prim path configuration
-    robot_prim_path: str | None = config_field(None)
+    robot_prim_path: str | None = None
     """Absolute USD prim path to the robot root for world extraction; None derives it from environment root."""
 
-    world_ignore_substrings: list[str] | None = config_field(None)
+    world_ignore_substrings: list[str] | None = None
     """List of substring patterns to ignore when extracting world obstacles
     (e.g., default ground plane, debug prims).
     """
 
     # Motion planning parameters
-    collision_checker_type: CollisionCheckerType = config_field(CollisionCheckerType.MESH)
+    collision_checker_type: CollisionCheckerType = CollisionCheckerType.MESH
     """Type of collision checker to use."""
 
-    num_trajopt_seeds: int = config_field(12)
+    num_trajopt_seeds: int = 12
     """Number of seeds for trajectory optimization."""
 
-    num_graph_seeds: int = config_field(12)
+    num_graph_seeds: int = 12
     """Number of seeds for graph search."""
 
-    interpolation_dt: float = config_field(0.05)
+    interpolation_dt: float = 0.05
     """Time step for interpolating waypoints."""
 
-    collision_cache_size: dict[str, int] = config_field({"obb": 150, "mesh": 150})
+    collision_cache_size: dict[str, int] = field(default_factory=lambda: {"obb": 150, "mesh": 150})
     """Cache sizes for different collision types."""
 
-    trajopt_tsteps: int = config_field(32)
+    trajopt_tsteps: int = 32
     """Number of trajectory optimization time steps."""
 
-    collision_activation_distance: float = config_field(0.0)
+    collision_activation_distance: float = 0.0
     """Distance at which collision constraints are activated."""
 
-    approach_distance: float = config_field(0.05)
+    approach_distance: float = 0.05
     """Distance to approach at the end of the plan."""
 
-    retreat_distance: float = config_field(0.05)
+    retreat_distance: float = 0.05
     """Distance to retreat at the start of the plan."""
 
-    grasp_gripper_open_val: float = config_field(0.04)
+    grasp_gripper_open_val: float = 0.04
     """Gripper joint value when considered open for grasp detection."""
 
     # Planning configuration
-    enable_graph: bool = config_field(True)
+    enable_graph: bool = True
     """Whether to enable graph-based planning."""
 
-    enable_graph_attempt: int = config_field(5)
+    enable_graph_attempt: int = 5
     """Number of graph planning attempts."""
 
-    max_planning_attempts: int = config_field(15)
+    max_planning_attempts: int = 15
     """Maximum number of planning attempts."""
 
-    enable_finetune_trajopt: bool = config_field(True)
+    enable_finetune_trajopt: bool = True
     """Whether to enable trajectory optimization fine-tuning."""
 
-    time_dilation_factor: float = config_field(1.0)
+    time_dilation_factor: float = 1.0
     """Time dilation factor for planning."""
 
-    surface_sphere_radius: float = config_field(0.005)
+    surface_sphere_radius: float = 0.005
     """Radius of surface spheres for collision checking."""
 
     # Debug and visualization
-    n_repeat: int | None = config_field(None)
+    n_repeat: int | None = None
     """Number of times to repeat final waypoint for stabilization. If None, no repetition."""
 
-    motion_step_size: float | None = config_field(None)
+    motion_step_size: float | None = None
     """Step size (in radians) for retiming motion plans. If None, no retiming."""
 
-    visualize_spheres: bool = config_field(False)
+    visualize_spheres: bool = False
     """Visualize robot collision spheres. Note: only works for env 0."""
 
-    visualize_plan: bool = config_field(False)
+    visualize_plan: bool = False
     """Visualize motion plan in Rerun. Note: only works for env 0."""
 
-    debug_planner: bool = config_field(False)
+    debug_planner: bool = False
     """Enable detailed motion planning debug information."""
 
-    sphere_update_freq: int = config_field(5)
+    sphere_update_freq: int = 5
     """Frequency to update sphere visualization, specified in number of frames."""
 
-    motion_noise_scale: float = config_field(0.0)
+    motion_noise_scale: float = 0.0
     """Scale of Gaussian noise to add to the planned waypoints. Defaults to 0.0 (no noise)."""
 
     # Collision sphere configuration
-    collision_spheres_file: str | None = config_field(None)
+    collision_spheres_file: str | None = None
     """Collision spheres configuration file (auto-detected if None)."""
 
-    extra_collision_spheres: dict[str, int] = config_field({"attached_object": 100})
+    extra_collision_spheres: dict[str, int] = field(default_factory=lambda: {"attached_object": 100})
     """Extra collision spheres for attached objects."""
 
-    position_threshold: float = config_field(0.005)
+    position_threshold: float = 0.005
     """Position threshold for motion planning."""
 
-    rotation_threshold: float = config_field(0.05)
+    rotation_threshold: float = 0.05
     """Rotation threshold for motion planning."""
 
-    cuda_device: int | None = config_field(0)
+    cuda_device: int | None = 0
     """Preferred CUDA device index; None uses torch.cuda.current_device() (respects CUDA_VISIBLE_DEVICES)."""
 
     def get_world_config(self) -> WorldConfig:

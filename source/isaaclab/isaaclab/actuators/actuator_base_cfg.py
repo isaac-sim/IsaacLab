@@ -5,17 +5,18 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED, resolve_config
 
 
 def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
     """Return whether an actuator configuration resolves to an implicit actuator class.
 
     Reads the :attr:`~isaaclab.actuators.ActuatorBase.is_implicit_model` class flag.
-    Lazily resolving string references participate through attribute forwarding.
+    Callable import strings are resolved at this consumer boundary.
     """
+    resolve_config(cfg)
     return bool(getattr(cfg.class_type, "is_implicit_model", False))
 
 
@@ -23,20 +24,20 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
 class ActuatorBaseCfg:
     """Configuration for default actuators in an articulation."""
 
-    class_type: type = config_field(MISSING)
+    class_type: type = REQUIRED
     """The associated actuator class.
 
     The class should inherit from :class:`isaaclab.actuators.ActuatorBase`.
     """
 
-    joint_names_expr: list[str] = config_field(MISSING)
+    joint_names_expr: list[str] = REQUIRED
     """Articulation's joint names that are part of the group.
 
     Note:
         This can be a list of joint names or a list of regex expressions (e.g. ".*").
     """
 
-    actuator_effort_limit: dict[str, float] | float | None = config_field(None)
+    actuator_effort_limit: dict[str, float] | float | None = None
     """Actuator-model effort clipping limit [N or N·m, depending on joint type].
 
     The actuator's rated force/torque reflected at the joint. Explicit actuator models
@@ -49,7 +50,7 @@ class ActuatorBaseCfg:
     angle-dependent limits in its ``joint_parameter_lookup``.
     """
 
-    actuator_velocity_limit: dict[str, float] | float | None = config_field(None)
+    actuator_velocity_limit: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group. Defaults to None.
 
     This limit is used by the actuator model. If None, the limit is set to the value specified
@@ -70,34 +71,34 @@ class ActuatorBaseCfg:
         :attr:`joint_velocity_limit` is set, it also serves as the joint velocity limit.
     """
 
-    joint_effort_limit: dict[str, float] | float | None = config_field(None)
+    joint_effort_limit: dict[str, float] | float | None = None
     """Construction-time joint solver effort override [N or N·m, depending on joint type].
 
     The live value is owned by :class:`isaaclab.assets.ArticulationData`.
     """
 
-    joint_velocity_limit: dict[str, float] | float | None = config_field(None)
+    joint_velocity_limit: dict[str, float] | float | None = None
     """Construction-time requested joint solver velocity limit [m/s or rad/s, depending on joint type].
 
     The live value is owned by :class:`isaaclab.assets.ArticulationData`; enforcement is
     backend-dependent.
     """
 
-    effort_limit_sim: dict[str, float] | float | None = config_field(None)
+    effort_limit_sim: dict[str, float] | float | None = None
     """Deprecated alias for :attr:`joint_effort_limit`.
 
     .. deprecated:: 3.0
         Use :attr:`joint_effort_limit` instead. This alias will be removed in 4.0.
     """
 
-    velocity_limit_sim: dict[str, float] | float | None = config_field(None)
+    velocity_limit_sim: dict[str, float] | float | None = None
     """Deprecated alias for :attr:`joint_velocity_limit`.
 
     .. deprecated:: 3.0
         Use :attr:`joint_velocity_limit` instead. This alias will be removed in 4.0.
     """
 
-    stiffness: dict[str, float] | float | None = config_field(MISSING)
+    stiffness: dict[str, float] | float | None = REQUIRED
     """Stiffness gains (also known as p-gain) of the joints in the group.
 
     The behavior of the stiffness is different for implicit and explicit actuators. For implicit actuators,
@@ -107,7 +108,7 @@ class ActuatorBaseCfg:
     If None, the stiffness is set to the value from the USD joint prim.
     """
 
-    damping: dict[str, float] | float | None = config_field(MISSING)
+    damping: dict[str, float] | float | None = REQUIRED
     """Damping gains (also known as d-gain) of the joints in the group.
 
     The behavior of the damping is different for implicit and explicit actuators. For implicit actuators,
@@ -117,7 +118,7 @@ class ActuatorBaseCfg:
     If None, the damping is set to the value from the USD joint prim.
     """
 
-    armature: dict[str, float] | float | None = config_field(None)
+    armature: dict[str, float] | float | None = None
     """Armature of the joints in the group. Defaults to None.
 
     The armature is directly added to the corresponding joint-space inertia. It helps improve the
@@ -128,7 +129,7 @@ class ActuatorBaseCfg:
     If None, the armature is set to the value from the USD joint prim.
     """
 
-    friction: dict[str, float] | float | None = config_field(None)
+    friction: dict[str, float] | float | None = None
     """The static (Coulomb) joint friction effort of the joints in the group
     [N or N·m, depending on joint type]. Defaults to None.
 
@@ -141,7 +142,7 @@ class ActuatorBaseCfg:
     constraint that may allow slight creep below the threshold.
     """
 
-    dynamic_friction: dict[str, float] | float | None = config_field(None)
+    dynamic_friction: dict[str, float] | float | None = None
     """The dynamic (kinetic) joint friction effort of the joints in the group
     [N or N·m, depending on joint type]. Defaults to None.
 
@@ -150,7 +151,7 @@ class ActuatorBaseCfg:
     If None, the joint dynamic friction is set to the value from the USD joint prim.
     """
 
-    viscous_friction: dict[str, float] | float | None = config_field(None)
+    viscous_friction: dict[str, float] | float | None = None
     """The viscous joint friction coefficient of the joints in the group
     [N·s/m or N·m·s/rad, depending on joint type]. Defaults to None.
 
@@ -159,7 +160,7 @@ class ActuatorBaseCfg:
     If None, the joint viscous friction is set to the value from the USD joint prim.
     """
 
-    effort_limit: dict[str, float] | float | None = config_field(None)
+    effort_limit: dict[str, float] | float | None = None
     """Deprecated effort limit [N or N·m, depending on joint type].
 
     .. deprecated:: 3.0
@@ -167,7 +168,7 @@ class ActuatorBaseCfg:
         actuators, use :attr:`joint_effort_limit`. This alias will be removed in 4.0.
     """
 
-    velocity_limit: dict[str, float] | float | None = config_field(None)
+    velocity_limit: dict[str, float] | float | None = None
     """Deprecated velocity limit [m/s or rad/s, depending on joint type].
 
     .. deprecated:: 3.0

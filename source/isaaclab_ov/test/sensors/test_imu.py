@@ -28,6 +28,7 @@ first import can fail native symbol resolution after ``ovphysx.reset()``.
 
 from __future__ import annotations
 
+from dataclasses import field
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -35,7 +36,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 import pytest
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 _TT_module = pytest.importorskip(
@@ -172,8 +173,8 @@ def _make_imu(prim_path: str, offset: ImuCfg.OffsetCfg | None = None) -> Imu:
 class _StaleResetSceneCfg(InteractiveSceneCfg):
     """Minimal scene for the post-reset staleness regression test."""
 
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
             spawn=sim_utils.CuboidCfg(
@@ -184,7 +185,7 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    imu_cube: ImuCfg = config_field(ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
+    imu_cube: ImuCfg = field(default_factory=lambda: ImuCfg(prim_path="{ENV_REGEX_NS}/cube"))
 
 
 # ---------------------------------------------------------------------------

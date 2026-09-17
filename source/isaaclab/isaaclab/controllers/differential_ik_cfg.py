@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from .differential_ik import DifferentialIKController
@@ -18,27 +18,27 @@ if TYPE_CHECKING:
 class DifferentialIKControllerCfg:
     """Configuration for differential inverse kinematics controller."""
 
-    class_type: type[DifferentialIKController] | str = config_field("{DIR}.differential_ik:DifferentialIKController")
+    class_type: type[DifferentialIKController] | str = "isaaclab.controllers.differential_ik:DifferentialIKController"
     """The associated controller class."""
 
-    command_type: Literal["position", "pose"] = config_field(MISSING)
+    command_type: Literal["position", "pose"] = REQUIRED
     """Type of task-space command to control the articulation's body.
 
     If "position", then the controller only controls the position of the articulation's body.
     Otherwise, the controller controls the pose of the articulation's body.
     """
 
-    use_relative_mode: bool = config_field(False)
+    use_relative_mode: bool = False
     """Whether to use relative mode for the controller. Defaults to False.
 
     If True, then the controller treats the input command as a delta change in the position/pose.
     Otherwise, the controller treats the input command as the absolute position/pose.
     """
 
-    ik_method: Literal["pinv", "svd", "trans", "dls", "adaptive_dls"] = config_field(MISSING)
+    ik_method: Literal["pinv", "svd", "trans", "dls", "adaptive_dls"] = REQUIRED
     """Method for computing inverse of Jacobian."""
 
-    ik_params: dict[str, float] | None = config_field(None)
+    ik_params: dict[str, float] | None = None
     """Parameters for the inverse-kinematics method. Defaults to None, in which case the default
     parameters for the method are used.
 
@@ -60,7 +60,7 @@ class DifferentialIKControllerCfg:
           (default: 0.02).
     """
 
-    orientation_weight: float | tuple[float, float, float] | None = config_field(None)
+    orientation_weight: float | tuple[float, float, float] | None = None
     """Soft weight on the orientation task rows for ``"pose"`` command types. Defaults to ``None``
     (the orientation rows keep weight 1, i.e. unchanged behavior).
 
@@ -72,7 +72,7 @@ class DifferentialIKControllerCfg:
     error into the position rows. Ignored for ``"position"`` command types.
     """
 
-    joint_limit_avoidance_gain: float = config_field(0.0)
+    joint_limit_avoidance_gain: float = 0.0
     """Gain for the null-space joint-limit-avoidance bias. ``0`` disables it (default).
 
     When positive, a center-seeking joint velocity (active only within
@@ -83,7 +83,7 @@ class DifferentialIKControllerCfg:
     (the IK action term injects them automatically when ``joint_limit_avoidance_gain > 0``).
     """
 
-    joint_limit_avoidance_margin: float = config_field(0.3)
+    joint_limit_avoidance_margin: float = 0.3
     """Joint-range margin within which the joint-limit-avoidance bias activates (1 at the limit,
     ramping to 0 at ``joint_limit_avoidance_margin`` away from it). Units match the joints
     (e.g. [rad] for revolute joints)."""

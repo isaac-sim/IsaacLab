@@ -28,9 +28,8 @@ The rest of the environment is similar to the previous tutorials.
 
 from __future__ import annotations
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -145,12 +144,12 @@ class CubeActionTerm(ActionTerm):
 class CubeActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
 
-    class_type: type = config_field(CubeActionTerm)
+    class_type: type = CubeActionTerm
     """The class corresponding to the action term."""
 
-    p_gain: float = config_field(5.0)
+    p_gain: float = 5.0
     """Proportional gain of the PD controller."""
-    d_gain: float = config_field(0.5)
+    d_gain: float = 0.5
     """Derivative gain of the PD controller."""
 
 
@@ -179,11 +178,13 @@ class MySceneCfg(InteractiveSceneCfg):
     """
 
     # add terrain
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False))
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+    )
 
     # add cube
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -197,8 +198,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2000.0),
         )
@@ -214,7 +215,7 @@ class MySceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos: Any = config_field(CubeActionTermCfg(asset_name="cube"))
+    joint_pos: Any = field(default_factory=lambda: CubeActionTermCfg(asset_name="cube"))
 
 
 @dataclass
@@ -226,14 +227,16 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # cube velocity
-        position: Any = config_field(ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")}))
+        position: Any = field(
+            default_factory=lambda: ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")})
+        )
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -243,8 +246,8 @@ class EventCfg:
     # This event term resets the base position of the cube.
     # The mode is set to 'reset', which means that the base position is reset whenever
     # the environment instance is reset (because of terminations defined in 'TerminationCfg').
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -263,8 +266,8 @@ class EventCfg:
     # The mode is set to 'prestartup', which means that the scale is randomize on the USD stage before the
     # simulation starts.
     # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
-    randomize_scale: Any = config_field(
-        EventTerm(
+    randomize_scale: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_scale,
             mode="prestartup",
             params={
@@ -277,8 +280,8 @@ class EventCfg:
     # This event term randomizes the visual color of the cube.
     # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
     # 'replicate_physics' to be set to False.
-    randomize_color: Any = config_field(
-        EventTerm(
+    randomize_color: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_color,
             mode="prestartup",
             params={
@@ -304,12 +307,14 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
     # across multiple environments but rather each environment gets its own cube instance.
     # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = config_field(MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False))
+    scene: MySceneCfg = field(
+        default_factory=lambda: MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
+    )
 
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    events: EventCfg = config_field(EventCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

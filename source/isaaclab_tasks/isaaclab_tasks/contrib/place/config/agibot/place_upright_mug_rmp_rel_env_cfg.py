@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
@@ -20,7 +20,7 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import REQUIRED, copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -46,12 +46,14 @@ from typing import Any
 class EventCfgPlaceUprightMug:
     """Configuration for events."""
 
-    reset_all: Any = config_field(
-        EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    reset_all: Any = field(
+        default_factory=lambda: EventTerm(
+            func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True}
+        )
     )
 
-    randomize_mug_positions: Any = config_field(
-        EventTerm(
+    randomize_mug_positions: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -81,24 +83,28 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        mug_positions: Any = config_field(
-            ObsTerm(
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        mug_positions: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=place_mdp.object_poses_in_base_frame,
                 params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"},
             )
         )
-        mug_orientations: Any = config_field(
-            ObsTerm(
+        mug_orientations: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=place_mdp.object_poses_in_base_frame,
                 params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
             )
         )
-        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"}))
-        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"}))
-        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
+        eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"})
+        )
+        eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"})
+        )
+        gripper_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -108,8 +114,8 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp: Any = config_field(
-            ObsTerm(
+        grasp: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=place_mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -125,8 +131,8 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    subtask_terms: SubtaskCfg = field(default_factory=SubtaskCfg)
 
 
 @dataclass
@@ -134,24 +140,24 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
-    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
+    arm_action: mdp.JointPositionActionCfg = REQUIRED
+    gripper_action: mdp.BinaryJointPositionActionCfg = REQUIRED
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    mug_dropping: Any = config_field(
-        DoneTerm(
+    mug_dropping: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": -0.85, "asset_cfg": SceneEntityCfg("mug")}
         )
     )
 
-    success: Any = config_field(
-        DoneTerm(
+    success: Any = field(
+        default_factory=lambda: DoneTerm(
             func=place_mdp.object_placed_upright,
             params={
                 "robot_cfg": SceneEntityCfg("robot"),

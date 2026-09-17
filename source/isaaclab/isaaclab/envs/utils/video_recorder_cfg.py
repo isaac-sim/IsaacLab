@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from isaaclab.utils import config_field
-
 
 @dataclass
 class VideoRecorderCfg:
@@ -43,17 +41,17 @@ class VideoRecorderCfg:
     (e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`), not here.
     """
 
-    source: str = config_field("visualizer")
+    source: str = "visualizer"
     """Recording source.  See class docstring for the source string format."""
 
-    output_dir: str | None = config_field(None)
+    output_dir: str | None = None
     """Directory for output mp4 files (created on demand).
 
     ``None`` (default): when recording is enabled via ``--video``, the RL entrypoint sets
     this to ``<log_dir>/videos/<subdir>`` automatically.  Set an explicit path to override.
     """
 
-    fps: int | None = config_field(None)
+    fps: int | None = None
     """Output video frame rate in frames per second.
 
     ``None`` (default): resolved automatically from the environment at recording time
@@ -61,22 +59,22 @@ class VideoRecorderCfg:
     ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
     """
 
-    video_length: int = config_field(200)
+    video_length: int = 200
     """Number of env steps captured per clip."""
 
-    video_interval: int = config_field(0)
+    video_interval: int = 0
     """Start a new clip every ``video_interval`` env steps after :attr:`step_offset`.
 
     ``0`` means a single clip starts at :attr:`step_offset` and the recorder is inactive
     afterwards.  Set to a positive integer to record recurring clips at that cadence.
     """
 
-    step_offset: int = config_field(0)
+    step_offset: int = 0
     """Number of env steps to skip before the first clip starts.  Defaults to 0 (record
     from the very first step).  Applies to both one-shot and recurring recordings.
     """
 
-    frame_stride: int = config_field(1)
+    frame_stride: int = 1
     """Capture one frame every ``frame_stride`` env steps within a clip.  Defaults to 1
     (capture every step).  Increase to sub-sample the recording — e.g. ``frame_stride=2``
     records half as many frames, halving file size at the cost of temporal resolution.
@@ -84,7 +82,7 @@ class VideoRecorderCfg:
     and closed after ``video_length`` env steps.
     """
 
-    output_filename_prefix: str = config_field("clip")
+    output_filename_prefix: str = "clip"
     """Prefix for output clip filenames.  Each clip is written as
     ``<output_dir>/<output_filename_prefix>_<index>.mp4``.
 
@@ -99,15 +97,15 @@ class VideoRecorderCfg:
     produces ``videos/viewport_0000.mp4`` and ``videos/wrist_0000.mp4`` side-by-side.
     """
 
-    depth_colormap_min: float = config_field(0.1)
+    depth_colormap_min: float = 0.1
     """Near-clip [m] for the turbo depth colormap used when ``source`` ends with ``:depth``.
     Values closer than this are clamped to the minimum color."""
 
-    depth_colormap_max: float = config_field(10.0)
+    depth_colormap_max: float = 10.0
     """Far-clip [m] for the turbo depth colormap used when ``source`` ends with ``:depth``.
     Values farther than this are clamped to the maximum color."""
 
-    keep_last_n_clips: int | None = config_field(None)
+    keep_last_n_clips: int | None = None
     """If set, delete older clips so that at most this many clips are kept on disk at any
     time.  Older clips (by index) are removed immediately after a new one is written.
 

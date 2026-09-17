@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -17,7 +17,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.datasets import EpisodeData
 from isaaclab.visualizers import VisualizerCfg
@@ -48,8 +47,8 @@ ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
 
 @dataclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
-    packing_table_2: Any = config_field(
-        AssetBaseCfg(
+    packing_table_2: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/PackingTable2",
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=[-2, -3.55, -0.3],
@@ -132,14 +131,14 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 
     @dataclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
-        robot_pov_cam: Any = config_field(
-            ObsTerm(
+        robot_pov_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=manip_mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
             )
         )
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -147,15 +146,15 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
     """Configuration for the G1 29DoF environment."""
 
     # Scene settings
-    scene: G1LocomanipulationSDGSceneCfg = config_field(
-        G1LocomanipulationSDGSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
+    scene: G1LocomanipulationSDGSceneCfg = field(
+        default_factory=lambda: G1LocomanipulationSDGSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
     )
-    recorders: LocomanipulationSDGRecorderManagerCfg = config_field(LocomanipulationSDGRecorderManagerCfg())
-    observations: G1LocomanipulationSDGObservationsCfg = config_field(G1LocomanipulationSDGObservationsCfg())
+    recorders: LocomanipulationSDGRecorderManagerCfg = field(default_factory=LocomanipulationSDGRecorderManagerCfg)
+    observations: G1LocomanipulationSDGObservationsCfg = field(default_factory=G1LocomanipulationSDGObservationsCfg)
 
-    background_usd_path: str | None = config_field(None)
-    background_occupancy_yaml_file: str | None = config_field(None)
-    high_res_video: bool = config_field(False)
+    background_usd_path: str | None = None
+    background_occupancy_yaml_file: str | None = None
+    high_res_video: bool = False
 
     def __post_init__(self):
         """Post initialization."""

@@ -3,37 +3,35 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
 @dataclass
 class AllegroHandManagerPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(24)
-    max_iterations: Any = config_field(5000)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("allegro_hand")
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 24
+    max_iterations: Any = 5000
+    save_interval: Any = 50
+    experiment_name: Any = "allegro_hand"
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 256, 128],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 256, 128],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -52,27 +50,27 @@ class AllegroHandManagerPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @dataclass
 class AllegroHandDirectPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(16)
-    max_iterations: Any = config_field(10000)
-    save_interval: Any = config_field(250)
-    experiment_name: Any = config_field("allegro_hand_direct")
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 16
+    max_iterations: Any = 10000
+    save_interval: Any = 250
+    experiment_name: Any = "allegro_hand_direct"
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[1024, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[1024, 512, 256, 128],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

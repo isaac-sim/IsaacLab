@@ -10,7 +10,7 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -24,7 +24,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
@@ -40,8 +40,8 @@ from isaaclab_assets.robots.shadow_hand import (
 class ShadowHandRandomizationEventCfg:
     """Randomization of the hand and the object, applied on every physics backend."""
 
-    robot_joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    robot_joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             min_step_count_between_reset=720,
             mode="reset",
@@ -54,8 +54,8 @@ class ShadowHandRandomizationEventCfg:
             },
         )
     )
-    object_scale_mass: Any = config_field(
-        EventTerm(
+    object_scale_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             min_step_count_between_reset=720,
             mode="reset",
@@ -70,8 +70,8 @@ class ShadowHandRandomizationEventCfg:
     )
 
     # -- scene
-    reset_gravity: Any = config_field(
-        EventTerm(
+    reset_gravity: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_physics_scene_gravity,
             mode="interval",
             is_global_time=True,
@@ -84,8 +84,8 @@ class ShadowHandRandomizationEventCfg:
         )
     )
 
-    robot_tendon_properties: Any = config_field(
-        EventTerm(
+    robot_tendon_properties: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_fixed_tendon_parameters,
             min_step_count_between_reset=720,
             mode="reset",
@@ -99,8 +99,8 @@ class ShadowHandRandomizationEventCfg:
         )
     )
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="reset",
             min_step_count_between_reset=720,
@@ -114,8 +114,8 @@ class ShadowHandRandomizationEventCfg:
         )
     )
 
-    object_physics_material: Any = config_field(
-        EventTerm(
+    object_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             min_step_count_between_reset=720,
             mode="reset",
@@ -134,8 +134,8 @@ class ShadowHandRandomizationEventCfg:
 class ShadowHandManagerResetEventCfg:
     """Only the per-episode state reset, with no domain randomization."""
 
-    reset_object: Any = config_field(
-        EventTerm(
+    reset_object: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_with_random_orientation,
             mode="reset",
             params={
@@ -146,8 +146,8 @@ class ShadowHandManagerResetEventCfg:
             },
         )
     )
-    reset_hand: Any = config_field(
-        EventTerm(
+    reset_hand: Any = field(
+        default_factory=lambda: EventTerm(
             func=reorient_mdp.reset_reorient_hand,
             mode="reset",
             params={
@@ -167,8 +167,8 @@ class ShadowHandManagerEventCfg(ShadowHandRandomizationEventCfg, ShadowHandManag
 class ShadowHandManagerEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
-    randomized: Any = config_field(ShadowHandManagerEventCfg())
-    default: Any = config_field(ShadowHandManagerResetEventCfg())
+    randomized: Any = field(default_factory=ShadowHandManagerEventCfg)
+    default: Any = field(default_factory=ShadowHandManagerResetEventCfg)
 
 
 @dataclass
@@ -181,23 +181,41 @@ class ShadowHandRobotCfg(PresetCfg):
     """
 
     # `spawn_path` authors only the prototype env; the scene clone plan replicates the rest (#7036).
-    newton_mjwarp: Any = config_field(
-        replace_config(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: replace_config(
             SHADOW_HAND_NEWTON_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=replace_config(SHADOW_HAND_NEWTON_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
         )
     )
-    isaacsim_physx: Any = config_field(
-        replace_config(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: replace_config(
             SHADOW_HAND_PHYSX_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=replace_config(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
         )
     )
-    physx: Any = config_field(isaacsim_physx)
-    ovphysx: Any = config_field(isaacsim_physx)
-    default: Any = config_field(newton_mjwarp)
+    physx: Any = field(
+        default_factory=lambda: replace_config(
+            SHADOW_HAND_PHYSX_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace_config(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
+        )
+    )
+    ovphysx: Any = field(
+        default_factory=lambda: replace_config(
+            SHADOW_HAND_PHYSX_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace_config(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: replace_config(
+            SHADOW_HAND_NEWTON_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace_config(SHADOW_HAND_NEWTON_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
+        )
+    )
 
 
 CUBE_CFG = RigidObjectCfg(
@@ -233,15 +251,15 @@ CUBE_CFG = RigidObjectCfg(
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 integrator="implicitfast",
                 njmax=200,
@@ -253,9 +271,30 @@ class PhysicsCfg(PresetCfg):
             num_substeps=2,
         )
     )
-    ovphysx: Any = config_field(OvPhysxCfg())
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
-    default: Any = config_field(newton_mjwarp)
+    ovphysx: Any = field(default_factory=OvPhysxCfg)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                bounce_threshold_velocity=0.2,
+                gpu_max_rigid_contact_count=2**23,
+                gpu_max_rigid_patch_count=2**23,
+            ),
+            ovphysx=OvPhysxCfg(),
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                integrator="implicitfast",
+                njmax=200,
+                nconmax=70,
+                impratio=10.0,
+                cone="elliptic",
+                update_data_interval=2,
+            ),
+            num_substeps=2,
+        )
+    )
 
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(

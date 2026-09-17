@@ -8,7 +8,7 @@
 The robot must keep its pelvis upright at a target height.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
@@ -26,7 +26,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
@@ -74,10 +74,10 @@ def _kamino_newton_cfg() -> NewtonCfg:
 class DrLegsPhysicsCfg(PresetCfg):
     """Physics backend presets for DR Legs."""
 
-    default: NewtonCfg = config_field(_kamino_newton_cfg())
-    newton_kamino: NewtonCfg = config_field(_kamino_newton_cfg())
-    isaacsim_physx: PhysxCfg = config_field(PhysxCfg())
-    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
+    default: NewtonCfg = field(default_factory=_kamino_newton_cfg)
+    newton_kamino: NewtonCfg = field(default_factory=_kamino_newton_cfg)
+    isaacsim_physx: PhysxCfg = field(default_factory=PhysxCfg)
+    physx: PhysxAutoCfg = field(default_factory=lambda: PhysxAutoCfg(isaacsim_physx=PhysxCfg()))
 
 
 ##
@@ -87,17 +87,19 @@ class DrLegsPhysicsCfg(PresetCfg):
 
 @dataclass
 class HoldPoseSceneCfg(InteractiveSceneCfg):
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0), physics_material=_PHYSICS_MATERIAL),
         )
     )
 
-    robot: Any = config_field(replace_config(DR_LEGS_IMPLICIT_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(
+        default_factory=lambda: replace_config(DR_LEGS_IMPLICIT_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
-    dome_light: Any = config_field(
-        AssetBaseCfg(
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/DomeLight",
             spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
         )
@@ -111,8 +113,8 @@ class HoldPoseSceneCfg(InteractiveSceneCfg):
 
 @dataclass
 class ActionsCfg:
-    joint_pos: Any = config_field(
-        mdp.JointPositionActionCfg(
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=DR_LEGS_ACTUATED_JOINTS,
             preserve_order=True,
@@ -133,21 +135,23 @@ def _physx_actions_cfg() -> ActionsCfg:
 class DrLegsActionsCfg(PresetCfg):
     """Backend-specific DR Legs action presets."""
 
-    default: ActionsCfg = config_field(ActionsCfg())
-    newton_kamino: ActionsCfg = config_field(ActionsCfg())
-    physx: ActionsCfg = config_field(_physx_actions_cfg())
-    isaacsim_physx: ActionsCfg = config_field(physx)
+    default: ActionsCfg = field(default_factory=ActionsCfg)
+    newton_kamino: ActionsCfg = field(default_factory=ActionsCfg)
+    physx: ActionsCfg = field(default_factory=_physx_actions_cfg)
+    isaacsim_physx: ActionsCfg = field(default_factory=_physx_actions_cfg)
 
 
 @dataclass
 class ObservationsCfg:
     @dataclass
     class PolicyCfg(ObsGroup):
-        projected_gravity: Any = config_field(ObsTerm(func=mdp.projected_gravity))
-        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _ACTUATED_JOINT_CFG}))
-        setpoint_hist: Any = config_field(
-            ObsTerm(
+        projected_gravity: Any = field(default_factory=lambda: ObsTerm(func=mdp.projected_gravity))
+        base_ang_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_ang_vel))
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": _ACTUATED_JOINT_CFG})
+        )
+        setpoint_hist: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_position_setpoints,
                 params={"action_term_name": "joint_pos"},
                 history_length=2,
@@ -161,21 +165,21 @@ class ObservationsCfg:
 
     @dataclass
     class CriticCfg(ObsGroup):
-        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel))
-        joint_vel_rel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel, scale=0.2))
+        base_lin_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_lin_vel))
+        joint_vel_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel, scale=0.2))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    policy: PolicyCfg = config_field(PolicyCfg())
-    critic: CriticCfg = config_field(CriticCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    critic: CriticCfg = field(default_factory=CriticCfg)
 
 
 @dataclass
 class EventCfg:
-    randomize_joint_params: Any = config_field(
-        EventTerm(
+    randomize_joint_params: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_joint_parameters,
             mode="startup",
             params={
@@ -187,8 +191,8 @@ class EventCfg:
         )
     )
 
-    randomize_actuator_gains: Any = config_field(
-        EventTerm(
+    randomize_actuator_gains: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             mode="startup",
             params={
@@ -201,8 +205,8 @@ class EventCfg:
         )
     )
 
-    physics_material: Any = config_field(
-        EventTerm(
+    physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -216,8 +220,8 @@ class EventCfg:
         )
     )
 
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -241,8 +245,8 @@ class EventCfg:
         )
     )
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -266,44 +270,50 @@ def _physx_event_cfg() -> EventCfg:
 class DrLegsEventCfg(PresetCfg):
     """Backend-specific DR Legs event presets."""
 
-    default: EventCfg = config_field(EventCfg())
-    newton_kamino: EventCfg = config_field(EventCfg())
-    physx: EventCfg = config_field(_physx_event_cfg())
-    isaacsim_physx: EventCfg = config_field(physx)
+    default: EventCfg = field(default_factory=EventCfg)
+    newton_kamino: EventCfg = field(default_factory=EventCfg)
+    physx: EventCfg = field(default_factory=_physx_event_cfg)
+    isaacsim_physx: EventCfg = field(default_factory=_physx_event_cfg)
 
 
 @dataclass
 class RewardsCfg:
-    alive: Any = config_field(RewTerm(func=mdp.is_alive, weight=5.0))
-    flat_orientation: Any = config_field(RewTerm(func=mdp.flat_orientation_l2, weight=-1.0))
-    height: Any = config_field(RewTerm(func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.265}))
-    lin_vel: Any = config_field(RewTerm(func=mdp.base_lin_vel_l2, weight=-1.0))
-    ang_vel: Any = config_field(RewTerm(func=mdp.base_ang_vel_l2, weight=-0.5))
-    joint_torque: Any = config_field(
-        RewTerm(
+    alive: Any = field(default_factory=lambda: RewTerm(func=mdp.is_alive, weight=5.0))
+    flat_orientation: Any = field(default_factory=lambda: RewTerm(func=mdp.flat_orientation_l2, weight=-1.0))
+    height: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.base_height_l2, weight=-1.0, params={"target_height": 0.265})
+    )
+    lin_vel: Any = field(default_factory=lambda: RewTerm(func=mdp.base_lin_vel_l2, weight=-1.0))
+    ang_vel: Any = field(default_factory=lambda: RewTerm(func=mdp.base_ang_vel_l2, weight=-0.5))
+    joint_torque: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_pd_command_l2,
             weight=-1.0e-5,
             params={"asset_cfg": _ACTUATED_JOINT_CFG, "stiffness": 5.0, "damping": 0.2},
         )
     )
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.1))
-    action_rate2: Any = config_field(RewTerm(func=mdp.ActionRate2L2, weight=-0.01))
-    joint_pos_deviation: Any = config_field(
-        RewTerm(
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-0.1))
+    action_rate2: Any = field(default_factory=lambda: RewTerm(func=mdp.ActionRate2L2, weight=-0.01))
+    joint_pos_deviation: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-2.0,
             params={"asset_cfg": _ACTUATED_JOINT_CFG},
         )
     )
     # Success metric (zero-weight, metric only): survived the full episode without falling/tilting.
-    success_rate: Any = config_field(RewTerm(func=mdp.survival_success_rate, weight=0.0))
+    success_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.survival_success_rate, weight=0.0))
 
 
 @dataclass
 class TerminationsCfg:
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
-    root_height: Any = config_field(DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.12}))
-    bad_orientation: Any = config_field(DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0}))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
+    root_height: Any = field(
+        default_factory=lambda: DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.12})
+    )
+    bad_orientation: Any = field(
+        default_factory=lambda: DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
+    )
 
 
 ##
@@ -315,14 +325,14 @@ class TerminationsCfg:
 class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     """DR Legs hold-pose environment."""
 
-    scene: HoldPoseSceneCfg = config_field(HoldPoseSceneCfg(num_envs=_NUM_ENVS, env_spacing=2.0))
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: DrLegsActionsCfg = config_field(DrLegsActionsCfg())
-    events: DrLegsEventCfg = config_field(DrLegsEventCfg())
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    scene: HoldPoseSceneCfg = field(default_factory=lambda: HoldPoseSceneCfg(num_envs=_NUM_ENVS, env_spacing=2.0))
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: DrLegsActionsCfg = field(default_factory=DrLegsActionsCfg)
+    events: DrLegsEventCfg = field(default_factory=DrLegsEventCfg)
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 150,
             render_interval=3,
             physics=DrLegsPhysicsCfg(),

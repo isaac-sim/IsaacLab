@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -36,22 +36,22 @@ class ContactSensorCfg(SensorBaseCfg):
     see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
     """
 
-    class_type: type["ContactSensor"] | str = config_field("{DIR}.contact_sensor:ContactSensor")
+    class_type: type["ContactSensor"] | str = "isaaclab.sensors.contact_sensor.contact_sensor:ContactSensor"
 
-    track_pose: bool = config_field(False)
+    track_pose: bool = False
     """Whether to track the pose of the sensor's origin. Defaults to False."""
 
-    track_contact_points: bool = config_field(False)
+    track_contact_points: bool = False
     """Whether to track the contact point locations. Defaults to False."""
 
-    track_friction_forces: bool = config_field(False)
+    track_friction_forces: bool = False
     """Whether to track friction contact forces. Defaults to False.
 
     Newton reports aggregate and per-filter friction forces. PhysX reports per-filter friction
     forces only and therefore requires :attr:`filter_prim_paths_expr`.
     """
 
-    max_contact_data_count_per_prim: int | None = config_field(None)
+    max_contact_data_count_per_prim: int | None = None
     """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4, where supported.
 
     This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
@@ -63,10 +63,10 @@ class ContactSensorCfg(SensorBaseCfg):
         errors and loss of contact data leading to inaccurate measurements.
     """
 
-    track_air_time: bool = config_field(False)
+    track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
 
-    force_threshold: float | None = config_field(None)
+    force_threshold: float | None = None
     """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
     Defaults to None, in which case the sensor backend chooses an appropriate value.
 
@@ -74,7 +74,7 @@ class ContactSensorCfg(SensorBaseCfg):
     if :attr:`track_air_time` is True.
     """
 
-    history_length: int = config_field(0)
+    history_length: int = 0
     """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
     the current data is stored (no history).
 
@@ -83,7 +83,7 @@ class ContactSensorCfg(SensorBaseCfg):
     until it is read at a later environment step.
     """
 
-    filter_prim_paths_expr: list[str] = config_field([])
+    filter_prim_paths_expr: list[str] = field(default_factory=list)
     """List of body prim path expressions to filter contacts against. Defaults to empty,
     meaning contacts with all bodies are aggregated into the net force.
 
@@ -105,7 +105,7 @@ class ContactSensorCfg(SensorBaseCfg):
         ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
     """
 
-    sensor_shape_prim_expr: list[str] = config_field([])
+    sensor_shape_prim_expr: list[str] = field(default_factory=list)
     """List of shape prim path expressions for shape-level contact sensing. Defaults to empty,
     meaning sensing is at the body level (via :attr:`~isaaclab.sensors.SensorBaseCfg.prim_path`).
 
@@ -117,7 +117,7 @@ class ContactSensorCfg(SensorBaseCfg):
     write ``{ENV_REGEX_NS}/Box[^/]*/.*`` to reach the shapes below it.
     """
 
-    filter_shape_prim_expr: list[str] = config_field([])
+    filter_shape_prim_expr: list[str] = field(default_factory=list)
     """List of shape prim path expressions to filter contacts against at the shape level. Defaults to
     empty, meaning filter partners are resolved at the body level (via :attr:`filter_prim_paths_expr`).
 
@@ -127,8 +127,8 @@ class ContactSensorCfg(SensorBaseCfg):
     Matched against shape paths on the same terms as :attr:`sensor_shape_prim_expr`.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = config_field(
-        replace_config(CONTACT_SENSOR_MARKER_CFG, prim_path="/Visuals/ContactSensor")
+    visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: replace_config(CONTACT_SENSOR_MARKER_CFG, prim_path="/Visuals/ContactSensor")
     )
     """The configuration object for the visualization markers. Defaults to CONTACT_SENSOR_MARKER_CFG.
 
@@ -136,11 +136,15 @@ class ContactSensorCfg(SensorBaseCfg):
         This attribute is only used when debug visualization is enabled.
     """
 
-    normal_force_visualizer_cfg: VisualizationMarkersCfg = config_field(_force_visualizer_cfg(BLUE_ARROW_X_MARKER_CFG))
+    normal_force_visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: _force_visualizer_cfg(BLUE_ARROW_X_MARKER_CFG)
+    )
     """Configuration for net normal-force arrows."""
 
-    friction_force_visualizer_cfg: VisualizationMarkersCfg = config_field(_force_visualizer_cfg(RED_ARROW_X_MARKER_CFG))
+    friction_force_visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: _force_visualizer_cfg(RED_ARROW_X_MARKER_CFG)
+    )
     """Configuration for net friction-force arrows."""
 
-    force_visualization_scale: float = config_field(0.01)
+    force_visualization_scale: float = 0.01
     """Arrow length per force magnitude [m/N]."""

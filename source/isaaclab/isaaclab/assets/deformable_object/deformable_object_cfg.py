@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import DEFORMABLE_TARGET_MARKER_CFG
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 if TYPE_CHECKING:
     from .deformable_object import DeformableObject
@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 class DeformableObjectCfg(AssetBaseCfg):
     """Configuration parameters for a deformable object."""
 
-    class_type: type[DeformableObject] | str = config_field("{DIR}.deformable_object:DeformableObject")
+    class_type: type[DeformableObject] | str = "isaaclab.assets.deformable_object.deformable_object:DeformableObject"
 
-    visualizer_cfg: VisualizationMarkersCfg = config_field(
-        replace_config(DEFORMABLE_TARGET_MARKER_CFG, prim_path="/Visuals/DeformableTarget")
+    visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: replace_config(DEFORMABLE_TARGET_MARKER_CFG, prim_path="/Visuals/DeformableTarget")
     )
     """The configuration object for the visualization markers. Defaults to DEFORMABLE_TARGET_MARKER_CFG.
 

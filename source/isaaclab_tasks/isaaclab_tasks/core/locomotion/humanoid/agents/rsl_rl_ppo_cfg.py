@@ -13,37 +13,35 @@ Ensure that the configurations for the other RL libraries are updated if this on
 ====================================================================================================
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
 @dataclass
 class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(32)
-    max_iterations: Any = config_field(1000)
-    save_interval: Any = config_field(100)
-    experiment_name: Any = config_field("humanoid")
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 32
+    max_iterations: Any = 1000
+    save_interval: Any = 100
+    experiment_name: Any = "humanoid"
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[400, 200, 100],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[400, 200, 100],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=2.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -62,4 +60,4 @@ class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @dataclass
 class HumanoidDirectPPORunnerCfg(HumanoidPPORunnerCfg):
-    experiment_name: Any = config_field("humanoid_direct")
+    experiment_name: Any = "humanoid_direct"

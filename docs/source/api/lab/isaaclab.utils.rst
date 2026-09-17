@@ -31,11 +31,11 @@
 
    .. autosummary::
 
-      config_field
       config_to_dict
       update_config
       replace_config
       copy_config
+      resolve_config
       validate_config
 
    .. Rubric:: Deprecated functions

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
@@ -15,7 +15,6 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import config_field
 
 from .factory_tasks_cfg import ASSET_DIR, FactoryTask, GearMesh, NutThread, PegInsert
 
@@ -48,7 +47,7 @@ STATE_DIM_CFG = {
 
 @dataclass
 class ObsRandCfg:
-    fixed_asset_pos: Any = config_field([0.001, 0.001, 0.001])
+    fixed_asset_pos: Any = field(default_factory=lambda: [0.001, 0.001, 0.001])
 
 
 @dataclass
@@ -65,35 +64,41 @@ class CtrlCfg:
     :class:`~isaaclab_tasks.contrib.forge.forge_env_cfg.ForgeCtrlCfg`.
     """
 
-    ema_factor: Any = config_field(0.2)
+    ema_factor: Any = 0.2
 
-    pos_action_bounds: Any = config_field([0.05, 0.05, 0.05])
-    rot_action_bounds: Any = config_field([1.0, 1.0, 1.0])
+    pos_action_bounds: Any = field(default_factory=lambda: [0.05, 0.05, 0.05])
+    rot_action_bounds: Any = field(default_factory=lambda: [1.0, 1.0, 1.0])
 
-    pos_action_threshold: Any = config_field([0.02, 0.02, 0.02])
-    rot_action_threshold: Any = config_field([0.097, 0.097, 0.097])
+    pos_action_threshold: Any = field(default_factory=lambda: [0.02, 0.02, 0.02])
+    rot_action_threshold: Any = field(default_factory=lambda: [0.097, 0.097, 0.097])
 
-    reset_joints: Any = config_field([1.5178e-03, -1.9651e-01, -1.4364e-03, -1.9761, -2.7717e-04, 1.7796, 7.8556e-01])
-    reset_task_prop_gains: Any = config_field([300, 300, 300, 20, 20, 20])
-    reset_rot_deriv_scale: Any = config_field(10.0)
-    default_task_prop_gains: Any = config_field([100, 100, 100, 30, 30, 30])
+    reset_joints: Any = field(
+        default_factory=lambda: [1.5178e-03, -1.9651e-01, -1.4364e-03, -1.9761, -2.7717e-04, 1.7796, 7.8556e-01]
+    )
+    reset_task_prop_gains: Any = field(default_factory=lambda: [300, 300, 300, 20, 20, 20])
+    reset_rot_deriv_scale: Any = 10.0
+    default_task_prop_gains: Any = field(default_factory=lambda: [100, 100, 100, 30, 30, 30])
 
     # Null space parameters.
-    default_dof_pos_tensor: Any = config_field([-1.3003, -0.4015, 1.1791, -2.1493, 0.4001, 1.9425, 0.4754])
-    kp_null: Any = config_field(10.0)
-    kd_null: Any = config_field(6.3246)
+    default_dof_pos_tensor: Any = field(
+        default_factory=lambda: [-1.3003, -0.4015, 1.1791, -2.1493, 0.4001, 1.9425, 0.4754]
+    )
+    kp_null: Any = 10.0
+    kd_null: Any = 6.3246
 
 
 @dataclass
 class FactoryEnvCfg(DirectRLEnvCfg):
-    decimation: Any = config_field(8)
-    action_space: Any = config_field(6)
+    decimation: Any = 8
+    action_space: Any = 6
     # num_*: will be overwritten to correspond to obs_order, state_order.
-    observation_space: Any = config_field(21)
-    state_space: Any = config_field(72)
-    obs_order: list = config_field(["fingertip_pos_rel_fixed", "fingertip_quat", "ee_linvel", "ee_angvel"])
-    state_order: list = config_field(
-        [
+    observation_space: Any = 21
+    state_space: Any = 72
+    obs_order: list = field(
+        default_factory=lambda: ["fingertip_pos_rel_fixed", "fingertip_quat", "ee_linvel", "ee_angvel"]
+    )
+    state_order: list = field(
+        default_factory=lambda: [
             "fingertip_pos",
             "fingertip_quat",
             "ee_linvel",
@@ -107,14 +112,14 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         ]
     )
 
-    task_name: str = config_field("peg_insert")  # peg_insert, gear_mesh, nut_thread
-    task: FactoryTask = config_field(FactoryTask())
-    obs_rand: ObsRandCfg = config_field(ObsRandCfg())
-    ctrl: CtrlCfg = config_field(CtrlCfg())
+    task_name: str = "peg_insert"  # peg_insert, gear_mesh, nut_thread
+    task: FactoryTask = field(default_factory=FactoryTask)
+    obs_rand: ObsRandCfg = field(default_factory=ObsRandCfg)
+    ctrl: CtrlCfg = field(default_factory=CtrlCfg)
 
-    episode_length_s: Any = config_field(10.0)  # Probably need to override.
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    episode_length_s: Any = 10.0  # Probably need to override.
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             device="cuda:0",
             dt=1 / 120,
             gravity=(0.0, 0.0, -9.81),
@@ -137,10 +142,12 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         )
     )
 
-    scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=True))
+    scene: InteractiveSceneCfg = field(
+        default_factory=lambda: InteractiveSceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=True)
+    )
 
-    robot: Any = config_field(
-        ArticulationCfg(
+    robot: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ASSET_DIR}/franka_mimic.usd",
@@ -213,20 +220,20 @@ class FactoryEnvCfg(DirectRLEnvCfg):
 
 @dataclass
 class FactoryTaskPegInsertCfg(FactoryEnvCfg):
-    task_name: Any = config_field("peg_insert")
-    task: Any = config_field(PegInsert())
-    episode_length_s: Any = config_field(10.0)
+    task_name: Any = "peg_insert"
+    task: Any = field(default_factory=PegInsert)
+    episode_length_s: Any = 10.0
 
 
 @dataclass
 class FactoryTaskGearMeshCfg(FactoryEnvCfg):
-    task_name: Any = config_field("gear_mesh")
-    task: Any = config_field(GearMesh())
-    episode_length_s: Any = config_field(20.0)
+    task_name: Any = "gear_mesh"
+    task: Any = field(default_factory=GearMesh)
+    episode_length_s: Any = 20.0
 
 
 @dataclass
 class FactoryTaskNutThreadCfg(FactoryEnvCfg):
-    task_name: Any = config_field("nut_thread")
-    task: Any = config_field(NutThread())
-    episode_length_s: Any = config_field(30.0)
+    task_name: Any = "nut_thread"
+    task: Any = field(default_factory=NutThread)
+    episode_length_s: Any = 30.0

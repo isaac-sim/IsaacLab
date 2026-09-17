@@ -6,8 +6,6 @@
 
 from dataclasses import dataclass
 
-from isaaclab.utils import config_field
-
 from .lee_attitude_control import LeeAttController
 from .lee_controller_base_cfg import LeeControllerBaseCfg
 
@@ -21,5 +19,5 @@ class LeeAttControllerCfg(LeeControllerBaseCfg):
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
     """
 
-    class_type: type = config_field(LeeAttController)
+    class_type: type = LeeAttController
     """The class type for the attitude controller."""

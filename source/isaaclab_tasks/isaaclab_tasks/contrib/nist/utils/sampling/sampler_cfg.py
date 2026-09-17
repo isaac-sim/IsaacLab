@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from isaaclab.utils import config_field
-
 from isaaclab_tasks.contrib.nist.utils.sampling.sampler import Sampler
 
 
@@ -24,9 +22,9 @@ class SamplerCfg:
         eps: Soft floor on per-item probability.
     """
 
-    class_type: type[Sampler] | str = config_field("{DIR}.sampler:Sampler")
+    class_type: type[Sampler] | str = "isaaclab_tasks.contrib.nist.utils.sampling.sampler:Sampler"
     """Runtime sampler class."""
     strategies: list = field(default_factory=list)
     """Weighted sampling-strategy cfgs composed by the sampler."""
-    eps: float = config_field(1e-3)
+    eps: float = 1e-3
     """Soft floor on per-item probability before normalization."""

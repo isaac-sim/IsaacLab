@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
@@ -23,7 +23,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -50,8 +50,8 @@ OBJECT_PHYSICS = {
 
 @dataclass
 class ObjectCfg(PresetCfg):
-    shapes: Any = config_field(
-        sim_utils.MultiAssetSpawnerCfg(
+    shapes: Any = field(
+        default_factory=lambda: sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
                 MeshCuboidCfg(size=(0.05, 0.1, 0.1), **OBJECT_PHYSICS),
                 MeshCuboidCfg(size=(0.05, 0.05, 0.1), **OBJECT_PHYSICS),
@@ -81,8 +81,8 @@ class ObjectCfg(PresetCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
         )
     )
-    cube: Any = config_field(
-        sim_utils.CuboidCfg(
+    cube: Any = field(
+        default_factory=lambda: sim_utils.CuboidCfg(
             size=(0.05, 0.05, 0.05),
             physics_material=RigidBodyMaterialCfg(static_friction=0.5),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -94,8 +94,50 @@ class ObjectCfg(PresetCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
         )
     )
-    default: Any = config_field(shapes)
-    ovphysx: Any = config_field(cube)
+    default: Any = field(
+        default_factory=lambda: sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                MeshCuboidCfg(size=(0.05, 0.1, 0.1), **OBJECT_PHYSICS),
+                MeshCuboidCfg(size=(0.05, 0.05, 0.1), **OBJECT_PHYSICS),
+                MeshCuboidCfg(size=(0.025, 0.1, 0.1), **OBJECT_PHYSICS),
+                MeshCuboidCfg(size=(0.025, 0.05, 0.1), **OBJECT_PHYSICS),
+                MeshCuboidCfg(size=(0.025, 0.025, 0.1), **OBJECT_PHYSICS),
+                MeshCuboidCfg(size=(0.01, 0.1, 0.1), **OBJECT_PHYSICS),
+                MeshSphereCfg(radius=0.05, **OBJECT_PHYSICS),
+                MeshSphereCfg(radius=0.025, **OBJECT_PHYSICS),
+                MeshCapsuleCfg(radius=0.04, height=0.025, **OBJECT_PHYSICS),
+                MeshCapsuleCfg(radius=0.04, height=0.01, **OBJECT_PHYSICS),
+                MeshCapsuleCfg(radius=0.04, height=0.1, **OBJECT_PHYSICS),
+                MeshCapsuleCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
+                MeshCapsuleCfg(radius=0.025, height=0.2, **OBJECT_PHYSICS),
+                MeshCapsuleCfg(radius=0.01, height=0.2, **OBJECT_PHYSICS),
+                MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
+                MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
+            ],
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=0,
+                disable_gravity=False,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(
+                mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
+            ),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+        )
+    )
+    ovphysx: Any = field(
+        default_factory=lambda: sim_utils.CuboidCfg(
+            size=(0.05, 0.05, 0.05),
+            physics_material=RigidBodyMaterialCfg(static_friction=0.5),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=0,
+                disable_gravity=False,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+        )
+    )
 
 
 @dataclass
@@ -103,11 +145,11 @@ class SceneCfg(InteractiveSceneCfg):
     """Lift Scene for multi-objects Lifting"""
 
     # robot
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
 
     # object
-    object: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    object: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             spawn=ObjectCfg(),  # type: ignore
             init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
@@ -115,8 +157,8 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     # table
-    table: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    table: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/table",
             spawn=TABLE_SPAWN_CFG,
             init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
@@ -124,8 +166,8 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     # plane
-    plane: Any = config_field(
-        AssetBaseCfg(
+    plane: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(),
             spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
@@ -134,8 +176,8 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    sky_light: Any = config_field(
-        AssetBaseCfg(
+    sky_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/skyLight",
             spawn=sim_utils.DomeLightCfg(
                 intensity=750.0,
@@ -149,8 +191,8 @@ class SceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    object_pose: Any = config_field(
-        mdp.ObjectUniformPoseCommandCfg(
+    object_pose: Any = field(
+        default_factory=lambda: mdp.ObjectUniformPoseCommandCfg(
             asset_name="robot",
             object_name="object",
             resampling_time_range=(4.0, 6.0),
@@ -191,11 +233,13 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        object_quat_b: Any = config_field(ObsTerm(func=mdp.object_quat_b, noise=Unoise(n_min=-0.0, n_max=0.0)))
-        target_object_pose_b: Any = config_field(
-            ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        object_quat_b: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.object_quat_b, noise=Unoise(n_min=-0.0, n_max=0.0))
         )
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        target_object_pose_b: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        )
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -206,10 +250,10 @@ class ObservationsCfg:
     class ProprioObsCfg(ObsGroup):
         """Observations for proprioception group."""
 
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0)))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0)))
-        hand_tips_state_b: Any = config_field(
-            ObsTerm(
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0)))
+        hand_tips_state_b: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.body_state_b,
                 noise=Unoise(n_min=-0.0, n_max=0.0),
                 # good behaving number for position in m, velocity in m/s, rad/s,
@@ -225,7 +269,7 @@ class ObservationsCfg:
                 },
             )
         )
-        contact: ObsTerm = config_field(MISSING)
+        contact: ObsTerm = REQUIRED
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -236,8 +280,8 @@ class ObservationsCfg:
     class PerceptionObsCfg(ObsGroup):
         """Observations for perception group."""
 
-        object_point_cloud: Any = config_field(
-            ObsTerm(
+        object_point_cloud: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_point_cloud_b,
                 noise=Unoise(n_min=-0.0, n_max=0.0),
                 clip=(-2.0, 2.0),  # clamp between -2 m to 2 m
@@ -253,17 +297,17 @@ class ObservationsCfg:
             self.history_length = 5
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    proprio: ProprioObsCfg = config_field(ProprioObsCfg())
-    perception: PerceptionObsCfg = config_field(PerceptionObsCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    proprio: ProprioObsCfg = field(default_factory=ProprioObsCfg)
+    perception: PerceptionObsCfg = field(default_factory=PerceptionObsCfg)
 
 
 @dataclass
 class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -276,8 +320,8 @@ class EventCfg:
         )
     )
 
-    object_physics_material: Any = config_field(
-        EventTerm(
+    object_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -290,8 +334,8 @@ class EventCfg:
         )
     )
 
-    object_physics_inertia: Any = config_field(
-        EventTerm(
+    object_physics_inertia: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_inertia,
             mode="startup",
             params={
@@ -303,8 +347,8 @@ class EventCfg:
         )
     )
 
-    joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             mode="startup",
             params={
@@ -316,8 +360,8 @@ class EventCfg:
         )
     )
 
-    joint_friction: Any = config_field(
-        EventTerm(
+    joint_friction: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_joint_parameters,
             mode="startup",
             params={
@@ -328,8 +372,8 @@ class EventCfg:
         )
     )
 
-    object_scale_mass: Any = config_field(
-        EventTerm(
+    object_scale_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="startup",
             params={
@@ -343,8 +387,8 @@ class EventCfg:
     # Gravity scheduling is a deliberate curriculum trick — starting with no
     # gravity (easy) and gradually introducing full gravity (hard) makes learning
     # smoother and removes the need for a separate "Lift" reward.
-    variable_gravity: Any = config_field(
-        EventTerm(
+    variable_gravity: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_physics_scene_gravity,
             mode="reset",
             params={
@@ -355,8 +399,8 @@ class EventCfg:
     )
 
     # robot configs add their static-obstacle geometry to ``params["valid_criteria"]``
-    conditional_reset: Any = config_field(
-        EventTerm(
+    conditional_reset: Any = field(
+        default_factory=lambda: EventTerm(
             func="isaaclab_tasks.core.lift.mdp.events:conditional_reset",
             mode="reset",
             params={
@@ -416,7 +460,7 @@ class EventCfg:
                             "probability": 0.25,
                             # robot configs must point this at their gripper body and may shift
                             # the z range along the approach axis (e.g. between the fingertips)
-                            "target_cfg": MISSING,
+                            "target_cfg": REQUIRED,
                             "asset_cfg": SceneEntityCfg("object"),
                         },
                     ),
@@ -426,7 +470,7 @@ class EventCfg:
                 # over the diversity feature; ``1.0`` keeps the states first-come instead.
                 "diversity_feature": mdp.GraspTravelDistanceCfg(
                     asset_name="robot",
-                    body_names=MISSING,  # overridden by robot configs
+                    body_names=REQUIRED,  # overridden by robot configs
                     object_name="object",
                     command_name="object_pose",
                 ),
@@ -440,7 +484,7 @@ class EventCfg:
                     ),
                     "robot_table_clearance": mdp.SlabClearanceCfg(
                         asset_name="robot",
-                        body_names=MISSING,  # overridden by robot configs
+                        body_names=REQUIRED,  # overridden by robot configs
                         object_name="object",
                         obstacle_slabs=[((-0.95, -0.15), (-0.75, 0.75), 0.255), (None, None, 0.0)],  # table dimension
                         num_object_points=64,
@@ -465,14 +509,16 @@ class ActionsCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    action_l2: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.01))
+    action_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-0.01))
 
-    fingers_to_object: Any = config_field(RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05))
+    fingers_to_object: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
+    )
 
     # Progress rewards pay once per ``min_improvement`` of ground gained on the best error so far,
     # so ground already credited cannot be earned again by backing off and re-approaching.
-    position_tracking: Any = config_field(
-        RewTerm(
+    position_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_progress,
             weight=5.0,
             params={
@@ -484,8 +530,8 @@ class RewardsCfg:
         )
     )
 
-    orientation_tracking: Any = config_field(
-        RewTerm(
+    orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.orientation_command_progress,
             weight=10.0,
             params={
@@ -497,8 +543,8 @@ class RewardsCfg:
         )
     )
 
-    success: Any = config_field(
-        RewTerm(
+    success: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.success_reward,
             weight=10,
             params={
@@ -511,8 +557,10 @@ class RewardsCfg:
         )
     )
 
-    early_termination: Any = config_field(
-        RewTerm(func=mdp.is_terminated_term, weight=-50, params={"term_keys": ["abnormal_robot"]})
+    early_termination: Any = field(
+        default_factory=lambda: RewTerm(
+            func=mdp.is_terminated_term, weight=-50, params={"term_keys": ["abnormal_robot"]}
+        )
     )
 
 
@@ -520,10 +568,10 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    object_out_of_bound: Any = config_field(
-        DoneTerm(
+    object_out_of_bound: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.out_of_bound,
             params={
                 "in_bound_range": {"x": (-1.5, 0.5), "y": (-2.0, 2.0), "z": (0.3, 2.0)},
@@ -532,26 +580,26 @@ class TerminationsCfg:
         )
     )
 
-    abnormal_robot: Any = config_field(DoneTerm(func=mdp.joint_vel_out_of_limit))
+    abnormal_robot: Any = field(default_factory=lambda: DoneTerm(func=mdp.joint_vel_out_of_limit))
 
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             bounce_threshold_velocity=0.01,
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
             gpu_found_lost_pairs_capacity=2**26,
         )
     )
-    ovphysx: Any = config_field(
-        OvPhysxCfg(
+    ovphysx: Any = field(
+        default_factory=lambda: OvPhysxCfg(
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
             gpu_found_lost_pairs_capacity=2**26,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
@@ -571,8 +619,40 @@ class PhysicsCfg(PresetCfg):
             debug_mode=False,
         )
     )
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
-    default: Any = config_field(newton_mjwarp)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                bounce_threshold_velocity=0.01,
+                gpu_max_rigid_patch_count=4 * 5 * 2**15,
+                gpu_found_lost_pairs_capacity=2**26,
+            ),
+            ovphysx=OvPhysxCfg(
+                gpu_max_rigid_patch_count=4 * 5 * 2**15,
+                gpu_found_lost_pairs_capacity=2**26,
+            ),
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=300,
+                nconmax=200,
+                impratio=1.0,
+                cone="pyramidal",
+                update_data_interval=2,
+                iterations=100,
+                ls_iterations=15,
+                use_mujoco_contacts=False,
+                ccd_iterations=35,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=4000000),
+            default_shape_cfg=NewtonShapeCfg(),
+            num_substeps=2,
+            debug_mode=False,
+        )
+    )
 
 
 @dataclass
@@ -580,16 +660,16 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     """Lift reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
 
     # Scene settings
-    scene: SceneCfg = config_field(SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True))
+    scene: SceneCfg = field(default_factory=lambda: SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    curriculum: CurriculumCfg | None = config_field(CurriculumCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    curriculum: CurriculumCfg | None = field(default_factory=CurriculumCfg)
 
     def validate_config(self):
         """Check for invalid preset combinations after resolution."""

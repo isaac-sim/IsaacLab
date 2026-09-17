@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from isaaclab_tasks.contrib.stack import mdp
 
@@ -112,8 +112,8 @@ class SO101JointTeleopActionsCfg:
     Inheriting from the base ``ActionsCfg`` would keep its delta-scaled arm term and binary gripper.
     """
 
-    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
-    gripper_action: mdp.JointPositionActionCfg = config_field(MISSING)
+    arm_action: mdp.JointPositionActionCfg = REQUIRED
+    gripper_action: mdp.JointPositionActionCfg = REQUIRED
 
 
 @dataclass

@@ -19,16 +19,16 @@ from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, Re
 from isaaclab.sim import PinholeCameraCfg
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
     pytest.mark.skipif(
-        bool(_MISSING_MODULES),
-        reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+        bool(_REQUIRED_MODULES),
+        reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
     ),
 ]
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS  # noqa: E402

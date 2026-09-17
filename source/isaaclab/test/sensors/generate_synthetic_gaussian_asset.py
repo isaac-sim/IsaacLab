@@ -34,7 +34,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -613,10 +612,10 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
     :func:`fresh_synthetic_gaussian_interactive_scene`.
     """
 
-    env_spacing: float = config_field(2.0)
+    env_spacing: float = 2.0
 
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
             # Keep the background in the calibrated HDR range independently of the default plane's appearance.
@@ -624,15 +623,15 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    gaussian: Any = config_field(
-        AssetBaseCfg(
+    gaussian: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path=f"{{ENV_REGEX_NS}}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}",
             spawn=sim_utils.UsdFileCfg(usd_path=""),  # filled in at runtime
         )
     )
 
-    anchor: Any = config_field(
-        RigidObjectCfg(
+    anchor: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Anchor",
             spawn=sim_utils.CuboidCfg(
                 size=(0.01, 0.01, 0.01),

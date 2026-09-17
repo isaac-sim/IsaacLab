@@ -11,7 +11,7 @@ construct the env cfg before deciding whether to launch the simulator (see
 :mod:`.pose_ik_action_term` because subclassing
 :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction` forces an
 eager ``from pxr import UsdPhysics`` import.  We therefore reference the term lazily via a
-``"{DIR}.pose_ik_action_term:SO101PoseIKAction"`` string ``class_type`` (resolved by
+``"isaaclab_tasks.contrib.stack.config.so101.pose_ik_action_term:SO101PoseIKAction"`` string ``class_type`` (resolved by
 :meth:`cfg.validate` after Kit has launched), mirroring the base
 :class:`~isaaclab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg`.
 
@@ -24,11 +24,11 @@ eager ``from pxr import UsdPhysics`` import.  We therefore reference the term la
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from .pose_ik_controller import SO101PoseIKControllerCfg
 
@@ -40,5 +40,7 @@ if TYPE_CHECKING:
 class SO101PoseIKActionCfg(DifferentialInverseKinematicsActionCfg):
     """Configuration for :class:`~.pose_ik_action_term.SO101PoseIKAction`."""
 
-    class_type: type[SO101PoseIKAction] | str = config_field("{DIR}.pose_ik_action_term:SO101PoseIKAction")
-    controller: SO101PoseIKControllerCfg = config_field(MISSING)
+    class_type: type[SO101PoseIKAction] | str = (
+        "isaaclab_tasks.contrib.stack.config.so101.pose_ik_action_term:SO101PoseIKAction"
+    )
+    controller: SO101PoseIKControllerCfg = REQUIRED

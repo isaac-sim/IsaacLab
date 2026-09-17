@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import field
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from isaaclab.devices.openxr import XrCfg
@@ -31,11 +31,11 @@ class DirectMARLEnvCfg:
     """
 
     # simulation settings
-    sim: SimulationCfg = config_field(SimulationCfg())
+    sim: SimulationCfg = field(default_factory=SimulationCfg)
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | str | None = config_field("isaaclab.envs.ui.base_env_window:BaseEnvWindow")
+    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.
@@ -47,7 +47,7 @@ class DirectMARLEnvCfg:
     """
 
     # general settings
-    seed: int | None = config_field(None)
+    seed: int | None = None
     """The seed for the random number generator. Defaults to None, in which case the seed is not set.
 
     Note:
@@ -55,14 +55,14 @@ class DirectMARLEnvCfg:
       creation is deterministic and behaves similarly across different runs.
     """
 
-    decimation: int = config_field(MISSING)
+    decimation: int = REQUIRED
     """Number of control action updates @ sim dt per policy dt.
 
     For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.
     This means that the control action is updated every 10 simulation steps.
     """
 
-    is_finite_horizon: bool = config_field(False)
+    is_finite_horizon: bool = False
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
 
@@ -84,7 +84,7 @@ class DirectMARLEnvCfg:
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
-    compute_final_obs: bool = config_field(False)
+    compute_final_obs: bool = False
     """Whether to capture the per-agent terminal observation before a Same-Step autoreset and expose it.
 
     Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectMARLEnv.metadata`), an agent whose
@@ -98,7 +98,7 @@ class DirectMARLEnvCfg:
     ``extras[agent]["final_obs"]`` is not populated, and the extra observation computation is skipped.
     """
 
-    episode_length_s: float = config_field(MISSING)
+    episode_length_s: float = REQUIRED
     """Duration of an episode (in seconds).
 
     Based on the decimation rate and physics time step, the episode length is calculated as:
@@ -112,19 +112,19 @@ class DirectMARLEnvCfg:
     """
 
     # environment settings
-    scene: InteractiveSceneCfg = config_field(MISSING)
+    scene: InteractiveSceneCfg = REQUIRED
     """Scene settings.
 
     Please refer to the :class:`isaaclab.scene.InteractiveSceneCfg` class for more details.
     """
 
-    events: object = config_field(None)
+    events: object = None
     """Event settings. Defaults to None, in which case no events are applied through the event manager.
 
     Please refer to the :class:`isaaclab.managers.EventManager` class for more details.
     """
 
-    observation_spaces: dict[AgentID, SpaceType] = config_field(MISSING)
+    observation_spaces: dict[AgentID, SpaceType] = REQUIRED
     """Observation space definition for each agent.
 
     The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
@@ -147,7 +147,7 @@ class DirectMARLEnvCfg:
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_observations: dict[AgentID, int] | None = config_field(None)
+    num_observations: dict[AgentID, int] | None = None
     """The dimension of the observation space for each agent.
 
     .. warning::
@@ -155,7 +155,7 @@ class DirectMARLEnvCfg:
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectMARLEnvCfg.observation_spaces` instead.
     """
 
-    state_space: SpaceType = config_field(MISSING)
+    state_space: SpaceType = REQUIRED
     """State space definition.
 
     The following values are supported:
@@ -185,7 +185,7 @@ class DirectMARLEnvCfg:
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_states: int | None = config_field(None)
+    num_states: int | None = None
     """The dimension of the state space from each environment instance.
 
     .. warning::
@@ -193,14 +193,14 @@ class DirectMARLEnvCfg:
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectMARLEnvCfg.state_space` instead.
     """
 
-    observation_noise_model: dict[AgentID, NoiseModelCfg | None] | None = config_field(None)
+    observation_noise_model: dict[AgentID, NoiseModelCfg | None] | None = None
     """The noise model to apply to the computed observations from the environment. Default is None,
     which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
-    action_spaces: dict[AgentID, SpaceType] = config_field(MISSING)
+    action_spaces: dict[AgentID, SpaceType] = REQUIRED
     """Action space definition for each agent.
 
     The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
@@ -223,7 +223,7 @@ class DirectMARLEnvCfg:
           - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
-    num_actions: dict[AgentID, int] | None = config_field(None)
+    num_actions: dict[AgentID, int] | None = None
     """The dimension of the action space for each agent.
 
     .. warning::
@@ -231,26 +231,26 @@ class DirectMARLEnvCfg:
         This attribute is deprecated. Use :attr:`~isaaclab.envs.DirectMARLEnvCfg.action_spaces` instead.
     """
 
-    action_noise_model: dict[AgentID, NoiseModelCfg | None] | None = config_field(None)
+    action_noise_model: dict[AgentID, NoiseModelCfg | None] | None = None
     """The noise model applied to the actions provided to the environment. Default is None,
     which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
-    possible_agents: list[AgentID] = config_field(MISSING)
+    possible_agents: list[AgentID] = REQUIRED
     """A list of all possible agents the environment could generate.
 
     The contents of the list cannot be modified during the entire training process.
     """
 
-    xr: XrCfg | None = config_field(None)
+    xr: XrCfg | None = None
     """Configuration for viewing and interacting with the environment through an XR device."""
 
-    log_dir: str | None = config_field(None)
+    log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    viewer: ViewerCfg = config_field(ViewerCfg())
+    viewer: ViewerCfg = field(default_factory=ViewerCfg)
     """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
     or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
 
@@ -262,7 +262,7 @@ class DirectMARLEnvCfg:
             env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
     """
 
-    video_recorders: list[VideoRecorderCfg] = config_field([])
+    video_recorders: list[VideoRecorderCfg] = field(default_factory=list)
     """Video recording streams. Each entry records from its configured source independently.
 
     Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list

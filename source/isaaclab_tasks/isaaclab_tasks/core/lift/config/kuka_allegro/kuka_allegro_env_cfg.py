@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.assets import ArticulationCfg
@@ -11,7 +11,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
@@ -32,9 +32,11 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
     camera env config populates them (see ``kuka_allegro_camera_env_cfg``).
     """
 
-    robot: ArticulationCfg = config_field(replace_config(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
-    base_camera: CameraCfg | None = config_field(None)
-    wrist_camera: CameraCfg | None = config_field(None)
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
+    base_camera: CameraCfg | None = None
+    wrist_camera: CameraCfg | None = None
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):
@@ -52,21 +54,23 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
 @dataclass
 class KukaAllegroRelJointPosActionCfg:
-    action: Any = config_field(mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1))
+    action: Any = field(
+        default_factory=lambda: mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+    )
 
 
 @dataclass
 class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
-    good_finger_contact: Any = config_field(
-        RewTerm(
+    good_finger_contact: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.contacts,
             weight=1.0,
             params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
         )
     )
 
-    contact_count: Any = config_field(
-        RewTerm(
+    contact_count: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.contact_count,
             weight=0.1,
             params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
@@ -90,10 +94,12 @@ class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
 
 @dataclass
 class KukaAllegroMixinCfg:
-    scene: KukaAllegroSceneCfg = config_field(KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True))
-    rewards: KukaAllegroReorientRewardCfg = config_field(KukaAllegroReorientRewardCfg())
-    observations: StateObservationCfg = config_field(StateObservationCfg())
-    actions: KukaAllegroRelJointPosActionCfg = config_field(KukaAllegroRelJointPosActionCfg())
+    scene: KukaAllegroSceneCfg = field(
+        default_factory=lambda: KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    )
+    rewards: KukaAllegroReorientRewardCfg = field(default_factory=KukaAllegroReorientRewardCfg)
+    observations: StateObservationCfg = field(default_factory=StateObservationCfg)
+    actions: KukaAllegroRelJointPosActionCfg = field(default_factory=KukaAllegroRelJointPosActionCfg)
 
     def __post_init__(self: lift.ReorientEnvCfg):
         if parent_post_init := getattr(super(), "__post_init__", None):

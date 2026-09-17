@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -13,7 +13,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events
@@ -105,8 +105,8 @@ def set_finger_joint_pos_robotiq_2f85(
 class EventCfg:
     """Configuration for events."""
 
-    robot_joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    robot_joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             mode="reset",
             params={
@@ -121,8 +121,8 @@ class EventCfg:
         )
     )
 
-    joint_friction: Any = config_field(
-        EventTerm(
+    joint_friction: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_joint_parameters,
             mode="reset",
             params={
@@ -134,8 +134,8 @@ class EventCfg:
         )
     )
 
-    small_gear_physics_material: Any = config_field(
-        EventTerm(
+    small_gear_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -148,8 +148,8 @@ class EventCfg:
         )
     )
 
-    medium_gear_physics_material: Any = config_field(
-        EventTerm(
+    medium_gear_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -162,8 +162,8 @@ class EventCfg:
         )
     )
 
-    large_gear_physics_material: Any = config_field(
-        EventTerm(
+    large_gear_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -176,8 +176,8 @@ class EventCfg:
         )
     )
 
-    gear_base_physics_material: Any = config_field(
-        EventTerm(
+    gear_base_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -190,8 +190,8 @@ class EventCfg:
         )
     )
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -204,18 +204,18 @@ class EventCfg:
         )
     )
 
-    randomize_gear_type: Any = config_field(
-        EventTerm(
+    randomize_gear_type: Any = field(
+        default_factory=lambda: EventTerm(
             func=gear_assembly_events.randomize_gear_type,
             mode="reset",
             params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
         )
     )
 
-    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    randomize_gears_and_base_pose: Any = config_field(
-        EventTerm(
+    randomize_gears_and_base_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=gear_assembly_events.randomize_gears_and_base_pose,
             mode="reset",
             params={
@@ -237,8 +237,8 @@ class EventCfg:
         )
     )
 
-    set_robot_to_grasp_pose: Any = config_field(
-        EventTerm(
+    set_robot_to_grasp_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=gear_assembly_events.set_robot_to_grasp_pose,
             mode="reset",
             params={

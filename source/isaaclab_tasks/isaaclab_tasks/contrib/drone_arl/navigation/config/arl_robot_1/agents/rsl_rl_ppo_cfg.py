@@ -3,31 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 
 
 @dataclass
 class NavigationEnvPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(24)
-    max_iterations: Any = config_field(1500)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("arl_robot_1_navigation")
-    empirical_normalization: Any = config_field(False)
-    policy: Any = config_field(
-        RslRlPpoActorCriticCfg(
+    num_steps_per_env: Any = 24
+    max_iterations: Any = 1500
+    save_interval: Any = 50
+    experiment_name: Any = "arl_robot_1_navigation"
+    empirical_normalization: Any = False
+    policy: Any = field(
+        default_factory=lambda: RslRlPpoActorCriticCfg(
             init_noise_std=0.5,
             actor_hidden_dims=[256, 128, 64],
             critic_hidden_dims=[256, 128, 64],
             activation="elu",
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

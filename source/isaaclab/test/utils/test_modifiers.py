@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 import pytest
 import torch
 
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 pytestmark = pytest.mark.unit
 
@@ -19,10 +19,10 @@ pytestmark = pytest.mark.unit
 class ModifierTestCfg:
     """Configuration for testing modifiers."""
 
-    cfg: modifiers.ModifierCfg = config_field(MISSING)
-    init_data: torch.Tensor = config_field(MISSING)
-    result: torch.Tensor = config_field(MISSING)
-    num_iter: int = config_field(10)
+    cfg: modifiers.ModifierCfg = REQUIRED
+    init_data: torch.Tensor = REQUIRED
+    result: torch.Tensor = REQUIRED
+    num_iter: int = 10
 
 
 def test_scale_modifier():

@@ -3,37 +3,35 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
 @dataclass
 class CabinetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(96)
-    max_iterations: Any = config_field(400)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("franka_open_drawer")
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 96
+    max_iterations: Any = 400
+    save_interval: Any = 50
+    experiment_name: Any = "franka_open_drawer"
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[256, 128, 64],
             activation="elu",
             obs_normalization=False,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[256, 128, 64],
             activation="elu",
             obs_normalization=False,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -52,4 +50,4 @@ class CabinetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @dataclass
 class FrankaCabinetPPORunnerCfg(CabinetPPORunnerCfg):
-    experiment_name: Any = config_field("franka_open_drawer_direct")
+    experiment_name: Any = "franka_open_drawer_direct"

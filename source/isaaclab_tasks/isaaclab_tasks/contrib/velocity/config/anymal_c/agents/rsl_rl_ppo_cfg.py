@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
 
@@ -15,28 +13,28 @@ from isaaclab_tasks.core.velocity.mdp.symmetry import anymal
 
 @dataclass
 class AnymalCRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(24)
-    max_iterations: Any = config_field(1500)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("anymal_c_rough")
-    obs_groups: Any = config_field({"actor": ["policy"], "critic": ["policy"]})
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 24
+    max_iterations: Any = 1500
+    save_interval: Any = 50
+    experiment_name: Any = "anymal_c_rough"
+    obs_groups: Any = field(default_factory=lambda: {"actor": ["policy"], "critic": ["policy"]})
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 256, 128],
             activation="elu",
             obs_normalization=False,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[512, 256, 128],
             activation="elu",
             obs_normalization=False,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -70,8 +68,8 @@ class AnymalCFlatPPORunnerWithSymmetryCfg(AnymalCFlatPPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
     # all the other settings are inherited from the parent class
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,
@@ -96,8 +94,8 @@ class AnymalCRoughPPORunnerWithSymmetryCfg(AnymalCRoughPPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
     # all the other settings are inherited from the parent class
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

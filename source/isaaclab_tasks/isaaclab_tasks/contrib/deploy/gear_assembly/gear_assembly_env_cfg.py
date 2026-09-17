@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
@@ -21,7 +21,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg
 from isaaclab.visualizers import VisualizerCfg
@@ -44,19 +44,19 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
     # Disable scene replication to allow USD-level randomization
-    replicate_physics: Any = config_field(False)
+    replicate_physics: Any = False
 
     # world
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
         )
     )
 
-    factory_gear_base: Any = config_field(
-        RigidObjectCfg(
+    factory_gear_base: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/FactoryGearBase",
             # TODO: change to common isaac sim directory
             spawn=sim_utils.UsdFileCfg(
@@ -82,8 +82,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    factory_gear_small: Any = config_field(
-        RigidObjectCfg(
+    factory_gear_small: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/FactoryGearSmall",
             # TODO: change to common isaac sim directory
             spawn=sim_utils.UsdFileCfg(
@@ -109,8 +109,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    factory_gear_medium: Any = config_field(
-        RigidObjectCfg(
+    factory_gear_medium: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
             # TODO: change to common isaac sim directory
             spawn=sim_utils.UsdFileCfg(
@@ -136,8 +136,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    factory_gear_large: Any = config_field(
-        RigidObjectCfg(
+    factory_gear_large: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/FactoryGearLarge",
             # TODO: change to common isaac sim directory
             spawn=sim_utils.UsdFileCfg(
@@ -164,18 +164,18 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     )
 
     # robots
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
         )
     )
 
-    stand: Any = config_field(
-        AssetBaseCfg(
+    stand: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Stand",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
@@ -188,8 +188,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: ActionTerm = config_field(MISSING)
-    gripper_action: ActionTerm | None = config_field(None)
+    arm_action: ActionTerm = REQUIRED
+    gripper_action: ActionTerm | None = None
 
 
 @dataclass
@@ -201,14 +201,18 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos: Any = config_field(
-            ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
+                func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])}
+            )
         )
-        joint_vel: Any = config_field(
-            ObsTerm(func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
+        joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
+                func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])}
+            )
         )
-        gear_shaft_pos: Any = config_field(
-            ObsTerm(
+        gear_shaft_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.gear_shaft_pos_w,
                 params={},  # Will be populated in __post_init__
                 noise=ResetSampledConstantNoiseModelCfg(
@@ -216,7 +220,7 @@ class ObservationsCfg:
                 ),
             )
         )
-        gear_shaft_quat: Any = config_field(ObsTerm(func=mdp.gear_shaft_quat_w))
+        gear_shaft_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.gear_shaft_quat_w))
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -227,33 +231,37 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos: Any = config_field(
-            ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
+                func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])}
+            )
         )
-        joint_vel: Any = config_field(
-            ObsTerm(func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
+        joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
+                func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])}
+            )
         )
-        gear_shaft_pos: Any = config_field(
-            ObsTerm(func=mdp.gear_shaft_pos_w, params={})
+        gear_shaft_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.gear_shaft_pos_w, params={})
         )  # Will be populated in __post_init__
-        gear_shaft_quat: Any = config_field(ObsTerm(func=mdp.gear_shaft_quat_w))
+        gear_shaft_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.gear_shaft_quat_w))
 
-        gear_pos: Any = config_field(ObsTerm(func=mdp.gear_pos_w))
-        gear_quat: Any = config_field(ObsTerm(func=mdp.gear_quat_w))
+        gear_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.gear_pos_w))
+        gear_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.gear_quat_w))
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    critic: CriticCfg = config_field(CriticCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    critic: CriticCfg = field(default_factory=CriticCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    reset_gear: Any = config_field(
-        EventTerm(
+    reset_gear: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -273,8 +281,8 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    end_effector_gear_keypoint_tracking: Any = config_field(
-        RewTerm(
+    end_effector_gear_keypoint_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.keypoint_entity_error,
             weight=-1.5,
             params={
@@ -284,8 +292,8 @@ class RewardsCfg:
         )
     )
 
-    end_effector_gear_keypoint_tracking_exp: Any = config_field(
-        RewTerm(
+    end_effector_gear_keypoint_tracking_exp: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.keypoint_entity_error_exp,
             weight=1.5,
             params={
@@ -297,17 +305,17 @@ class RewardsCfg:
         )
     )
 
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06))
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06))
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    gear_dropped: Any = config_field(
-        DoneTerm(
+    gear_dropped: Any = field(
+        default_factory=lambda: DoneTerm(
             func=gear_assembly_terminations.reset_when_gear_dropped,
             params={
                 "distance_threshold": 0.15,  # 15cm from gripper
@@ -316,8 +324,8 @@ class TerminationsCfg:
         )
     )
 
-    gear_orientation_exceeded: Any = config_field(
-        DoneTerm(
+    gear_orientation_exceeded: Any = field(
+        default_factory=lambda: DoneTerm(
             func=gear_assembly_terminations.reset_when_gear_orientation_exceeds_threshold,
             params={
                 "roll_threshold_deg": 7.0,  # Maximum roll deviation in degrees
@@ -332,16 +340,16 @@ class TerminationsCfg:
 @dataclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: GearAssemblySceneCfg = config_field(GearAssemblySceneCfg(num_envs=1024, env_spacing=2.5))
+    scene: GearAssemblySceneCfg = field(default_factory=lambda: GearAssemblySceneCfg(num_envs=1024, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             physics=PhysxCfg(  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
                 gpu_collision_stack_size=2**30, gpu_max_rigid_contact_count=2**23, gpu_max_rigid_patch_count=2**23
             ),

@@ -3,14 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import torch
 from rsl_rl.modules.distribution import GaussianDistribution
 from torch.distributions import Normal
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -54,11 +52,11 @@ class UR10ParticlePushGaussianDistribution(GaussianDistribution):
 class UR10ParticlePushGaussianDistributionCfg(RslRlCNNModelCfg.GaussianDistributionCfg):
     """Smoothly bounded, per-joint exploration used by the push policy."""
 
-    class_name: str = config_field(
+    class_name: str = (
         "isaaclab_tasks.contrib.ur10_particle_push.agents.rsl_rl_ppo_cfg:UR10ParticlePushGaussianDistribution"
     )
-    init_std: float = config_field(0.60)
-    std_range: tuple[float, float] = config_field((0.15, 0.65))
+    init_std: float = 0.60
+    std_range: tuple[float, float] = (0.15, 0.65)
 
 
 @dataclass
@@ -66,24 +64,24 @@ class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO defaults for the deployable heightmap-and-proprioception policy."""
 
     # 72 policy steps span 1.2 s at 60 Hz.
-    num_steps_per_env: Any = config_field(72)
-    max_iterations: Any = config_field(6000)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("ur10_particle_push")
-    run_name: Any = config_field("single_pile_push")
+    num_steps_per_env: Any = 72
+    max_iterations: Any = 6000
+    save_interval: Any = 50
+    experiment_name: Any = "ur10_particle_push"
+    run_name: Any = "single_pile_push"
     # Keep the task usable offline by default. Distributed launch profiles select W&B explicitly
     # with ``--logger wandb`` and provide the project and credentials.
-    logger: Any = config_field("tensorboard")
-    wandb_project: Any = config_field("ur10-particle-push-mpm")
-    clip_actions: Any = config_field(1.0)
-    obs_groups: Any = config_field(
-        {
+    logger: Any = "tensorboard"
+    wandb_project: Any = "ur10-particle-push-mpm"
+    clip_actions: Any = 1.0
+    obs_groups: Any = field(
+        default_factory=lambda: {
             "actor": ["policy", "heightmap"],
             "critic": ["policy", "heightmap", "critic"],
         }
     )
-    actor: Any = config_field(
-        RslRlCNNModelCfg(
+    actor: Any = field(
+        default_factory=lambda: RslRlCNNModelCfg(
             cnn_cfg=RslRlCNNModelCfg.CNNCfg(
                 output_channels=[8, 16, 32, 32],
                 kernel_size=[5, 3, 3, 3],
@@ -99,8 +97,8 @@ class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
             distribution_cfg=UR10ParticlePushGaussianDistributionCfg(),
         )
     )
-    critic: Any = config_field(
-        RslRlCNNModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlCNNModelCfg(
             cnn_cfg=RslRlCNNModelCfg.CNNCfg(
                 output_channels=[8, 16, 32, 32],
                 kernel_size=[5, 3, 3, 3],
@@ -113,8 +111,8 @@ class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
             obs_normalization=False,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

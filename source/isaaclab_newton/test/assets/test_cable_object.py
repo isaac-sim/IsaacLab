@@ -5,14 +5,13 @@
 
 import gc
 import weakref
+from dataclasses import field
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import torch
 import warp as wp
-
-from isaaclab.utils import config_field
 
 pytest.importorskip("newton")
 
@@ -36,8 +35,8 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 
 @dataclass
 class _CableSceneCfg(InteractiveSceneCfg):
-    cable: Any = config_field(
-        CableObjectCfg(
+    cable: Any = field(
+        default_factory=lambda: CableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cable",
             spawn=CableCfg(
                 positions=((0.0, 0.0, 1.0), (0.0, 0.2, 1.0), (0.0, 0.4, 1.0), (0.0, 0.6, 1.0)),
@@ -54,8 +53,8 @@ class _CableSceneCfg(InteractiveSceneCfg):
 
 @dataclass
 class _ProxyCableSceneCfg(_CableSceneCfg):
-    rigid: Any = config_field(
-        RigidObjectCfg(
+    rigid: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Rigid",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),

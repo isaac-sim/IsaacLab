@@ -3,14 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.envs import mdp
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import config_field
 
 
 @dataclass
@@ -22,29 +21,29 @@ class AgileTeacherPolicyObservationsCfg(ObsGroup):
     is where the environment has access to those commands.
     """
 
-    base_lin_vel: Any = config_field(
-        ObsTerm(
+    base_lin_vel: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.base_lin_vel,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
     )
 
-    base_ang_vel: Any = config_field(
-        ObsTerm(
+    base_ang_vel: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.base_ang_vel,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
     )
 
-    projected_gravity: Any = config_field(
-        ObsTerm(
+    projected_gravity: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.projected_gravity,
             scale=1.0,
         )
     )
 
-    joint_pos: Any = config_field(
-        ObsTerm(
+    joint_pos: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.joint_pos_rel,
             params={
                 "asset_cfg": SceneEntityCfg(
@@ -63,8 +62,8 @@ class AgileTeacherPolicyObservationsCfg(ObsGroup):
         )
     )
 
-    joint_vel: Any = config_field(
-        ObsTerm(
+    joint_vel: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.joint_vel_rel,
             scale=0.1,
             params={
@@ -84,8 +83,8 @@ class AgileTeacherPolicyObservationsCfg(ObsGroup):
         )
     )
 
-    actions: Any = config_field(
-        ObsTerm(
+    actions: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.last_action,
             scale=1.0,
             params={

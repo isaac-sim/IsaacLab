@@ -32,13 +32,11 @@ teleop script.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import numpy as np
 import torch
-
-from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -199,23 +197,23 @@ class HapticFeedbackCfg:
     vector is rendered by an ``isaacteleop`` device).
     """
 
-    left_sensor_name: str = config_field("left_hand_contact")
+    left_sensor_name: str = "left_hand_contact"
     """Scene entity name of the left-hand :class:`~isaaclab.sensors.ContactSensor`."""
 
-    right_sensor_name: str = config_field("right_hand_contact")
+    right_sensor_name: str = "right_hand_contact"
     """Scene entity name of the right-hand :class:`~isaaclab.sensors.ContactSensor`."""
 
-    num_taxels: int = config_field(1)
+    num_taxels: int = 1
     """Length of the per-hand output vector: 1 for a single rumble motor, one
     channel per finger for a glove."""
 
-    gain: float = config_field(1.0)
+    gain: float = 1.0
     """Signal-to-output gain applied after the deadband (see the subclass docs for units)."""
 
-    deadband: float = config_field(0.0)
+    deadband: float = 0.0
     """Signal magnitude below which no output is produced (rejects sensor noise)."""
 
-    saturation: float = config_field(1.0)
+    saturation: float = 1.0
     """Upper clamp on the normalized output amplitude in ``[0, 1]``."""
 
     def make_signal_fn(self) -> SignalFn:
@@ -251,14 +249,14 @@ class ControllerHapticFeedbackCfg(HapticFeedbackCfg):
     rumble via ``ControllerHapticDevice`` + ``TactileVectorToControllerPulse``.
     """
 
-    num_taxels: int = config_field(1)
-    gain: float = config_field(0.05)
+    num_taxels: int = 1
+    gain: float = 0.05
     """Force-to-amplitude gain [1/N] applied after the deadband. Default maps ~20 N to full scale."""
-    deadband: float = config_field(0.5)
+    deadband: float = 0.5
     """Contact force [N] below which no vibration is produced."""
-    frequency_hz: float = config_field(0.0)
+    frequency_hz: float = 0.0
     """Vibration frequency [Hz]. ``0`` selects the XR runtime default."""
-    duration_s: float = config_field(0.0)
+    duration_s: float = 0.0
     """Pulse duration [s]. ``0`` selects the shortest supported pulse; refreshed each frame."""
 
     def make_signal_fn(self) -> SignalFn:
@@ -294,16 +292,16 @@ class GloveHapticFeedbackCfg(HapticFeedbackCfg):
     via a cross-process ``haptic_glove_device`` + ``TactileVectorToFingerPower``.
     """
 
-    gain: float = config_field(0.1)
+    gain: float = 0.1
     """Force-to-power gain [1/N] applied after the deadband. Default maps ~10 N to full power."""
-    deadband: float = config_field(0.5)
+    deadband: float = 0.5
     """Contact force [N] below which no vibration is produced."""
-    smoothing: float = config_field(0.5)
+    smoothing: float = 0.5
     """EMA new-sample weight in ``[0, 1]`` (1.0 = no smoothing) applied to each finger power."""
-    collection_id: str = config_field("manus_glove_haptic")
+    collection_id: str = "manus_glove_haptic"
     """Push-tensor collection id pairing Isaac Teleop with the glove plugin process
     (the Manus plugin's default). Change it to target a different glove vendor."""
-    finger_order: list[str] = config_field(["thumb", "index", "middle", "ring", "pinky"])
+    finger_order: list[str] = field(default_factory=lambda: ["thumb", "index", "middle", "ring", "pinky"])
     """Per-channel finger substrings, in glove channel order, matched against the
     contact sensor's body names to group each finger's links into one channel.
     This is the sole source of the finger-channel count (``num_taxels``)."""

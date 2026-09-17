@@ -5,12 +5,12 @@
 
 """Franka soft lifting environment using the custom coupling manager."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
@@ -22,8 +22,8 @@ from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 class PhysicsCfg(CorePhysicsCfg):
     """Adds the manual MJWarp and VBD coupling preset on top of the core proxy presets."""
 
-    newton_mjwarp_vbd: Any = config_field(
-        replace_config(
+    newton_mjwarp_vbd: Any = field(
+        default_factory=lambda: replace_config(
             CorePhysicsCfg().newton_mjwarp_vbd_proxy,
             class_type=None,
             solver_cfg=CoupledMJWarpVBDSolverCfg(
@@ -41,7 +41,24 @@ class PhysicsCfg(CorePhysicsCfg):
         )
     )
 
-    default: Any = config_field(newton_mjwarp_vbd)
+    default: Any = field(
+        default_factory=lambda: replace_config(
+            CorePhysicsCfg().newton_mjwarp_vbd_proxy,
+            class_type=None,
+            solver_cfg=CoupledMJWarpVBDSolverCfg(
+                rigid_solver_cfg=MJWarpSolverCfg(
+                    njmax=40,
+                    nconmax=20,
+                    ls_iterations=20,
+                    integrator="implicitfast",
+                    ccd_iterations=100,
+                ),
+                soft_solver_cfg=VBDSolverCfg(
+                    integrate_with_external_rigid_solver=True,
+                ),
+            ),
+        )
+    )
 
 
 @dataclass

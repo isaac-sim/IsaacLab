@@ -6,10 +6,9 @@
 """Tests for the Newton BVH ray-cast sensor."""
 
 import sys
+from dataclasses import field
 from pathlib import Path
 from typing import Any
-
-from isaaclab.utils import config_field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -52,11 +51,11 @@ RAY_START_HEIGHT = SENSOR_HEIGHT - RAY_OFFSET
 class RaycastTestSceneCfg(InteractiveSceneCfg):
     """Scene with a ground plane, a floating sensor body, and a dynamic box."""
 
-    env_spacing: Any = config_field(8.0)
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    env_spacing: Any = 8.0
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    sensor_body: Any = config_field(
-        RigidObjectCfg(
+    sensor_body: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),
@@ -67,8 +66,8 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    box: Any = config_field(
-        RigidObjectCfg(
+    box: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Box",
             spawn=sim_utils.CuboidCfg(
                 size=(1.0, 1.0, 1.0),
@@ -80,8 +79,8 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    raycast: Any = config_field(
-        NewtonRaycastSensorCfg(
+    raycast: Any = field(
+        default_factory=lambda: NewtonRaycastSensorCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             # Start the rays below the carrier cube so they do not hit it.
             offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
@@ -100,8 +99,8 @@ class GenericRaycastTestSceneCfg(RaycastTestSceneCfg):
     :class:`~isaaclab.sensors.RayCasterCfg` to verify it is honored after backend dispatch.
     """
 
-    raycast: Any = config_field(
-        RayCasterCfg(
+    raycast: Any = field(
+        default_factory=lambda: RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody",
             offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
             pattern_cfg=GridPatternCfg(resolution=0.2, size=(0.4, 0.4)),
@@ -273,8 +272,8 @@ def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
 class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     """Adds a downward-looking Newton tiled camera next to the ray-cast sensor."""
 
-    camera: Any = config_field(
-        CameraCfg(
+    camera: Any = field(
+        default_factory=lambda: CameraCfg(
             prim_path="{ENV_REGEX_NS}/SensorBody/cam",
             width=64,
             height=48,

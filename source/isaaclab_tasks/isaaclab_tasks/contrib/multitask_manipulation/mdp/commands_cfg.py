@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 
 from ..selection_utils import SceneEntitySelectionCfg
 
@@ -28,32 +28,34 @@ class SelectedUniformPoseCommandCfg(CommandTermCfg):
     class Ranges:
         """Uniform pose sampling ranges."""
 
-        pos_x: tuple[float, float] = config_field(MISSING)
+        pos_x: tuple[float, float] = REQUIRED
         """Position range along x [m]."""
-        pos_y: tuple[float, float] = config_field(MISSING)
+        pos_y: tuple[float, float] = REQUIRED
         """Position range along y [m]."""
-        pos_z: tuple[float, float] = config_field(MISSING)
+        pos_z: tuple[float, float] = REQUIRED
         """Position range along z [m]."""
-        roll: tuple[float, float] = config_field(MISSING)
+        roll: tuple[float, float] = REQUIRED
         """Roll range [rad]."""
-        pitch: tuple[float, float] = config_field(MISSING)
+        pitch: tuple[float, float] = REQUIRED
         """Pitch range [rad]."""
-        yaw: tuple[float, float] = config_field(MISSING)
+        yaw: tuple[float, float] = REQUIRED
         """Yaw range [rad]."""
 
-    class_type: type[SelectedUniformPoseCommand] | str = config_field("{DIR}.commands:SelectedUniformPoseCommand")
-    reference_cfg: SceneEntitySelectionCfg = config_field(MISSING)
+    class_type: type[SelectedUniformPoseCommand] | str = (
+        "isaaclab_tasks.contrib.multitask_manipulation.mdp.commands:SelectedUniformPoseCommand"
+    )
+    reference_cfg: SceneEntitySelectionCfg = REQUIRED
     """Entity whose root frame contains the sampled command."""
-    tracked_cfg: SceneEntitySelectionCfg = config_field(MISSING)
+    tracked_cfg: SceneEntitySelectionCfg = REQUIRED
     """Entity root or selected body whose current pose is visualized."""
-    ranges: Ranges = config_field(MISSING)
+    ranges: Ranges = REQUIRED
     """Pose sampling ranges."""
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = config_field(
-        replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/Command/goal_pose")
     )
     """Goal-pose frame marker configuration."""
-    current_pose_visualizer_cfg: VisualizationMarkersCfg = config_field(
-        replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/Command/current_pose")
+    current_pose_visualizer_cfg: VisualizationMarkersCfg = field(
+        default_factory=lambda: replace_config(FRAME_MARKER_CFG, prim_path="/Visuals/Command/current_pose")
     )
     """Tracked-pose frame marker configuration."""
 

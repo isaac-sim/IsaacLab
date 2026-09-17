@@ -11,10 +11,10 @@ the world-attached prim edge case.
 """
 
 import sys
+from dataclasses import field
 from pathlib import Path
 
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import config_field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
@@ -45,8 +45,8 @@ VISUAL_PATH = "/World/Robot/VisualFrame"
 
 @dataclass
 class _SceneCfg(InteractiveSceneCfg):
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),

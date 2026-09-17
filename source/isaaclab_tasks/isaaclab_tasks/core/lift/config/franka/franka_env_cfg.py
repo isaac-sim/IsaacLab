@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -14,7 +14,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_assets.robots import FRANKA_PANDA_CFG
@@ -83,7 +83,9 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != THUMB
 class FrankaSceneCfg(lift.SceneCfg):
     """Franka scene for the Lift and Reorient tasks."""
 
-    robot: ArticulationCfg = config_field(replace_config(FRANKA_PANDA_LIFT_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(FRANKA_PANDA_LIFT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):
@@ -136,21 +138,23 @@ class StateObservationCfg(lift.ObservationsCfg):
 
 @dataclass
 class FrankaRelJointPosActionCfg:
-    action: Any = config_field(mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1))
+    action: Any = field(
+        default_factory=lambda: mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+    )
 
 
 @dataclass
 class FrankaReorientRewardCfg(lift.RewardsCfg):
-    good_finger_contact: Any = config_field(
-        RewTerm(
+    good_finger_contact: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.contacts,
             weight=0.75,
             params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
         )
     )
 
-    contact_count: Any = config_field(
-        RewTerm(
+    contact_count: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.contact_count,
             weight=0.1,
             params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
@@ -179,8 +183,8 @@ class FrankaEventCfg(lift.EventCfg):
     # closing speed = kp * action_scale / kd; kd range derived for 0.2 .. 0.01 m/s so it
     # tracks kp/base-kd/scale changes. Driven finger only: damping on the passive mimic
     # joint drags the pair asymmetrically.
-    gripper_closing_speed: Any = config_field(
-        EventTerm(
+    gripper_closing_speed: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             mode="startup",
             params={
@@ -225,11 +229,13 @@ class FrankaEventCfg(lift.EventCfg):
 
 @dataclass
 class FrankaMixinCfg:
-    scene: FrankaSceneCfg = config_field(FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True))
-    rewards: FrankaReorientRewardCfg = config_field(FrankaReorientRewardCfg())
-    observations: StateObservationCfg = config_field(StateObservationCfg())
-    actions: FrankaRelJointPosActionCfg = config_field(FrankaRelJointPosActionCfg())
-    events: FrankaEventCfg = config_field(FrankaEventCfg())
+    scene: FrankaSceneCfg = field(
+        default_factory=lambda: FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    )
+    rewards: FrankaReorientRewardCfg = field(default_factory=FrankaReorientRewardCfg)
+    observations: StateObservationCfg = field(default_factory=StateObservationCfg)
+    actions: FrankaRelJointPosActionCfg = field(default_factory=FrankaRelJointPosActionCfg)
+    events: FrankaEventCfg = field(default_factory=FrankaEventCfg)
 
     def __post_init__(self: lift.ReorientEnvCfg):
         if parent_post_init := getattr(super(), "__post_init__", None):

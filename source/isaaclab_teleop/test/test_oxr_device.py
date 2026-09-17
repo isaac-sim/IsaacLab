@@ -8,8 +8,9 @@
 
 from __future__ import annotations
 
+from dataclasses import field
+
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
@@ -70,9 +71,9 @@ class EmptySceneCfg(InteractiveSceneCfg):
 class EmptyEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the empty test environment."""
 
-    scene: EmptySceneCfg = config_field(EmptySceneCfg(num_envs=1, env_spacing=1.0))
-    actions: EmptyManagerCfg = config_field(EmptyManagerCfg())
-    observations: EmptyManagerCfg = config_field(EmptyManagerCfg())
+    scene: EmptySceneCfg = field(default_factory=lambda: EmptySceneCfg(num_envs=1, env_spacing=1.0))
+    actions: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+    observations: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
 
     def __post_init__(self):
         """Post initialization."""

@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
-
-from isaaclab.utils import config_field
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -18,43 +16,43 @@ class PbtCfg:
     On replacement, selected hyperparameters are mutated multiplicatively in [change_min, change_max].
     """
 
-    enabled: bool = config_field(False)
+    enabled: bool = False
     """Enable/disable PBT logic."""
 
-    policy_idx: int = config_field(0)
+    policy_idx: int = 0
     """Index of this learner in the population (unique in [0, num_policies-1])."""
 
-    num_policies: int = config_field(8)
+    num_policies: int = 8
     """Total number of learners participating in PBT."""
 
-    directory: str = config_field("")
+    directory: str = ""
     """Root directory for PBT artifacts (checkpoints, metadata)."""
 
-    workspace: str = config_field("pbt_workspace")
+    workspace: str = "pbt_workspace"
     """Subfolder under the training dir to isolate this PBT run."""
 
-    objective: str = config_field("Episode_Reward/success")
+    objective: str = "Episode_Reward/success"
     """The key in info returned by env.step that pbt measures to determine leaders and underperformers,
     If reward is stationary, using the term that corresponds to task success is usually enough, when reward
     are non-stationary, consider uses better objectives.
     """
 
-    interval_steps: int = config_field(100_000)
+    interval_steps: int = 100_000
     """Environment steps between PBT iterations (save, compare, replace/mutate)."""
 
-    threshold_std: float = config_field(0.10)
+    threshold_std: float = 0.10
     """Std-based margin k in max(mean ± k·std, mean ± threshold_abs) for leader/underperformer cuts."""
 
-    threshold_abs: float = config_field(0.05)
+    threshold_abs: float = 0.05
     """Absolute margin A in max(mean ± threshold_std·std, mean ± A) for leader/underperformer cuts."""
 
-    mutation_rate: float = config_field(0.25)
+    mutation_rate: float = 0.25
     """Per-parameter probability of mutation when a policy is replaced."""
 
-    change_range: tuple[float, float] = config_field((1.1, 2.0))
+    change_range: tuple[float, float] = (1.1, 2.0)
     """Lower and upper bound of multiplicative change factor (sampled in [change_min, change_max])."""
 
-    mutation: dict[str, str] = config_field({})
+    mutation: dict[str, str] = field(default_factory=dict)
     """Mutation strings indicating which parameter will be mutated when pbt restart.
 
     Example::

@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 import math
+from dataclasses import field
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -334,8 +335,8 @@ def _static_collision_box(
 class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     """Official workcell plus aligned MPM and rigid work-surface/bin collision."""
 
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=(0.5, 0.0, 0.0),
@@ -348,22 +349,22 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
             spawn=sim_utils.GroundPlaneCfg(),
             collision_group=-1,
         )
     )
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/Light",
             spawn=sim_utils.DomeLightCfg(color=(0.8, 0.8, 0.8), intensity=2500.0),
         )
     )
 
-    robot: Any = config_field(replace_config(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
     robot.init_state.joint_pos = dict(zip(UR10_JOINT_NAMES, UR10_PUSH_HOME, strict=True))
     # Override arm drive gains; preserve the USD inertia, limits, and effort cap.
     robot.actuators["arm"].stiffness = 2400.0
@@ -372,8 +373,8 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
 
     # Weld the paddle to ee_link; separate collision and visual geometry for independent visibility.
-    paddle: Any = config_field(
-        AssetBaseCfg(
+    paddle: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle",
             init_state=AssetBaseCfg.InitialStateCfg(pos=PADDLE_OFFSET),
             spawn=sim_utils.CuboidCfg(
@@ -393,8 +394,8 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    paddle_visual: Any = config_field(
-        AssetBaseCfg(
+    paddle_visual: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle/PaddleVisual",
             spawn=sim_utils.CuboidCfg(
                 size=PADDLE_SIZE,
@@ -409,8 +410,8 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
 
     # The official table supplies rigid robot contact. This co-located simple slab belongs only to
     # the MPM entry, avoiding a mesh approximation and keeping particle collision explicit.
-    mpm_work_surface: Any = config_field(
-        _kinematic_box(
+    mpm_work_surface: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMWorkSurface",
             size=WORK_SURFACE_SIZE,
             position=WORK_SURFACE_POSITION,
@@ -420,8 +421,8 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     )
     # Newton MPM owns a simple per-world mirror of the visible global lab floor. Without it, the
     # few grains permitted to spill leave the solver entirely and accelerate forever.
-    mpm_ground: Any = config_field(
-        _kinematic_box(
+    mpm_ground: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMGround",
             size=MPM_GROUND_SIZE,
             position=MPM_GROUND_POSITION,
@@ -433,40 +434,40 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     # Catch tote mounted against the +X edge of the workbench. Its front wall ends flush with the
     # tabletop and overlaps the floor, closing the otherwise hidden under-table escape slot without
     # adding a lip above the sweep surface.
-    bin_floor: Any = config_field(
-        _kinematic_box(
+    bin_floor: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMBinFloor",
             size=BIN_FLOOR_SIZE,
             position=BIN_FLOOR_POSITION,
             color=(0.12, 0.22, 0.34),
         )
     )
-    bin_front: Any = config_field(
-        _kinematic_box(
+    bin_front: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMBinFront",
             size=BIN_FRONT_SIZE,
             position=BIN_FRONT_POSITION,
             color=(0.12, 0.22, 0.34),
         )
     )
-    bin_back: Any = config_field(
-        _kinematic_box(
+    bin_back: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMBinBack",
             size=BIN_BACK_SIZE,
             position=BIN_BACK_POSITION,
             color=(0.12, 0.22, 0.34),
         )
     )
-    bin_left: Any = config_field(
-        _kinematic_box(
+    bin_left: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMBinLeft",
             size=BIN_SIDE_SIZE,
             position=BIN_LEFT_POSITION,
             color=(0.12, 0.22, 0.34),
         )
     )
-    bin_right: Any = config_field(
-        _kinematic_box(
+    bin_right: Any = field(
+        default_factory=lambda: _kinematic_box(
             "{ENV_REGEX_NS}/MPMBinRight",
             size=BIN_SIDE_SIZE,
             position=BIN_RIGHT_POSITION,
@@ -476,44 +477,44 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
 
     # These static mirrors are automatically owned by the rigid entry together with the official
     # table and ground. The MPM entry owns only the kinematic copies above, so no shape is shared.
-    rigid_bin_floor: Any = config_field(
-        _static_collision_box(
+    rigid_bin_floor: Any = field(
+        default_factory=lambda: _static_collision_box(
             "{ENV_REGEX_NS}/RigidBinFloor",
             size=BIN_FLOOR_SIZE,
             position=BIN_FLOOR_POSITION,
         )
     )
-    rigid_bin_front: Any = config_field(
-        _static_collision_box(
+    rigid_bin_front: Any = field(
+        default_factory=lambda: _static_collision_box(
             "{ENV_REGEX_NS}/RigidBinFront",
             size=BIN_FRONT_SIZE,
             position=BIN_FRONT_POSITION,
         )
     )
-    rigid_bin_back: Any = config_field(
-        _static_collision_box(
+    rigid_bin_back: Any = field(
+        default_factory=lambda: _static_collision_box(
             "{ENV_REGEX_NS}/RigidBinBack",
             size=BIN_BACK_SIZE,
             position=BIN_BACK_POSITION,
         )
     )
-    rigid_bin_left: Any = config_field(
-        _static_collision_box(
+    rigid_bin_left: Any = field(
+        default_factory=lambda: _static_collision_box(
             "{ENV_REGEX_NS}/RigidBinLeft",
             size=BIN_SIDE_SIZE,
             position=BIN_LEFT_POSITION,
         )
     )
-    rigid_bin_right: Any = config_field(
-        _static_collision_box(
+    rigid_bin_right: Any = field(
+        default_factory=lambda: _static_collision_box(
             "{ENV_REGEX_NS}/RigidBinRight",
             size=BIN_SIDE_SIZE,
             position=BIN_RIGHT_POSITION,
         )
     )
 
-    media: Any = config_field(
-        MPMObjectCfg(
+    media: Any = field(
+        default_factory=lambda: MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Media",
             init_state=MPMObjectCfg.InitialStateCfg(pos=PILE_NOMINAL_CENTER),
             spawn=MPMGridCfg(
@@ -543,8 +544,8 @@ class ActionsCfg:
     """One bounded relative-position command for the six UR10 arm joints."""
 
     # Snapshot one relative joint target per policy step.
-    arm_action: Any = config_field(
-        mdp.ClampedRelativeJointPositionActionCfg(
+    arm_action: Any = field(
+        default_factory=lambda: mdp.ClampedRelativeJointPositionActionCfg(
             asset_name="robot",
             joint_names=list(UR10_JOINT_NAMES),
             preserve_order=True,
@@ -567,7 +568,7 @@ class ObservationsCfg:
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        state: Any = config_field(ObsTerm(func=mdp.policy_observation))
+        state: Any = field(default_factory=lambda: ObsTerm(func=mdp.policy_observation))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -575,7 +576,7 @@ class ObservationsCfg:
 
     @dataclass
     class HeightmapCfg(ObsGroup):
-        image: Any = config_field(ObsTerm(func=mdp.heightmap_observation))
+        image: Any = field(default_factory=lambda: ObsTerm(func=mdp.heightmap_observation))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -583,15 +584,15 @@ class ObservationsCfg:
 
     @dataclass
     class CriticCfg(ObsGroup):
-        state: Any = config_field(ObsTerm(func=mdp.critic_observation))
+        state: Any = field(default_factory=lambda: ObsTerm(func=mdp.critic_observation))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    policy: PolicyCfg = config_field(PolicyCfg())
-    heightmap: HeightmapCfg = config_field(HeightmapCfg())
-    critic: CriticCfg = config_field(CriticCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    heightmap: HeightmapCfg = field(default_factory=HeightmapCfg)
+    critic: CriticCfg = field(default_factory=CriticCfg)
 
 
 @dataclass
@@ -601,153 +602,155 @@ class RewardsCfg:
     # Delivery and transport are signed potential differences, so holding a partial solution does
     # not accumulate reward. Terminal impulses dominate the bounded shaping terms; the remaining
     # weights are continuous-time rates integrated by RewardManager.
-    success: Any = config_field(RewTerm(func=mdp.success_event, weight=2.0))
-    bin_progress: Any = config_field(RewTerm(func=mdp.BinProgressReward, weight=1.50))
-    transport_progress: Any = config_field(RewTerm(func=mdp.TransportProgressReward, weight=0.15))
-    spill: Any = config_field(RewTerm(func=mdp.spill_fraction, weight=-0.20))
-    failure: Any = config_field(RewTerm(func=mdp.failure_event, weight=-2.0))
-    action_magnitude: Any = config_field(RewTerm(func=mdp.action_magnitude, weight=-0.10))
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate, weight=-0.01))
+    success: Any = field(default_factory=lambda: RewTerm(func=mdp.success_event, weight=2.0))
+    bin_progress: Any = field(default_factory=lambda: RewTerm(func=mdp.BinProgressReward, weight=1.50))
+    transport_progress: Any = field(default_factory=lambda: RewTerm(func=mdp.TransportProgressReward, weight=0.15))
+    spill: Any = field(default_factory=lambda: RewTerm(func=mdp.spill_fraction, weight=-0.20))
+    failure: Any = field(default_factory=lambda: RewTerm(func=mdp.failure_event, weight=-2.0))
+    action_magnitude: Any = field(default_factory=lambda: RewTerm(func=mdp.action_magnitude, weight=-0.10))
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate, weight=-0.01))
 
 
 @dataclass
 class TerminationsCfg:
     """Numerical safety, irrecoverable particle loss, success, and neutral timeout."""
 
-    invalid_state: Any = config_field(DoneTerm(func=mdp.invalid_state))
-    escaped_workspace: Any = config_field(DoneTerm(func=mdp.escaped_workspace))
-    excessive_spill: Any = config_field(DoneTerm(func=mdp.excessive_spill))
-    success: Any = config_field(DoneTerm(func=mdp.success))
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    invalid_state: Any = field(default_factory=lambda: DoneTerm(func=mdp.invalid_state))
+    escaped_workspace: Any = field(default_factory=lambda: DoneTerm(func=mdp.escaped_workspace))
+    excessive_spill: Any = field(default_factory=lambda: DoneTerm(func=mdp.excessive_spill))
+    success: Any = field(default_factory=lambda: DoneTerm(func=mdp.success))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 @dataclass
 class EventsCfg:
     """Domain randomization events."""
 
-    randomize_robot_and_pile: Any = config_field(EventTerm(func=mdp.randomize_push_scene, mode="reset"))
+    randomize_robot_and_pile: Any = field(
+        default_factory=lambda: EventTerm(func=mdp.randomize_push_scene, mode="reset")
+    )
 
 
 @dataclass
 class CurriculumCfg:
     """Persistent coverage of the single-push reset distributions."""
 
-    reset_randomization: Any = config_field(CurrTerm(func=mdp.SinglePushCurriculum))
+    reset_randomization: Any = field(default_factory=lambda: CurrTerm(func=mdp.SinglePushCurriculum))
 
 
 @dataclass
 class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
 
-    decimation: Any = config_field(2)
+    decimation: Any = 2
     # One approach and sweep comfortably fits within this horizon.
-    episode_length_s: Any = config_field(12.0)
+    episode_length_s: Any = 12.0
     # Treat the deadline as a training truncation. The actor has no remaining-time observation,
     # so assigning a hidden finite-horizon terminal value would make the value function non-Markov.
-    is_finite_horizon: Any = config_field(False)
+    is_finite_horizon: Any = False
     # 50 x 86 cells at 20 mm resolution; channels are current surface, delayed surface, and bin mask.
-    heightmap_shape: tuple[int, int] = config_field((50, 86))
-    heightmap_history_steps: int = config_field(4)
-    scene: UR10ParticlePushSceneCfg = config_field(
-        UR10ParticlePushSceneCfg(
+    heightmap_shape: tuple[int, int] = (50, 86)
+    heightmap_history_steps: int = 4
+    scene: UR10ParticlePushSceneCfg = field(
+        default_factory=lambda: UR10ParticlePushSceneCfg(
             num_envs=64,
             env_spacing=3.0,
             replicate_physics=True,
             clone_in_fabric=True,
         )
     )
-    sim: SimulationCfg = config_field(SimulationCfg(dt=1.0 / 120.0, render_interval=decimation))
-    actions: ActionsCfg = config_field(ActionsCfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventsCfg = config_field(EventsCfg())
-    curriculum: CurriculumCfg = config_field(CurriculumCfg())
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(dt=1.0 / 120.0, render_interval=2))
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventsCfg = field(default_factory=EventsCfg)
+    curriculum: CurriculumCfg = field(default_factory=CurriculumCfg)
 
-    ee_body_name: str = config_field("ee_link")
-    paddle_offset: tuple[float, float, float] = config_field(PADDLE_OFFSET)
-    paddle_size: tuple[float, float, float] = config_field(PADDLE_SIZE)
-    paddle_reset_center: tuple[float, float, float] = config_field(PADDLE_RESET_CENTER)
-    pile_nominal_center: tuple[float, float, float] = config_field(PILE_NOMINAL_CENTER)
+    ee_body_name: str = "ee_link"
+    paddle_offset: tuple[float, float, float] = PADDLE_OFFSET
+    paddle_size: tuple[float, float, float] = PADDLE_SIZE
+    paddle_reset_center: tuple[float, float, float] = PADDLE_RESET_CENTER
+    pile_nominal_center: tuple[float, float, float] = PILE_NOMINAL_CENTER
     # Pack the fixed particle population into compact, volume-preserving shapes. Each profile is
     # ``(vertical cells, footprint X/Y aspect ratio)``. Their average width is close to the blade,
     # so one coordinated sweep is sufficient while shape variation remains observable.
-    reset_source_shape_profiles: tuple[tuple[int, float], ...] = config_field(
-        (
-            (12, 1.00),
-            (14, 0.75),
-            (14, 1.25),
-        )
+    reset_source_shape_profiles: tuple[tuple[int, float], ...] = (
+        (12, 1.00),
+        (14, 0.75),
+        (14, 1.25),
     )
     # The reset event samples a startup-only bank of collision-screened robot starts. Retain every
     # difficulty throughout training while exposing the policy to full randomization immediately.
     # Every level remains the same one-pile, one-sweep task and keeps all particles outside the bin.
-    reset_pile_center_x: tuple[float, ...] = config_field((0.78, 0.72, PILE_NOMINAL_CENTER[0]))
-    reset_randomization_scales: tuple[float, ...] = config_field((0.35, 0.65, 1.0))
-    reset_level_probabilities: tuple[float, ...] = config_field((0.20, 0.40, 0.40))
-    reset_seed: int = config_field(17)
-    reset_pose_count: int = config_field(192)
-    reset_cycle: bool = config_field(False)
+    reset_pile_center_x: tuple[float, ...] = (0.78, 0.72, PILE_NOMINAL_CENTER[0])
+    reset_randomization_scales: tuple[float, ...] = (0.35, 0.65, 1.0)
+    reset_level_probabilities: tuple[float, ...] = (0.20, 0.40, 0.40)
+    reset_seed: int = 17
+    reset_pose_count: int = 192
+    reset_cycle: bool = False
     # Randomize the robot in task space, then sample the pile relative to the paddle. This keeps
     # every reset immediately useful for learning while covering a broad region of the table.
-    reset_paddle_longitudinal_offset_range: tuple[float, float] = config_field((-0.08, 0.08))
-    reset_paddle_max_lateral_offset: float = config_field(0.16)
-    reset_paddle_max_yaw: float = config_field(0.25)
-    reset_pile_paddle_distance_range: tuple[float, float] = config_field((0.225, 0.285))
-    reset_pile_paddle_lateral_offset_range: tuple[float, float] = config_field((-0.06, 0.06))
-    reset_particle_max_yaw: float = config_field(0.20)
-    reset_particle_jitter: float = config_field(MPM_RESET_JITTER_FRACTION * min(PILE_LATTICE_CELL_SIZE))
-    reset_ik_seeds: int = config_field(64)
-    reset_ik_iterations: int = config_field(96)
-    reset_ik_noise_std: float = config_field(0.25)
-    reset_ik_max_cost: float = config_field(1.0e-3)
+    reset_paddle_longitudinal_offset_range: tuple[float, float] = (-0.08, 0.08)
+    reset_paddle_max_lateral_offset: float = 0.16
+    reset_paddle_max_yaw: float = 0.25
+    reset_pile_paddle_distance_range: tuple[float, float] = (0.225, 0.285)
+    reset_pile_paddle_lateral_offset_range: tuple[float, float] = (-0.06, 0.06)
+    reset_particle_max_yaw: float = 0.20
+    reset_particle_jitter: float = field(
+        default_factory=lambda: MPM_RESET_JITTER_FRACTION * min(PILE_LATTICE_CELL_SIZE)
+    )
+    reset_ik_seeds: int = 64
+    reset_ik_iterations: int = 96
+    reset_ik_noise_std: float = 0.25
+    reset_ik_max_cost: float = 1.0e-3
     # Keep the leading particle safely behind the expanded bin-front collision band.
-    reset_bin_clearance: float = config_field(0.01)
+    reset_bin_clearance: float = 0.01
 
     # Segmented overhead-depth adapter. These features can be reproduced from a calibrated real
     # overhead camera without exposing simulator-only particle identities to the actor.
-    heightmap_x_bounds: tuple[float, float] = config_field((-0.25, 1.46))
-    heightmap_y_bounds: tuple[float, float] = config_field((-0.50, 0.50))
-    heightmap_z_min: float = config_field(-0.20)
-    heightmap_z_range: float = config_field(0.40)
-    heightmap_depth_noise_std: float = config_field(0.004)
-    heightmap_xy_noise_std: float = config_field(0.003)
-    heightmap_dropout_probability: float = config_field(0.01)
-    heightmap_visualizer_cfg: VisualizationMarkersCfg | None = config_field(None)
+    heightmap_x_bounds: tuple[float, float] = (-0.25, 1.46)
+    heightmap_y_bounds: tuple[float, float] = (-0.50, 0.50)
+    heightmap_z_min: float = -0.20
+    heightmap_z_range: float = 0.40
+    heightmap_depth_noise_std: float = 0.004
+    heightmap_xy_noise_std: float = 0.003
+    heightmap_dropout_probability: float = 0.01
+    heightmap_visualizer_cfg: VisualizationMarkersCfg | None = None
 
-    bin_inner_x_bounds: tuple[float, float] = config_field(BIN_INNER_X_BOUNDS)
-    bin_inner_y_bounds: tuple[float, float] = config_field(BIN_INNER_Y_BOUNDS)
+    bin_inner_x_bounds: tuple[float, float] = BIN_INNER_X_BOUNDS
+    bin_inner_y_bounds: tuple[float, float] = BIN_INNER_Y_BOUNDS
     # Delivery includes ordinary compliant contact down to the protected floor core so a
     # compressed bottom layer remains part of the successful payload.
-    bin_inner_z_bounds: tuple[float, float] = config_field((-0.186, 0.09))
-    bin_physical_z_bounds: tuple[float, float] = config_field((-0.186, 0.12))
-    success_fraction: float = config_field(0.60)
-    success_max_spill_fraction: float = config_field(0.02)
-    failure_max_spill_fraction: float = config_field(0.20)
+    bin_inner_z_bounds: tuple[float, float] = (-0.186, 0.09)
+    bin_physical_z_bounds: tuple[float, float] = (-0.186, 0.12)
+    success_fraction: float = 0.60
+    success_max_spill_fraction: float = 0.02
+    failure_max_spill_fraction: float = 0.20
     # Settled-quality reference for privileged diagnostics and the physical validator. Terminal
     # success uses sustained bin occupancy so remaining source particles do not veto delivery.
-    success_max_rms_particle_speed: float = config_field(0.12)
-    success_dwell_time_s: float = config_field(0.30)
-    particle_workspace_lower_bound: tuple[float, float, float] = config_field((-0.30, -0.60, -0.35))
-    particle_workspace_upper_bound: tuple[float, float, float] = config_field((1.50, 0.60, 0.80))
+    success_max_rms_particle_speed: float = 0.12
+    success_dwell_time_s: float = 0.30
+    particle_workspace_lower_bound: tuple[float, float, float] = (-0.30, -0.60, -0.35)
+    particle_workspace_upper_bound: tuple[float, float, float] = (1.50, 0.60, 0.80)
     # Terminate when escaped particles exceed 2% to bound sparse-grid growth.
-    max_escaped_particle_fraction: float = config_field(0.02)
+    max_escaped_particle_fraction: float = 0.02
     # Bound numerical velocity outliers before they can cross many sparse-grid regions.
-    particle_max_velocity: float = config_field(10.0)
+    particle_max_velocity: float = 10.0
     # Reset extreme-but-finite rigid states before they can poison policy/value inputs. These are
     # numerical-instability bounds, deliberately much looser than the robot's normal motion.
-    state_bound_joint_position_margin: float = config_field(0.05)
-    state_bound_max_joint_velocity: float = config_field(20.0)
-    state_bound_max_ee_linear_velocity: float = config_field(10.0)
-    state_bound_max_ee_angular_velocity: float = config_field(50.0)
+    state_bound_joint_position_margin: float = 0.05
+    state_bound_max_joint_velocity: float = 20.0
+    state_bound_max_ee_linear_velocity: float = 10.0
+    state_bound_max_ee_angular_velocity: float = 50.0
     # Reserve active sparse-grid cells per world, independent of particle count.
-    mpm_active_cell_count_per_world: int = config_field(3072)
-    mpm_leaf_node_count_per_world: int = config_field(1 << 9)
-    mpm_lower_node_count_per_world: int = config_field(SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD)
-    mpm_upper_node_count_per_world: int = config_field(SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD)
+    mpm_active_cell_count_per_world: int = 3072
+    mpm_leaf_node_count_per_world: int = field(default_factory=lambda: 1 << 9)
+    mpm_lower_node_count_per_world: int = SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD
+    mpm_upper_node_count_per_world: int = SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD
     # Scale only the virtual paddle inertia inside MPM to limit proxy acceleration under granular
     # loading; the rigid solver retains the authored 1 kg tool and receives the harvested wrench.
-    proxy_mass_scale: float = config_field(10.0)
+    proxy_mass_scale: float = 10.0
 
     def _validate_source_shape_profiles(self) -> None:
         """Validate source-pile profiles consumed by reset packing."""

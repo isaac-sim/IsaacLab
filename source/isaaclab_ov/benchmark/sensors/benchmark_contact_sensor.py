@@ -16,11 +16,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 from functools import partial
 from typing import Any
 
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
-from isaaclab.utils import config_field
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX contact sensor update path.")
 add_sensor_benchmark_args(
@@ -52,10 +52,10 @@ wp.init()
 class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
     """Scene with one cube per environment and a contact sensor on the cube."""
 
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.5),
@@ -67,8 +67,8 @@ class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    contact_sensor: Any = config_field(
-        ContactSensorCfg(
+    contact_sensor: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             track_air_time=True,
             update_period=0.0,

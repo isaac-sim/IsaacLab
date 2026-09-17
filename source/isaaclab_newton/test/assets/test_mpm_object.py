@@ -6,13 +6,12 @@
 from __future__ import annotations
 
 import math
+from dataclasses import field
 from typing import Any
 
 import numpy as np
 import pytest
 import torch
-
-from isaaclab.utils import config_field
 
 newton = pytest.importorskip("newton")
 
@@ -100,8 +99,8 @@ def test_mpm_points_emission_records_constant_offsets_per_env():
 def test_mpm_object_initializes_from_interactive_scene():
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        media: Any = config_field(
-            MPMObjectCfg(
+        media: Any = field(
+            default_factory=lambda: MPMObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Sand",
                 spawn=MPMGridCfg(
                     lower=(0.0, 0.0, 0.0),
@@ -149,8 +148,8 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
 
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        collider: Any = config_field(
-            RigidObjectCfg(
+        collider: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/KinematicBox",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.1, 0.1, 0.1),
@@ -164,8 +163,8 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
             )
         )
-        media: Any = config_field(
-            MPMObjectCfg(
+        media: Any = field(
+            default_factory=lambda: MPMObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Sand",
                 spawn=MPMGridCfg(lower=(-0.05, -0.05, 0.3), upper=(0.05, 0.05, 0.4), voxel_size=0.05),
             )
@@ -202,8 +201,8 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
 def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        media: Any = config_field(
-            MPMObjectCfg(
+        media: Any = field(
+            default_factory=lambda: MPMObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Sand",
                 spawn=MPMGridCfg(
                     lower=(0.0, 0.0, 0.0),
@@ -254,8 +253,8 @@ def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
 def test_mpm_usd_points_follow_particle_state(monkeypatch):
     @dataclass
     class MPMSceneCfg(InteractiveSceneCfg):
-        media: Any = config_field(
-            MPMObjectCfg(
+        media: Any = field(
+            default_factory=lambda: MPMObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Sand",
                 spawn=MPMGridCfg(
                     lower=(0.0, 0.0, 0.1),

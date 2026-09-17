@@ -32,7 +32,8 @@ import sys
 import warnings
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field, make_dataclass
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -40,7 +41,6 @@ from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import (
-    config_field,
     config_to_dict,
     replace_slices_with_strings,
     replace_strings_with_slices,
@@ -189,9 +189,15 @@ def preset(**options) -> PresetCfg:
     """
     if "default" not in options:
         raise ValueError("preset() requires a 'default' keyword argument.")
-    annotations = {k: type(v) if v is not None else object for k, v in options.items()}
-    ns = {"__annotations__": annotations, **{key: config_field(value) for key, value in options.items()}}
-    cls = dataclass(type("_Preset", (PresetCfg,), ns))
+    fields = [
+        (
+            key,
+            type(value) if value is not None else object,
+            field(default_factory=lambda value=value: deepcopy(value)),
+        )
+        for key, value in options.items()
+    ]
+    cls = make_dataclass("_Preset", fields, bases=(PresetCfg,), kw_only=True)
     return cls()
 
 

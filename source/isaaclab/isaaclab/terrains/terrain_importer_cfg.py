@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners import materials
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
@@ -21,47 +21,47 @@ if TYPE_CHECKING:
 class TerrainImporterCfg:
     """Configuration for the terrain manager."""
 
-    class_type: type[TerrainImporter] | str = config_field("{DIR}.terrain_importer:TerrainImporter")
+    class_type: type[TerrainImporter] | str = "isaaclab.terrains.terrain_importer:TerrainImporter"
     """The class to use for the terrain importer.
 
     Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.
     """
 
-    collision_group: int = config_field(-1)
+    collision_group: int = -1
     """The collision group of the terrain. Defaults to -1."""
 
-    prim_path: str = config_field(MISSING)
+    prim_path: str = REQUIRED
     """The absolute path of the USD terrain prim.
 
     All sub-terrains are imported relative to this prim path.
     """
 
-    num_envs: int = config_field(1)
+    num_envs: int = 1
     """The number of environment origins to consider. Defaults to 1.
 
     In case, the :class:`~isaaclab.scene.InteractiveSceneCfg` is used, this parameter gets overridden by
     :attr:`isaaclab.scene.InteractiveSceneCfg.num_envs` attribute.
     """
 
-    terrain_type: Literal["generator", "plane", "usd"] = config_field("generator")
+    terrain_type: Literal["generator", "plane", "usd"] = "generator"
     """The type of terrain to generate. Defaults to "generator".
 
     Available options are "plane", "usd", and "generator".
     """
 
-    terrain_generator: TerrainGeneratorCfg | None = config_field(None)
+    terrain_generator: TerrainGeneratorCfg | None = None
     """The terrain generator configuration.
 
     Only used if ``terrain_type`` is set to "generator".
     """
 
-    usd_path: str | None = config_field(None)
+    usd_path: str | None = None
     """The path to the USD file containing the terrain.
 
     Only used if ``terrain_type`` is set to "usd".
     """
 
-    env_spacing: float | None = config_field(None)
+    env_spacing: float | None = None
     """The spacing between environment origins when defined in a grid. Defaults to None.
 
     Note:
@@ -69,7 +69,7 @@ class TerrainImporterCfg:
       :attr:`use_terrain_origins` is False.
     """
 
-    use_terrain_origins: bool = config_field(True)
+    use_terrain_origins: bool = True
     """Whether to set the environment origins based on the terrain origins or in a grid
     according to :attr:`env_spacing`. Defaults to True.
 
@@ -77,7 +77,7 @@ class TerrainImporterCfg:
       This parameter is used only when the :attr:`terrain type` is "generator".
     """
 
-    visual_material: sim_utils.VisualMaterialCfg | None = config_field(MISSING)
+    visual_material: sim_utils.VisualMaterialCfg | None = REQUIRED
     """The visual material of the terrain. The default depends on :attr:`terrain_type`.
 
     This parameter is used for both the "generator" and "plane" terrains.
@@ -95,7 +95,7 @@ class TerrainImporterCfg:
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = config_field(materials.RigidBodyMaterialBaseCfg())
+    ) = field(default_factory=materials.RigidBodyMaterialBaseCfg)
     """The physics material of the terrain. Defaults to a default physics material.
 
     The material is created at the path: ``{prim_path}/physicsMaterial``.
@@ -107,7 +107,7 @@ class TerrainImporterCfg:
     rigid-material fragments.
     """
 
-    max_init_terrain_level: int | None = config_field(None)
+    max_init_terrain_level: int | None = None
     """The maximum initial terrain level for defining environment origins. Defaults to None.
 
     The terrain levels are specified by the number of rows in the grid arrangement of
@@ -118,12 +118,12 @@ class TerrainImporterCfg:
       This parameter is used only when sub-terrain origins are defined.
     """
 
-    debug_vis: bool = config_field(False)
+    debug_vis: bool = False
     """Whether to enable visualization of terrain origins for the terrain. Defaults to False."""
 
     def __post_init__(self):
         """Resolve the terrain-type-specific visual material default."""
-        if isinstance(self.visual_material, type(MISSING)):
+        if self.visual_material is REQUIRED:
             if self.terrain_type == "generator":
                 self.visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
             else:

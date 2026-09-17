@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import config_field
+from dataclasses import field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -46,12 +46,12 @@ class EmptyObservationWithHistoryCfg:
     class EmptyObservationGroupWithHistoryCfg(ObsGroup):
         """Empty observation with history specifications for the environment."""
 
-        dummy_term: ObsTerm = config_field(ObsTerm(func=dummy_observation))
+        dummy_term: ObsTerm = field(default_factory=lambda: ObsTerm(func=dummy_observation))
 
         def __post_init__(self):
             self.history_length = 5
 
-    empty_observation: EmptyObservationGroupWithHistoryCfg = config_field(EmptyObservationGroupWithHistoryCfg())
+    empty_observation: EmptyObservationGroupWithHistoryCfg = field(default_factory=EmptyObservationGroupWithHistoryCfg)
 
 
 def make_empty_manager_based_env_with_history_cfg(

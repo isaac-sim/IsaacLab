@@ -7,26 +7,26 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
 class RmpFlowControllerCfg:
     """Configuration for RMP-Flow controller (provided through LULA library)."""
 
-    name: str = config_field("rmp_flow")
+    name: str = "rmp_flow"
     """Name of the controller. Supported: "rmp_flow", "rmp_flow_smoothed". Defaults to "rmp_flow"."""
-    config_file: str = config_field(MISSING)
+    config_file: str = REQUIRED
     """Path to the configuration file for the controller."""
-    urdf_file: str = config_field(MISSING)
+    urdf_file: str = REQUIRED
     """Path to the URDF model of the robot."""
-    collision_file: str = config_field(MISSING)
+    collision_file: str = REQUIRED
     """Path to collision model description of the robot."""
-    frame_name: str = config_field(MISSING)
+    frame_name: str = REQUIRED
     """Name of the robot frame for task space (must be present in the URDF)."""
-    evaluations_per_frame: float = config_field(MISSING)
+    evaluations_per_frame: float = REQUIRED
     """Number of substeps during Euler integration inside LULA world model."""
-    ignore_robot_state_updates: bool = config_field(False)
+    ignore_robot_state_updates: bool = False
     """If true, then state of the world model inside controller is rolled out. Defaults to False."""

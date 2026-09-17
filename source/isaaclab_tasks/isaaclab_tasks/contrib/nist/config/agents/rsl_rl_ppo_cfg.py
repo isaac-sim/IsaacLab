@@ -3,38 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
 @dataclass
 class FactoryPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(32)
-    max_iterations: Any = config_field(15000)
-    save_interval: Any = config_field(200)
-    experiment_name: Any = config_field("factory")
-    obs_groups: Any = config_field({"actor": ["policy"], "critic": ["policy"]})
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    num_steps_per_env: Any = 32
+    max_iterations: Any = 15000
+    save_interval: Any = 200
+    experiment_name: Any = "factory"
+    obs_groups: Any = field(default_factory=lambda: {"actor": ["policy"], "critic": ["policy"]})
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0, std_type="scalar"),
             obs_normalization=True,
             hidden_dims=[512, 256, 128, 64],
             activation="elu",
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             obs_normalization=True,
             hidden_dims=[512, 256, 128, 64],
             activation="elu",
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             class_name="PPO",
             value_loss_coef=1.0,
             use_clipped_value_loss=True,

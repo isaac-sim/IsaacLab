@@ -330,7 +330,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
 
 
-_MISSING = object()
+_REQUIRED = object()
 
 
 def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
@@ -402,7 +402,7 @@ def test_init_applies_only_explicit_global_spectator_view_setting(monkeypatch, c
     [
         pytest.param(True, True, id="deterministic-true-applies-settings"),
         pytest.param(False, False, id="deterministic-false-skips-settings"),
-        pytest.param(_MISSING, False, id="deterministic-missing-skips-settings"),
+        pytest.param(_REQUIRED, False, id="deterministic-missing-skips-settings"),
     ],
 )
 def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, expected_called):
@@ -413,7 +413,7 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
 
     # RTX rendering requires cameras to be enabled.
     settings_values = {"/isaaclab/cameras_enabled": True}
-    if stored is not _MISSING:
+    if stored is not _REQUIRED:
         settings_values["/isaaclab/render/deterministic"] = stored
 
     settings = MagicMock()

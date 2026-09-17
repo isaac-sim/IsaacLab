@@ -17,7 +17,6 @@ from isaaclab_physx.sim.spawners.materials import (
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import config_field
 
 _VOLUME_MATERIAL_CFG = PhysxDeformableBodyMaterialCfg(
     dynamic_friction=0.5,
@@ -44,7 +43,7 @@ _SURFACE_MATERIAL_CFG = PhysxSurfaceDeformableBodyMaterialCfg(
 class _PreauthoredDeformableSpawnerCfg(sim_utils.SpawnerCfg):
     """Configuration for a pre-authored deformable test fixture."""
 
-    material_path: str | None = config_field("material")
+    material_path: str | None = "material"
     """Physics material path, relative to the body prim or absolute, or None to omit it."""
 
 

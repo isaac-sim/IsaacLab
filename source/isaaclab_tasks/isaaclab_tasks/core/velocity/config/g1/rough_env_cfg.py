@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -21,26 +21,28 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class G1Rewards(RewardsCfg):
     """Reward terms for the MDP."""
 
-    termination_penalty: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-200.0))
-    track_lin_vel_xy_exp: Any = config_field(
-        RewTerm(
+    termination_penalty: Any = field(default_factory=lambda: RewTerm(func=mdp.is_terminated, weight=-200.0))
+    track_lin_vel_xy_exp: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.track_lin_vel_xy_yaw_frame_exp,
             weight=1.0,
             params={"command_name": "base_velocity", "std": 0.5},
         )
     )
-    track_ang_vel_z_exp: Any = config_field(
-        RewTerm(func=mdp.track_ang_vel_z_world_exp, weight=2.0, params={"command_name": "base_velocity", "std": 0.5})
+    track_ang_vel_z_exp: Any = field(
+        default_factory=lambda: RewTerm(
+            func=mdp.track_ang_vel_z_world_exp, weight=2.0, params={"command_name": "base_velocity", "std": 0.5}
+        )
     )
-    feet_air_time: Any = config_field(
-        RewTerm(
+    feet_air_time: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.feet_air_time_positive_biped,
             weight=0.25,
             params={
@@ -50,8 +52,8 @@ class G1Rewards(RewardsCfg):
             },
         )
     )
-    feet_slide: Any = config_field(
-        RewTerm(
+    feet_slide: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.feet_slide,
             weight=-0.1,
             params={
@@ -62,23 +64,23 @@ class G1Rewards(RewardsCfg):
     )
 
     # Penalize ankle joint limits
-    dof_pos_limits: Any = config_field(
-        RewTerm(
+    dof_pos_limits: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_pos_limits,
             weight=-1.0,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"])},
         )
     )
     # Penalize deviation from default of the joints that are not essential for locomotion
-    joint_deviation_hip: Any = config_field(
-        RewTerm(
+    joint_deviation_hip: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-0.1,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint"])},
         )
     )
-    joint_deviation_arms: Any = config_field(
-        RewTerm(
+    joint_deviation_arms: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-0.1,
             params={
@@ -95,8 +97,8 @@ class G1Rewards(RewardsCfg):
             },
         )
     )
-    joint_deviation_fingers: Any = config_field(
-        RewTerm(
+    joint_deviation_fingers: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-0.05,
             params={
@@ -115,8 +117,8 @@ class G1Rewards(RewardsCfg):
             },
         )
     )
-    joint_deviation_torso: Any = config_field(
-        RewTerm(
+    joint_deviation_torso: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-0.1,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
@@ -126,7 +128,7 @@ class G1Rewards(RewardsCfg):
 
 @dataclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    rewards: G1Rewards = config_field(G1Rewards())
+    rewards: G1Rewards = field(default_factory=G1Rewards)
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):

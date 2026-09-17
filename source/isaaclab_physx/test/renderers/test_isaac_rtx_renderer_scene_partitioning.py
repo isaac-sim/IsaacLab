@@ -24,10 +24,11 @@ variable remains a legacy construction-time override.
 Launch Isaac Sim Simulator first.
 """
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # launch omniverse app — cameras are required to read back per-env RGB tiles.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -112,16 +113,18 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     @dataclass
     class _Scene(InteractiveSceneCfg):
-        ground: Any = config_field(
-            AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
+        ground: Any = field(
+            default_factory=lambda: AssetBaseCfg(
+                prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0))
+            )
         )
-        light: Any = config_field(
-            AssetBaseCfg(
+        light: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
             )
         )
-        cube: Any = config_field(
-            RigidObjectCfg(
+        cube: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.25, 0.25, 0.25),
@@ -133,8 +136,8 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
             )
         )
-        camera: Any = config_field(
-            CameraCfg(
+        camera: Any = field(
+            default_factory=lambda: CameraCfg(
                 prim_path="{ENV_REGEX_NS}/Camera",
                 update_period=0.0,
                 height=128,
@@ -255,14 +258,16 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
 
     @dataclass
     class _Scene(InteractiveSceneCfg):
-        light: Any = config_field(
-            AssetBaseCfg(
+        light: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
             )
         )
-        robot: ArticulationCfg = config_field(replace_config(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
-        camera: Any = config_field(
-            CameraCfg(
+        robot: ArticulationCfg = field(
+            default_factory=lambda: replace_config(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        )
+        camera: Any = field(
+            default_factory=lambda: CameraCfg(
                 prim_path="{ENV_REGEX_NS}/Camera",
                 update_period=0.0,
                 height=128,

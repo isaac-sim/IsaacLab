@@ -9,6 +9,8 @@ import logging
 import os
 import re
 import tempfile
+from copy import deepcopy
+from dataclasses import field
 from datetime import datetime
 from html import escape
 from typing import TYPE_CHECKING, Any
@@ -18,7 +20,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
-from isaaclab.utils import config_field, config_to_dict, copy_config, replace_config
+from isaaclab.utils import config_to_dict, copy_config, replace_config
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -1568,20 +1570,26 @@ def rendering_test_shadow_hand(
 
     @dataclass
     class _ShadowHandTiledCameraTestCfg(ShadowHandTiledCameraCfg):
-        distance_to_camera: Any = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"]))
-        distance_to_image_plane: Any = config_field(
-            _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
+        distance_to_camera: Any = field(
+            default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         )
-        normals: Any = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["normals"]))
-        instance_segmentation: Any = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation"]))
-        instance_id_segmentation_fast: Any = config_field(
-            _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
+        distance_to_image_plane: Any = field(
+            default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         )
-        motion_vectors: Any = config_field(_ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"]))
+        normals: Any = field(default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["normals"]))
+        instance_segmentation: Any = field(
+            default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation"])
+        )
+        instance_id_segmentation_fast: Any = field(
+            default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
+        )
+        motion_vectors: Any = field(
+            default_factory=lambda: _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
+        )
 
     @dataclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
-        tiled_camera: Any = config_field(_ShadowHandTiledCameraTestCfg())
+        tiled_camera: Any = field(default_factory=_ShadowHandTiledCameraTestCfg)
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_types[0]}"]
 
@@ -1668,17 +1676,17 @@ def rendering_test_shadow_hand_yellow_bg(
 
     @dataclass
     class _YellowBgCameraCfg(_ShadowHandBaseTiledCameraCfg):
-        data_types: list[str] = config_field(["rgb"])
-        background_color: tuple[float, float, float] | None = config_field(_YELLOW)
+        data_types: list[str] = field(default_factory=lambda: ["rgb"])
+        background_color: tuple[float, float, float] | None = _YELLOW
 
     @dataclass
     class _YellowBgTiledCameraCfg(ShadowHandTiledCameraCfg):
-        default: _YellowBgCameraCfg = config_field(_YellowBgCameraCfg())
-        rgb: _YellowBgCameraCfg = config_field(_YellowBgCameraCfg())
+        default: _YellowBgCameraCfg = field(default_factory=_YellowBgCameraCfg)
+        rgb: _YellowBgCameraCfg = field(default_factory=_YellowBgCameraCfg)
 
     @dataclass
     class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
-        tiled_camera: _YellowBgTiledCameraCfg = config_field(_YellowBgTiledCameraCfg())
+        tiled_camera: _YellowBgTiledCameraCfg = field(default_factory=_YellowBgTiledCameraCfg)
 
     env_cfg = _YellowBgEnvCfg()
     env_cfg.feature_extractor.enabled = False
@@ -1721,27 +1729,35 @@ def rendering_test_cartpole(
 
     @dataclass
     class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
-        distance_to_camera: Any = config_field(
-            CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
+        distance_to_camera: Any = field(
+            default_factory=lambda: CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
         )
-        distance_to_image_plane: Any = config_field(
-            CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_image_plane"])
+        distance_to_image_plane: Any = field(
+            default_factory=lambda: CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+                data_types=["distance_to_image_plane"]
+            )
         )
-        normals: Any = config_field(CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"]))
-        instance_segmentation: Any = config_field(
-            CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["instance_segmentation"])
+        normals: Any = field(
+            default_factory=lambda: CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
         )
-        instance_id_segmentation_fast: Any = config_field(
-            CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
+        instance_segmentation: Any = field(
+            default_factory=lambda: CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+                data_types=["instance_segmentation"]
+            )
         )
-        motion_vectors: Any = config_field(
-            CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
+        instance_id_segmentation_fast: Any = field(
+            default_factory=lambda: CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+                data_types=["instance_id_segmentation_fast"]
+            )
+        )
+        motion_vectors: Any = field(
+            default_factory=lambda: CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
         )
 
     @dataclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
-        robot_cfg: Any = config_field(
-            replace_config(
+        robot_cfg: Any = field(
+            default_factory=lambda: replace_config(
                 CARTPOLE_CFG,
                 prim_path="{ENV_REGEX_NS}/Robot",
                 spawn=replace_config(CARTPOLE_CFG.spawn, semantic_tags=[("class", "cartpole")]),
@@ -1752,26 +1768,38 @@ def rendering_test_cartpole(
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
-        semantic_segmentation: Any = config_field(
-            _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg())
+        semantic_segmentation: Any = field(
+            default_factory=lambda: _BaseCartpoleCameraEnvTestCfg(
+                observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
+            )
         )
-        distance_to_camera: Any = config_field(
-            _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg())
+        distance_to_camera: Any = field(
+            default_factory=lambda: _BaseCartpoleCameraEnvTestCfg(
+                observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
+            )
         )
-        distance_to_image_plane: Any = config_field(
-            _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg())
+        distance_to_image_plane: Any = field(
+            default_factory=lambda: _BaseCartpoleCameraEnvTestCfg(
+                observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
+            )
         )
-        normals: Any = config_field(
-            _BaseCartpoleCameraEnvTestCfg(observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg())
+        normals: Any = field(
+            default_factory=lambda: _BaseCartpoleCameraEnvTestCfg(
+                observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
+            )
         )
-        instance_segmentation: Any = config_field(
-            _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg())
+        instance_segmentation: Any = field(
+            default_factory=lambda: _BaseCartpoleCameraEnvTestCfg(
+                observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
+            )
         )
-        instance_id_segmentation_fast: Any = config_field(
-            _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg())
+        instance_id_segmentation_fast: Any = field(
+            default_factory=lambda: _BaseCartpoleCameraEnvTestCfg(
+                observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
+            )
         )
-        motion_vectors: Any = config_field(
-            CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        motion_vectors: Any = field(
+            default_factory=lambda: CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
                 observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
             )
         )
@@ -1892,68 +1920,107 @@ def rendering_test_lift_kuka(
 
     @dataclass
     class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
-        distance_to_camera64: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=64, height=64)
+        distance_to_camera64: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=64, height=64
+            )
         )
-        distance_to_camera128: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=128, height=128)
+        distance_to_camera128: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=128, height=128
+            )
         )
-        distance_to_camera256: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=256, height=256)
+        distance_to_camera256: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=256, height=256
+            )
         )
-        distance_to_image_plane64: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=64, height=64)
+        distance_to_image_plane64: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=64, height=64
+            )
         )
-        distance_to_image_plane128: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=128, height=128)
+        distance_to_image_plane128: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=128, height=128
+            )
         )
-        distance_to_image_plane256: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=256, height=256)
+        distance_to_image_plane256: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=256, height=256
+            )
         )
-        normals64: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["normals"], width=64, height=64))
-        normals128: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["normals"], width=128, height=128))
-        normals256: Any = config_field(replace_config(BASE_CAMERA_CFG, data_types=["normals"], width=256, height=256))
-        instance_segmentation64: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=64, height=64)
+        normals64: Any = field(
+            default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["normals"], width=64, height=64)
         )
-        instance_segmentation128: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=128, height=128)
+        normals128: Any = field(
+            default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["normals"], width=128, height=128)
         )
-        instance_segmentation256: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=256, height=256)
+        normals256: Any = field(
+            default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["normals"], width=256, height=256)
         )
-        instance_id_segmentation_fast64: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=64, height=64)
+        instance_segmentation64: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=64, height=64
+            )
         )
-        instance_id_segmentation_fast128: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=128, height=128)
+        instance_segmentation128: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=128, height=128
+            )
         )
-        instance_id_segmentation_fast256: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=256, height=256)
+        instance_segmentation256: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=256, height=256
+            )
         )
-        motion_vectors64: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=64, height=64)
+        instance_id_segmentation_fast64: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=64, height=64
+            )
         )
-        motion_vectors128: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=128, height=128)
+        instance_id_segmentation_fast128: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=128, height=128
+            )
         )
-        motion_vectors256: Any = config_field(
-            replace_config(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=256, height=256)
+        instance_id_segmentation_fast256: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=256, height=256
+            )
+        )
+        motion_vectors64: Any = field(
+            default_factory=lambda: replace_config(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=64, height=64)
+        )
+        motion_vectors128: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["motion_vectors"], width=128, height=128
+            )
+        )
+        motion_vectors256: Any = field(
+            default_factory=lambda: replace_config(
+                BASE_CAMERA_CFG, data_types=["motion_vectors"], width=256, height=256
+            )
         )
 
     @dataclass
     class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
-        base_camera: CameraCfg = config_field(_LiftBaseTiledCameraTestCfg())
+        base_camera: CameraCfg = field(default_factory=_LiftBaseTiledCameraTestCfg)
 
     @dataclass
     class _KukaAllegroLiftCameraTestEnvCfg(KukaAllegroLiftCameraEnvCfg):
-        single_camera: Any = config_field(
-            KukaAllegroLiftEnvCfg(
+        single_camera: Any = field(
+            default_factory=lambda: KukaAllegroLiftEnvCfg(
                 scene=_LiftSingleCameraTestSceneCfg(**_SCENE_KWARGS),
                 observations=SingleCameraObservationsCfg(),
             )
         )
-        default: Any = config_field(single_camera)
+        default: Any = field(
+            default_factory=lambda: KukaAllegroLiftEnvCfg(
+                scene=_LiftSingleCameraTestSceneCfg(**_SCENE_KWARGS),
+                observations=SingleCameraObservationsCfg(),
+            )
+        )
 
     override_arg = f"presets={_physics_preset_name(physics_backend)},{renderer},{data_types[0]}64,single_camera"
 
@@ -2171,8 +2238,8 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
 
         @dataclass
         class PolicyCfg(ObsGroup):
-            image: Any = config_field(
-                ObsTerm(
+            image: Any = field(
+                default_factory=lambda: ObsTerm(
                     func=env_mdp.image,
                     params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0], "permute": True},
                 )
@@ -2182,7 +2249,7 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
                 self.enable_corruption = False
                 self.concatenate_terms = True
 
-        policy: ObsGroup = config_field(PolicyCfg())
+        policy: ObsGroup = field(default_factory=PolicyCfg)
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.env_spacing = 3.0
@@ -2434,7 +2501,7 @@ def rendering_test_mpm_particles(
     class TestMPMParticleCameraSceneCfg(UR10ParticlePushSceneCfg):
         """UR10 particle-push scene with a test-local camera on the pile."""
 
-        base_camera: CameraCfg = config_field(particle_camera_cfg)
+        base_camera: CameraCfg = field(default_factory=lambda: deepcopy(particle_camera_cfg))
 
     @dataclass
     class TestMPMParticleCameraEnvCfg(UR10ParticlePushEnvCfg):
@@ -2451,18 +2518,18 @@ def rendering_test_mpm_particles(
         built once per process, so a retry in the same process would draw different entries.
         """
 
-        scene: TestMPMParticleCameraSceneCfg = config_field(
-            TestMPMParticleCameraSceneCfg(
+        scene: TestMPMParticleCameraSceneCfg = field(
+            default_factory=lambda: TestMPMParticleCameraSceneCfg(
                 num_envs=4,
                 env_spacing=3.0,
                 replicate_physics=True,
                 clone_in_fabric=True,
             )
         )
-        reset_cycle: bool = config_field(True)
-        reset_particle_max_yaw: float = config_field(0.0)
-        reset_particle_jitter: float = config_field(0.0)
-        reset_level_probabilities: tuple[float, ...] = config_field((1.0, 0.0, 0.0))
+        reset_cycle: bool = True
+        reset_particle_max_yaw: float = 0.0
+        reset_particle_jitter: float = 0.0
+        reset_level_probabilities: tuple[float, ...] = (1.0, 0.0, 0.0)
 
     env_cfg = TestMPMParticleCameraEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={renderer}"])

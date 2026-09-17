@@ -25,6 +25,7 @@ from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
+from isaaclab.utils import resolve_config
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -126,11 +127,11 @@ class SimulationContext:
         from pxr import UsdUtils  # noqa: PLC0415
 
         # Store config
-        self.cfg = SimulationCfg() if cfg is None else cfg
+        self.cfg = resolve_config(SimulationCfg() if cfg is None else cfg)
         self._backend_registry: dict[type[object], object] = {}
 
         use_isaac_sim = has_kit()
-        self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
+        self._physics = resolve_config(_resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim))
         self.cfg.physics = self._physics
         self._physics.class_type._prepare_stage_creation()
 

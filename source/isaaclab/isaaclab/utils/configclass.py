@@ -14,7 +14,7 @@ import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeVar
 
 from .dict import class_to_dict, update_class_from_dict
 from .string import ResolvableString
@@ -25,46 +25,24 @@ _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
 
+ConfigType = TypeVar("ConfigType")
 
-class _ConfigField(Field):
-    """Dataclass field that keeps its declaration-time default configurable in a class body."""
 
-    def __init__(self, source: Any, base: Field):
-        super().__init__(
-            default=base.default,
-            default_factory=base.default_factory,
-            init=base.init,
-            repr=base.repr,
-            hash=base.hash,
-            compare=base.compare,
-            metadata=base.metadata,
-            kw_only=base.kw_only,
-        )
-        self._config_source = source
+class _Required:
+    """Sentinel for configuration values that must be supplied before validation."""
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._config_source, name)
+    def __copy__(self):
+        return self
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in Field.__slots__ or name == "_config_source":
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self._config_source, name, value)
+    def __deepcopy__(self, memo):
+        return self
 
-    def __getitem__(self, key: Any) -> Any:
-        return self._config_source[key]
+    def __repr__(self) -> str:
+        return "REQUIRED"
 
-    def __iter__(self):
-        return iter(self._config_source)
 
-    def __len__(self) -> int:
-        return len(self._config_source)
-
-    def __add__(self, other: Any) -> Any:
-        return self._config_source + other
-
-    def __radd__(self, other: Any) -> Any:
-        return other + self._config_source
+REQUIRED = _Required()
+"""Sentinel for a configuration value that must be supplied before validation."""
 
 
 """
@@ -88,22 +66,22 @@ def configclass(cls, **kwargs):
 
     .. code-block:: python
 
-        from dataclasses import MISSING, dataclass
+        from dataclasses import dataclass, field
 
-        from isaaclab.utils import config_field, config_to_dict, copy_config, replace_config
+        from isaaclab.utils import config_to_dict, copy_config, replace_config
 
 
         @dataclass
         class ViewerCfg:
-            eye: list = config_field([7.5, 7.5, 7.5])
-            lookat: list = config_field([0.0, 0.0, 0.0])
+            eye: list[float] = field(default_factory=lambda: [7.5, 7.5, 7.5])
+            lookat: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
         @dataclass
         class EnvCfg:
-            num_envs: int = config_field(MISSING)
+            num_envs: int
             episode_length: int = 2000
-            viewer: ViewerCfg = config_field(ViewerCfg())
+            viewer: ViewerCfg = field(default_factory=ViewerCfg)
 
 
         # create configuration instance
@@ -159,67 +137,9 @@ def configclass(cls, **kwargs):
     return cls
 
 
-def config_field(default: Any = MISSING, **kwargs) -> Field:
-    """Create an independent dataclass field for a configuration default.
-
-    The default is deep-copied for each instance. Callable-like strings are wrapped lazily and ``{DIR}`` references
-    resolve relative to the module declaring the field.
-
-    Args:
-        default: Default field value.
-        **kwargs: Additional arguments forwarded to :func:`dataclasses.field`.
-
-    Returns:
-        A dataclass field with an independent default factory.
-    """
-    caller_frame = inspect.currentframe().f_back
-    module_name = caller_frame.f_globals.get("__name__", "") if caller_frame is not None else ""
-    module_dir = module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
-    del caller_frame
-
-    def default_factory():
-        value = _materialize_config_fields(default)
-        return _wrap_resolvable_strings(deepcopy(value), module_dir=module_dir)
-
-    return _ConfigField(default, field(default_factory=default_factory, **kwargs))
-
-
-def _materialize_config_fields(value: Any) -> Any:
-    """Resolve config fields referenced by later declarations in the same class body."""
-    if isinstance(value, Field):
-        if value.default_factory is not MISSING:
-            return _materialize_config_fields(value.default_factory())
-        if value.default is not MISSING:
-            return _materialize_config_fields(value.default)
-        return MISSING
-    if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        changes = {
-            dataclass_field.name: _materialize_config_fields(getattr(value, dataclass_field.name))
-            for dataclass_field in dataclasses.fields(value)
-        }
-        if all(changes[name] is getattr(value, name) for name in changes):
-            return value
-        clone = object.__new__(type(value))
-        if hasattr(value, "__dict__"):
-            object.__setattr__(clone, "__dict__", value.__dict__.copy())
-        for name, item in changes.items():
-            object.__setattr__(clone, name, item)
-        return clone
-    if isinstance(value, dict):
-        resolved = {key: _materialize_config_fields(item) for key, item in value.items()}
-        return value if all(resolved[key] is item for key, item in value.items()) else resolved
-    if isinstance(value, list):
-        resolved = [_materialize_config_fields(item) for item in value]
-        return value if all(new is old for new, old in zip(resolved, value, strict=True)) else resolved
-    if isinstance(value, tuple):
-        resolved = tuple(_materialize_config_fields(item) for item in value)
-        return value if all(new is old for new, old in zip(resolved, value, strict=True)) else resolved
-    return value
-
-
 def config_to_dict(config: object) -> dict[str, Any]:
     """Convert a configuration into a dictionary recursively."""
-    return class_to_dict(_materialize_config_fields(config))
+    return class_to_dict(config)
 
 
 def update_config(config: object, data: dict[str, Any]) -> None:
@@ -229,17 +149,31 @@ def update_config(config: object, data: dict[str, Any]) -> None:
 
 def replace_config(config: object, **changes) -> object:
     """Return an independent configuration copy with the specified fields replaced."""
-    return deepcopy(replace(_materialize_config_fields(config), **changes))
+    return deepcopy(replace(config, **changes))
 
 
 def copy_config(config: object) -> object:
     """Return a deep copy of a configuration."""
-    return deepcopy(_materialize_config_fields(config))
+    return deepcopy(config)
+
+
+def resolve_config(config: ConfigType) -> ConfigType:
+    """Resolve callable import strings in a configuration recursively.
+
+    The configuration is updated in place and returned for convenient use at a consumer boundary.
+
+    Args:
+        config: Configuration to resolve.
+
+    Returns:
+        The resolved configuration.
+    """
+    return _wrap_resolvable_strings(config)
 
 
 def validate_config(config: object) -> list[str]:
     """Validate that a configuration contains no missing values."""
-    return _validate(_materialize_config_fields(config))
+    return _validate(resolve_config(config))
 
 
 """
@@ -465,7 +399,7 @@ def _add_annotation_types(cls):
 def _validate(obj: object, prefix: str = "") -> list[str]:
     """Check the validity of a configuration object.
 
-    This function checks if the object is a valid configuration object. A valid configuration contains no MISSING
+    This function checks if the object is a valid configuration object. A valid configuration contains no required
     entries. Additionally, if the top-level object defines a ``_validate_config`` method, it is called to perform
     domain-specific validation.
 
@@ -492,7 +426,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     if type(obj).__name__ == "MeshConverterCfg":
         return missing_fields
 
-    if type(obj) is type(MISSING):
+    if obj is REQUIRED or type(obj) is type(MISSING):
         missing_fields.append(prefix)
         return missing_fields
     elif isinstance(obj, (list, tuple)):

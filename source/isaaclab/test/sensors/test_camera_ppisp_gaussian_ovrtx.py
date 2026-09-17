@@ -69,13 +69,13 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 # Use collection-time skip markers so unavailable optional modules remain
 # visible per test in reports.
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
-_SKIP_MISSING_OVRTX = pytest.mark.skipif(
-    bool(_MISSING_MODULES),
-    reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_SKIP_REQUIRED_OVRTX = pytest.mark.skipif(
+    bool(_REQUIRED_MODULES),
+    reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
 )
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg  # noqa: E402
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
@@ -109,7 +109,7 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
     """Wrapper PPISP via ``ovrtx`` must show every PPISP-feature signature.
@@ -139,7 +139,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
     """OVRTX must apply camera-authored static PPISP attributes."""
@@ -170,7 +170,7 @@ def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_o
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
     """OVRTX controller output must match the equivalent static PPISP cfg."""
@@ -200,7 +200,7 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
+@_SKIP_REQUIRED_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
     """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants

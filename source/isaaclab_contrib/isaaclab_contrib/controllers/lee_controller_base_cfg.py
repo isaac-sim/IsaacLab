@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -22,7 +22,7 @@ class LeeControllerBaseCfg:
         For example: K_rot_range = ((1.85, 1.85, 0.4), (1.85, 1.85, 0.4))
     """
 
-    K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = config_field(MISSING)
+    K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = REQUIRED
     """Orientation (rotation) error proportional gain range about body axes [unitless].
 
     This is a tuple of two tuples containing the minimum and maximum gains for roll, pitch, and yaw.
@@ -37,7 +37,7 @@ class LeeControllerBaseCfg:
         ((1.85, 1.85, 0.4), (1.85, 1.85, 0.4)) for fixed gains
     """
 
-    K_angvel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = config_field(MISSING)
+    K_angvel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = REQUIRED
     """Body angular-velocity error proportional gain range [unitless].
 
     This is a tuple of two tuples containing the minimum and maximum gains for roll, pitch, and yaw rates.
@@ -52,7 +52,7 @@ class LeeControllerBaseCfg:
         ((0.5, 0.5, 0.09), (0.5, 0.5, 0.09)) for fixed gains
     """
 
-    max_inclination_angle_rad: float = config_field(math.pi / 3)
+    max_inclination_angle_rad: float = field(default_factory=lambda: math.pi / 3)
     """Maximum allowed roll/pitch magnitude (inclination) in radians.
 
     This limits the maximum tilt angle of the quadrotor during control.
@@ -62,7 +62,7 @@ class LeeControllerBaseCfg:
         1.0471975511965976 (60° in radians) for ARL Robot 1
     """
 
-    max_yaw_rate: float = config_field(MISSING)
+    max_yaw_rate: float = REQUIRED
     """Maximum allowed yaw rate command [rad/s].
 
     This limits the maximum rotational velocity about the z-axis.

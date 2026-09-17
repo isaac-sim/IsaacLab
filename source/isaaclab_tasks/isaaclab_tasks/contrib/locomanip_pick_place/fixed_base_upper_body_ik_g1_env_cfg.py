@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_teleop import ControllerHapticFeedbackCfg, IsaacTeleopCfg, XrCfg
 
@@ -18,7 +18,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
@@ -29,6 +29,7 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
+from copy import deepcopy
 from typing import Any
 
 
@@ -242,8 +243,8 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     """
 
     # Table
-    packing_table: Any = config_field(
-        AssetBaseCfg(
+    packing_table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/PackingTable",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -253,8 +254,8 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         )
     )
 
-    object: Any = config_field(
-        RigidObjectCfg(
+    object: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
@@ -266,20 +267,22 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Unitree G1 Humanoid robot - fixed base configuration
-    robot: ArticulationCfg = config_field(replace_config(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
-    left_hand_contact: Any = config_field(
-        ContactSensorCfg(
+    left_hand_contact: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
             update_period=0.0,
             history_length=3,
         )
     )
-    right_hand_contact: Any = config_field(
-        ContactSensorCfg(
+    right_hand_contact: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
             update_period=0.0,
             history_length=3,
@@ -287,16 +290,16 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             spawn=GroundPlaneCfg(),
         )
     )
 
     # Lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -312,7 +315,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    upper_body_ik: Any = config_field(G1_UPPER_BODY_IK_ACTION_CFG)
+    upper_body_ik: Any = field(default_factory=lambda: deepcopy(G1_UPPER_BODY_IK_ACTION_CFG))
 
 
 @dataclass
@@ -325,47 +328,49 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=manip_mdp.last_action))
-        robot_joint_pos: Any = config_field(
-            ObsTerm(
+        actions: Any = field(default_factory=lambda: ObsTerm(func=manip_mdp.last_action))
+        robot_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.joint_pos,
                 params={"asset_cfg": SceneEntityCfg("robot")},
             )
         )
-        robot_root_pos: Any = config_field(
-            ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        robot_root_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
         )
-        robot_root_rot: Any = config_field(
-            ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        robot_root_rot: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
         )
-        object_pos: Any = config_field(
-            ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
         )
-        object_rot: Any = config_field(
-            ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_rot: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
         )
-        robot_links_state: Any = config_field(ObsTerm(func=manip_mdp.get_all_robot_link_state))
+        robot_links_state: Any = field(default_factory=lambda: ObsTerm(func=manip_mdp.get_all_robot_link_state))
 
-        left_eef_pos: Any = config_field(
-            ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "left_wrist_yaw_link"})
+        left_eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "left_wrist_yaw_link"})
         )
-        left_eef_quat: Any = config_field(
-            ObsTerm(func=manip_mdp.get_eef_quat, params={"link_name": "left_wrist_yaw_link"})
+        left_eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=manip_mdp.get_eef_quat, params={"link_name": "left_wrist_yaw_link"})
         )
-        right_eef_pos: Any = config_field(
-            ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "right_wrist_yaw_link"})
+        right_eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "right_wrist_yaw_link"})
         )
-        right_eef_quat: Any = config_field(
-            ObsTerm(func=manip_mdp.get_eef_quat, params={"link_name": "right_wrist_yaw_link"})
+        right_eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=manip_mdp.get_eef_quat, params={"link_name": "right_wrist_yaw_link"})
         )
 
-        hand_joint_state: Any = config_field(
-            ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": [".*_hand.*"]})
+        hand_joint_state: Any = field(
+            default_factory=lambda: ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": [".*_hand.*"]})
         )
-        head_joint_state: Any = config_field(ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": []}))
+        head_joint_state: Any = field(
+            default_factory=lambda: ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": []})
+        )
 
-        object: Any = config_field(
-            ObsTerm(
+        object: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=manip_mdp.object_obs,
                 params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
             )
@@ -376,24 +381,24 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=locomanip_mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=locomanip_mdp.time_out, time_out=True))
 
-    object_dropping: Any = config_field(
-        DoneTerm(
+    object_dropping: Any = field(
+        default_factory=lambda: DoneTerm(
             func=base_mdp.root_height_below_minimum,
             params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")},
         )
     )
 
-    success: Any = config_field(
-        DoneTerm(
+    success: Any = field(
+        default_factory=lambda: DoneTerm(
             func=manip_mdp.task_done_pick_place,
             params={"task_link_name": "right_wrist_yaw_link"},
         )
@@ -415,18 +420,18 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     """
 
     # Scene settings
-    scene: FixedBaseUpperBodyIKG1SceneCfg = config_field(
-        FixedBaseUpperBodyIKG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: FixedBaseUpperBodyIKG1SceneCfg = field(
+        default_factory=lambda: FixedBaseUpperBodyIKG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     )
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
 
     # Unused managers
-    commands: Any = config_field(None)
-    rewards: Any = config_field(None)
-    curriculum: Any = config_field(None)
+    commands: Any = None
+    rewards: Any = None
+    curriculum: Any = None
 
     def __post_init__(self):
         """Post initialization."""

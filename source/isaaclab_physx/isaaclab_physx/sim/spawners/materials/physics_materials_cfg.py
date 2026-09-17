@@ -16,7 +16,6 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils import config_field
 
 
 @dataclass
@@ -30,19 +29,19 @@ class OmniPhysicsDeformableMaterialCfg:
     _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsDeformableMaterialAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    density: float = config_field(1000.0)
+    density: float = 1000.0
     """The material density [kg/m^3]. Defaults to 1000.0 kg/m^3."""
 
-    static_friction: float = config_field(0.25)
+    static_friction: float = 0.25
     """The static friction coefficient. Defaults to 0.25."""
 
-    dynamic_friction: float = config_field(0.25)
+    dynamic_friction: float = 0.25
     """The dynamic friction coefficient. Defaults to 0.25."""
 
-    youngs_modulus: float = config_field(1000000.0)
+    youngs_modulus: float = 1000000.0
     """The Young's modulus, which defines the body's stiffness [Pa]. Defaults to 1 MPa."""
 
-    poissons_ratio: float = config_field(0.45)
+    poissons_ratio: float = 0.45
     """The Poisson's ratio which defines the body's volume preservation."""
 
 
@@ -54,16 +53,16 @@ class OmniPhysicsSurfaceDeformableMaterialCfg(OmniPhysicsDeformableMaterialCfg):
     _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsSurfaceDeformableMaterialAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    surface_thickness: float = config_field(0.01)
+    surface_thickness: float = 0.01
     """The thickness of the deformable body's surface [m]. Defaults to 0.01."""
 
-    surface_stretch_stiffness: float = config_field(0.0)
+    surface_stretch_stiffness: float = 0.0
     """The stretch stiffness of the deformable body's surface. Defaults to 0.0."""
 
-    surface_shear_stiffness: float = config_field(0.0)
+    surface_shear_stiffness: float = 0.0
     """The shear stiffness of the deformable body's surface. Defaults to 0.0."""
 
-    surface_bend_stiffness: float = config_field(0.0)
+    surface_bend_stiffness: float = 0.0
     """The bend stiffness of the deformable body's surface. Defaults to 0.0."""
 
 
@@ -78,7 +77,7 @@ class PhysXDeformableMaterialCfg:
     _usd_applied_schema: ClassVar[str | None] = "PhysxDeformableMaterialAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    elasticity_damping: float = config_field(0.005)
+    elasticity_damping: float = 0.005
     """The elasticity damping for the deformable material. Defaults to 0.005."""
 
 
@@ -90,9 +89,7 @@ class PhysxDeformableBodyMaterialCfg(
 ):
     """PhysX-specific physics material parameters for deformable bodies."""
 
-    func: Callable | str = config_field(
-        "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
-    )
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
 
 @dataclass
@@ -106,11 +103,9 @@ class PhysxSurfaceDeformableBodyMaterialCfg(
     _usd_namespace: ClassVar[str | None] = "physxDeformableMaterial"
     _usd_applied_schema: ClassVar[str | None] = "PhysxSurfaceDeformableMaterialAPI"
 
-    func: Callable | str = config_field(
-        "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
-    )
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
-    bend_damping: float = config_field(0.0)
+    bend_damping: float = 0.0
     """Damping acting against bend-resistance forces [1/s]. Defaults to 0.0."""
 
 
@@ -177,7 +172,7 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     # Prim attribute namespace for PhysX-specific fields.
     _usd_namespace: ClassVar[str | None] = "physxMaterial"
 
-    compliant_contact_stiffness: float | None = config_field(None)
+    compliant_contact_stiffness: float | None = None
     """Spring stiffness for a compliant contact model using implicit springs.
 
     A higher stiffness results in behavior closer to a rigid contact. The compliant contact model
@@ -185,7 +180,7 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     attribute as a fallback contact-stiffness value.
     """
 
-    compliant_contact_damping: float | None = config_field(None)
+    compliant_contact_damping: float | None = None
     """Damping coefficient for a compliant contact model using implicit springs.
 
     Irrelevant if compliant contacts are disabled when :attr:`compliant_contact_stiffness` is set
@@ -193,14 +188,14 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     a fallback contact-damping value.
     """
 
-    compliant_contact_acceleration_spring: bool | None = config_field(None)
+    compliant_contact_acceleration_spring: bool | None = None
     """Whether the compliant contact spring is formulated in acceleration (rather than force) units.
 
     Only relevant when compliant contacts are enabled (:attr:`compliant_contact_stiffness` is
     non-zero). PhysX-only; not consumed by Newton.
     """
 
-    friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = config_field(None)
+    friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """Determines the way friction will be combined during collisions.
 
     .. attention::
@@ -210,7 +205,7 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
         <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
     """
 
-    restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = config_field(None)
+    restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """Determines the way restitution coefficient will be combined during collisions.
 
     .. attention::
@@ -220,7 +215,7 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
         <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
     """
 
-    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = config_field(None)
+    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """Determines the way the (compliant-contact) damping coefficient is combined during collisions.
 
     .. attention::
@@ -248,34 +243,34 @@ class PhysxMaterialCfg(RigidBodyMaterialFragment):
     _usd_namespace: ClassVar[str | None] = "physxMaterial"
     _usd_applied_schema: ClassVar[str | None] = "PhysxMaterialAPI"
 
-    compliant_contact_stiffness: float | None = config_field(None)
+    compliant_contact_stiffness: float | None = None
     """Spring stiffness for a compliant contact model using implicit springs.
 
     A higher stiffness results in behavior closer to a rigid contact. The compliant contact model is
     only enabled if the stiffness is larger than 0. Writes ``physxMaterial:compliantContactStiffness``.
     """
 
-    compliant_contact_damping: float | None = config_field(None)
+    compliant_contact_damping: float | None = None
     """Damping coefficient for a compliant contact model using implicit springs.
 
     Irrelevant if compliant contacts are disabled (``compliant_contact_stiffness`` is zero). Writes
     ``physxMaterial:compliantContactDamping``.
     """
 
-    compliant_contact_acceleration_spring: bool | None = config_field(None)
+    compliant_contact_acceleration_spring: bool | None = None
     """Whether the compliant contact spring is formulated in acceleration (rather than force) units.
 
     Writes ``physxMaterial:compliantContactAccelerationSpring``. Only relevant when compliant
     contacts are enabled (:attr:`compliant_contact_stiffness` is non-zero).
     """
 
-    friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = config_field(None)
+    friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """How friction is combined during collisions. Writes ``physxMaterial:frictionCombineMode``."""
 
-    restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = config_field(None)
+    restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """How restitution is combined during collisions. Writes ``physxMaterial:restitutionCombineMode``."""
 
-    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = config_field(None)
+    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """How the (compliant-contact) damping coefficient is combined during collisions.
 
     Writes ``physxMaterial:dampingCombineMode``.

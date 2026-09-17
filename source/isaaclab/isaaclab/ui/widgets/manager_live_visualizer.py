@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy
@@ -14,7 +14,7 @@ import numpy
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
 from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot
@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 class ManagerLiveVisualizerCfg:
     """Configuration for the :class:`ManagerLiveVisualizer` class."""
 
-    debug_vis: bool = config_field(False)
+    debug_vis: bool = False
     """Flag used to set status of the live visualizers on startup. Defaults to False, which means closed."""
 
-    manager_name: str = config_field(MISSING)
+    manager_name: str = REQUIRED
     """Manager name that corresponds to the manager of interest in the ManagerBasedEnv and ManagerBasedRLEnv"""
 
-    term_names: list[str] | dict[str, list[str]] | None = config_field(None)
+    term_names: list[str] | dict[str, list[str]] | None = None
     """Specific term names specified in a Manager config that are chosen to be plotted. Defaults to None.
 
     If None all terms will be plotted. For managers that utilize Groups (i.e. ObservationGroup) use a dictionary of
@@ -274,18 +274,24 @@ class ManagerLiveVisualizer(UiVisualizerBase):
 class DefaultManagerBasedEnvLiveVisCfg:
     """Default configuration to use for the ManagerBasedEnv. Each chosen manager assumes all terms will be plotted."""
 
-    action_live_vis: Any = config_field(ManagerLiveVisualizerCfg(manager_name="action_manager"))
-    observation_live_vis: Any = config_field(ManagerLiveVisualizerCfg(manager_name="observation_manager"))
+    action_live_vis: Any = field(default_factory=lambda: ManagerLiveVisualizerCfg(manager_name="action_manager"))
+    observation_live_vis: Any = field(
+        default_factory=lambda: ManagerLiveVisualizerCfg(manager_name="observation_manager")
+    )
 
 
 @dataclass
 class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
     """Default configuration to use for the ManagerBasedRLEnv. Each chosen manager assumes all terms will be plotted."""
 
-    curriculum_live_vis: Any = config_field(ManagerLiveVisualizerCfg(manager_name="curriculum_manager"))
-    command_live_vis: Any = config_field(ManagerLiveVisualizerCfg(manager_name="command_manager"))
-    reward_live_vis: Any = config_field(ManagerLiveVisualizerCfg(manager_name="reward_manager"))
-    termination_live_vis: Any = config_field(ManagerLiveVisualizerCfg(manager_name="termination_manager"))
+    curriculum_live_vis: Any = field(
+        default_factory=lambda: ManagerLiveVisualizerCfg(manager_name="curriculum_manager")
+    )
+    command_live_vis: Any = field(default_factory=lambda: ManagerLiveVisualizerCfg(manager_name="command_manager"))
+    reward_live_vis: Any = field(default_factory=lambda: ManagerLiveVisualizerCfg(manager_name="reward_manager"))
+    termination_live_vis: Any = field(
+        default_factory=lambda: ManagerLiveVisualizerCfg(manager_name="termination_manager")
+    )
 
 
 class EnvLiveVisualizer:

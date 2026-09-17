@@ -5,13 +5,13 @@
 
 """Shared core-only scene configurations for Isaac Lab integration tests."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import config_field, copy_config
+from isaaclab.utils import copy_config
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
@@ -48,15 +48,15 @@ class CartpoleTestSceneCfg(InteractiveSceneCfg):
     not assert ground or lighting behavior.
     """
 
-    robot: ArticulationCfg = config_field(copy_config(_CARTPOLE_TEST_CFG))
+    robot: ArticulationCfg = field(default_factory=lambda: copy_config(_CARTPOLE_TEST_CFG))
 
 
 @dataclass
 class ArticulationRigidObjectSceneCfg(CartpoleTestSceneCfg):
     """Configuration for a minimal scene with articulation and rigid-object state."""
 
-    object: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    object: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),

@@ -19,12 +19,12 @@ Use ``--grid_type fixed`` to compare against the larger fixed-grid fallback.
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 from typing import Any, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import config_field
 
 
 class SnowballSpec(NamedTuple):
@@ -279,8 +279,8 @@ def create_scene_cfg():
         # This visible static plane belongs to the rigid entry, so MuJoCo can
         # resolve crate-ground contact without duplicating the ground shape in
         # the MPM model view.
-        ground: Any = config_field(
-            AssetBaseCfg(
+        ground: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/Ground",
                 spawn=sim_utils.GroundPlaneCfg(),
             )
@@ -289,8 +289,8 @@ def create_scene_cfg():
         # The co-located hidden kinematic slab belongs only to the MPM entry.
         # This mirrors the shared geometry without assigning one Newton shape
         # to two coupled solver entries.
-        mpm_ground: Any = config_field(
-            RigidObjectCfg(
+        mpm_ground: Any = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/MPMGround",
                 spawn=sim_utils.CuboidCfg(
                     size=(12.0, 12.0, 0.10),
@@ -309,23 +309,23 @@ def create_scene_cfg():
             )
         )
 
-        dome_light: Any = config_field(
-            AssetBaseCfg(
+        dome_light: Any = field(
+            default_factory=lambda: AssetBaseCfg(
                 prim_path="/World/DomeLight",
                 spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
             )
         )
 
-        crate_0: Any = config_field(crate_cfg(0))
-        crate_1: Any = config_field(crate_cfg(1))
-        crate_2: Any = config_field(crate_cfg(2))
-        crate_3: Any = config_field(crate_cfg(3))
-        crate_4: Any = config_field(crate_cfg(4))
-        crate_5: Any = config_field(crate_cfg(5))
+        crate_0: Any = field(default_factory=lambda: crate_cfg(0))
+        crate_1: Any = field(default_factory=lambda: crate_cfg(1))
+        crate_2: Any = field(default_factory=lambda: crate_cfg(2))
+        crate_3: Any = field(default_factory=lambda: crate_cfg(3))
+        crate_4: Any = field(default_factory=lambda: crate_cfg(4))
+        crate_5: Any = field(default_factory=lambda: crate_cfg(5))
 
-        snowball_first: Any = config_field(snowball_cfg(SNOWBALLS[0]))
-        snowball_second: Any = config_field(snowball_cfg(SNOWBALLS[1]))
-        snowball_third: Any = config_field(snowball_cfg(SNOWBALLS[2]))
+        snowball_first: Any = field(default_factory=lambda: snowball_cfg(SNOWBALLS[0]))
+        snowball_second: Any = field(default_factory=lambda: snowball_cfg(SNOWBALLS[1]))
+        snowball_third: Any = field(default_factory=lambda: snowball_cfg(SNOWBALLS[2]))
 
     return SnowballSmashSceneCfg(num_envs=1, env_spacing=0.0)
 

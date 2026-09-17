@@ -7,9 +7,8 @@
 This script tests the functionality of texture randomization applied to the cartpole scene.
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -44,8 +43,8 @@ pytestmark = pytest.mark.integration
 class ActionsCfg:
     """Action specifications for the environment."""
 
-    joint_efforts: Any = config_field(
-        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+    joint_efforts: Any = field(
+        default_factory=lambda: mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
     )
 
 
@@ -58,15 +57,15 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel_rel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        joint_pos_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -76,8 +75,8 @@ class EventCfg:
     # on prestartup apply a new set of textures
     # note from @mayank: Changed from 'reset' to 'prestartup' to make test pass.
     #   The error happens otherwise on Kit thread which is not the main thread.
-    cart_texture_randomizer: Any = config_field(
-        EventTerm(
+    cart_texture_randomizer: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_texture_material,
             mode="prestartup",
             params={
@@ -97,8 +96,8 @@ class EventCfg:
     )
 
     # on reset apply a new set of textures
-    pole_texture_randomizer: Any = config_field(
-        EventTerm(
+    pole_texture_randomizer: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_texture_material,
             mode="reset",
             params={
@@ -117,8 +116,8 @@ class EventCfg:
         )
     )
 
-    reset_cart_position: Any = config_field(
-        EventTerm(
+    reset_cart_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -129,8 +128,8 @@ class EventCfg:
         )
     )
 
-    reset_pole_position: Any = config_field(
-        EventTerm(
+    reset_pole_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -147,8 +146,8 @@ class EventCfgFallback:
     """Configuration for events that tests the fallback mechanism."""
 
     # Test fallback when /visuals pattern doesn't match
-    test_fallback_texture_randomizer: Any = config_field(
-        EventTerm(
+    test_fallback_texture_randomizer: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_texture_material,
             mode="reset",
             params={
@@ -163,8 +162,8 @@ class EventCfgFallback:
         )
     )
 
-    reset_cart_position: Any = config_field(
-        EventTerm(
+    reset_cart_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -181,12 +180,12 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene: Any = config_field(CartpoleTestSceneCfg(env_spacing=2.5))
+    scene: Any = field(default_factory=lambda: CartpoleTestSceneCfg(env_spacing=2.5))
 
     # Basic settings
-    actions: Any = config_field(ActionsCfg())
-    observations: Any = config_field(ObservationsCfg())
-    events: Any = config_field(EventCfg())
+    actions: Any = field(default_factory=ActionsCfg)
+    observations: Any = field(default_factory=ObservationsCfg)
+    events: Any = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

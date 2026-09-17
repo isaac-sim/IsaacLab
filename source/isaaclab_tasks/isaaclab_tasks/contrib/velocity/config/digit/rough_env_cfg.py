@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
@@ -19,7 +19,7 @@ from isaaclab.managers import (
 )
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -36,44 +36,58 @@ _ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
 class DigitPhysicsCfg(PresetCfg):
     """Physics configuration for the Digit velocity environments."""
 
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             gpu_max_rigid_patch_count=10 * 2**15,
             gpu_found_lost_pairs_capacity=2**23,
             gpu_total_aggregate_pairs_capacity=2**23,
         )
     )
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                gpu_max_rigid_patch_count=10 * 2**15,
+                gpu_found_lost_pairs_capacity=2**23,
+                gpu_total_aggregate_pairs_capacity=2**23,
+            )
+        )
+    )
     # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
     # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
     # already-derived value from the source instance forward as one.
-    newton_mjwarp: Any = config_field(
-        replace_config(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: replace_config(
             _ROUGH_NEWTON_MJWARP,
             class_type=None,
             solver_cfg=replace_config(_ROUGH_NEWTON_MJWARP.solver_cfg, njmax=5000, nconmax=2000),
         )
     )
-    default: Any = config_field(isaacsim_physx)
+    default: Any = field(
+        default_factory=lambda: PhysxCfg(
+            gpu_max_rigid_patch_count=10 * 2**15,
+            gpu_found_lost_pairs_capacity=2**23,
+            gpu_total_aggregate_pairs_capacity=2**23,
+        )
+    )
 
 
 @dataclass
 class DigitRewards:
-    termination_penalty: Any = config_field(
-        RewardTermCfg(
+    termination_penalty: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.is_terminated,
             weight=-100.0,
         )
     )
-    track_lin_vel_xy_exp: Any = config_field(
-        RewardTermCfg(
+    track_lin_vel_xy_exp: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.track_lin_vel_xy_yaw_frame_exp,
             weight=1.0,
             params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
         )
     )
-    track_ang_vel_z_exp: Any = config_field(
-        RewardTermCfg(
+    track_ang_vel_z_exp: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.track_ang_vel_z_world_exp,
             weight=1.0,
             params={
@@ -82,8 +96,8 @@ class DigitRewards:
             },
         )
     )
-    feet_air_time: Any = config_field(
-        RewardTermCfg(
+    feet_air_time: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.feet_air_time_positive_biped,
             weight=0.25,
             params={
@@ -93,8 +107,8 @@ class DigitRewards:
             },
         )
     )
-    feet_slide: Any = config_field(
-        RewardTermCfg(
+    feet_slide: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.feet_slide,
             weight=-0.25,
             params={
@@ -103,33 +117,33 @@ class DigitRewards:
             },
         )
     )
-    dof_torques_l2: Any = config_field(
-        RewardTermCfg(
+    dof_torques_l2: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_torques_l2,
             weight=-1.0e-6,
         )
     )
-    dof_acc_l2: Any = config_field(
-        RewardTermCfg(
+    dof_acc_l2: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_acc_l2,
             weight=-2.0e-7,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES + ARM_JOINT_NAMES)},
         )
     )
-    action_rate_l2: Any = config_field(
-        RewardTermCfg(
+    action_rate_l2: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.action_rate_l2,
             weight=-0.008,
         )
     )
-    flat_orientation_l2: Any = config_field(
-        RewardTermCfg(
+    flat_orientation_l2: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.flat_orientation_l2,
             weight=-2.5,
         )
     )
-    stand_still: Any = config_field(
-        RewardTermCfg(
+    stand_still: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.stand_still_joint_deviation_l1,
             weight=-0.4,
             params={
@@ -138,27 +152,27 @@ class DigitRewards:
             },
         )
     )
-    lin_vel_z_l2: Any = config_field(
-        RewardTermCfg(
+    lin_vel_z_l2: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.lin_vel_z_l2,
             weight=-2.0,
         )
     )
-    ang_vel_xy_l2: Any = config_field(
-        RewardTermCfg(
+    ang_vel_xy_l2: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.ang_vel_xy_l2,
             weight=-0.1,
         )
     )
-    no_jumps: Any = config_field(
-        RewardTermCfg(
+    no_jumps: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.desired_contacts,
             weight=-0.5,
             params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*_leg_toe_roll"])},
         )
     )
-    dof_pos_limits: Any = config_field(
-        RewardTermCfg(
+    dof_pos_limits: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_pos_limits,
             weight=-1.0,
             params={
@@ -166,36 +180,36 @@ class DigitRewards:
             },
         )
     )
-    joint_deviation_hip_roll: Any = config_field(
-        RewardTermCfg(
+    joint_deviation_hip_roll: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_deviation_l1,
             weight=-0.1,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_leg_hip_roll")},
         )
     )
-    joint_deviation_hip_yaw: Any = config_field(
-        RewardTermCfg(
+    joint_deviation_hip_yaw: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_deviation_l1,
             weight=-0.2,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_leg_hip_yaw")},
         )
     )
-    joint_deviation_knee: Any = config_field(
-        RewardTermCfg(
+    joint_deviation_knee: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_deviation_l1,
             weight=-0.2,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_tarsus")},
         )
     )
-    joint_deviation_feet: Any = config_field(
-        RewardTermCfg(
+    joint_deviation_feet: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_deviation_l1,
             weight=-0.1,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_toe_a", ".*_toe_b"])},
         )
     )
-    joint_deviation_arms: Any = config_field(
-        RewardTermCfg(
+    joint_deviation_arms: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.joint_deviation_l1,
             weight=-0.2,
             params={
@@ -204,8 +218,8 @@ class DigitRewards:
         )
     )
 
-    undesired_contacts: Any = config_field(
-        RewardTermCfg(
+    undesired_contacts: Any = field(
+        default_factory=lambda: RewardTermCfg(
             func=mdp.undesired_contacts,
             weight=-0.1,
             params={
@@ -220,47 +234,47 @@ class DigitRewards:
 class DigitObservations:
     @dataclass
     class PolicyCfg(ObservationGroupCfg):
-        base_lin_vel: Any = config_field(
-            ObservationTermCfg(
+        base_lin_vel: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.base_lin_vel,
                 noise=Unoise(n_min=-0.1, n_max=0.1),
             )
         )
-        base_ang_vel: Any = config_field(
-            ObservationTermCfg(
+        base_ang_vel: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.base_ang_vel,
                 noise=Unoise(n_min=-0.2, n_max=0.2),
             )
         )
-        projected_gravity: Any = config_field(
-            ObservationTermCfg(
+        projected_gravity: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.projected_gravity,
                 noise=Unoise(n_min=-0.05, n_max=0.05),
             )
         )
-        velocity_commands: Any = config_field(
-            ObservationTermCfg(
+        velocity_commands: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.generated_commands,
                 params={"command_name": "base_velocity"},
             )
         )
-        joint_pos: Any = config_field(
-            ObservationTermCfg(
+        joint_pos: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.joint_pos_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES + ARM_JOINT_NAMES)},
                 noise=Unoise(n_min=-0.01, n_max=0.01),
             )
         )
-        joint_vel: Any = config_field(
-            ObservationTermCfg(
+        joint_vel: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.joint_vel_rel,
                 params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES + ARM_JOINT_NAMES)},
                 noise=Unoise(n_min=-1.5, n_max=1.5),
             )
         )
-        actions: Any = config_field(ObservationTermCfg(func=mdp.last_action))
-        height_scan: Any = config_field(
-            ObservationTermCfg(
+        actions: Any = field(default_factory=lambda: ObservationTermCfg(func=mdp.last_action))
+        height_scan: Any = field(
+            default_factory=lambda: ObservationTermCfg(
                 func=mdp.height_scan,
                 params={"sensor_cfg": SceneEntityCfg("height_scanner")},
                 noise=Unoise(n_min=-0.1, n_max=0.1),
@@ -273,16 +287,16 @@ class DigitObservations:
             self.concatenate_terms = True
 
     # Observation groups:
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class DigitTerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(TerminationTermCfg(func=mdp.time_out, time_out=True))
-    base_contact: Any = config_field(
-        TerminationTermCfg(
+    time_out: Any = field(default_factory=lambda: TerminationTermCfg(func=mdp.time_out, time_out=True))
+    base_contact: Any = field(
+        default_factory=lambda: TerminationTermCfg(
             func=mdp.illegal_contact,
             params={
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["torso_base"]),
@@ -290,8 +304,8 @@ class DigitTerminationsCfg:
             },
         )
     )
-    base_orientation: Any = config_field(
-        TerminationTermCfg(
+    base_orientation: Any = field(
+        default_factory=lambda: TerminationTermCfg(
             func=mdp.bad_orientation,
             params={"limit_angle": 0.7},
         )
@@ -302,8 +316,8 @@ class DigitTerminationsCfg:
 class DigitActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos: Any = config_field(
-        mdp.JointPositionActionCfg(
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
             scale=0.5,
@@ -314,11 +328,11 @@ class DigitActionsCfg:
 
 @dataclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    sim: SimulationCfg = config_field(SimulationCfg(physics=DigitPhysicsCfg()))
-    rewards: DigitRewards = config_field(DigitRewards())
-    observations: DigitObservations = config_field(DigitObservations())
-    terminations: DigitTerminationsCfg = config_field(DigitTerminationsCfg())
-    actions: DigitActionsCfg = config_field(DigitActionsCfg())
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=DigitPhysicsCfg()))
+    rewards: DigitRewards = field(default_factory=DigitRewards)
+    observations: DigitObservations = field(default_factory=DigitObservations)
+    terminations: DigitTerminationsCfg = field(default_factory=DigitTerminationsCfg)
+    actions: DigitActionsCfg = field(default_factory=DigitActionsCfg)
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):

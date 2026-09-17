@@ -10,8 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import config_field
-
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
@@ -42,20 +40,20 @@ class VisualizerCfg:
         ``KitVisualizerCfg`` or ``NewtonGLVisualizerCfg``.
     """
 
-    class_type: type[BaseVisualizer] | str | None = config_field(None)
+    class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
     # Primary interactive camera settings
-    eye: tuple[float, float, float] = config_field((4.0, -4.0, 3.0))
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Interactive visualizer camera eye position in world coordinates."""
 
-    lookat: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Interactive visualizer camera look-at target in world coordinates."""
 
-    focal_length: float = config_field(12.0)
+    focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = config_field((0.30, 0.55, 0.82))
+    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
     """Solid background color as normalized RGB values in ``[0, 1]``.
 
     Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
@@ -67,11 +65,11 @@ class VisualizerCfg:
     # across envs and GT types, and shows the result as an image panel in interactive
     # visualizers (Newton GL, Kit) or pushes it per-step to sink-based ones (Rerun, Viser).
 
-    streaming_view: bool = config_field(False)
+    streaming_view: bool = False
     """Enable the streaming camera image view (opt-in, disabled by default)."""
 
     # Source — existing sensor (takes priority when set)
-    streaming_sensor_prim_path: str | None = config_field(None)
+    streaming_sensor_prim_path: str | None = None
     """Prim path of an existing TiledCamera sensor to stream from.
 
     When set, all ``streaming_cam_*`` fields are ignored.  Should point to an
@@ -79,7 +77,7 @@ class VisualizerCfg:
     """
 
     # Source — auto-created camera (used when streaming_sensor_prim_path is None)
-    streaming_cam_target_prim_path: str | None = config_field(None)
+    streaming_cam_target_prim_path: str | None = None
     """Target prim for the auto-created streaming camera (ignored when
     :attr:`streaming_sensor_prim_path` is set).
 
@@ -90,10 +88,10 @@ class VisualizerCfg:
     and no suitable scene camera is present.
     """
 
-    streaming_cam_eye: tuple[float, float, float] = config_field((4.0, -4.0, 3.0))
+    streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye offset [m] for the auto-created streaming camera relative to the target prim."""
 
-    streaming_cam_renderer: str | None = config_field(None)
+    streaming_cam_renderer: str | None = None
     """Renderer for the auto-created streaming camera.
 
     One of ``"newton_warp"``, ``"ovrtx"``, or ``None`` (let each backend
@@ -103,14 +101,14 @@ class VisualizerCfg:
     """
 
     # Shared settings
-    streaming_envs: int | list[int] = config_field(32)
+    streaming_envs: int | list[int] = 32
     """Environments to capture.
 
     * ``int`` — sample this many envs once at initialization (from all visible envs).
     * ``list[int]`` — capture exactly these env indices.
     """
 
-    streaming_gt_types: tuple[str, ...] = config_field(("rgb",))
+    streaming_gt_types: tuple[str, ...] = ("rgb",)
     """GT data types displayed left-to-right per environment row.
 
     Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
@@ -118,26 +116,26 @@ class VisualizerCfg:
     at initialization time (only when :attr:`streaming_view` is ``True``).
     """
 
-    streaming_depth_min: float = config_field(0.1)
+    streaming_depth_min: float = 0.1
     """Near-clip for the turbo depth colormap [m].  Used when ``"depth"`` is in
     :attr:`streaming_gt_types`."""
 
-    streaming_depth_max: float = config_field(10.0)
+    streaming_depth_max: float = 10.0
     """Far-clip for the turbo depth colormap [m].  Used when ``"depth"`` is in
     :attr:`streaming_gt_types`."""
 
     # Partial visualization settings
-    max_visible_envs: int | None = config_field(None)
+    max_visible_envs: int | None = None
     """Upper bound on how many envs are shown.
 
     * If visible_env_indices is not None, then this field will apply also
       to the explicit env indices set to the visible_env_indices.
     """
 
-    visible_env_indices: list[int] | None = config_field(None)
+    visible_env_indices: list[int] | None = None
     """env indices to visualize in order (out-of-range indices are dropped)."""
 
-    randomly_sample_visible_envs: bool = config_field(True)
+    randomly_sample_visible_envs: bool = True
     """If ``max_visible_envs`` is provided, when enabled, selected visible envs are randomly sampled.
        If disabled, the first ``max_visible_envs`` envs are selected.
 
@@ -145,44 +143,44 @@ class VisualizerCfg:
     """
 
     # Visualization Markers
-    enable_markers: bool = config_field(True)
+    enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
 
     # Live Plots
-    enable_live_plots: bool = config_field(True)
+    enable_live_plots: bool = True
     """Stream per-step scalar data (manager terms, episode reward, episode length) into the visualizer.
 
     Plot windows start hidden or collapsed by default and can be toggled open at runtime.
     Set to ``False`` to disable live plots entirely and avoid any collection overhead.
     """
 
-    live_plots_update_interval: int = config_field(5)
+    live_plots_update_interval: int = 5
     """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
     # Internal
-    visualizer_type: str | None = config_field(None)
+    visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
     # Deprecated aliases kept for one-release compatibility. Remove in the next major release.
-    tiled_cam_view: bool | None = config_field(None)
+    tiled_cam_view: bool | None = None
     """Deprecated. Use :attr:`streaming_view` instead."""
 
-    tiled_cam_num: int | None = config_field(None)
+    tiled_cam_num: int | None = None
     """Deprecated. Use :attr:`streaming_envs` (int) instead."""
 
-    tiled_cam_env_indices: list[int] | None = config_field(None)
+    tiled_cam_env_indices: list[int] | None = None
     """Deprecated. Use :attr:`streaming_envs` (list[int]) instead."""
 
-    tiled_cam_prim_path: str | None = config_field(None)
+    tiled_cam_prim_path: str | None = None
     """Deprecated. Use :attr:`streaming_sensor_prim_path` instead."""
 
-    tiled_cam_eye: tuple[float, float, float] | None = config_field(None)
+    tiled_cam_eye: tuple[float, float, float] | None = None
     """Deprecated. Use :attr:`streaming_cam_eye` instead."""
 
-    tiled_cam_target_prim_path: str | None = config_field(None)
+    tiled_cam_target_prim_path: str | None = None
     """Deprecated. Use :attr:`streaming_cam_target_prim_path` instead."""
 
-    tiled_cam_renderer: str | None = config_field(None)
+    tiled_cam_renderer: str | None = None
     """Deprecated. Use :attr:`streaming_cam_renderer` instead."""
 
     def __post_init__(self) -> None:

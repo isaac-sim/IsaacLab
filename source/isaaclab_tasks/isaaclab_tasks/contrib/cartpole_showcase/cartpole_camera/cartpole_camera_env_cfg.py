@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from gymnasium import spaces
@@ -17,7 +17,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -47,48 +47,52 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     """
 
     # env
-    decimation: Any = config_field(2)
-    episode_length_s: Any = config_field(5.0)
-    action_scale: Any = config_field(100.0)  # [N]
+    decimation: Any = 2
+    episode_length_s: Any = 5.0
+    action_scale: Any = 100.0  # [N]
 
     # simulation
-    sim: SimulationCfg = config_field(SimulationCfg(dt=1 / 120, render_interval=decimation))
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(dt=1 / 120, render_interval=2))
 
     # robot
-    robot_cfg: ArticulationCfg = config_field(replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
-    cart_dof_name: Any = config_field("slider_to_cart")
-    pole_dof_name: Any = config_field("cart_to_pole")
+    robot_cfg: ArticulationCfg = field(
+        default_factory=lambda: replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
+    cart_dof_name: Any = "slider_to_cart"
+    pole_dof_name: Any = "cart_to_pole"
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
-    write_image_to_file: Any = config_field(False)
-    frame_stack: Any = config_field(1)
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
+    write_image_to_file: Any = False
+    frame_stack: Any = 1
 
     # spaces
-    action_space: Any = config_field(1)
-    state_space: Any = config_field(0)
-    observation_space: Any = config_field([tiled_camera.height, tiled_camera.width, 3])
+    action_space: Any = 1
+    state_space: Any = 0
+    observation_space: Any = field(
+        default_factory=lambda: [get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3]
+    )
 
     # scene
-    scene: InteractiveSceneCfg = config_field(
-        InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = field(
+        default_factory=lambda: InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
     )
 
     # reset
-    max_cart_pos: Any = config_field(3.0)  # the cart is reset if it exceeds that position [m]
-    initial_cart_position_range: Any = config_field((-1.0, 1.0))  # [m]
-    initial_cart_velocity_range: Any = config_field((-0.5, 0.5))  # [m/s]
-    initial_pole_angle_range: Any = config_field(
-        [-0.125, 0.125]
+    max_cart_pos: Any = 3.0  # the cart is reset if it exceeds that position [m]
+    initial_cart_position_range: Any = (-1.0, 1.0)  # [m]
+    initial_cart_velocity_range: Any = (-0.5, 0.5)  # [m/s]
+    initial_pole_angle_range: Any = field(
+        default_factory=lambda: [-0.125, 0.125]
     )  # the range in which the pole angle is sampled from on reset [rad]
-    initial_pole_velocity_range: Any = config_field((-0.25 * math.pi, 0.25 * math.pi))  # [rad/s]
+    initial_pole_velocity_range: Any = (-0.25 * math.pi, 0.25 * math.pi)  # [rad/s]
 
     # reward scales
-    rew_scale_alive: Any = config_field(1.0)
-    rew_scale_terminated: Any = config_field(-2.0)
-    rew_scale_pole_pos: Any = config_field(-1.0)
-    rew_scale_cart_vel: Any = config_field(-0.01)
-    rew_scale_pole_vel: Any = config_field(-0.005)
+    rew_scale_alive: Any = 1.0
+    rew_scale_terminated: Any = -2.0
+    rew_scale_pole_pos: Any = -1.0
+    rew_scale_cart_vel: Any = -0.01
+    rew_scale_pole_vel: Any = -0.005
 
     def __post_init__(self):
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
@@ -120,13 +124,19 @@ class BoxBoxEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3))
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Box(
+            low=float("-inf"),
+            high=float("inf"),
+            shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
+        )
     )  # or for simplicity: [height, width, 3]
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -152,13 +162,17 @@ class BoxDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3))
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Box(
+            low=float("-inf"),
+            high=float("inf"),
+            shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
+        )
     )  # or for simplicity: [height, width, 3]
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -191,13 +205,17 @@ class BoxMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3))
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Box(
+            low=float("-inf"),
+            high=float("inf"),
+            shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
+        )
     )  # or for simplicity: [height, width, 3]
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ###
@@ -227,20 +245,24 @@ class DictBoxEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Dict(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Dict(
             {
                 "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 "camera": spaces.Box(
-                    low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)
+                    low=float("-inf"),
+                    high=float("inf"),
+                    shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
                 ),
             }
         )
     )  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -267,20 +289,22 @@ class DictDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Dict(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Dict(
             {
                 "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 "camera": spaces.Box(
-                    low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)
+                    low=float("-inf"),
+                    high=float("inf"),
+                    shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
                 ),
             }
         )
     )  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -314,20 +338,22 @@ class DictMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Dict(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Dict(
             {
                 "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 "camera": spaces.Box(
-                    low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)
+                    low=float("-inf"),
+                    high=float("inf"),
+                    shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
                 ),
             }
         )
     )  # or for simplicity: {"joint-velocities": 2, "camera": [height, width, 3]}
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ###
@@ -357,18 +383,24 @@ class TupleBoxEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Tuple(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Tuple(
             (
-                spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
+                spaces.Box(
+                    low=float("-inf"),
+                    high=float("inf"),
+                    shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
+                ),
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             )
         )
     )  # or for simplicity: ([height, width, 3], 2)
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -395,18 +427,22 @@ class TupleDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Tuple(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Tuple(
             (
-                spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
+                spaces.Box(
+                    low=float("-inf"),
+                    high=float("inf"),
+                    shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
+                ),
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             )
         )
     )  # or for simplicity: ([height, width, 3], 2)
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -440,18 +476,22 @@ class TupleMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: CameraCfg = config_field(get_tiled_camera_cfg("rgb"))
+    tiled_camera: CameraCfg = field(default_factory=lambda: get_tiled_camera_cfg("rgb"))
 
     # spaces
-    observation_space: Any = config_field(
-        spaces.Tuple(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Tuple(
             (
-                spaces.Box(low=float("-inf"), high=float("inf"), shape=(tiled_camera.height, tiled_camera.width, 3)),
+                spaces.Box(
+                    low=float("-inf"),
+                    high=float("inf"),
+                    shape=(get_tiled_camera_cfg("rgb").height, get_tiled_camera_cfg("rgb").width, 3),
+                ),
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             )
         )
     )  # or for simplicity: ([height, width, 3], 2)
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ##
@@ -472,13 +512,13 @@ class CartpoleCameraShowcasePresetsEnvCfg(PresetCfg):
     one of them is loaded.
     """
 
-    box_box: Any = config_field(BoxBoxEnvCfg())
-    box_discrete: Any = config_field(BoxDiscreteEnvCfg())
-    box_multidiscrete: Any = config_field(BoxMultiDiscreteEnvCfg())
-    dict_box: Any = config_field(DictBoxEnvCfg())
-    dict_discrete: Any = config_field(DictDiscreteEnvCfg())
-    dict_multidiscrete: Any = config_field(DictMultiDiscreteEnvCfg())
-    tuple_box: Any = config_field(TupleBoxEnvCfg())
-    tuple_discrete: Any = config_field(TupleDiscreteEnvCfg())
-    tuple_multidiscrete: Any = config_field(TupleMultiDiscreteEnvCfg())
-    default: Any = config_field(box_box)  # canonical Cartpole Camera shape: Box obs, Box action.
+    box_box: Any = field(default_factory=BoxBoxEnvCfg)
+    box_discrete: Any = field(default_factory=BoxDiscreteEnvCfg)
+    box_multidiscrete: Any = field(default_factory=BoxMultiDiscreteEnvCfg)
+    dict_box: Any = field(default_factory=DictBoxEnvCfg)
+    dict_discrete: Any = field(default_factory=DictDiscreteEnvCfg)
+    dict_multidiscrete: Any = field(default_factory=DictMultiDiscreteEnvCfg)
+    tuple_box: Any = field(default_factory=TupleBoxEnvCfg)
+    tuple_discrete: Any = field(default_factory=TupleDiscreteEnvCfg)
+    tuple_multidiscrete: Any = field(default_factory=TupleMultiDiscreteEnvCfg)
+    default: Any = field(default_factory=BoxBoxEnvCfg)  # canonical Cartpole Camera shape: Box obs, Box action.

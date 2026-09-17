@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -14,7 +15,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.contrib.navigation.mdp as mdp
@@ -27,8 +27,8 @@ LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
 class EventCfg:
     """Configuration for events."""
 
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -50,8 +50,8 @@ class EventCfg:
 class ActionsCfg:
     """Action terms for the MDP."""
 
-    pre_trained_policy_action: mdp.PreTrainedPolicyActionCfg = config_field(
-        mdp.PreTrainedPolicyActionCfg(
+    pre_trained_policy_action: mdp.PreTrainedPolicyActionCfg = field(
+        default_factory=lambda: mdp.PreTrainedPolicyActionCfg(
             asset_name="robot",
             policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/ANYmal-C/Blind/policy.pt",
             low_level_decimation=4,
@@ -70,35 +70,37 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel))
-        projected_gravity: Any = config_field(ObsTerm(func=mdp.projected_gravity))
-        pose_command: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "pose_command"}))
+        base_lin_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_lin_vel))
+        projected_gravity: Any = field(default_factory=lambda: ObsTerm(func=mdp.projected_gravity))
+        pose_command: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "pose_command"})
+        )
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    termination_penalty: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-400.0))
-    position_tracking: Any = config_field(
-        RewTerm(
+    termination_penalty: Any = field(default_factory=lambda: RewTerm(func=mdp.is_terminated, weight=-400.0))
+    position_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error_tanh,
             weight=0.5,
             params={"std": 2.0, "command_name": "pose_command"},
         )
     )
-    position_tracking_fine_grained: Any = config_field(
-        RewTerm(
+    position_tracking_fine_grained: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error_tanh,
             weight=0.5,
             params={"std": 0.2, "command_name": "pose_command"},
         )
     )
-    orientation_tracking: Any = config_field(
-        RewTerm(
+    orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.heading_command_error_abs,
             weight=-0.2,
             params={"command_name": "pose_command"},
@@ -110,8 +112,8 @@ class RewardsCfg:
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    pose_command: Any = config_field(
-        mdp.UniformPose2dCommandCfg(
+    pose_command: Any = field(
+        default_factory=lambda: mdp.UniformPose2dCommandCfg(
             asset_name="robot",
             simple_heading=False,
             resampling_time_range=(8.0, 8.0),
@@ -128,9 +130,9 @@ class CommandsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
-    base_contact: Any = config_field(
-        DoneTerm(
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
+    base_contact: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.illegal_contact,
             params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
         )
@@ -142,14 +144,14 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the navigation environment."""
 
     # environment settings
-    scene: SceneEntityCfg = config_field(LOW_LEVEL_ENV_CFG.scene)
-    actions: ActionsCfg = config_field(ActionsCfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    events: EventCfg = config_field(EventCfg())
+    scene: SceneEntityCfg = field(default_factory=lambda: deepcopy(LOW_LEVEL_ENV_CFG.scene))
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
     # mdp settings
-    commands: CommandsCfg = config_field(CommandsCfg())
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
 
     def __post_init__(self):
         """Post initialization."""

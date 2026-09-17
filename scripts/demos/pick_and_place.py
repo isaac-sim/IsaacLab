@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pick and Place.")
@@ -67,34 +68,36 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     """
 
     # env
-    decimation: Any = config_field(4)
-    episode_length_s: Any = config_field(240.0)
-    action_space: Any = config_field(4)
-    observation_space: Any = config_field(6)
-    state_space: Any = config_field(0)
+    decimation: Any = 4
+    episode_length_s: Any = 240.0
+    action_space: Any = 4
+    observation_space: Any = 6
+    state_space: Any = 0
 
     # Simulation cfg. Surface grippers are currently only supported on CPU.
     # Surface grippers also require scene query support to function.
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 60,
             device="cpu",
-            render_interval=decimation,
+            render_interval=4,
             use_fabric=True,
             enable_scene_query_support=True,
         )
     )
-    debug_vis: Any = config_field(True)
+    debug_vis: Any = True
 
     # robot
-    robot_cfg: ArticulationCfg = config_field(replace_config(PICK_AND_PLACE_CFG, prim_path="/World/envs/env_.*/Robot"))
-    x_dof_name: Any = config_field("x_axis")
-    y_dof_name: Any = config_field("y_axis")
-    z_dof_name: Any = config_field("z_axis")
+    robot_cfg: ArticulationCfg = field(
+        default_factory=lambda: replace_config(PICK_AND_PLACE_CFG, prim_path="/World/envs/env_.*/Robot")
+    )
+    x_dof_name: Any = "x_axis"
+    y_dof_name: Any = "y_axis"
+    z_dof_name: Any = "z_axis"
 
     # We add a cube to pick-up
-    cube_cfg: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube_cfg: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="/World/envs/env_.*/Robot/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.4, 0.4, 0.4),
@@ -108,8 +111,8 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     )
 
     # Surface Gripper, the prim_expr need to point to a unique surface gripper per environment.
-    gripper: Any = config_field(
-        SurfaceGripperCfg(
+    gripper: Any = field(
+        default_factory=lambda: SurfaceGripperCfg(
             prim_path="/World/envs/env_.*/Robot/picker_head/SurfaceGripper",
             max_grip_distance=0.1,
             shear_force_limit=500.0,
@@ -119,23 +122,25 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True))
+    scene: InteractiveSceneCfg = field(
+        default_factory=lambda: InteractiveSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True)
+    )
 
     # reset logic
     # Initial position of the robot
-    initial_x_pos_range: Any = config_field([-2.0, 2.0])
-    initial_y_pos_range: Any = config_field([-2.0, 2.0])
-    initial_z_pos_range: Any = config_field([0.0, 0.5])
+    initial_x_pos_range: Any = field(default_factory=lambda: [-2.0, 2.0])
+    initial_y_pos_range: Any = field(default_factory=lambda: [-2.0, 2.0])
+    initial_z_pos_range: Any = field(default_factory=lambda: [0.0, 0.5])
 
     # Initial position of the cube
-    initial_object_x_pos_range: Any = config_field([-2.0, 2.0])
-    initial_object_y_pos_range: Any = config_field([-2.0, -0.5])
-    initial_object_z_pos: Any = config_field(0.2)
+    initial_object_x_pos_range: Any = field(default_factory=lambda: [-2.0, 2.0])
+    initial_object_y_pos_range: Any = field(default_factory=lambda: [-2.0, -0.5])
+    initial_object_z_pos: Any = 0.2
 
     # Target position of the cube
-    target_x_pos_range: Any = config_field([-2.0, 2.0])
-    target_y_pos_range: Any = config_field([2.0, 0.5])
-    target_z_pos: Any = config_field(0.2)
+    target_x_pos_range: Any = field(default_factory=lambda: [-2.0, 2.0])
+    target_y_pos_range: Any = field(default_factory=lambda: [2.0, 0.5])
+    target_z_pos: Any = 0.2
 
 
 class PickAndPlaceEnv(DirectRLEnv):

@@ -8,11 +8,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg
@@ -48,13 +48,13 @@ class XrCameraFeedCfg:
     panel releases display resources but does not restore prior policy values.
     """
 
-    camera_name: str = config_field(MISSING)
+    camera_name: str = REQUIRED
     """Name of the :class:`~isaaclab.sensors.Camera` in the interactive scene."""
 
-    enabled: bool = config_field(True)
+    enabled: bool = True
     """Whether to create and update this feed."""
 
-    enable_dlss_ray_reconstruction: bool | None = config_field(None)
+    enable_dlss_ray_reconstruction: bool | None = None
     """Enable DLSS Ray Reconstruction on this feed's RTX render product.
 
     ``None`` preserves the render-product default. On Isaac Sim versions before
@@ -64,7 +64,7 @@ class XrCameraFeedCfg:
     using the Camera-buffer fallback.
     """
 
-    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = config_field(None)
+    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
     """Optional DLSS execution mode for this feed's RTX render product.
 
     ``None`` preserves the render-product default. The private PiP adapter applies
@@ -72,23 +72,23 @@ class XrCameraFeedCfg:
     it does not author the value on other render products.
     """
 
-    panel_width_m: float = config_field(0.48)
+    panel_width_m: float = 0.48
     """Physical panel width [m]."""
 
-    distance_m: float = config_field(0.8)
+    distance_m: float = 0.8
     """Distance in front of the viewer anchor [m].
 
     This value is unused when :attr:`XrCameraFeedLayoutCfg.placement` is
     ``"world"``.
     """
 
-    offset_m: tuple[float, float] = config_field((0.0, 0.0))
+    offset_m: tuple[float, float] = (0.0, 0.0)
     """Horizontal and vertical panel offset in the selected placement frame [m]."""
 
-    max_update_hz: float = config_field(30.0)
+    max_update_hz: float = 30.0
     """Maximum provider upload rate [Hz]. Set to zero to update after every rendered frame."""
 
-    label: str | None = config_field(None)
+    label: str | None = None
     """Optional short label shown above the image."""
 
 
@@ -96,10 +96,10 @@ class XrCameraFeedCfg:
 class XrCameraFeedLayoutCfg:
     """Declarative placement and packing for enabled XR camera feeds."""
 
-    mode: Literal["manual", "horizontal", "vertical", "grid"] = config_field("manual")
+    mode: Literal["manual", "horizontal", "vertical", "grid"] = "manual"
     """Layout mode. Manual preserves each feed's offset and distance."""
 
-    placement: Literal["viewer_start", "head_locked", "world"] = config_field("viewer_start")
+    placement: Literal["viewer_start", "head_locked", "world"] = "viewer_start"
     """Reference frame used to place the panels.
 
     ``"viewer_start"`` captures the first valid viewer eye position and yaw,
@@ -109,29 +109,29 @@ class XrCameraFeedLayoutCfg:
     world.
     """
 
-    center_offset_m: tuple[float, float] = config_field((0.0, 0.0))
+    center_offset_m: tuple[float, float] = (0.0, 0.0)
     """Horizontal and vertical center of an automatic layout [m]."""
 
-    distance_m: float = config_field(0.8)
+    distance_m: float = 0.8
     """Distance of every automatically placed panel from the viewer anchor [m].
 
     This value is unused when :attr:`placement` is ``"world"``.
     """
 
-    panel_gap_m: float = config_field(0.04)
+    panel_gap_m: float = 0.04
     """Edge-to-edge gap between automatically placed panels [m]."""
 
-    max_columns: int = config_field(2)
+    max_columns: int = 2
     """Maximum number of columns in grid mode."""
 
-    world_position_m: tuple[float, float, float] | None = config_field(None)
+    world_position_m: tuple[float, float, float] | None = None
     """Layout-plane center in the Isaac Lab USD stage world [m].
 
     Isaac Lab stages are Z-up. This value is required when :attr:`placement`
     is ``"world"``.
     """
 
-    world_orientation_xyzw: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
+    world_orientation_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
     """Panel-local-to-world orientation as a quaternion in ``xyzw`` order.
 
     Panel local +X is image right, +Y is image up, and +Z points from the
@@ -154,8 +154,8 @@ class IsaacTeleopCfg:
     If the pipeline builder also produces retargeters that should be exposed in
     the tuning UI, the env cfg should call the builder, unpack the results, and
     populate both ``pipeline_builder`` and ``retargeters_to_tune`` explicitly.
-    Both fields must be callables (lambdas / functions) so they survive the
-    ``deepcopy`` performed by ``config_field`` on mutable attributes.
+    Both fields must be callables (lambdas / functions) so configuration copies
+    do not attempt to copy the underlying retargeter objects.
 
     Example:
         .. code-block:: python
@@ -192,7 +192,7 @@ class IsaacTeleopCfg:
     xr_camera_feed_layout: XrCameraFeedLayoutCfg = field(default_factory=XrCameraFeedLayoutCfg)
     """Placement and packing applied to the ordered enabled camera feeds."""
 
-    pipeline_builder: Callable[[], OutputCombiner] = config_field(MISSING)
+    pipeline_builder: Callable[[], OutputCombiner] = REQUIRED
     """Callable that builds the IsaacTeleop retargeting pipeline.
 
     The function should return an OutputCombiner with an "action" output
@@ -211,10 +211,10 @@ class IsaacTeleopCfg:
     from controller inputs.
     """
 
-    sim_device: str = config_field("cuda:0")
+    sim_device: str = "cuda:0"
     """Torch device string for placing output action tensors."""
 
-    retargeting_execution: RetargetingExecutionConfig | None = config_field(None)
+    retargeting_execution: RetargetingExecutionConfig | None = None
     """IsaacTeleop retargeting execution settings.
 
     Left as ``None`` by default so that importing and constructing this config
@@ -227,20 +227,20 @@ class IsaacTeleopCfg:
     retargeting while debugging or comparing behavior.
     """
 
-    teleoperation_active_default: bool = config_field(False)
+    teleoperation_active_default: bool = False
     """Whether teleoperation should be active by default when the session starts.
 
     When ``False`` (the default), the teleop session remains inactive until a
     ``"START"`` command is received from xr_core via the message bus.
     """
 
-    retargeters_to_tune: Callable[[], list[BaseRetargeter]] | None = config_field(None)
+    retargeters_to_tune: Callable[[], list[BaseRetargeter]] | None = None
     """Optional callable returning retargeters to expose in the tuning UI.
 
     Must be a callable (e.g. ``lambda: [retargeter1, retargeter2]``) rather
-    than a plain list because ``config_field`` deep-copies mutable attributes
-    and retargeter objects often contain non-picklable C++/SWIG handles.
-    Wrapping in a callable makes the value opaque to ``deepcopy``.
+    than a plain list because retargeter objects often contain non-picklable
+    C++/SWIG handles. Wrapping them in a callable keeps configuration copying
+    from traversing those objects.
 
     When set and the tuning UI is enabled, the returned retargeters will be
     displayed in the ``MultiRetargeterTuningUIImGui`` window, allowing
@@ -250,7 +250,7 @@ class IsaacTeleopCfg:
     If ``None``, the tuning UI will not be opened.
     """
 
-    control_channel_uuid: bytes | None = config_field(TELEOP_CONTROL_CHANNEL_UUID)
+    control_channel_uuid: bytes | None = TELEOP_CONTROL_CHANNEL_UUID
     """16-byte UUID for the teleop control message channel.
 
     Defaults to :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
@@ -268,7 +268,7 @@ class IsaacTeleopCfg:
     Set to ``None`` to disable the control channel entirely.
     """
 
-    target_frame_prim_path: str | None = config_field(None)
+    target_frame_prim_path: str | None = None
     """Optional USD prim path whose world frame becomes the target coordinate
     frame for all output poses.
 
@@ -289,5 +289,5 @@ class IsaacTeleopCfg:
         )
     """
 
-    app_name: str = config_field("IsaacLabTeleop")
+    app_name: str = "IsaacLabTeleop"
     """Application name for the IsaacTeleop session."""

@@ -13,9 +13,8 @@ scene, action, observation and event managers to create an environment.
 
 """
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -59,8 +58,8 @@ from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneC
 class ActionsCfg:
     """Action specifications for the environment."""
 
-    joint_efforts: Any = config_field(
-        mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+    joint_efforts: Any = field(
+        default_factory=lambda: mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
     )
 
 
@@ -73,15 +72,15 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel_rel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
+        joint_pos_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -89,8 +88,8 @@ class EventCfg:
     """Configuration for events."""
 
     # on startup
-    add_pole_mass: Any = config_field(
-        EventTerm(
+    add_pole_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="startup",
             params={
@@ -102,8 +101,8 @@ class EventCfg:
     )
 
     # on reset
-    reset_cart_position: Any = config_field(
-        EventTerm(
+    reset_cart_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -114,8 +113,8 @@ class EventCfg:
         )
     )
 
-    reset_pole_position: Any = config_field(
-        EventTerm(
+    reset_pole_position: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -132,11 +131,11 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene: Any = config_field(CartpoleSceneCfg(num_envs=1024, env_spacing=2.5))
+    scene: Any = field(default_factory=lambda: CartpoleSceneCfg(num_envs=1024, env_spacing=2.5))
     # Basic settings
-    observations: Any = config_field(ObservationsCfg())
-    actions: Any = config_field(ActionsCfg())
-    events: Any = config_field(EventCfg())
+    observations: Any = field(default_factory=ObservationsCfg)
+    actions: Any = field(default_factory=ActionsCfg)
+    events: Any = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

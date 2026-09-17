@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
@@ -24,7 +24,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import config_field, copy_config
+from isaaclab.utils import REQUIRED, copy_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -97,13 +97,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     """
 
     # robots: will be populated by agent env cfg
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
     # end-effector sensor: will be populated by agent env cfg
-    ee_frame: FrameTransformerCfg = config_field(MISSING)
+    ee_frame: FrameTransformerCfg = REQUIRED
 
     # Table
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
             spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
@@ -111,8 +111,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # plane
-    plane: Any = config_field(
-        AssetBaseCfg(
+    plane: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
             spawn=GroundPlaneCfg(),
@@ -120,8 +120,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -129,8 +129,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Three stacking cubes (blue / red / green). Derived robot cfgs override only the per-cube
     # ``init_state`` (transforms) to place them within the robot's reach.
-    cube_1: Any = config_field(
-        RigidObjectCfg(
+    cube_1: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
@@ -141,8 +141,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    cube_2: Any = config_field(
-        RigidObjectCfg(
+    cube_2: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_2",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
@@ -153,8 +153,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             ),
         )
     )
-    cube_3: Any = config_field(
-        RigidObjectCfg(
+    cube_3: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_3",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
@@ -175,8 +175,8 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
-    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
+    arm_action: mdp.JointPositionActionCfg = REQUIRED
+    gripper_action: mdp.BinaryJointPositionActionCfg = REQUIRED
 
 
 @dataclass
@@ -189,8 +189,8 @@ class StackEventCfg:
     :func:`~isaaclab_tasks.contrib.stack.mdp.stack_events.randomize_joint_by_gaussian_offset`).
     """
 
-    randomize_joint_state: Any = config_field(
-        EventTerm(
+    randomize_joint_state: Any = field(
+        default_factory=lambda: EventTerm(
             func=stack_events.randomize_joint_by_gaussian_offset,
             mode="reset",
             params={
@@ -201,8 +201,8 @@ class StackEventCfg:
         )
     )
 
-    randomize_cube_positions: Any = config_field(
-        EventTerm(
+    randomize_cube_positions: Any = field(
+        default_factory=lambda: EventTerm(
             func=stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -222,15 +222,15 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        object: Any = config_field(ObsTerm(func=mdp.object_obs))
-        cube_positions: Any = config_field(ObsTerm(func=mdp.cube_positions_in_world_frame))
-        cube_orientations: Any = config_field(ObsTerm(func=mdp.cube_orientations_in_world_frame))
-        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pos))
-        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_quat))
-        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        object: Any = field(default_factory=lambda: ObsTerm(func=mdp.object_obs))
+        cube_positions: Any = field(default_factory=lambda: ObsTerm(func=mdp.cube_positions_in_world_frame))
+        cube_orientations: Any = field(default_factory=lambda: ObsTerm(func=mdp.cube_orientations_in_world_frame))
+        eef_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_pos))
+        eef_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_quat))
+        gripper_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -248,8 +248,8 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp_1: Any = config_field(
-            ObsTerm(
+        grasp_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -258,8 +258,8 @@ class ObservationsCfg:
                 },
             )
         )
-        stack_1: Any = config_field(
-            ObsTerm(
+        stack_1: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_stacked,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -268,8 +268,8 @@ class ObservationsCfg:
                 },
             )
         )
-        grasp_2: Any = config_field(
-            ObsTerm(
+        grasp_2: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_grasped,
                 params={
                     "robot_cfg": SceneEntityCfg("robot"),
@@ -284,44 +284,44 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
-    rgb_camera: RGBCameraPolicyCfg = config_field(RGBCameraPolicyCfg())
-    subtask_terms: SubtaskCfg = config_field(SubtaskCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
+    rgb_camera: RGBCameraPolicyCfg = field(default_factory=RGBCameraPolicyCfg)
+    subtask_terms: SubtaskCfg = field(default_factory=SubtaskCfg)
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    cube_1_dropping: Any = config_field(
-        DoneTerm(
+    cube_1_dropping: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("cube_1")}
         )
     )
 
-    cube_2_dropping: Any = config_field(
-        DoneTerm(
+    cube_2_dropping: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("cube_2")}
         )
     )
 
-    cube_3_dropping: Any = config_field(
-        DoneTerm(
+    cube_3_dropping: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("cube_3")}
         )
     )
 
-    success: Any = config_field(DoneTerm(func=mdp.cubes_stacked))
+    success: Any = field(default_factory=lambda: DoneTerm(func=mdp.cubes_stacked))
 
 
 @dataclass
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for stack tasks."""
 
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             bounce_threshold_velocity=0.01,
             gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
             gpu_total_aggregate_pairs_capacity=2**21,
@@ -330,8 +330,8 @@ class PhysicsCfg(PresetCfg):
             solve_articulation_contact_last=True,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
@@ -352,8 +352,28 @@ class PhysicsCfg(PresetCfg):
             debug_mode=False,
         )
     )
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx))
-    default: Any = config_field(isaacsim_physx)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                bounce_threshold_velocity=0.01,
+                gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+                gpu_total_aggregate_pairs_capacity=2**21,
+                friction_correlation_distance=0.00625,
+                # Let object contacts stall position-driven grippers before they tunnel through a grasp.
+                solve_articulation_contact_last=True,
+            )
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+            gpu_total_aggregate_pairs_capacity=2**21,
+            friction_correlation_distance=0.00625,
+            # Let object contacts stall position-driven grippers before they tunnel through a grasp.
+            solve_articulation_contact_last=True,
+        )
+    )
 
 
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:
@@ -394,21 +414,23 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False))
+    scene: ObjectTableSceneCfg = field(
+        default_factory=lambda: ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
+    )
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
 
     # Unused managers
-    commands: Any = config_field(None)
-    rewards: Any = config_field(None)
-    events: Any = config_field(None)
-    curriculum: Any = config_field(None)
+    commands: Any = None
+    rewards: Any = None
+    events: Any = None
+    curriculum: Any = None
 
-    xr: XrCfg = config_field(
-        XrCfg(
+    xr: XrCfg = field(
+        default_factory=lambda: XrCfg(
             anchor_pos=(-0.1, -0.5, -1.05),
             anchor_rot=(0, 0, -0.5, 0.866),
         )

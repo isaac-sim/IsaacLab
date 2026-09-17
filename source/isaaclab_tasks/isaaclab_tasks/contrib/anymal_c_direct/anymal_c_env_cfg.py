@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -17,7 +17,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 ##
 # Pre-defined configs
@@ -31,8 +31,8 @@ from typing import Any
 class EventCfg:
     """Configuration for randomization."""
 
-    physics_material: Any = config_field(
-        EventTerm(
+    physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -45,8 +45,8 @@ class EventCfg:
         )
     )
 
-    add_base_mass: Any = config_field(
-        EventTerm(
+    add_base_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="startup",
             params={
@@ -61,18 +61,18 @@ class EventCfg:
 @dataclass
 class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     # env
-    episode_length_s: Any = config_field(20.0)
-    decimation: Any = config_field(4)
-    action_scale: Any = config_field(0.5)
-    action_space: Any = config_field(12)
-    observation_space: Any = config_field(48)
-    state_space: Any = config_field(0)
+    episode_length_s: Any = 20.0
+    decimation: Any = 4
+    action_scale: Any = 0.5
+    action_space: Any = 12
+    observation_space: Any = 48
+    state_space: Any = 0
 
     # simulation
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 200,
-            render_interval=decimation,
+            render_interval=4,
             physics=PhysxCfg(gpu_max_rigid_patch_count=2**20),
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 friction_combine_mode="multiply",
@@ -83,8 +83,8 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
             ),
         )
     )
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
             collision_group=-1,
@@ -100,50 +100,52 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = config_field(
-        InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = field(
+        default_factory=lambda: InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
     )
 
     # events
-    events: EventCfg = config_field(EventCfg())
+    events: EventCfg = field(default_factory=EventCfg)
 
     # robot
-    robot: ArticulationCfg = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
-    contact_sensor: ContactSensorCfg = config_field(
-        ContactSensorCfg(
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
+    contact_sensor: ContactSensorCfg = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, update_period=0.005, track_air_time=True
         )
     )
 
     # reward scales
-    lin_vel_reward_scale: Any = config_field(1.0)
-    yaw_rate_reward_scale: Any = config_field(0.5)
-    z_vel_reward_scale: Any = config_field(-2.0)
-    ang_vel_reward_scale: Any = config_field(-0.05)
-    joint_torque_reward_scale: Any = config_field(-2.5e-5)
-    joint_accel_reward_scale: Any = config_field(-2.5e-7)
-    action_rate_reward_scale: Any = config_field(-0.01)
-    feet_air_time_reward_scale: Any = config_field(0.5)
-    undesired_contact_reward_scale: Any = config_field(-1.0)
-    flat_orientation_reward_scale: Any = config_field(-5.0)
+    lin_vel_reward_scale: Any = 1.0
+    yaw_rate_reward_scale: Any = 0.5
+    z_vel_reward_scale: Any = -2.0
+    ang_vel_reward_scale: Any = -0.05
+    joint_torque_reward_scale: Any = -2.5e-5
+    joint_accel_reward_scale: Any = -2.5e-7
+    action_rate_reward_scale: Any = -0.01
+    feet_air_time_reward_scale: Any = 0.5
+    undesired_contact_reward_scale: Any = -1.0
+    flat_orientation_reward_scale: Any = -5.0
 
     # success criteria — episode success_rate = per-env binary check that the *episode-mean*
     # error stayed below both thresholds, mean-reduced across resetting envs. Matches the
     # manager-based ``UniformVelocityCommandCfg`` defaults so flat/rough/direct curves are
     # comparable on the unified ``Metrics/success_rate`` card.
-    vel_xy_success_threshold: float = config_field(0.5)
+    vel_xy_success_threshold: float = 0.5
     """Threshold on the per-episode mean XY velocity error norm [m/s]."""
-    vel_yaw_success_threshold: float = config_field(0.4)
+    vel_yaw_success_threshold: float = 0.4
     """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
 
 @dataclass
 class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
-    observation_space: Any = config_field(235)
+    observation_space: Any = 235
 
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="generator",
             terrain_generator=ROUGH_TERRAINS_CFG,
@@ -164,8 +166,8 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     )
 
     # we add a height scanner for perceptive locomotion
-    height_scanner: Any = config_field(
-        RayCasterCfg(
+    height_scanner: Any = field(
+        default_factory=lambda: RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
             ray_alignment="yaw",
@@ -176,4 +178,4 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     )
 
     # reward scales (override from flat config)
-    flat_orientation_reward_scale: Any = config_field(0.0)
+    flat_orientation_reward_scale: Any = 0.0

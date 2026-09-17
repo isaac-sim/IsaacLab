@@ -13,33 +13,33 @@ Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
-from isaaclab.utils import config_field
 
 
 @dataclass
 class DataGenConfig:
     """Configuration settings for data generation processes within the Isaac Lab Mimic environment."""
 
-    name: str = config_field("demo")
+    name: str = "demo"
     """The name of the data generation process. Defaults to "demo"."""
 
-    generation_guarantee: bool = config_field(True)
+    generation_guarantee: bool = True
     """Whether to retry generation until generation_num_trials successful demos have been generated.
 
     If True, generation will be retried until generation_num_trials successful demos are created.
     If False, generation will stop after generation_num_trails, regardless of success.
     """
 
-    generation_keep_failed: bool = config_field(False)
+    generation_keep_failed: bool = False
     """Whether to keep failed generation trials.
 
     Keeping failed demonstrations is useful for visualizing and debugging low success rates.
     """
 
-    max_num_failures: int | None = config_field(None)
+    max_num_failures: int | None = None
     """Maximum number of failed generation attempts before stopping, or None for no limit.
 
     Only applies together with :attr:`generation_guarantee`. With the guarantee enabled, generation
@@ -55,26 +55,26 @@ class DataGenConfig:
     ``num_envs - 1`` failures beyond the bound; it is exact whenever attempts end on separate steps.
     """
 
-    seed: int = config_field(1)
+    seed: int = 1
     """Seed for randomization to ensure reproducibility."""
 
     """The following configuration values can be changed on the command line, and only serve as defaults."""
 
-    source_dataset_path: str = config_field(None)
+    source_dataset_path: str = None
     """Path to the source dataset for mimic generation."""
 
-    generation_path: str = config_field(None)
+    generation_path: str = None
     """Path where the generated data will be saved."""
 
-    generation_num_trials: int = config_field(10)
+    generation_num_trials: int = 10
     """Number of trials to be generated."""
 
-    task_name: str = config_field(None)
+    task_name: str = None
     """Name of the task being configured."""
 
     """The following configurations are advanced and do not usually need to be changed."""
 
-    generation_select_src_per_subtask: bool = config_field(False)
+    generation_select_src_per_subtask: bool = False
     """Whether to select source data per subtask.
 
     Note:
@@ -82,19 +82,19 @@ class DataGenConfig:
         additional subtasks to allow for time synchronization.
     """
 
-    generation_select_src_per_arm: bool = config_field(False)
+    generation_select_src_per_arm: bool = False
     """Whether to select source data per arm."""
 
-    generation_transform_first_robot_pose: bool = config_field(False)
+    generation_transform_first_robot_pose: bool = False
     """Whether to transform the first robot pose during generation."""
 
-    generation_interpolate_from_last_target_pose: bool = config_field(True)
+    generation_interpolate_from_last_target_pose: bool = True
     """Whether to interpolate from last target pose."""
 
-    use_skillgen: bool = config_field(False)
+    use_skillgen: bool = False
     """Whether to use skillgen to generate motion trajectories."""
 
-    use_navigation_controller: bool = config_field(False)
+    use_navigation_controller: bool = False
     """Whether to use a navigation controller to generate loco-manipulation trajectories."""
 
 
@@ -106,18 +106,18 @@ class SubTaskConfig:
 
     """Mandatory options that should be defined for every subtask."""
 
-    object_ref: str = config_field(None)
+    object_ref: str = None
     """Reference to the object involved in this subtask.
 
     Set to None if no object is involved (this is rarely the case).
     """
 
-    subtask_term_signal: str = config_field(None)
+    subtask_term_signal: str = None
     """Subtask termination signal name."""
 
     """Advanced options for tuning the generation results."""
 
-    selection_strategy: str = config_field("random")
+    selection_strategy: str = "random"
     """Strategy for selecting a subtask segment.
 
     Can be one of:
@@ -131,39 +131,39 @@ class SubTaskConfig:
         higher success rates than the default 'random' strategy when object_ref is set.
     """
 
-    selection_strategy_kwargs: dict = config_field({})
+    selection_strategy_kwargs: dict = field(default_factory=dict)
     """Additional arguments to the selected strategy. See details on each strategy in
     source/isaaclab_mimic/isaaclab_mimic/datagen/selection_strategy.py
     Arguments will be passed through to the `select_source_demo` method."""
 
-    first_subtask_start_offset_range: tuple = config_field((0, 0))
+    first_subtask_start_offset_range: tuple = (0, 0)
     """Range for start offset of the first subtask."""
 
-    subtask_start_offset_range: tuple = config_field((0, 0))
+    subtask_start_offset_range: tuple = (0, 0)
     """Range for start offset of the subtask (only used if use_skillgen is True)
 
     Note: This value overrides the first_subtask_start_offset_range when skillgen is enabled
     """
 
-    subtask_term_offset_range: tuple = config_field((0, 0))
+    subtask_term_offset_range: tuple = (0, 0)
     """Range for offsetting subtask termination."""
 
-    action_noise: float = config_field(0.03)
+    action_noise: float = 0.03
     """Amplitude of action noise applied."""
 
-    num_interpolation_steps: int = config_field(5)
+    num_interpolation_steps: int = 5
     """Number of steps for interpolation between waypoints."""
 
-    num_fixed_steps: int = config_field(0)
+    num_fixed_steps: int = 0
     """Number of fixed steps for the subtask."""
 
-    apply_noise_during_interpolation: bool = config_field(False)
+    apply_noise_during_interpolation: bool = False
     """Whether to apply noise during interpolation."""
 
-    description: str = config_field("")
+    description: str = ""
     """Description of the subtask"""
 
-    next_subtask_description: str = config_field("")
+    next_subtask_description: str = ""
     """Instructions for the next subtask"""
 
 
@@ -191,17 +191,17 @@ class SubTaskConstraintConfig:
     Configuration settings for specifying subtask constraints used in multi-eef Mimic environments.
     """
 
-    eef_subtask_constraint_tuple: list[tuple[str, int]] = config_field((("", 0), ("", 0)))
+    eef_subtask_constraint_tuple: list[tuple[str, int]] = (("", 0), ("", 0))
     """List of associated subtasks tuples in order.
 
     The first element of the tuple refers to the eef name.
     The second element of the tuple refers to the subtask index of the eef.
     """
 
-    constraint_type: SubTaskConstraintType = config_field(None)
+    constraint_type: SubTaskConstraintType = None
     """Type of constraint to apply between subtasks."""
 
-    sequential_min_time_diff: int = config_field(-1)
+    sequential_min_time_diff: int = -1
     """Minimum time difference between two sequential subtasks finishing.
 
     The second subtask will execute until sequential_min_time_diff steps left in its subtask trajectory
@@ -209,16 +209,18 @@ class SubTaskConstraintConfig:
     If set to -1, the second subtask will start only after the first subtask is finished.
     """
 
-    coordination_scheme: SubTaskConstraintCoordinationScheme = config_field(SubTaskConstraintCoordinationScheme.REPLAY)
+    coordination_scheme: SubTaskConstraintCoordinationScheme = field(
+        default_factory=lambda: deepcopy(SubTaskConstraintCoordinationScheme.REPLAY)
+    )
     """Scheme to use for coordinating subtasks."""
 
-    coordination_scheme_pos_noise_scale: float = config_field(0.0)
+    coordination_scheme_pos_noise_scale: float = 0.0
     """Scale of position noise to apply during coordination."""
 
-    coordination_scheme_rot_noise_scale: float = config_field(0.0)
+    coordination_scheme_rot_noise_scale: float = 0.0
     """Scale of rotation noise to apply during coordination."""
 
-    coordination_synchronize_start: bool = config_field(False)
+    coordination_synchronize_start: bool = False
     """Whether subtasks should start at the same time."""
 
     def generate_runtime_subtask_constraints(self):
@@ -323,14 +325,14 @@ class MimicEnvCfg:
     """
 
     # Overall configuration for the data generation
-    datagen_config: DataGenConfig = config_field(DataGenConfig())
+    datagen_config: DataGenConfig = field(default_factory=DataGenConfig)
 
     # Dictionary of list of subtask configurations for each end-effector.
     # Keys are end-effector names.
-    subtask_configs: dict[str, list[SubTaskConfig]] = config_field({})
+    subtask_configs: dict[str, list[SubTaskConfig]] = field(default_factory=dict)
 
     # List of configurations for subtask constraints
-    task_constraint_configs: list[SubTaskConstraintConfig] = config_field([])
+    task_constraint_configs: list[SubTaskConstraintConfig] = field(default_factory=list)
 
     # Optional recorder configuration
-    mimic_recorder_config: RecorderManagerBaseCfg | None = config_field(None)
+    mimic_recorder_config: RecorderManagerBaseCfg | None = None

@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
@@ -54,7 +54,7 @@ class PhysicsMaterialCfg:
     attributes, the AOUSD deformable schemas, or the PhysX extensions.
     """
 
-    func: Callable = config_field(MISSING)
+    func: Callable = REQUIRED
     """Function to use for creating the material."""
 
 
@@ -65,28 +65,28 @@ class CableMaterialCfg(PhysicsMaterialCfg):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = "PhysicsCurvesDeformableMaterialAPI"
 
-    func: Callable | str = config_field("{DIR}.physics_materials:spawn_deformable_body_material")
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
-    thickness: float = config_field(0.001)
+    thickness: float = 0.001
     """The finite, positive full cable thickness (diameter) [m]. Defaults to 0.001 m."""
 
-    density: float = config_field(1000.0)
+    density: float = 1000.0
     """The finite, positive cable density [kg/m^3]. Defaults to 1000 kg/m^3."""
 
-    stretch_stiffness: float = config_field(1.0e9)
+    stretch_stiffness: float = 1.0e9
     """The finite, nonnegative cable stretch elastic modulus [Pa]. Defaults to 1e9 Pa."""
 
-    bend_stiffness: float = config_field(1.0e6)
+    bend_stiffness: float = 1.0e6
     """The finite, nonnegative cable bend elastic modulus [Pa]. Defaults to 1e6 Pa."""
 
-    shear_stiffness: float | None = config_field(None)
+    shear_stiffness: float | None = None
     """The finite, nonnegative cable shear elastic modulus [Pa].
 
     Defaults to None, in which case it is not authored and the solver falls back to
     :attr:`stretch_stiffness`.
     """
 
-    twist_stiffness: float | None = config_field(None)
+    twist_stiffness: float | None = None
     """The finite, nonnegative cable twist elastic modulus [Pa].
 
     Defaults to None, in which case it is not authored and the solver falls back to
@@ -129,18 +129,18 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    func: Callable | str = config_field("{DIR}.physics_materials:spawn_rigid_body_material")
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_rigid_body_material"
 
-    static_friction: float = config_field(0.5)
+    static_friction: float = 0.5
     """The static friction coefficient. Defaults to 0.5."""
 
-    dynamic_friction: float = config_field(0.5)
+    dynamic_friction: float = 0.5
     """The dynamic friction coefficient. Defaults to 0.5."""
 
-    restitution: float = config_field(0.0)
+    restitution: float = 0.0
     """The restitution coefficient. Defaults to 0.0."""
 
-    density: float | None = config_field(None)
+    density: float | None = None
     """The material density [kg/m^3]. Defaults to None, in which case it is not authored.
 
     Writes ``physics:density``. It is a fallback for collision shapes bound to this material;
@@ -178,16 +178,16 @@ class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = None  # MaterialAPI applied by the family writer
 
-    static_friction: float | None = config_field(None)
+    static_friction: float | None = None
     """The static friction coefficient. Writes ``physics:staticFriction``."""
 
-    dynamic_friction: float | None = config_field(None)
+    dynamic_friction: float | None = None
     """The dynamic friction coefficient. Writes ``physics:dynamicFriction``."""
 
-    restitution: float | None = config_field(None)
+    restitution: float | None = None
     """The restitution coefficient. Writes ``physics:restitution``."""
 
-    density: float | None = config_field(None)
+    density: float | None = None
     """The material density [kg/m^3]. Writes ``physics:density``.
 
     Participates in mass computation via material binding when no explicit rigid-body mass or
@@ -203,7 +203,7 @@ class DeformableBodyMaterialBaseCfg(PhysicsMaterialCfg):
     through :attr:`func`.
     """
 
-    func: Callable | str | None = config_field(None)
+    func: Callable | str | None = None
 
 
 @dataclass

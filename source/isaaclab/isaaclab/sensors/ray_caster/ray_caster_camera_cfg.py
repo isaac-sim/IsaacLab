@@ -5,10 +5,10 @@
 
 """Configuration for the ray-cast camera sensor."""
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from .patterns import PinholeCameraPatternCfg
 from .ray_caster_cfg import RayCasterCfg
@@ -25,13 +25,13 @@ class RayCasterCameraCfg(RayCasterCfg):
     class OffsetCfg:
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
-        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
 
-        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
+        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-        convention: Literal["opengl", "ros", "world"] = config_field("ros")
+        convention: Literal["opengl", "ros", "world"] = "ros"
         """The convention in which the frame offset is applied. Defaults to "ros".
 
         - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera)
@@ -41,15 +41,15 @@ class RayCasterCameraCfg(RayCasterCfg):
 
         """
 
-    class_type: type["RayCasterCamera"] | str = config_field("{DIR}.ray_caster_camera:RayCasterCamera")
+    class_type: type["RayCasterCamera"] | str = "isaaclab.sensors.ray_caster.ray_caster_camera:RayCasterCamera"
 
-    offset: OffsetCfg = config_field(OffsetCfg())
+    offset: OffsetCfg = field(default_factory=OffsetCfg)
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
-    data_types: list[str] = config_field(["distance_to_image_plane"])
+    data_types: list[str] = field(default_factory=lambda: ["distance_to_image_plane"])
     """List of sensor names/types to enable for the camera. Defaults to ["distance_to_image_plane"]."""
 
-    depth_clipping_behavior: Literal["max", "zero", "none"] = config_field("none")
+    depth_clipping_behavior: Literal["max", "zero", "none"] = "none"
     """Clipping behavior for the camera for values exceed the maximum value. Defaults to "none".
 
     - ``"max"``: Values are clipped to the maximum value.
@@ -58,7 +58,7 @@ class RayCasterCameraCfg(RayCasterCfg):
       ``distance_to_camera`` and ``distance_to_image_plane`` data types.
     """
 
-    pattern_cfg: PinholeCameraPatternCfg = config_field(MISSING)
+    pattern_cfg: PinholeCameraPatternCfg = REQUIRED
     """The pattern that defines the local ray starting positions and directions in a pinhole camera pattern."""
 
     def __post_init__(self):

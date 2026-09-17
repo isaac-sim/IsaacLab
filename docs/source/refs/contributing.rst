@@ -514,9 +514,8 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from dataclasses import dataclass
+   from dataclasses import dataclass, field
 
-   from isaaclab.utils import config_field
    if typing.TYPE_CHECKING:
        from .sensor import Sensor
 

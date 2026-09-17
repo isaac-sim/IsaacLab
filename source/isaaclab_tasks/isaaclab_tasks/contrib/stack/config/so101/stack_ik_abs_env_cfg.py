@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 import numpy as np
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils import preset
@@ -181,8 +181,8 @@ class SO101IkActionsCfg:
     ``ActionsCfg`` would append new fields after the base's and mis-order the concat.
     """
 
-    arm_action: SO101PoseIKActionCfg = config_field(MISSING)
-    gripper_action: mdp.JointPositionActionCfg = config_field(MISSING)
+    arm_action: SO101PoseIKActionCfg = REQUIRED
+    gripper_action: mdp.JointPositionActionCfg = REQUIRED
 
 
 @dataclass

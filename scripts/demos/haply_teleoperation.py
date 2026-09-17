@@ -38,9 +38,10 @@ Prerequisites:
     3. Connect Inverse3 and VerseGrip devices
 """
 
+from dataclasses import field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
@@ -152,22 +153,22 @@ def apply_haply_to_robot_mapping(
 class FrankaHaplySceneCfg(InteractiveSceneCfg):
     """Configuration for Franka scene with Haply teleoperation and contact sensors."""
 
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/defaultGroundPlane",
             spawn=sim_utils.GroundPlaneCfg(),
         )
     )
 
-    dome_light: Any = config_field(
-        AssetBaseCfg(
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/Light",
             spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
         )
     )
 
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
@@ -177,15 +178,19 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    robot_cfg: ArticulationCfg = config_field(
-        replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg: ArticulationCfg = field(
+        default_factory=lambda: replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     )
-    robot: Any = config_field(robot_cfg.class_type(robot_cfg))
+    robot: Any = field(
+        default_factory=lambda: replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot").class_type(
+            replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        )
+    )
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
 
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.06, 0.06, 0.06),
@@ -199,8 +204,8 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    left_finger_contact_sensor: Any = config_field(
-        ContactSensorCfg(
+    left_finger_contact_sensor: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
             update_period=0.0,
             history_length=3,
@@ -209,8 +214,8 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         )
     )
 
-    right_finger_contact_sensor: Any = config_field(
-        ContactSensorCfg(
+    right_finger_contact_sensor: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
             update_period=0.0,
             history_length=3,

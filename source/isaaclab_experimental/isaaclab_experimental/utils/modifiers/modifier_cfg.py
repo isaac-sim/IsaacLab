@@ -6,10 +6,10 @@
 """Warp-native modifier configuration (experimental)."""
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -21,7 +21,7 @@ class ModifierCfg:
     ``wp.array`` buffer and return ``None``.
     """
 
-    func: Callable[..., None] = config_field(MISSING)
+    func: Callable[..., None] = REQUIRED
     """Function or callable class used by modifier.
 
     The function must take a ``wp.array`` as the first argument and operate on it
@@ -32,7 +32,7 @@ class ModifierCfg:
     class should inherit from :class:`ModifierBase` and implement the required methods.
     """
 
-    params: dict[str, Any] = config_field(dict())
+    params: dict[str, Any] = field(default_factory=dict)
     """The parameters to be passed to the function or callable class as keyword arguments.
 
     Defaults to an empty dictionary.

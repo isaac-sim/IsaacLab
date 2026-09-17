@@ -16,11 +16,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 from functools import partial
 from typing import Any
 
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 parser = argparse.ArgumentParser(description="Benchmark the Newton JointWrench sensor update path.")
 add_sensor_benchmark_args(
@@ -50,8 +51,8 @@ from isaaclab_assets import CARTPOLE_CFG
 class JointWrenchBenchmarkSceneCfg(InteractiveSceneCfg):
     """One cartpole articulation and JointWrench sensor per environment."""
 
-    robot: Any = config_field(replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
-    joint_wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    joint_wrench: Any = field(default_factory=lambda: JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 def main() -> None:

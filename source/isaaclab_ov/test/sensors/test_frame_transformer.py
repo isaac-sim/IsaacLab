@@ -18,6 +18,7 @@ Run via ``uv run python -m pytest`` (the standard Kit Python entrypoint).
 from __future__ import annotations
 
 import math
+from dataclasses import field
 from typing import Any
 
 import pytest
@@ -25,7 +26,7 @@ import scipy.spatial.transform as tf
 import torch
 import warp as wp
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
@@ -136,13 +137,13 @@ def euler_rpy_apply(rpy, xyz, degrees=False):
 class _SceneCfg(InteractiveSceneCfg):
     """Scene cfg shared across FrameTransformer tests; ``frame_transformer`` is filled per-test."""
 
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
-    frame_transformer: FrameTransformerCfg = config_field(None)  # filled per-test
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    frame_transformer: FrameTransformerCfg = None  # filled per-test
 
     # block
-    cube: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -796,10 +797,12 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
         class MultiRobotSceneCfg(InteractiveSceneCfg):
             """Scene with two robots having bodies with same names."""
 
-            terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+            terrain: Any = field(
+                default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+            )
 
             # Frame transformer will be set after config creation (needs source_robot parameter)
-            frame_transformer: FrameTransformerCfg = config_field(None)  # type: ignore
+            frame_transformer: FrameTransformerCfg = None  # type: ignore
 
         # Use multiple envs for env patterns, single env for direct paths
         num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1

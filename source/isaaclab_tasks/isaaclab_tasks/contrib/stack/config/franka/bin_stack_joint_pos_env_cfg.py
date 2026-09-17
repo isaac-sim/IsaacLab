@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -14,7 +14,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -34,8 +34,8 @@ class EventCfg:
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose: Any = config_field(
-        EventTerm(
+    init_franka_arm_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.set_default_joint_pose,
             # mode="startup",
             mode="reset",
@@ -45,8 +45,8 @@ class EventCfg:
         )
     )
 
-    randomize_franka_joint_state: Any = config_field(
-        EventTerm(
+    randomize_franka_joint_state: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_joint_by_gaussian_offset,
             mode="reset",
             params={
@@ -58,8 +58,8 @@ class EventCfg:
     )
 
     # Reset blue bin position
-    reset_blue_bin_pose: Any = config_field(
-        EventTerm(
+    reset_blue_bin_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -72,8 +72,8 @@ class EventCfg:
     )
 
     # Reset cube 1 to initial position (inside the bin)
-    reset_cube_1_pose: Any = config_field(
-        EventTerm(
+    reset_cube_1_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -85,8 +85,8 @@ class EventCfg:
     )
 
     # Reset cube 2 and 3 to initial position (outside the bin, to the left and right)
-    reset_cube_pose: Any = config_field(
-        EventTerm(
+    reset_cube_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={

@@ -10,7 +10,7 @@ fingertip bodies, its actuated joints, its scene, and its control rate; the term
 lists, scales and weights are common.
 """
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.sim as sim_utils
@@ -25,7 +25,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.reorient.mdp as mdp
@@ -36,14 +36,16 @@ from isaaclab_tasks.utils import PresetCfg
 class ReorientSceneBaseCfg(InteractiveSceneCfg):
     """Shared reorientation scene. A hand supplies its robot and its object."""
 
-    num_envs: Any = config_field(8192)
-    env_spacing: Any = config_field(0.75)
+    num_envs: Any = 8192
+    env_spacing: Any = 0.75
 
-    robot: PresetCfg | ArticulationCfg = config_field(MISSING)
-    object: RigidObjectCfg = config_field(MISSING)
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg()))
-    light: Any = config_field(
-        AssetBaseCfg(
+    robot: PresetCfg | ArticulationCfg = REQUIRED
+    object: RigidObjectCfg = REQUIRED
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    )
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/Light",
             spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
         )
@@ -54,12 +56,12 @@ class ReorientSceneBaseCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """In-hand goal pose, re-drawn on success."""
 
-    object_pose: Any = config_field(
-        mdp.ReorientCommandCfg(
+    object_pose: Any = field(
+        default_factory=lambda: mdp.ReorientCommandCfg(
             asset_name="object",
             init_pos_offset=(0.0, 0.0, -0.04),
             update_goal_on_success=True,
-            orientation_success_threshold=MISSING,
+            orientation_success_threshold=REQUIRED,
             make_quat_unique=False,
             fixed_marker_pos=(-0.2, -0.45, 0.68),
             debug_vis=True,
@@ -75,10 +77,10 @@ class ActionsCfg:
     joint and cannot be reached by a joint term, so it does not belong to every hand.
     """
 
-    joint_pos: Any = config_field(
-        mdp.EMAJointPositionToLimitsActionCfg(
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.EMAJointPositionToLimitsActionCfg(
             asset_name="robot",
-            joint_names=MISSING,
+            joint_names=REQUIRED,
             alpha=1.0,
             rescale_to_limits=True,
         )
@@ -93,12 +95,16 @@ class ReorientRobotObsCfg(ObsGroup):
     ``asset_cfg`` from :attr:`ReorientManagerEnvBaseCfg.fingertip_body_names`.
     """
 
-    joint_pos: Any = config_field(
-        ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("robot")})
+    joint_pos: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("robot")}
+        )
     )
-    joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("robot")}))
-    fingertip_pose: Any = config_field(ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": MISSING}))
-    fingertip_vel: Any = config_field(ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": MISSING}))
+    joint_vel: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("robot")})
+    )
+    fingertip_pose: Any = field(default_factory=lambda: ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": REQUIRED}))
+    fingertip_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": REQUIRED}))
 
     def __post_init__(self):
         self.concatenate_terms = True
@@ -112,20 +118,28 @@ class ReorientObjectObsCfg(ObsGroup):
     from :class:`ReorientRobotObsCfg` rather than nulled out per task.
     """
 
-    object_pos: Any = config_field(ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")}))
-    object_quat: Any = config_field(
-        ObsTerm(
+    object_pos: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+    )
+    object_quat: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.root_quat_w,
             params={"asset_cfg": SceneEntityCfg("object"), "make_quat_unique": False},
         )
     )
-    object_lin_vel: Any = config_field(ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")}))
-    object_ang_vel: Any = config_field(
-        ObsTerm(func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")})
+    object_lin_vel: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
     )
-    goal_pose: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"}))
-    goal_quat_diff: Any = config_field(
-        ObsTerm(
+    object_ang_vel: Any = field(
+        default_factory=lambda: ObsTerm(
+            func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")}
+        )
+    )
+    goal_pose: Any = field(
+        default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+    )
+    goal_quat_diff: Any = field(
+        default_factory=lambda: ObsTerm(
             func=mdp.goal_quat_diff,
             params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
         )
@@ -148,46 +162,46 @@ class ObservationsCfg:
     class PolicyCfg(ReorientFullStateObsCfg):
         # No action_name: the observation covers every motor, and a tendon-driven hand splits its
         # motors across two action terms.
-        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
+        last_action: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class RewardsCfg:
     """Reward terms tuned to the Direct task's scales."""
 
-    track_orientation_inv_l2: Any = config_field(
-        RewTerm(
+    track_orientation_inv_l2: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.track_orientation_inv_l2,
             weight=1.0,
             params={"object_cfg": SceneEntityCfg("object"), "rot_eps": 0.1, "command_name": "object_pose"},
         )
     )
-    success_bonus: Any = config_field(
-        RewTerm(
+    success_bonus: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.success_bonus,
             weight=250.0,
             params={"object_cfg": SceneEntityCfg("object"), "command_name": "object_pose"},
         )
     )
-    track_pos_l2: Any = config_field(
-        RewTerm(
+    track_pos_l2: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.track_pos_l2,
             weight=-10.0,
             params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object")},
         )
     )
-    action_l2: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.0002))
+    action_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-0.0002))
 
 
 @dataclass
 class TerminationsCfg:
     """Episode budget, and the Direct task's fall condition."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
-    object_out_of_reach: Any = config_field(
-        DoneTerm(
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
+    object_out_of_reach: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.object_away_from_goal,
             params={"threshold": 0.24, "command_name": "object_pose", "object_cfg": SceneEntityCfg("object")},
         )
@@ -202,24 +216,24 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     its ``scene``, its ``events`` and its ``decimation``.
     """
 
-    fingertip_body_names: list[str] = config_field(MISSING)
+    fingertip_body_names: list[str] = REQUIRED
     """Fingertip bodies the observation terms read."""
-    actuated_joint_names: list[str] = config_field(MISSING)
+    actuated_joint_names: list[str] = REQUIRED
     """Joints the action term drives."""
-    goal_orientation_threshold: float = config_field(MISSING)
+    goal_orientation_threshold: float = REQUIRED
     """Orientation error below which a goal counts as reached [rad]."""
-    goal_marker_cfg: VisualizationMarkersCfg = config_field(MISSING)
+    goal_marker_cfg: VisualizationMarkersCfg = REQUIRED
     """Marker spawned at the goal pose."""
 
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
 
-    episode_length_s: Any = config_field(10.0)
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    episode_length_s: Any = 10.0
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 120,
             physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         )

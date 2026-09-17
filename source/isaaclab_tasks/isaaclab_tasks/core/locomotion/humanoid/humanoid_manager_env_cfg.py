@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -23,7 +23,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -49,11 +49,15 @@ JOINT_EFFORT_LIMITS = {name: (-gear, gear) for name, gear in JOINT_GEARS.items()
 
 @dataclass
 class HumanoidPhysicsCfg(PresetCfg):
-    isaacsim_physx: PhysxCfg = config_field(PhysxCfg(bounce_threshold_velocity=0.2))
-    ovphysx: OvPhysxCfg = config_field(OvPhysxCfg())
-    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
-    newton_mjwarp: NewtonCfg = config_field(
-        NewtonCfg(
+    isaacsim_physx: PhysxCfg = field(default_factory=lambda: PhysxCfg(bounce_threshold_velocity=0.2))
+    ovphysx: OvPhysxCfg = field(default_factory=OvPhysxCfg)
+    physx: PhysxAutoCfg = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(bounce_threshold_velocity=0.2), ovphysx=OvPhysxCfg()
+        )
+    )
+    newton_mjwarp: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=80,
                 nconmax=25,
@@ -66,7 +70,20 @@ class HumanoidPhysicsCfg(PresetCfg):
             debug_mode=False,
         )
     )
-    default: NewtonCfg = config_field(newton_mjwarp)
+    default: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=80,
+                nconmax=25,
+                cone="pyramidal",
+                update_data_interval=2,
+                integrator="implicitfast",
+                impratio=1,
+            ),
+            num_substeps=2,
+            debug_mode=False,
+        )
+    )
 
 
 ##
@@ -79,8 +96,8 @@ class HumanoidSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a humanoid robot."""
 
     # terrain
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
             collision_group=-1,
@@ -90,14 +107,14 @@ class HumanoidSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot: Any = config_field(replace_config(HUMANOID_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(HUMANOID_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # sensors
-    joint_wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
+    joint_wrench: Any = field(default_factory=lambda: JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -115,8 +132,10 @@ class ActionsCfg:
 
     # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
     # drive the solver to NaN
-    joint_effort: Any = config_field(
-        mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=JOINT_GEARS, clip=JOINT_EFFORT_LIMITS)
+    joint_effort: Any = field(
+        default_factory=lambda: mdp.JointEffortActionCfg(
+            asset_name="robot", joint_names=[".*"], scale=JOINT_GEARS, clip=JOINT_EFFORT_LIMITS
+        )
     )
 
 
@@ -128,58 +147,58 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for the policy."""
 
-        base_height: Any = config_field(ObsTerm(func=mdp.base_pos_z))
-        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel))
-        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel, scale=0.25))
-        base_yaw_roll: Any = config_field(ObsTerm(func=mdp.base_yaw_roll))
-        base_angle_to_target: Any = config_field(
-            ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
+        base_height: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_pos_z))
+        base_lin_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_lin_vel))
+        base_ang_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_ang_vel, scale=0.25))
+        base_yaw_roll: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_yaw_roll))
+        base_angle_to_target: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
         )
-        base_up_proj: Any = config_field(ObsTerm(func=mdp.base_up_proj))
-        base_heading_proj: Any = config_field(
-            ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
+        base_up_proj: Any = field(default_factory=lambda: ObsTerm(func=mdp.base_up_proj))
+        base_heading_proj: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
         )
-        joint_pos_norm: Any = config_field(ObsTerm(func=mdp.joint_pos_limit_normalized))
-        joint_vel_rel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel, scale=0.1))
-        feet_body_forces: Any = config_field(
-            ObsTerm(
+        joint_pos_norm: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_limit_normalized))
+        joint_vel_rel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel, scale=0.1))
+        feet_body_forces: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.body_incoming_wrench,
                 scale=0.01,
                 params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=["left_foot", "right_foot"])},
             )
         )
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class HumanoidObservationsCfg(PresetCfg):
-    physx: ObservationsCfg = config_field(ObservationsCfg())
-    isaacsim_physx: ObservationsCfg = config_field(physx)
-    newton_mjwarp: ObservationsCfg = config_field(ObservationsCfg())
-    default: ObservationsCfg = config_field(newton_mjwarp)
+    physx: ObservationsCfg = field(default_factory=ObservationsCfg)
+    isaacsim_physx: ObservationsCfg = field(default_factory=ObservationsCfg)
+    newton_mjwarp: ObservationsCfg = field(default_factory=ObservationsCfg)
+    default: ObservationsCfg = field(default_factory=ObservationsCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={"pose_range": {}, "velocity_range": {}},
         )
     )
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_offset,
             mode="reset",
             params={
@@ -195,33 +214,39 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Reward for moving forward
-    progress: Any = config_field(
-        RewTerm(func=mdp.progress_reward, weight=1.0, params={"target_pos": (1000.0, 0.0, 0.0)})
+    progress: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.progress_reward, weight=1.0, params={"target_pos": (1000.0, 0.0, 0.0)})
     )
     # (2) Stay alive bonus
-    alive: Any = config_field(RewTerm(func=mdp.is_alive, weight=2.0))
+    alive: Any = field(default_factory=lambda: RewTerm(func=mdp.is_alive, weight=2.0))
     # (3) Reward for upright posture
-    upright: Any = config_field(RewTerm(func=mdp.upright_posture_bonus, weight=0.1, params={"threshold": 0.93}))
+    upright: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.upright_posture_bonus, weight=0.1, params={"threshold": 0.93})
+    )
     # (4) Reward for moving in the right direction
-    move_to_target: Any = config_field(
-        RewTerm(func=mdp.move_to_target_bonus, weight=0.5, params={"threshold": 0.8, "target_pos": (1000.0, 0.0, 0.0)})
+    move_to_target: Any = field(
+        default_factory=lambda: RewTerm(
+            func=mdp.move_to_target_bonus, weight=0.5, params={"threshold": 0.8, "target_pos": (1000.0, 0.0, 0.0)}
+        )
     )
     # (5) Penalty for large action commands
-    action_l2: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.01))
+    action_l2: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-0.01))
     # (6) Penalty for energy consumption
-    energy: Any = config_field(RewTerm(func=mdp.power_consumption, weight=-0.005, params={"gear_ratio": JOINT_GEARS}))
+    energy: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.power_consumption, weight=-0.005, params={"gear_ratio": JOINT_GEARS})
+    )
     # (7) Penalty for reaching close to joint limits
-    joint_pos_limits: Any = config_field(
-        RewTerm(
+    joint_pos_limits: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_pos_limits_penalty_ratio,
             weight=-0.25,
             params={"threshold": 0.98, "gear_ratio": JOINT_GEARS},
         )
     )
     # (8) Penalty for falling over, applied once on the terminating step
-    terminating: Any = config_field(RewTerm(func=mdp.terminated_penalty, weight=-1.0))
+    terminating: Any = field(default_factory=lambda: RewTerm(func=mdp.terminated_penalty, weight=-1.0))
     # (9) Survival rate metric (logged only, contributes no reward)
-    success_rate: Any = config_field(RewTerm(func=mdp.survival_success_rate, weight=0.0))
+    success_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.survival_success_rate, weight=0.0))
 
 
 @dataclass
@@ -229,9 +254,11 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     # (1) Terminate if the episode length is exceeded
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
     # (2) Terminate if the robot falls
-    torso_height: Any = config_field(DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.8}))
+    torso_height: Any = field(
+        default_factory=lambda: DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.8})
+    )
 
 
 @dataclass
@@ -239,14 +266,16 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the Humanoid walking environment."""
 
     # Scene settings
-    scene: HumanoidSceneCfg = config_field(HumanoidSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True))
+    scene: HumanoidSceneCfg = field(
+        default_factory=lambda: HumanoidSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    )
     # Basic settings
-    observations: HumanoidObservationsCfg = config_field(HumanoidObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: HumanoidObservationsCfg = field(default_factory=HumanoidObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

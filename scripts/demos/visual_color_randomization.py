@@ -27,10 +27,11 @@ other optical channels to RTX renderers.
 from __future__ import annotations
 
 import argparse
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 parser = argparse.ArgumentParser(description=__doc__, conflict_handler="resolve")
 parser.add_argument("--num_envs", type=int, default=512, help="Number of environments to spawn.")
@@ -76,69 +77,69 @@ def _bindings(body: str, legs: str, feet: str) -> dict[str, str]:
 class VisualMaterialSceneCfg(InteractiveSceneCfg):
     """One of five styled ANYmal variants per environment and three materials per style."""
 
-    surface_body: Any = config_field(
-        VisualMaterialCfg(
+    surface_body: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/surface_body",
             spawn=sim_utils.PreviewSurfaceCfg(),
             channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
         )
     )
-    surface_leg: Any = config_field(
-        VisualMaterialCfg(
+    surface_leg: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/surface_leg",
             spawn=sim_utils.PreviewSurfaceCfg(),
             channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
         )
     )
-    surface_foot: Any = config_field(
-        VisualMaterialCfg(
+    surface_foot: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/surface_foot",
             spawn=sim_utils.PreviewSurfaceCfg(),
             channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
         )
     )
-    glass_body: Any = config_field(
-        VisualMaterialCfg(
+    glass_body: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/glass_body",
             spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
             channels=("color", "roughness", "ior"),
         )
     )
-    glass_leg: Any = config_field(
-        VisualMaterialCfg(
+    glass_leg: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/glass_leg",
             spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
             channels=("color", "roughness", "ior"),
         )
     )
-    glass_foot: Any = config_field(
-        VisualMaterialCfg(
+    glass_foot: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/glass_foot",
             spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
             channels=("color", "roughness", "ior"),
         )
     )
-    solid_body: Any = config_field(
-        VisualMaterialCfg(
+    solid_body: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/solid_body",
             spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.8, 0.3, 0.1)),
         )
     )
-    solid_leg: Any = config_field(
-        VisualMaterialCfg(
+    solid_leg: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/solid_leg",
             spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.2, 0.2, 0.7)),
         )
     )
-    solid_foot: Any = config_field(
-        VisualMaterialCfg(
+    solid_foot: Any = field(
+        default_factory=lambda: VisualMaterialCfg(
             prim_path="{ENV_REGEX_NS}/Robot/solid_foot",
             spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.1, 0.6, 0.2), reflection_roughness_constant=0.9),
         )
     )
 
-    robot: ArticulationCfg = config_field(
-        replace_config(
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(
             ANYMAL_C_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.MultiAssetSpawnerCfg(
@@ -182,9 +183,13 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg()))
-    light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0))
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    )
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0)
+        )
     )
 
 
@@ -192,8 +197,10 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Hold the robot at its default pose."""
 
-    joint_pos: Any = config_field(
-        mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=[".*"], use_default_offset=True
+        )
     )
 
 
@@ -203,20 +210,20 @@ class ObservationsCfg:
 
     @dataclass
     class PolicyCfg(ObsGroup):
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
 
         def __post_init__(self):
             self.concatenate_terms = True
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Randomize each style's three material assets independently."""
 
-    randomize_surface_style: Any = config_field(
-        EventTerm(
+    randomize_surface_style: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_material,
             mode="reset",
             params={
@@ -235,8 +242,8 @@ class EventCfg:
             },
         )
     )
-    randomize_glass_style: Any = config_field(
-        EventTerm(
+    randomize_glass_style: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_material,
             mode="reset",
             params={
@@ -249,8 +256,8 @@ class EventCfg:
             },
         )
     )
-    randomize_solid_style: Any = config_field(
-        EventTerm(
+    randomize_solid_style: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_material,
             mode="reset",
             params={
@@ -259,8 +266,8 @@ class EventCfg:
             },
         )
     )
-    randomize_parts_per_env: Any = config_field(
-        EventTerm(
+    randomize_parts_per_env: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_visual_shape,
             mode="reset",
             params={
@@ -277,10 +284,10 @@ class EventCfg:
 class VisualMaterialEnvCfg(ManagerBasedEnvCfg):
     """Manager-based environment for the visual-material demo."""
 
-    scene: VisualMaterialSceneCfg = config_field(VisualMaterialSceneCfg(num_envs=512, env_spacing=1.5))
-    actions: ActionsCfg = config_field(ActionsCfg())
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    events: EventCfg = config_field(EventCfg())
+    scene: VisualMaterialSceneCfg = field(default_factory=lambda: VisualMaterialSceneCfg(num_envs=512, env_spacing=1.5))
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         self.decimation = 4

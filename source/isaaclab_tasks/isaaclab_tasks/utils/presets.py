@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -11,23 +11,22 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import config_field
 
 from isaaclab_tasks.utils import PresetCfg
 
 
 @dataclass
 class _AutoRtxRendererCfg(RendererCfg):
-    renderer_type: str = config_field("auto_rtx")
+    renderer_type: str = "auto_rtx"
 
 
 @dataclass
 class MultiBackendRendererCfg(PresetCfg):
-    rtx: _AutoRtxRendererCfg = config_field(_AutoRtxRendererCfg())
-    ovrtx: OVRTXRendererCfg = config_field(OVRTXRendererCfg())
-    isaacsim_rtx: IsaacRtxRendererCfg = config_field(IsaacRtxRendererCfg())
-    newton_renderer: NewtonWarpRendererCfg = config_field(NewtonWarpRendererCfg())
-    default: NewtonWarpRendererCfg = config_field(NewtonWarpRendererCfg())
+    rtx: _AutoRtxRendererCfg = field(default_factory=_AutoRtxRendererCfg)
+    ovrtx: OVRTXRendererCfg = field(default_factory=OVRTXRendererCfg)
+    isaacsim_rtx: IsaacRtxRendererCfg = field(default_factory=IsaacRtxRendererCfg)
+    newton_renderer: NewtonWarpRendererCfg = field(default_factory=NewtonWarpRendererCfg)
+    default: NewtonWarpRendererCfg = field(default_factory=NewtonWarpRendererCfg)
 
 
 def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:

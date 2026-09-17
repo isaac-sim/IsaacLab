@@ -20,10 +20,12 @@
 """
 
 import argparse
+from copy import deepcopy
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the multi-mesh raycaster sensor.")
@@ -201,8 +203,8 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the asset."""
 
     # ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/Ground",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
@@ -212,14 +214,16 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # asset
-    asset: Any = config_field(asset_cfg)
+    asset: Any = field(default_factory=lambda: deepcopy(asset_cfg))
     # ray caster
-    ray_caster: Any = config_field(ray_caster_cfg)
+    ray_caster: Any = field(default_factory=lambda: deepcopy(ray_caster_cfg))
 
 
 def randomize_shape_color(prim_path_expr: str):

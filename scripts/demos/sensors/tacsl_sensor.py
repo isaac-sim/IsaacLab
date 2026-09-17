@@ -26,6 +26,7 @@ tactile sensing with the GelSight finger setup.
 import argparse
 import math
 import os
+from dataclasses import field
 from typing import Any
 
 import cv2
@@ -33,7 +34,6 @@ import numpy as np
 import torch
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # Add argparse arguments
 parser = argparse.ArgumentParser(description="TacSL tactile sensor example.")
@@ -112,16 +112,20 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     """Design the scene with tactile sensors on the robot."""
 
     # Ground plane
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    )
 
     # Lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # Robot with tactile sensor
-    robot: Any = config_field(
-        ArticulationCfg(
+    robot: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.UsdFileWithCompliantContactCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
@@ -152,8 +156,8 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     # Camera configuration for tactile sensing
 
     # TacSL Tactile Sensor
-    tactile_sensor: Any = config_field(
-        VisuoTactileSensorCfg(
+    tactile_sensor: Any = field(
+        default_factory=lambda: VisuoTactileSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
             debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
             # Sensor configuration
@@ -191,8 +195,8 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
     """Scene with cube contact object."""
 
     # Cube contact object
-    contact_object: Any = config_field(
-        RigidObjectCfg(
+    contact_object: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/contact_object",
             spawn=sim_utils.CuboidCfg(
                 size=(0.01, 0.01, 0.01),
@@ -212,8 +216,8 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
     """Scene with nut contact object."""
 
     # Nut contact object
-    contact_object: Any = config_field(
-        RigidObjectCfg(
+    contact_object: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/contact_object",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",

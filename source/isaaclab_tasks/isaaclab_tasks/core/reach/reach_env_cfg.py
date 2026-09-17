@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -24,7 +24,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
@@ -37,12 +37,16 @@ from isaaclab_tasks.utils import PresetCfg
 
 @dataclass
 class ReachPhysicsCfg(PresetCfg):
-    isaacsim_physx: PhysxCfg = config_field(PhysxCfg(bounce_threshold_velocity=0.2))
-    ovphysx: OvPhysxCfg = config_field(OvPhysxCfg())
-    physx: PhysxAutoCfg = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
+    isaacsim_physx: PhysxCfg = field(default_factory=lambda: PhysxCfg(bounce_threshold_velocity=0.2))
+    ovphysx: OvPhysxCfg = field(default_factory=OvPhysxCfg)
+    physx: PhysxAutoCfg = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(bounce_threshold_velocity=0.2), ovphysx=OvPhysxCfg()
+        )
+    )
 
-    newton_mjwarp: NewtonCfg = config_field(
-        NewtonCfg(
+    newton_mjwarp: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=100,
                 nconmax=20,
@@ -56,7 +60,21 @@ class ReachPhysicsCfg(PresetCfg):
             use_cuda_graph=True,
         )
     )
-    default: NewtonCfg = config_field(newton_mjwarp)
+    default: NewtonCfg = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=100,
+                nconmax=20,
+                cone="pyramidal",
+                integrator="implicitfast",
+                impratio=1,
+                update_data_interval=2,
+            ),
+            num_substeps=2,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
+    )
 
 
 ##
@@ -69,16 +87,16 @@ class ReachSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
     # world
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
         )
     )
 
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.5)),
             spawn=sim_utils.CuboidCfg(
@@ -89,11 +107,11 @@ class ReachSceneCfg(InteractiveSceneCfg):
     )
 
     # robots
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
         )
@@ -109,10 +127,10 @@ class ReachSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    ee_pose: Any = config_field(
-        mdp.UniformPoseCommandCfg(
+    ee_pose: Any = field(
+        default_factory=lambda: mdp.UniformPoseCommandCfg(
             asset_name="robot",
-            body_name=MISSING,
+            body_name=REQUIRED,
             resampling_time_range=(4.0, 4.0),
             debug_vis=True,
             position_success_threshold=0.05,
@@ -122,7 +140,7 @@ class CommandsCfg:
                 pos_y=(-0.2, 0.2),
                 pos_z=(0.15, 0.5),
                 roll=(0.0, 0.0),
-                pitch=MISSING,  # depends on end-effector axis
+                pitch=REQUIRED,  # depends on end-effector axis
                 yaw=(-3.14, 3.14),
             ),
         )
@@ -133,8 +151,8 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: ActionTerm = config_field(MISSING)
-    gripper_action: ActionTerm | None = config_field(None)
+    arm_action: ActionTerm = REQUIRED
+    gripper_action: ActionTerm | None = None
 
 
 @dataclass
@@ -146,25 +164,31 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.01, n_max=0.01)))
-        pose_command: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"}))
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        )
+        joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        )
+        pose_command: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
+        )
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_scale,
             mode="reset",
             params={
@@ -180,27 +204,29 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    end_effector_position_tracking: Any = config_field(
-        RewTerm(
+    end_effector_position_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error,
             weight=-0.2,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED), "command_name": "ee_pose"},
         )
     )
-    end_effector_orientation_tracking: Any = config_field(
-        RewTerm(
+    end_effector_orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.orientation_command_error,
             weight=-0.1,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED), "command_name": "ee_pose"},
         )
     )
-    success: Any = config_field(RewTerm(func=mdp.is_terminated_term, weight=10.0, params={"term_keys": ["success"]}))
+    success: Any = field(
+        default_factory=lambda: RewTerm(func=mdp.is_terminated_term, weight=10.0, params={"term_keys": ["success"]})
+    )
 
     # control and physical motion penalties
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.0001))
-    action_magnitude: Any = config_field(RewTerm(func=mdp.action_l2, weight=-0.005))
-    joint_vel: Any = config_field(
-        RewTerm(
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-0.0001))
+    action_magnitude: Any = field(default_factory=lambda: RewTerm(func=mdp.action_l2, weight=-0.005))
+    joint_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_vel_l2,
             weight=-0.0001,
             params={"asset_cfg": SceneEntityCfg("robot")},
@@ -212,27 +238,29 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    success: Any = config_field(
-        DoneTerm(
+    success: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.pose_command_success,
             params={"command_name": "ee_pose"},
         )
     )
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 @dataclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    action_rate: Any = config_field(
-        CurrTerm(
+    action_rate: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500}
         )
     )
 
-    joint_vel: Any = config_field(
-        CurrTerm(func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500})
+    joint_vel: Any = field(
+        default_factory=lambda: CurrTerm(
+            func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500}
+        )
     )
 
 
@@ -246,16 +274,16 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the reach end-effector pose tracking environment."""
 
     # Scene settings
-    scene: ReachSceneCfg = config_field(ReachSceneCfg(num_envs=4096, env_spacing=2.5))
+    scene: ReachSceneCfg = field(default_factory=lambda: ReachSceneCfg(num_envs=4096, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    curriculum: CurriculumCfg = config_field(CurriculumCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    curriculum: CurriculumCfg = field(default_factory=CurriculumCfg)
 
     def __post_init__(self) -> None:
         """Post initialization."""

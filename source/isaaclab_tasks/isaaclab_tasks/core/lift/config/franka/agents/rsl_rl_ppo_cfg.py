@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -48,20 +48,20 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 
 @dataclass
 class FrankaPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(32)
-    max_iterations: Any = config_field(15000)
-    save_interval: Any = config_field(250)
-    experiment_name: Any = config_field((MISSING,))  # type: ignore
-    obs_groups: Any = config_field((MISSING,))  # type: ignore
-    actor: Any = config_field((MISSING,))  # type: ignore
-    critic: Any = config_field((MISSING,))  # type: ignore
-    algorithm: Any = config_field(MISSING)  # type: ignore
+    num_steps_per_env: Any = 32
+    max_iterations: Any = 15000
+    save_interval: Any = 250
+    experiment_name: Any = (REQUIRED,)  # type: ignore
+    obs_groups: Any = (REQUIRED,)  # type: ignore
+    actor: Any = (REQUIRED,)  # type: ignore
+    critic: Any = (REQUIRED,)  # type: ignore
+    algorithm: Any = REQUIRED  # type: ignore
 
 
 @dataclass
 class FrankaPPORunnerCfg(PresetCfg):
-    default: Any = config_field(
-        replace_config(
+    default: Any = field(
+        default_factory=lambda: replace_config(
             FrankaPPOBaseRunnerCfg(),
             experiment_name="lift_franka",
             obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},

@@ -5,13 +5,13 @@
 
 """Manager-based counterpart of the Allegro Hand Direct reorientation task."""
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import config_field
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
@@ -30,16 +30,16 @@ from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO
 class AllegroHandManagerSceneCfg(ReorientSceneBaseCfg):
     """The shared scene, holding the Allegro hand and its in-hand cube."""
 
-    robot: ArticulationCfg = config_field(ALLEGRO_HAND_ROBOT_CFG)
-    object: RigidObjectCfg = config_field(CUBE_CFG)
+    robot: ArticulationCfg = field(default_factory=lambda: deepcopy(ALLEGRO_HAND_ROBOT_CFG))
+    object: RigidObjectCfg = field(default_factory=lambda: deepcopy(CUBE_CFG))
 
 
 @dataclass
 class AllegroHandResetEventCfg:
     """Only the per-episode state reset, with no domain randomization."""
 
-    reset_object: Any = config_field(
-        EventTerm(
+    reset_object: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_with_random_orientation,
             mode="reset",
             params={
@@ -50,8 +50,8 @@ class AllegroHandResetEventCfg:
             },
         )
     )
-    reset_hand: Any = config_field(
-        EventTerm(
+    reset_hand: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_reorient_hand,
             mode="reset",
             params={
@@ -66,8 +66,8 @@ class AllegroHandResetEventCfg:
 class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
     """Randomization terms plus the Direct task's reset distribution."""
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="reset",
             params={
@@ -79,8 +79,8 @@ class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
             },
         )
     )
-    robot_scale_mass: Any = config_field(
-        EventTerm(
+    robot_scale_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="reset",
             params={
@@ -90,8 +90,8 @@ class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
             },
         )
     )
-    robot_joint_stiffness_and_damping: Any = config_field(
-        EventTerm(
+    robot_joint_stiffness_and_damping: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_actuator_gains,
             mode="reset",
             params={
@@ -105,8 +105,8 @@ class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
     )
 
     # -- object
-    object_physics_material: Any = config_field(
-        EventTerm(
+    object_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="reset",
             params={
@@ -118,8 +118,8 @@ class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
             },
         )
     )
-    object_scale_mass: Any = config_field(
-        EventTerm(
+    object_scale_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="reset",
             params={
@@ -135,24 +135,24 @@ class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
 class AllegroHandEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
-    randomized: Any = config_field(AllegroHandRandomizationEventCfg())
-    reset_only: Any = config_field(AllegroHandResetEventCfg())
-    default: Any = config_field(reset_only)
+    randomized: Any = field(default_factory=AllegroHandRandomizationEventCfg)
+    reset_only: Any = field(default_factory=AllegroHandResetEventCfg)
+    default: Any = field(default_factory=AllegroHandResetEventCfg)
 
 
 @dataclass
 class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based Allegro Hand task with Direct-compatible semantics."""
 
-    fingertip_body_names: Any = config_field(ALLEGRO_FINGERTIP_BODY_NAMES)
-    actuated_joint_names: Any = config_field(ALLEGRO_ACTUATED_JOINT_NAMES)
-    goal_orientation_threshold: Any = config_field(0.2)
-    goal_marker_cfg: Any = config_field(GOAL_OBJECT_CFG)
-    decimation: Any = config_field(4)
+    fingertip_body_names: Any = field(default_factory=lambda: deepcopy(ALLEGRO_FINGERTIP_BODY_NAMES))
+    actuated_joint_names: Any = field(default_factory=lambda: deepcopy(ALLEGRO_ACTUATED_JOINT_NAMES))
+    goal_orientation_threshold: Any = 0.2
+    goal_marker_cfg: Any = field(default_factory=lambda: deepcopy(GOAL_OBJECT_CFG))
+    decimation: Any = 4
 
-    scene: AllegroHandManagerSceneCfg = config_field(AllegroHandManagerSceneCfg())
+    scene: AllegroHandManagerSceneCfg = field(default_factory=AllegroHandManagerSceneCfg)
     # ``presets=randomized`` adds the domain-randomization terms
-    events: AllegroHandEventPresetCfg = config_field(AllegroHandEventPresetCfg())
+    events: AllegroHandEventPresetCfg = field(default_factory=AllegroHandEventPresetCfg)
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):

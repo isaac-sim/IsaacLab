@@ -8,10 +8,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from isaaclab.managers import ManagerTermBaseCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg as SuccessMonitorCfg
 
@@ -26,25 +26,25 @@ class MeshClearanceCfg(ManagerTermBaseCfg):
     resolved at play, so importing this config pulls no implementation dependencies.
     """
 
-    func: Callable | str = config_field("{DIR}.events:mesh_clearance")
+    func: Callable | str = "isaaclab_tasks.core.lift.mdp.events:mesh_clearance"
 
-    asset_name: str = config_field(MISSING)
+    asset_name: str = REQUIRED
     """Robot whose collision meshes are queried."""
 
-    body_names: str | list[str] = config_field(MISSING)
+    body_names: str | list[str] = REQUIRED
     """Robot bodies whose collision meshes participate, as a regex or list of regexes."""
 
-    object_name: str = config_field(MISSING)
+    object_name: str = REQUIRED
     """Rigid object whose surface point cloud is checked."""
 
-    num_object_points: int = config_field(64)
+    num_object_points: int = 64
     """Surface points sampled on the object.
 
     Defaults to the observation point cloud's count so the sampler's geometry-keyed cache is
     reused instead of sampling a second cloud.
     """
 
-    min_clearance: float = config_field(0.02)
+    min_clearance: float = 0.02
     """Required clearance [m]; states with any signed distance below this are invalid."""
 
 
@@ -56,25 +56,25 @@ class GraspTravelDistanceCfg(ManagerTermBaseCfg):
     and resolved at play, so importing this config pulls no implementation dependencies.
     """
 
-    func: Callable | str = config_field("{DIR}.events:grasp_travel_distance")
+    func: Callable | str = "isaaclab_tasks.core.lift.mdp.events:grasp_travel_distance"
 
-    asset_name: str = config_field(MISSING)
+    asset_name: str = REQUIRED
     """Robot whose bodies are measured."""
 
-    body_names: str | list[str] = config_field(MISSING)
+    body_names: str | list[str] = REQUIRED
     """Robot bodies to measure from, as a regex or list of regexes.
 
     Use the grasping surfaces (fingertips, palm) rather than the whole arm: a link that barely
     moves relative to the object contributes a near-constant descriptor and washes out the spread.
     """
 
-    object_name: str = config_field(MISSING)
+    object_name: str = REQUIRED
     """Rigid object the distance is measured to."""
 
-    command_name: str = config_field(MISSING)
+    command_name: str = REQUIRED
     """Name of the pose command term whose sampling range locates the goal region."""
 
-    log_scale: bool = config_field(False)
+    log_scale: bool = False
     """Whether to report the logarithm of the distances rather than the distances themselves.
 
     A centimetre at 3 cm changes the problem far more than a centimetre at 60 cm, and the spread
@@ -94,29 +94,29 @@ class SlabClearanceCfg(ManagerTermBaseCfg):
     no implementation dependencies.
     """
 
-    func: Callable | str = config_field("{DIR}.events:slab_clearance")
+    func: Callable | str = "isaaclab_tasks.core.lift.mdp.events:slab_clearance"
 
-    asset_name: str = config_field(MISSING)
+    asset_name: str = REQUIRED
     """Robot whose collision-mesh vertices are checked."""
 
-    body_names: str | list[str] = config_field(MISSING)
+    body_names: str | list[str] = REQUIRED
     """Robot bodies whose collision-mesh vertices participate, as a regex or list of regexes."""
 
-    object_name: str = config_field(MISSING)
+    object_name: str = REQUIRED
     """Rigid object whose surface point cloud is checked."""
 
-    obstacle_slabs: list[tuple[tuple[float, float] | None, tuple[float, float] | None, float]] = config_field(MISSING)
+    obstacle_slabs: list[tuple[tuple[float, float] | None, tuple[float, float] | None, float]] = REQUIRED
     """Horizontal obstacles as ``(x_range, y_range, top_z)`` in the environment frame [m].
 
     A range of ``None`` means unbounded (e.g. the ground plane is ``(None, None, 0.0)``).
     """
 
-    num_object_points: int = config_field(64)
+    num_object_points: int = 64
     """Surface points sampled on the object.
 
     Defaults to the observation point cloud's count so the sampler's geometry-keyed cache is
     reused instead of sampling a second cloud.
     """
 
-    min_clearance: float = config_field(0.02)
+    min_clearance: float = 0.02
     """Required clearance [m]; states with any point below this above a slab are invalid."""

@@ -7,11 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
-from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .newton_raycast_sensor import NewtonRaycastSensor
@@ -26,7 +25,9 @@ class NewtonRaycastSensorCfg(RayCasterCfg):
     scene through the model's shape BVH, including dynamic bodies.
     """
 
-    class_type: type[NewtonRaycastSensor] | str = config_field("{DIR}.newton_raycast_sensor:NewtonRaycastSensor")
+    class_type: type[NewtonRaycastSensor] | str = (
+        "isaaclab_newton.sensors.ray_caster.newton_raycast_sensor:NewtonRaycastSensor"
+    )
 
-    mesh_prim_paths: list[str] = config_field([])
+    mesh_prim_paths: list[str] = field(default_factory=list)
     """Unused. Rays hit every shape in the Newton scene BVH."""

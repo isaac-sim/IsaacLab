@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner import add as clone_add
-from isaaclab.utils import config_field, find_unique_string_name, replace_config
+from isaaclab.utils import REQUIRED, find_unique_string_name, replace_config
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBaseCfg
@@ -79,30 +79,30 @@ class InteractiveSceneCfg:
 
     """
 
-    class_type: type[InteractiveScene] | str = config_field("{DIR}.interactive_scene:InteractiveScene")
+    class_type: type[InteractiveScene] | str = "isaaclab.scene.interactive_scene:InteractiveScene"
     """The class to use for the interactive scene.
 
     Defaults to :class:`isaaclab.scene.InteractiveScene`.
     """
 
-    num_envs: int = config_field(MISSING)
+    num_envs: int = REQUIRED
     """Number of environment instances handled by the scene."""
 
-    env_spacing: float = config_field(MISSING)
+    env_spacing: float = REQUIRED
     """Spacing between environments.
 
     This is the default distance between environment origins in the scene. Used only when the
     number of environments is greater than one.
     """
 
-    lazy_sensor_update: bool = config_field(True)
+    lazy_sensor_update: bool = True
     """Whether to update sensors only when they are accessed. Default is True.
 
     If true, the sensor data is only updated when their attribute ``data`` is accessed. Otherwise, the sensor
     data is updated every time sensors are updated.
     """
 
-    replicate_physics: bool = config_field(True)
+    replicate_physics: bool = True
     """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
 
     If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
@@ -127,7 +127,7 @@ class InteractiveSceneCfg:
         explicitly.
     """
 
-    filter_collisions: bool = config_field(True)
+    filter_collisions: bool = True
     """Enable/disable collision filtering between cloned environments. Default is True.
 
     If True, collisions will not occur between cloned environments.
@@ -140,14 +140,14 @@ class InteractiveSceneCfg:
         ``scene.filter_collisions()``.
     """
 
-    clone_in_fabric: bool = config_field(False)
+    clone_in_fabric: bool = False
     """Deprecated legacy Fabric cloning flag. Default is False.
 
     Queued replication no longer forwards this flag to the PhysX replicator;
     ``useFabricForReplication`` is always ``False``.
     """
 
-    clone_cfg: CloneCfg = config_field(CloneCfg())
+    clone_cfg: CloneCfg = field(default_factory=CloneCfg)
     """Clone execution and legal scene-combination configuration."""
 
 

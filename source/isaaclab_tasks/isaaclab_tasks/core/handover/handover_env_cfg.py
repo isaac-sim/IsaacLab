@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 import torch
@@ -20,8 +21,8 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import config_field, replace_config
 from isaaclab.utils import math as math_utils
+from isaaclab.utils import replace_config
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
@@ -86,22 +87,22 @@ _LEFT_POSE = ("{ENV_REGEX_NS}/LeftRobot", (0.0, -1.0, 0.5), (0.0, 0.0, 1.0, 0.0)
 class RightHandCfg(PresetCfg):
     """The right hand on every engine; only the asset's physics variant differs."""
 
-    newton_mjwarp: Any = config_field(_hand_cfg(SHADOW_HAND_NEWTON_CFG, *_RIGHT_POSE))
-    isaacsim_physx: Any = config_field(_hand_cfg(SHADOW_HAND_PHYSX_CFG, *_RIGHT_POSE))
-    physx: Any = config_field(isaacsim_physx)
-    ovphysx: Any = config_field(isaacsim_physx)
-    default: Any = config_field(newton_mjwarp)
+    newton_mjwarp: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_RIGHT_POSE))
+    isaacsim_physx: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_RIGHT_POSE))
+    physx: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_RIGHT_POSE))
+    ovphysx: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_RIGHT_POSE))
+    default: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_RIGHT_POSE))
 
 
 @dataclass
 class LeftHandCfg(PresetCfg):
     """The left hand on every engine; only the asset's physics variant differs."""
 
-    newton_mjwarp: Any = config_field(_hand_cfg(SHADOW_HAND_NEWTON_CFG, *_LEFT_POSE))
-    isaacsim_physx: Any = config_field(_hand_cfg(SHADOW_HAND_PHYSX_CFG, *_LEFT_POSE))
-    physx: Any = config_field(isaacsim_physx)
-    ovphysx: Any = config_field(isaacsim_physx)
-    default: Any = config_field(newton_mjwarp)
+    newton_mjwarp: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_LEFT_POSE))
+    isaacsim_physx: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_LEFT_POSE))
+    physx: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_LEFT_POSE))
+    ovphysx: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_LEFT_POSE))
+    default: Any = field(default_factory=lambda: _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_LEFT_POSE))
 
 
 BALL_CFG = RigidObjectCfg(
@@ -137,15 +138,15 @@ class PhysicsCfg(PresetCfg):
     solver iterations and 2 substeps.
     """
 
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
@@ -162,26 +163,52 @@ class PhysicsCfg(PresetCfg):
             debug_mode=False,
         )
     )
-    ovphysx: Any = config_field(OvPhysxCfg())
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
-    default: Any = config_field(newton_mjwarp)
+    ovphysx: Any = field(default_factory=OvPhysxCfg)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                bounce_threshold_velocity=0.2,
+                gpu_max_rigid_contact_count=2**23,
+                gpu_max_rigid_patch_count=2**23,
+            ),
+            ovphysx=OvPhysxCfg(),
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=200,
+                nconmax=70,
+                impratio=10.0,
+                cone="elliptic",
+                update_data_interval=4,
+                ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
+            ),
+            # 4 substeps (vs reorient's 2): sustained ball-palm contact drives a small fraction of
+            # envs to NaN at 2.
+            num_substeps=4,
+            debug_mode=False,
+        )
+    )
 
 
 @dataclass
 class HandoverEnvCfg(DirectMARLEnvCfg):
     # env
-    decimation: Any = config_field(2)
-    episode_length_s: Any = config_field(7.5)
-    possible_agents: Any = config_field(["right_hand", "left_hand"])
-    action_spaces: Any = config_field({"right_hand": 20, "left_hand": 20})
-    observation_spaces: Any = config_field({"right_hand": 157, "left_hand": 157})
-    state_space: Any = config_field(290)
+    decimation: Any = 2
+    episode_length_s: Any = 7.5
+    possible_agents: Any = field(default_factory=lambda: ["right_hand", "left_hand"])
+    action_spaces: Any = field(default_factory=lambda: {"right_hand": 20, "left_hand": 20})
+    observation_spaces: Any = field(default_factory=lambda: {"right_hand": 157, "left_hand": 157})
+    state_space: Any = 290
 
     # simulation — values mirrored by the manager cfg
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             dt=1 / 120,
-            render_interval=decimation,
+            render_interval=2,
             physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
             physics=PhysicsCfg(),
             # Frame both hands and the object between them. Without this the visualizer looks at the
@@ -191,32 +218,32 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     )
 
     # robot
-    right_robot_cfg: RightHandCfg = config_field(RightHandCfg())
-    left_robot_cfg: LeftHandCfg = config_field(LeftHandCfg())
-    actuated_joint_names: Any = config_field(JOINT_NAMES)
-    actuated_tendon_names: Any = config_field(TENDON_NAMES)
-    actuated_tendon_position_limits: Any = config_field(TENDON_POSITION_LIMITS)
-    fingertip_body_names: Any = config_field(FINGERTIP_NAMES)
+    right_robot_cfg: RightHandCfg = field(default_factory=RightHandCfg)
+    left_robot_cfg: LeftHandCfg = field(default_factory=LeftHandCfg)
+    actuated_joint_names: Any = field(default_factory=lambda: deepcopy(JOINT_NAMES))
+    actuated_tendon_names: Any = field(default_factory=lambda: deepcopy(TENDON_NAMES))
+    actuated_tendon_position_limits: Any = field(default_factory=lambda: deepcopy(TENDON_POSITION_LIMITS))
+    fingertip_body_names: Any = field(default_factory=lambda: deepcopy(FINGERTIP_NAMES))
 
     # in-hand object
-    object_cfg: RigidObjectCfg = config_field(BALL_CFG)
+    object_cfg: RigidObjectCfg = field(default_factory=lambda: deepcopy(BALL_CFG))
     # goal object
-    goal_object_cfg: VisualizationMarkersCfg = config_field(GOAL_MARKER_CFG)
+    goal_object_cfg: VisualizationMarkersCfg = field(default_factory=lambda: deepcopy(GOAL_MARKER_CFG))
     # scene
-    scene: InteractiveSceneCfg = config_field(
-        InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
+    scene: InteractiveSceneCfg = field(
+        default_factory=lambda: InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
     )
 
     # reset
-    reset_position_noise: Any = config_field(0.01)  # range of position at reset
-    reset_dof_pos_noise: Any = config_field(0.2)  # range of dof pos at reset
-    reset_dof_vel_noise: Any = config_field(0.0)  # range of dof vel at reset
+    reset_position_noise: Any = 0.01  # range of position at reset
+    reset_dof_pos_noise: Any = 0.2  # range of dof pos at reset
+    reset_dof_vel_noise: Any = 0.0  # range of dof vel at reset
     # scales and constants
-    fall_dist: Any = config_field(0.24)
-    vel_obs_scale: Any = config_field(0.2)
-    act_moving_average: Any = config_field(1.0)
+    fall_dist: Any = 0.24
+    vel_obs_scale: Any = 0.2
+    act_moving_average: Any = 1.0
     # success criteria
-    success_distance_threshold: float = config_field(0.1)
+    success_distance_threshold: float = 0.1
     """Object-to-goal distance below which the handover is considered successful [m]."""
     # reward-related scales
-    dist_reward_scale: Any = config_field(20.0)
+    dist_reward_scale: Any = 20.0

@@ -14,7 +14,7 @@ from __future__ import annotations
 import gc
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -26,7 +26,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
-from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 __all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
@@ -60,8 +59,8 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg
 
     @dataclass
     class _SceneCfg(InteractiveSceneCfg):
-        rigid_object: RigidObjectCfg = config_field(
-            RigidObjectCfg(
+        rigid_object: RigidObjectCfg = field(
+            default_factory=lambda: RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Object",
                 spawn=sim_utils.UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
@@ -70,8 +69,8 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg
                 ),
             )
         )
-        camera: CameraCfg = config_field(
-            CameraCfg(
+        camera: CameraCfg = field(
+            default_factory=lambda: CameraCfg(
                 prim_path="{ENV_REGEX_NS}/Camera",
                 height=_CAMERA_HEIGHT,
                 width=_CAMERA_WIDTH,

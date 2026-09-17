@@ -5,9 +5,9 @@
 
 """Tests for handle_deprecated_rsl_rl_cfg across rsl-rl version boundaries."""
 
-from dataclasses import MISSING
-
 import pytest
+
+from isaaclab.utils import REQUIRED
 
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
@@ -180,8 +180,8 @@ class TestBelow4:
 
     def test_empirical_normalization_migrates(self):
         p = _ppo_mlp_policy()
-        p.actor_obs_normalization = MISSING
-        p.critic_obs_normalization = MISSING
+        p.actor_obs_normalization = REQUIRED
+        p.critic_obs_normalization = REQUIRED
         cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo(), empirical_normalization=True)
         handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
         assert cfg.policy.actor_obs_normalization is True
@@ -292,8 +292,8 @@ class TestV4:
 
     def test_empirical_norm_then_inference(self):
         p = _ppo_mlp_policy()
-        p.actor_obs_normalization = MISSING
-        p.critic_obs_normalization = MISSING
+        p.actor_obs_normalization = REQUIRED
+        p.critic_obs_normalization = REQUIRED
         cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo(), empirical_normalization=True)
         handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
         assert cfg.actor.obs_normalization is True
@@ -356,7 +356,7 @@ class TestV4:
 
     def test_missing_stochastic_raises(self):
         a = _mlp_model()
-        a.stochastic = MISSING
+        a.stochastic = REQUIRED
         cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=a)
         with pytest.raises(ValueError, match="stochastic"):
             handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
@@ -366,7 +366,7 @@ class TestV4:
         a.distribution_cfg = RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0)
         cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=a)
         handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
-        assert not hasattr(cfg.actor, "distribution_cfg")
+        assert _is_missing(cfg.actor.distribution_cfg)
 
     def test_no_policy_no_models_is_noop(self):
         cfg = _on_policy_runner(algorithm=_ppo_algo())
@@ -423,10 +423,10 @@ class TestV5:
     def test_removes_deprecated_params(self):
         cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=_mlp_model())
         handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
-        assert not hasattr(cfg.actor, "stochastic")
-        assert not hasattr(cfg.actor, "init_noise_std")
-        assert not hasattr(cfg.actor, "noise_std_type")
-        assert not hasattr(cfg.actor, "state_dependent_std")
+        assert _is_missing(cfg.actor.stochastic)
+        assert _is_missing(cfg.actor.init_noise_std)
+        assert _is_missing(cfg.actor.noise_std_type)
+        assert _is_missing(cfg.actor.state_dependent_std)
 
     def test_distribution_deprecation_warns_about_isaac_lab_3_1(self, capsys):
         cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=_mlp_model())
@@ -519,8 +519,8 @@ class TestV5:
         p = _ppo_rnn_policy()
         p.init_noise_std = 2.0
         p.state_dependent_std = True
-        p.actor_obs_normalization = MISSING
-        p.critic_obs_normalization = MISSING
+        p.actor_obs_normalization = REQUIRED
+        p.critic_obs_normalization = REQUIRED
         cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo(), empirical_normalization=True)
         handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
 

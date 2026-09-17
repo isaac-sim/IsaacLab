@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from isaaclab.managers import ActionTermCfg, ObservationGroupCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -16,23 +16,23 @@ class PreTrainedPolicyActionCfg(ActionTermCfg):
     See :class:`PreTrainedPolicyAction` for more details.
     """
 
-    class_type: type | str = config_field("{DIR}.pre_trained_policy_action:PreTrainedPolicyAction")
+    class_type: type | str = "isaaclab_tasks.contrib.navigation.mdp.pre_trained_policy_action:PreTrainedPolicyAction"
     """Class of the action term."""
 
-    asset_name: str = config_field(MISSING)
+    asset_name: str = REQUIRED
     """Name of the asset in the environment for which the commands are generated."""
 
-    policy_path: str = config_field(MISSING)
+    policy_path: str = REQUIRED
     """Path to the low level policy (.pt files)."""
 
-    low_level_decimation: int = config_field(4)
+    low_level_decimation: int = 4
     """Decimation factor for the low level action term."""
 
-    low_level_actions: ActionTermCfg = config_field(MISSING)
+    low_level_actions: ActionTermCfg = REQUIRED
     """Low level action configuration."""
 
-    low_level_observations: ObservationGroupCfg = config_field(MISSING)
+    low_level_observations: ObservationGroupCfg = REQUIRED
     """Low level observation configuration."""
 
-    debug_vis: bool = config_field(True)
+    debug_vis: bool = True
     """Whether to visualize debug information. Defaults to False."""

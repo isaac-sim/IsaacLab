@@ -6,10 +6,11 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+from dataclasses import field
 from typing import TYPE_CHECKING, Any, cast
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the contact sensor.")
@@ -53,19 +54,23 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     """Design the scene with sensors on the robot."""
 
     # ground plane
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # robot
-    robot: Any = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
 
     # Rigid Object
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.1),
@@ -79,8 +84,8 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    contact_forces_LF: Any = config_field(
-        ContactSensorCfg(
+    contact_forces_LF: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
             update_period=0.0,
             history_length=6,
@@ -90,8 +95,8 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    contact_forces_RF: Any = config_field(
-        ContactSensorCfg(
+    contact_forces_RF: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT",
             update_period=0.0,
             history_length=6,
@@ -101,8 +106,8 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    contact_forces_H: Any = config_field(
-        ContactSensorCfg(
+    contact_forces_H: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/.*H_FOOT",
             update_period=0.0,
             history_length=6,

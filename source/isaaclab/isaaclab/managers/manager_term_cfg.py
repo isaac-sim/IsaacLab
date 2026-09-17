@@ -8,12 +8,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 class ManagerTermBaseCfg:
     """Configuration for a manager term."""
 
-    func: Callable | ManagerTermBase = config_field(MISSING)
+    func: Callable | ManagerTermBase = REQUIRED
     """The function or class to be called for the term.
 
     The function must take the environment object as the first argument.
@@ -43,7 +43,7 @@ class ManagerTermBaseCfg:
     .. _`callable classes`: https://docs.python.org/3/reference/datamodel.html#object.__call__
     """
 
-    params: dict[str, Any | SceneEntityCfg] = config_field(dict())
+    params: dict[str, Any | SceneEntityCfg] = field(default_factory=dict)
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
 
     .. note::
@@ -62,7 +62,7 @@ class ManagerTermBaseCfg:
 class RecorderTermCfg:
     """Configuration for an recorder term."""
 
-    class_type: type[RecorderTerm] = config_field(MISSING)
+    class_type: type[RecorderTerm] = REQUIRED
     """The associated recorder term class.
 
     The class should inherit from :class:`isaaclab.managers.recorder_manager.RecorderTerm`.
@@ -78,23 +78,23 @@ class RecorderTermCfg:
 class ActionTermCfg:
     """Configuration for an action term."""
 
-    class_type: type[ActionTerm] = config_field(MISSING)
+    class_type: type[ActionTerm] = REQUIRED
     """The associated action term class.
 
     The class should inherit from :class:`isaaclab.managers.action_manager.ActionTerm`.
     """
 
-    asset_name: str = config_field(MISSING)
+    asset_name: str = REQUIRED
     """The name of the scene entity.
 
     This is the name defined in the scene configuration file. See the :class:`InteractiveSceneCfg`
     class for more details.
     """
 
-    debug_vis: bool = config_field(False)
+    debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
-    clip: dict[str, tuple] | None = config_field(None)
+    clip: dict[str, tuple] | None = None
     """Clip range for the action (dict of regex expressions). Defaults to None."""
 
 
@@ -107,20 +107,20 @@ class ActionTermCfg:
 class CommandTermCfg:
     """Configuration for a command generator term."""
 
-    class_type: type[CommandTerm] = config_field(MISSING)
+    class_type: type[CommandTerm] = REQUIRED
     """The associated command term class to use.
 
     The class should inherit from :class:`isaaclab.managers.command_manager.CommandTerm`.
     """
 
-    resampling_time_range: tuple[float, float] = config_field(MISSING)
+    resampling_time_range: tuple[float, float] = REQUIRED
     """Time before commands are changed [s]."""
-    debug_vis: bool = config_field(False)
+    debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
-    cmd_kind: str | None = config_field(None)
+    cmd_kind: str | None = None
     """Type hint for the command for deployment."""
-    element_names: list[str] | list[list[str]] | None = config_field(None)
+    element_names: list[str] | list[list[str]] | None = None
     """Element names for the command for deployment."""
 
 
@@ -133,7 +133,7 @@ class CommandTermCfg:
 class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
-    func: Callable[..., float | dict[str, float] | None] = config_field(MISSING)
+    func: Callable[..., float | dict[str, float] | None] = REQUIRED
     """The name of the function to be called.
 
     This function should take the environment object, environment indices
@@ -152,7 +152,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] = config_field(MISSING)
+    func: Callable[..., torch.Tensor | None] = REQUIRED
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -160,7 +160,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     shape (num_envs, obs_term_dim).
     """
 
-    modifiers: list[ModifierCfg] | None = config_field(None)
+    modifiers: list[ModifierCfg] | None = None
     """The list of data modifiers to apply to the observation in order. Defaults to None,
     in which case no modifications will be applied.
 
@@ -171,14 +171,14 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     For more information on modifiers, see the :class:`~isaaclab.utils.modifiers.ModifierCfg` class.
     """
 
-    noise: NoiseCfg | NoiseModelCfg | None = config_field(None)
+    noise: NoiseCfg | NoiseModelCfg | None = None
     """The noise to add to the observation. Defaults to None, in which case no noise is added."""
 
-    clip: tuple[float, float] | None = config_field(None)
+    clip: tuple[float, float] | None = None
     """The clipping range for the observation after adding noise. Defaults to None,
     in which case no clipping is applied."""
 
-    scale: tuple[float, ...] | float | None = config_field(None)
+    scale: tuple[float, ...] | float | None = None
     """The scale to apply to the observation after clipping. Defaults to None,
     in which case no scaling is applied (same as setting scale to :obj:`1`).
 
@@ -186,7 +186,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
     """
 
-    history_length: int = config_field(0)
+    history_length: int = 0
     """Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.
 
     Observation history initializes to empty, but is filled with the first append after reset or initialization.
@@ -195,7 +195,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     be reshaped to a 2-D tensor of shape (N, H*D*...). Otherwise, the data will be returned as is.
     """
 
-    flatten_history_dim: bool = config_field(True)
+    flatten_history_dim: bool = True
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
 
@@ -204,7 +204,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
 class ObservationGroupCfg:
     """Configuration for an observation group."""
 
-    concatenate_terms: bool = config_field(True)
+    concatenate_terms: bool = True
     """Whether to concatenate the observation terms in the group. Defaults to True.
 
     If true, the observation terms in the group are concatenated along the dimension specified through
@@ -213,7 +213,7 @@ class ObservationGroupCfg:
     If the observation group contains terms of different dimensions, it must be set to False.
     """
 
-    concatenate_dim: int = config_field(-1)
+    concatenate_dim: int = -1
     """Dimension along to concatenate the different observation terms. Defaults to -1, which
     means the last dimension of the observation terms.
 
@@ -223,14 +223,14 @@ class ObservationGroupCfg:
     width, and 2 along the channels. The offset due to the batched environment is handled automatically.
     """
 
-    enable_corruption: bool = config_field(False)
+    enable_corruption: bool = False
     """Whether to enable corruption for the observation group. Defaults to False.
 
     If true, the observation terms in the group are corrupted by adding noise (if specified).
     Otherwise, no corruption is applied.
     """
 
-    history_length: int | None = config_field(None)
+    history_length: int | None = None
     """Number of past observation to store in the observation buffers for all observation terms in group.
 
     This parameter will override :attr:`ObservationTermCfg.history_length` if set. Defaults to None.
@@ -238,7 +238,7 @@ class ObservationGroupCfg:
     for details on :attr:`ObservationTermCfg.history_length` implementation.
     """
 
-    flatten_history_dim: bool = config_field(True)
+    flatten_history_dim: bool = True
     """Flag to flatten history-based observation terms to a 2-D (num_env, D) tensor for all observation terms in group.
     Defaults to True.
 
@@ -256,14 +256,14 @@ class ObservationGroupCfg:
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
 
-    func: Callable[..., None] = config_field(MISSING)
+    func: Callable[..., None] = REQUIRED
     """The name of the function to be called.
 
     This function should take the environment object, environment indices
     and any other parameters as input.
     """
 
-    mode: str = config_field(MISSING)
+    mode: str = REQUIRED
     """The mode in which the event term is applied.
 
     Note:
@@ -271,7 +271,7 @@ class EventTermCfg(ManagerTermBaseCfg):
         manager Hence, its name is reserved and cannot be used for other modes.
     """
 
-    interval_range_s: tuple[float, float] | None = config_field(None)
+    interval_range_s: tuple[float, float] | None = None
     """The range of time in seconds at which the term is applied. Defaults to None.
 
     Based on this, the interval is sampled uniformly between the specified
@@ -282,7 +282,7 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
-    is_global_time: bool = config_field(False)
+    is_global_time: bool = False
     """Whether randomization should be tracked on a per-environment basis. Defaults to False.
 
     If True, the same interval time is used for all the environment instances.
@@ -293,7 +293,7 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
-    resample_interval_on_reset: bool = config_field(True)
+    resample_interval_on_reset: bool = True
     """Whether to resample the interval time when an environment is reset. Defaults to True.
 
     If True, the time left until the next application of the term is resampled whenever the
@@ -312,7 +312,7 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
-    min_step_count_between_reset: int = config_field(0)
+    min_step_count_between_reset: int = 0
     """The number of environment steps after which the term is applied since its last application. Defaults to 0.
 
     When the mode is "reset", the term is only applied if the number of environment steps since
@@ -335,7 +335,7 @@ class EventTermCfg(ManagerTermBaseCfg):
 class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
-    func: Callable[..., torch.Tensor | None] = config_field(MISSING)
+    func: Callable[..., torch.Tensor | None] = REQUIRED
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -343,7 +343,7 @@ class RewardTermCfg(ManagerTermBaseCfg):
     shape (num_envs,).
     """
 
-    weight: float = config_field(MISSING)
+    weight: float = REQUIRED
     """The weight of the reward term.
 
     This is multiplied with the reward term's value to compute the final
@@ -363,7 +363,7 @@ class RewardTermCfg(ManagerTermBaseCfg):
 class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 
-    func: Callable[..., torch.Tensor | None] = config_field(MISSING)
+    func: Callable[..., torch.Tensor | None] = REQUIRED
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -371,7 +371,7 @@ class TerminationTermCfg(ManagerTermBaseCfg):
     shape (num_envs,).
     """
 
-    time_out: bool = config_field(False)
+    time_out: bool = False
     """Whether the termination term contributes towards episodic timeouts. Defaults to False.
 
     Note:

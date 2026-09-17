@@ -5,13 +5,12 @@
 
 """Manager-based counterpart of the Shadow Hand camera reorientation task."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import config_field
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as mdp
@@ -43,13 +42,13 @@ _MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
 class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
     """State Manager scene augmented with camera and fingertip-wrench sensors."""
 
-    num_envs: Any = config_field(1225)
-    env_spacing: Any = config_field(2.0)
+    num_envs: Any = 1225
+    env_spacing: Any = 2.0
 
     # does it not need ground? or is ground needed at all in general?
-    ground: Any = config_field(None)
-    tiled_camera: ShadowHandTiledCameraCfg = config_field(ShadowHandTiledCameraCfg())
-    joint_wrench: Any = config_field(JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
+    ground: Any = None
+    tiled_camera: ShadowHandTiledCameraCfg = field(default_factory=ShadowHandTiledCameraCfg)
+    joint_wrench: Any = field(default_factory=lambda: JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
 
 @dataclass
@@ -64,14 +63,16 @@ class ShadowHandCameraObservationsCfg:
         privileged object and goal-difference terms belong to the critic alone.
         """
 
-        goal_pose: Any = config_field(ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"}))
+        goal_pose: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        )
         # No action_name, deliberately: omitting it returns the WHOLE action vector, whereas
         # naming a term returns only that term's raw actions. This hand's twenty motors are
         # split across a joint term and a tendon term, so naming either would feed the policy
         # half of its own last action.
-        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
-        camera_features: Any = config_field(
-            ObsTerm(
+        last_action: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        camera_features: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.ShadowHandCameraFeatures,
                 params={
                     "feature_extractor_cfg": FeatureExtractorCfg(),
@@ -80,8 +81,8 @@ class ShadowHandCameraObservationsCfg:
                 },
             )
         )
-        goal_keypoints: Any = config_field(
-            ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
+        goal_keypoints: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
         )
 
         def __post_init__(self):
@@ -91,19 +92,19 @@ class ShadowHandCameraObservationsCfg:
     class CameraCriticCfg(ReorientFullStateObsCfg):
         """Direct-compatible 214-dimensional asymmetric camera critic state."""
 
-        fingertip_wrench: Any = config_field(
-            ObsTerm(
+        fingertip_wrench: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.body_incoming_wrench,
                 scale=10.0,
                 params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
             )
         )
         # No action_name: this hand splits its motors across a joint term and a tendon term.
-        last_action: Any = config_field(ObsTerm(func=mdp.last_action))
-        camera_features: Any = config_field(ObsTerm(func=mdp.shadow_hand_camera_cached_features))
+        last_action: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        camera_features: Any = field(default_factory=lambda: ObsTerm(func=mdp.shadow_hand_camera_cached_features))
 
-    policy: CameraPolicyCfg = config_field(CameraPolicyCfg())
-    critic: CameraCriticCfg = config_field(CameraCriticCfg())
+    policy: CameraPolicyCfg = field(default_factory=CameraPolicyCfg)
+    critic: CameraCriticCfg = field(default_factory=CameraCriticCfg)
 
 
 @dataclass
@@ -111,10 +112,10 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
     """Manager-based camera task with exact Direct dynamics and observations."""
 
     # only the fields that differ from ShadowHandManagerEnvCfg are overridden
-    scene: ShadowHandCameraManagerSceneCfg = config_field(ShadowHandCameraManagerSceneCfg())
-    observations: ShadowHandCameraObservationsCfg = config_field(ShadowHandCameraObservationsCfg())
-    feature_extractor: FeatureExtractorCfg = config_field(
-        FeatureExtractorCfg(
+    scene: ShadowHandCameraManagerSceneCfg = field(default_factory=ShadowHandCameraManagerSceneCfg)
+    observations: ShadowHandCameraObservationsCfg = field(default_factory=ShadowHandCameraObservationsCfg)
+    feature_extractor: FeatureExtractorCfg = field(
+        default_factory=lambda: FeatureExtractorCfg(
             pretrained_checkpoint=preset(  # type: ignore[arg-type]
                 default=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
                 newton_mjwarp=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,

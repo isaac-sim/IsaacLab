@@ -5,7 +5,7 @@
 
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
@@ -281,8 +281,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Pick Place Base Scene."""
 
     # Table
-    packing_table: Any = config_field(
-        AssetBaseCfg(
+    packing_table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/PackingTable",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -292,8 +292,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    object: Any = config_field(
-        RigidObjectCfg(
+    object: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -305,8 +305,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Humanoid robot configured for pick-place manipulation tasks
-    robot: ArticulationCfg = config_field(
-        replace_config(
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(
             GR1T2_HIGH_PD_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
@@ -348,16 +348,16 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
     # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
     # (``spawn.activate_contact_sensors=True``), so it is not set again here.
-    left_hand_contact: Any = config_field(
-        ContactSensorCfg(
+    left_hand_contact: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/[^/]*L_(index|middle|ring|pinky|thumb)[^/]*_link",
             filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
             update_period=0.0,
             history_length=3,
         )
     )
-    right_hand_contact: Any = config_field(
-        ContactSensorCfg(
+    right_hand_contact: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/[^/]*R_(index|middle|ring|pinky|thumb)[^/]*_link",
             filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
             update_period=0.0,
@@ -366,16 +366,16 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             spawn=GroundPlaneCfg(),
         )
     )
 
     # Lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -386,8 +386,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
     """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
 
-    robot_pov_cam: Any = config_field(
-        robot_pov_camera_cfg(
+    robot_pov_cam: Any = field(
+        default_factory=lambda: robot_pov_camera_cfg(
             parent_prim_path="{ENV_REGEX_NS}/Robot/base_link",
             offset_pos=(0.11999996, -0.00000233, 0.74674994),
             offset_rot=(-0.69303199, 0.69304552, -0.14034840, 0.14034565),
@@ -402,8 +402,8 @@ class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    upper_body_ik: Any = config_field(
-        PinkInverseKinematicsActionCfg(
+    upper_body_ik: Any = field(
+        default_factory=lambda: PinkInverseKinematicsActionCfg(
             pink_controlled_joint_names=[
                 "left_shoulder_pitch_joint",
                 "left_shoulder_roll_joint",
@@ -514,44 +514,52 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        robot_joint_pos: Any = config_field(
-            ObsTerm(
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        robot_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.joint_pos,
                 params={"asset_cfg": SceneEntityCfg("robot")},
             )
         )
-        robot_root_pos: Any = config_field(
-            ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        robot_root_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
         )
-        robot_root_rot: Any = config_field(
-            ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        robot_root_rot: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
         )
-        object_pos: Any = config_field(
-            ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
         )
-        object_rot: Any = config_field(
-            ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_rot: Any = field(
+            default_factory=lambda: ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
         )
-        robot_links_state: Any = config_field(ObsTerm(func=mdp.get_all_robot_link_state))
+        robot_links_state: Any = field(default_factory=lambda: ObsTerm(func=mdp.get_all_robot_link_state))
 
-        left_eef_pos: Any = config_field(ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"}))
-        left_eef_quat: Any = config_field(ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"}))
-        right_eef_pos: Any = config_field(ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"}))
-        right_eef_quat: Any = config_field(ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"}))
-
-        hand_joint_state: Any = config_field(
-            ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
+        left_eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"})
         )
-        head_joint_state: Any = config_field(
-            ObsTerm(
+        left_eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"})
+        )
+        right_eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"})
+        )
+        right_eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"})
+        )
+
+        hand_joint_state: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
+        )
+        head_joint_state: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.get_robot_joint_state,
                 params={"joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
             )
         )
 
-        object: Any = config_field(
-            ObsTerm(
+        object: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.object_obs,
                 params={"left_eef_link_name": "left_hand_roll_link", "right_eef_link_name": "right_hand_roll_link"},
             )
@@ -562,7 +570,7 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
@@ -571,8 +579,8 @@ class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
 
     @dataclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
-        robot_pov_cam: Any = config_field(
-            ObsTerm(
+        robot_pov_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.image,
                 params={
                     "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
@@ -583,23 +591,25 @@ class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
             )
         )
 
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    object_dropping: Any = config_field(
-        DoneTerm(
+    object_dropping: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
         )
     )
 
-    success: Any = config_field(
-        DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_hand_roll_link"})
+    success: Any = field(
+        default_factory=lambda: DoneTerm(
+            func=mdp.task_done_pick_place, params={"task_link_name": "right_hand_roll_link"}
+        )
     )
 
 
@@ -607,10 +617,10 @@ class TerminationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    reset_object: Any = config_field(
-        EventTerm(
+    reset_object: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -630,29 +640,29 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: PickPlaceGR1T2SceneCfg = config_field(
-        PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: PickPlaceGR1T2SceneCfg = field(
+        default_factory=lambda: PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     )
     # Basic settings
-    observations: PickPlaceGR1T2ObservationsCfg = config_field(PickPlaceGR1T2ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: PickPlaceGR1T2ObservationsCfg = field(default_factory=PickPlaceGR1T2ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: Any = config_field(EventCfg())
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: Any = field(default_factory=EventCfg)
 
     # Unused managers
-    commands: Any = config_field(None)
-    rewards: Any = config_field(None)
-    curriculum: Any = config_field(None)
+    commands: Any = None
+    rewards: Any = None
+    curriculum: Any = None
 
     # Temporary directory for URDF files
-    temp_urdf_dir: Any = config_field(tempfile.gettempdir())
+    temp_urdf_dir: Any = field(default_factory=tempfile.gettempdir)
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (11), right hand joint pos (11)]
-    idle_action: Any = config_field(
-        [
+    idle_action: Any = field(
+        default_factory=lambda: [
             -0.22878,
             0.2536,
             1.0953,

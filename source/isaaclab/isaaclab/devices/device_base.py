@@ -16,7 +16,6 @@ from typing import Any
 import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-from isaaclab.utils import config_field
 
 
 @dataclass
@@ -24,13 +23,13 @@ class DeviceCfg:
     """Configuration for teleoperation devices."""
 
     # Whether teleoperation should start active by default
-    teleoperation_active_default: bool = config_field(True)
+    teleoperation_active_default: bool = True
     # Torch device string to place output tensors on
-    sim_device: str = config_field("cpu")
+    sim_device: str = "cpu"
     # Retargeters that transform device data into robot commands
     retargeters: list[RetargeterCfg] = field(default_factory=list)
     # Concrete device class to construct for this config. Set by each device module.
-    class_type: type[DeviceBase] | None = config_field(None)
+    class_type: type[DeviceBase] | None = None
 
 
 @dataclass

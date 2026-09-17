@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -21,14 +21,14 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort: skip
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 
 @dataclass
 class CassieRewardsCfg(RewardsCfg):
-    termination_penalty: Any = config_field(RewTerm(func=mdp.is_terminated, weight=-200.0))
-    feet_air_time: Any = config_field(
-        RewTerm(
+    termination_penalty: Any = field(default_factory=lambda: RewTerm(func=mdp.is_terminated, weight=-200.0))
+    feet_air_time: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.feet_air_time_positive_biped,
             weight=2.5,
             params={
@@ -38,23 +38,23 @@ class CassieRewardsCfg(RewardsCfg):
             },
         )
     )
-    joint_deviation_hip: Any = config_field(
-        RewTerm(
+    joint_deviation_hip: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-0.2,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["hip_abduction_.*", "hip_rotation_.*"])},
         )
     )
-    joint_deviation_toes: Any = config_field(
-        RewTerm(
+    joint_deviation_toes: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_deviation_l1,
             weight=-0.2,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["toe_joint_.*"])},
         )
     )
     # penalize toe joint limits
-    dof_pos_limits: Any = config_field(
-        RewTerm(
+    dof_pos_limits: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_pos_limits,
             weight=-1.0,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names="toe_joint_.*")},
@@ -64,7 +64,7 @@ class CassieRewardsCfg(RewardsCfg):
 
 @dataclass
 class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    rewards: CassieRewardsCfg = config_field(CassieRewardsCfg())
+    rewards: CassieRewardsCfg = field(default_factory=CassieRewardsCfg)
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):

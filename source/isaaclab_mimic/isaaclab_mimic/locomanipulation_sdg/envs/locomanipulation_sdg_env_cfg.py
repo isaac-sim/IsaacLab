@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.envs.mdp as base_mdp
@@ -12,37 +12,40 @@ from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManager
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.managers.recorder_manager import RecorderTermCfg
-from isaaclab.utils import config_field
 
 
 @dataclass
 class LocomanipulationSDGOutputDataRecorderCfg(RecorderTermCfg):
     """Configuration for the step policy observation recorder term."""
 
-    class_type: type | str = config_field("{DIR}.locomanipulation_sdg_env:LocomanipulationSDGOutputDataRecorder")
+    class_type: type | str = (
+        "isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env:LocomanipulationSDGOutputDataRecorder"
+    )
 
 
 @dataclass
 class LocomanipulationSDGRecorderManagerCfg(ActionStateRecorderManagerCfg):
-    record_pre_step_locomanipulation_sdg_output_data: Any = config_field(LocomanipulationSDGOutputDataRecorderCfg())
+    record_pre_step_locomanipulation_sdg_output_data: Any = field(
+        default_factory=LocomanipulationSDGOutputDataRecorderCfg
+    )
 
 
 @dataclass
 class LocomanipulationSDGTerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=base_mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=base_mdp.time_out, time_out=True))
 
 
 @dataclass
 class LocomanipulationSDGEventCfg:
     """Configuration for events."""
 
-    reset_all: Any = config_field(EventTerm(func=base_mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=base_mdp.reset_scene_to_default, mode="reset"))
 
 
 @dataclass
 class LocomanipulationSDGEnvCfg(ManagerBasedRLEnvCfg):
-    recorders: LocomanipulationSDGRecorderManagerCfg = config_field(LocomanipulationSDGRecorderManagerCfg())
-    terminations: LocomanipulationSDGTerminationsCfg = config_field(LocomanipulationSDGTerminationsCfg())
-    events: LocomanipulationSDGEventCfg = config_field(LocomanipulationSDGEventCfg())
+    recorders: LocomanipulationSDGRecorderManagerCfg = field(default_factory=LocomanipulationSDGRecorderManagerCfg)
+    terminations: LocomanipulationSDGTerminationsCfg = field(default_factory=LocomanipulationSDGTerminationsCfg)
+    events: LocomanipulationSDGEventCfg = field(default_factory=LocomanipulationSDGEventCfg)

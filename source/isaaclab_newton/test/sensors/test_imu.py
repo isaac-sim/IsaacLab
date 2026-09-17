@@ -6,10 +6,9 @@
 """Tests to verify IMU sensor functionality using Newton physics."""
 
 import sys
+from dataclasses import field
 from pathlib import Path
 from typing import Any
-
-from isaaclab.utils import config_field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -32,11 +31,11 @@ from isaaclab.terrains import TerrainImporterCfg
 class ImuTestSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and an IMU sensor."""
 
-    env_spacing: Any = config_field(2.0)
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
+    env_spacing: Any = 2.0
+    terrain: Any = field(default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane"))
 
-    cube: Any = config_field(
-        RigidObjectCfg(
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -50,8 +49,8 @@ class ImuTestSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    imu: Any = config_field(
-        ImuCfg(
+    imu: Any = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
         )
     )
@@ -186,9 +185,9 @@ def test_reset(sim):
 class FreefallSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and IMU but no ground plane (freefall)."""
 
-    env_spacing: Any = config_field(2.0)
-    cube: Any = config_field(
-        RigidObjectCfg(
+    env_spacing: Any = 2.0
+    cube: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -202,8 +201,8 @@ class FreefallSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    imu: Any = config_field(
-        ImuCfg(
+    imu: Any = field(
+        default_factory=lambda: ImuCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
         )
     )

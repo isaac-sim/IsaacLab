@@ -5,10 +5,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-
-from isaaclab.utils import config_field
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -26,17 +24,17 @@ class ImuCfg(SensorBaseCfg):
     see :class:`~isaaclab.sensors.PvaCfg`.
     """
 
-    class_type: type[Imu] | str = config_field("{DIR}.imu:Imu")
+    class_type: type[Imu] | str = "isaaclab.sensors.imu.imu:Imu"
 
     @dataclass
     class OffsetCfg:
         """The offset pose of the sensor's frame from the sensor's parent frame."""
 
-        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Translation w.r.t. the parent frame [m]. Defaults to (0.0, 0.0, 0.0)."""
 
-        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
+        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    offset: OffsetCfg = config_field(OffsetCfg())
+    offset: OffsetCfg = field(default_factory=OffsetCfg)
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""

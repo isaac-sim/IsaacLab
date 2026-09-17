@@ -16,9 +16,10 @@ mass matricescomputed by PhysX.
 
 """
 
+from dataclasses import field
 from typing import Any
 
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 
 """Launch Isaac Sim Simulator first."""
 
@@ -70,21 +71,23 @@ class SceneCfg(InteractiveSceneCfg):
     """Configuration for a simple scene with a tilted wall."""
 
     # ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/defaultGroundPlane",
             spawn=sim_utils.GroundPlaneCfg(),
         )
     )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # Tilted wall
-    tilted_wall: Any = config_field(
-        AssetBaseCfg(
+    tilted_wall: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/TiltedWall",
             spawn=sim_utils.CuboidCfg(
                 size=(2.0, 1.5, 0.01),
@@ -99,8 +102,8 @@ class SceneCfg(InteractiveSceneCfg):
         )
     )
 
-    contact_forces: Any = config_field(
-        ContactSensorCfg(
+    contact_forces: Any = field(
+        default_factory=lambda: ContactSensorCfg(
             prim_path="/World/envs/env_.*/TiltedWall",
             update_period=0.0,
             history_length=2,
@@ -108,7 +111,9 @@ class SceneCfg(InteractiveSceneCfg):
         )
     )
 
-    robot: Any = config_field(replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: Any = field(
+        default_factory=lambda: replace_config(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
     robot.actuators["panda_shoulder"].stiffness = 0.0
     robot.actuators["panda_shoulder"].damping = 0.0
     robot.actuators["panda_forearm"].stiffness = 0.0

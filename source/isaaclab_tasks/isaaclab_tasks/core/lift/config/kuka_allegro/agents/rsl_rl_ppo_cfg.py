@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -27,10 +27,10 @@ class RslRlSpatialSoftmaxCNNModelCfg(RslRlCNNModelCfg):
     information a pixels-only policy depends on. See :class:`.models.SpatialSoftmaxCNNModel`.
     """
 
-    class_name: str = config_field("isaaclab_tasks.core.lift.config.kuka_allegro.agents.models:SpatialSoftmaxCNNModel")
+    class_name: str = "isaaclab_tasks.core.lift.config.kuka_allegro.agents.models:SpatialSoftmaxCNNModel"
     """The model class name resolved by rsl-rl."""
 
-    init_temperature: float = config_field(1.0)
+    init_temperature: float = 1.0
     """Initial softmax temperature of the keypoint layer. Defaults to 1.0."""
 
 
@@ -87,20 +87,20 @@ CAMERA_ALGO_CFG = replace_config(ALGO_CFG, num_mini_batches=8, schedule="fixed",
 
 @dataclass
 class KukaAllegroPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(32)
-    max_iterations: Any = config_field(15000)
-    save_interval: Any = config_field(250)
-    experiment_name: Any = config_field((MISSING,))  # type: ignore
-    obs_groups: Any = config_field((MISSING,))  # type: ignore
-    actor: Any = config_field((MISSING,))  # type: ignore
-    critic: Any = config_field((MISSING,))  # type: ignore
-    algorithm: Any = config_field(MISSING)  # type: ignore
+    num_steps_per_env: Any = 32
+    max_iterations: Any = 15000
+    save_interval: Any = 250
+    experiment_name: Any = (REQUIRED,)  # type: ignore
+    obs_groups: Any = (REQUIRED,)  # type: ignore
+    actor: Any = (REQUIRED,)  # type: ignore
+    critic: Any = (REQUIRED,)  # type: ignore
+    algorithm: Any = REQUIRED  # type: ignore
 
 
 @dataclass
 class KukaAllegroPPORunnerCfg(PresetCfg):
-    default: Any = config_field(
-        replace_config(
+    default: Any = field(
+        default_factory=lambda: replace_config(
             KukaAllegroPPOBaseRunnerCfg(),
             experiment_name="lift_kuka_allegro",
             obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},
@@ -110,8 +110,8 @@ class KukaAllegroPPORunnerCfg(PresetCfg):
         )
     )
 
-    single_camera: Any = config_field(
-        replace_config(
+    single_camera: Any = field(
+        default_factory=lambda: replace_config(
             KukaAllegroPPOBaseRunnerCfg(),
             experiment_name="lift_kuka_allegro_single_camera",
             obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
@@ -121,8 +121,8 @@ class KukaAllegroPPORunnerCfg(PresetCfg):
         )
     )
 
-    duo_camera: Any = config_field(
-        replace_config(
+    duo_camera: Any = field(
+        default_factory=lambda: replace_config(
             KukaAllegroPPOBaseRunnerCfg(),
             experiment_name="lift_kuka_allegro_duo_camera",
             obs_groups={

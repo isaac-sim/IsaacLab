@@ -8,7 +8,7 @@ We modified parts of the environment—such as the target’s position and orien
 """
 
 import math
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import isaaclab.envs.mdp as mdp
@@ -24,7 +24,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
@@ -38,8 +38,8 @@ class ReachSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
     # world
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/ground",
             spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0)),
@@ -47,11 +47,11 @@ class ReachSceneCfg(InteractiveSceneCfg):
     )
 
     # robots
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
         )
@@ -67,10 +67,10 @@ class ReachSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    left_ee_pose: Any = config_field(
-        mdp.UniformPoseCommandCfg(
+    left_ee_pose: Any = field(
+        default_factory=lambda: mdp.UniformPoseCommandCfg(
             asset_name="robot",
-            body_name=MISSING,
+            body_name=REQUIRED,
             resampling_time_range=(4.0, 4.0),
             debug_vis=True,
             ranges=mdp.UniformPoseCommandCfg.Ranges(
@@ -84,10 +84,10 @@ class CommandsCfg:
         )
     )
 
-    right_ee_pose: Any = config_field(
-        mdp.UniformPoseCommandCfg(
+    right_ee_pose: Any = field(
+        default_factory=lambda: mdp.UniformPoseCommandCfg(
             asset_name="robot",
-            body_name=MISSING,
+            body_name=REQUIRED,
             resampling_time_range=(4.0, 4.0),
             debug_vis=True,
             ranges=mdp.UniformPoseCommandCfg.Ranges(
@@ -106,8 +106,8 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    left_arm_action: ActionTerm = config_field(MISSING)
-    right_arm_action: ActionTerm = config_field(MISSING)
+    left_arm_action: ActionTerm = REQUIRED
+    right_arm_action: ActionTerm = REQUIRED
 
 
 @dataclass
@@ -119,8 +119,8 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        left_joint_pos: Any = config_field(
-            ObsTerm(
+        left_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={
                     "asset_cfg": SceneEntityCfg(
@@ -134,8 +134,8 @@ class ObservationsCfg:
             )
         )
 
-        right_joint_pos: Any = config_field(
-            ObsTerm(
+        right_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_pos_rel,
                 params={
                     "asset_cfg": SceneEntityCfg(
@@ -149,8 +149,8 @@ class ObservationsCfg:
             )
         )
 
-        left_joint_vel: Any = config_field(
-            ObsTerm(
+        left_joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={
                     "asset_cfg": SceneEntityCfg(
@@ -163,8 +163,8 @@ class ObservationsCfg:
                 noise=Unoise(n_min=-0.01, n_max=0.01),
             )
         )
-        right_joint_vel: Any = config_field(
-            ObsTerm(
+        right_joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.joint_vel_rel,
                 params={
                     "asset_cfg": SceneEntityCfg(
@@ -177,29 +177,33 @@ class ObservationsCfg:
                 noise=Unoise(n_min=-0.01, n_max=0.01),
             )
         )
-        left_pose_command: Any = config_field(
-            ObsTerm(func=mdp.generated_commands, params={"command_name": "left_ee_pose"})
+        left_pose_command: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "left_ee_pose"})
         )
-        right_pose_command: Any = config_field(
-            ObsTerm(func=mdp.generated_commands, params={"command_name": "right_ee_pose"})
+        right_pose_command: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.generated_commands, params={"command_name": "right_ee_pose"})
         )
-        left_actions: Any = config_field(ObsTerm(func=mdp.last_action, params={"action_name": "left_arm_action"}))
-        right_actions: Any = config_field(ObsTerm(func=mdp.last_action, params={"action_name": "right_arm_action"}))
+        left_actions: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.last_action, params={"action_name": "left_arm_action"})
+        )
+        right_actions: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.last_action, params={"action_name": "right_arm_action"})
+        )
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_robot_joints: Any = config_field(
-        EventTerm(
+    reset_robot_joints: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_joints_by_scale,
             mode="reset",
             params={
@@ -215,78 +219,78 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    left_end_effector_position_tracking: Any = config_field(
-        RewTerm(
+    left_end_effector_position_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error,
             weight=-0.2,
             params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+                "asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED),
                 "command_name": "left_ee_pose",
             },
         )
     )
 
-    right_end_effector_position_tracking: Any = config_field(
-        RewTerm(
+    right_end_effector_position_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error,
             weight=-0.25,
             params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+                "asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED),
                 "command_name": "right_ee_pose",
             },
         )
     )
 
-    left_end_effector_position_tracking_fine_grained: Any = config_field(
-        RewTerm(
+    left_end_effector_position_tracking_fine_grained: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error_tanh,
             weight=0.1,
             params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+                "asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED),
                 "std": 0.1,
                 "command_name": "left_ee_pose",
             },
         )
     )
 
-    right_end_effector_position_tracking_fine_grained: Any = config_field(
-        RewTerm(
+    right_end_effector_position_tracking_fine_grained: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.position_command_error_tanh,
             weight=0.2,
             params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+                "asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED),
                 "std": 0.1,
                 "command_name": "right_ee_pose",
             },
         )
     )
 
-    left_end_effector_orientation_tracking: Any = config_field(
-        RewTerm(
+    left_end_effector_orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.orientation_command_error,
             weight=-0.1,
             params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+                "asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED),
                 "command_name": "left_ee_pose",
             },
         )
     )
 
-    right_end_effector_orientation_tracking: Any = config_field(
-        RewTerm(
+    right_end_effector_orientation_tracking: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.orientation_command_error,
             weight=-0.1,
             params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=MISSING),
+                "asset_cfg": SceneEntityCfg("robot", body_names=REQUIRED),
                 "command_name": "right_ee_pose",
             },
         )
     )
 
     # action penalty
-    action_rate: Any = config_field(RewTerm(func=mdp.action_rate_l2, weight=-0.0001))
-    left_joint_vel: Any = config_field(
-        RewTerm(
+    action_rate: Any = field(default_factory=lambda: RewTerm(func=mdp.action_rate_l2, weight=-0.0001))
+    left_joint_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_vel_l2,
             weight=-0.0001,
             params={
@@ -299,8 +303,8 @@ class RewardsCfg:
             },
         )
     )
-    right_joint_vel: Any = config_field(
-        RewTerm(
+    right_joint_vel: Any = field(
+        default_factory=lambda: RewTerm(
             func=mdp.joint_vel_l2,
             weight=-0.0001,
             params={
@@ -319,29 +323,29 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 @dataclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    action_rate: Any = config_field(
-        CurrTerm(
+    action_rate: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_reward_weight,
             params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500},
         )
     )
 
-    left_joint_vel: Any = config_field(
-        CurrTerm(
+    left_joint_vel: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_reward_weight,
             params={"term_name": "left_joint_vel", "weight": -0.001, "num_steps": 4500},
         )
     )
 
-    right_joint_vel: Any = config_field(
-        CurrTerm(
+    right_joint_vel: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_reward_weight,
             params={"term_name": "right_joint_vel", "weight": -0.001, "num_steps": 4500},
         )
@@ -358,16 +362,16 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the reach end-effector pose tracking environment."""
 
     # Scene settings
-    scene: ReachSceneCfg = config_field(ReachSceneCfg(num_envs=4096, env_spacing=2.5))
+    scene: ReachSceneCfg = field(default_factory=lambda: ReachSceneCfg(num_envs=4096, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    commands: CommandsCfg = config_field(CommandsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    commands: CommandsCfg = field(default_factory=CommandsCfg)
     # MDP settings
-    rewards: RewardsCfg = config_field(RewardsCfg())
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: EventCfg = config_field(EventCfg())
-    curriculum: CurriculumCfg = config_field(CurriculumCfg())
+    rewards: RewardsCfg = field(default_factory=RewardsCfg)
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
+    curriculum: CurriculumCfg = field(default_factory=CurriculumCfg)
 
     def __post_init__(self):
         """Post initialization."""

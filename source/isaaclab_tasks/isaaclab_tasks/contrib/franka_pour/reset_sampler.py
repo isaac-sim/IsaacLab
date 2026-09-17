@@ -12,8 +12,6 @@ from dataclasses import dataclass
 
 import torch
 
-from isaaclab.utils import config_field
-
 __all__ = [
     "ResetDatasetSamplerCfg",
 ]
@@ -23,19 +21,19 @@ __all__ = [
 class ResetDatasetSamplerCfg:
     """Configuration for the Franka Pour reset-dataset sampler."""
 
-    monitored_history_len: int = config_field(50)
+    monitored_history_len: int = 50
     """Number of recent Boolean outcomes retained independently for every reset row."""
 
-    target_success_rate: float = config_field(0.5)
+    target_success_rate: float = 0.5
     """Per-row rolling success rate at which the Beta sampling kernel peaks."""
 
-    kappa: float = config_field(1.0)
+    kappa: float = 1.0
     """Concentration of the Beta sampling kernel."""
 
-    epsilon: float = config_field(1.0e-4)
+    epsilon: float = 1.0e-4
     """Positive per-row weight floor that prevents reset-row starvation."""
 
-    uniform_fraction: float = config_field(0.25)
+    uniform_fraction: float = 0.25
     """Fraction reserved for exact shuffled cyclic replay."""
 
     def __post_init__(self) -> None:

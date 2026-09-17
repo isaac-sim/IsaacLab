@@ -14,17 +14,17 @@ import pytest
 from packaging.version import Version
 
 _REQUIRED_MODULES = ("isaaclab_ov",)
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
     pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
-        bool(_MISSING_MODULES),
-        reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+        bool(_REQUIRED_MODULES),
+        reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
     ),
 ]
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     from isaaclab_ov.physics.ovphysx_compat import (  # noqa: E402
         OVPHYSX_LIFECYCLE_ENTRY_POINTS,
         build_lifecycle_entry_points,

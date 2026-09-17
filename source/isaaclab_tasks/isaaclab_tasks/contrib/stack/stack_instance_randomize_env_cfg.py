@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
@@ -17,7 +17,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import mdp
@@ -34,13 +34,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     """
 
     # robots: will be populated by agent env cfg
-    robot: ArticulationCfg = config_field(MISSING)
+    robot: ArticulationCfg = REQUIRED
     # end-effector sensor: will be populated by agent env cfg
-    ee_frame: FrameTransformerCfg = config_field(MISSING)
+    ee_frame: FrameTransformerCfg = REQUIRED
 
     # Table
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
             spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
@@ -48,8 +48,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # plane
-    plane: Any = config_field(
-        AssetBaseCfg(
+    plane: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
             spawn=GroundPlaneCfg(),
@@ -57,8 +57,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -73,8 +73,8 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = config_field(MISSING)
-    gripper_action: mdp.BinaryJointPositionActionCfg = config_field(MISSING)
+    arm_action: mdp.JointPositionActionCfg = REQUIRED
+    gripper_action: mdp.BinaryJointPositionActionCfg = REQUIRED
 
 
 @dataclass
@@ -85,29 +85,33 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel))
-        object: Any = config_field(ObsTerm(func=mdp.instance_randomize_object_obs))
-        cube_positions: Any = config_field(ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame))
-        cube_orientations: Any = config_field(ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame))
-        eef_pos: Any = config_field(ObsTerm(func=mdp.ee_frame_pos))
-        eef_quat: Any = config_field(ObsTerm(func=mdp.ee_frame_quat))
-        gripper_pos: Any = config_field(ObsTerm(func=mdp.gripper_pos))
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        joint_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel))
+        joint_vel: Any = field(default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel))
+        object: Any = field(default_factory=lambda: ObsTerm(func=mdp.instance_randomize_object_obs))
+        cube_positions: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame)
+        )
+        cube_orientations: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame)
+        )
+        eef_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_pos))
+        eef_quat: Any = field(default_factory=lambda: ObsTerm(func=mdp.ee_frame_quat))
+        gripper_pos: Any = field(default_factory=lambda: ObsTerm(func=mdp.gripper_pos))
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
 
 @dataclass
@@ -115,18 +119,20 @@ class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False))
+    scene: ObjectTableSceneCfg = field(
+        default_factory=lambda: ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
+    )
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
 
     # Unused managers
-    commands: Any = config_field(None)
-    rewards: Any = config_field(None)
-    events: Any = config_field(None)
-    curriculum: Any = config_field(None)
+    commands: Any = None
+    rewards: Any = None
+    events: Any = None
+    curriculum: Any = None
 
     def __post_init__(self):
         """Post initialization."""

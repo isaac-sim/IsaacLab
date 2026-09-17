@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -25,13 +25,13 @@ class RslRlSymmetryCfg:
     For more information, please check the work from :cite:`mittal2024symmetry`.
     """
 
-    use_data_augmentation: bool = config_field(False)
+    use_data_augmentation: bool = False
     """Whether to use symmetry-based data augmentation. Defaults to False."""
 
-    use_mirror_loss: bool = config_field(False)
+    use_mirror_loss: bool = False
     """Whether to use the symmetry-augmentation loss. Defaults to False."""
 
-    data_augmentation_func: callable = config_field(MISSING)
+    data_augmentation_func: callable = REQUIRED
     """The symmetry data augmentation function.
 
     The function signature should be as follows:
@@ -47,5 +47,5 @@ class RslRlSymmetryCfg:
         if their respective inputs are None.
     """
 
-    mirror_loss_coeff: float = config_field(0.0)
+    mirror_loss_coeff: float = 0.0
     """The weight for the symmetry-mirror loss. Defaults to 0.0."""

@@ -5,10 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from dataclasses import field
 from typing import Any
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -1293,8 +1294,12 @@ _G1_ARM_JOINT_NAMES = [
 class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
     """Minimal scene with a floating-base G1 humanoid."""
 
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False))
-    robot: ArticulationCfg = config_field(replace_config(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+    )
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     def __post_init__(self):
         if parent_post_init := getattr(super(), "__post_init__", None):
@@ -1305,8 +1310,8 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
 
 @dataclass
 class _FloatingBaseOscActionsCfg:
-    arm_action: OperationalSpaceControllerActionCfg = config_field(
-        OperationalSpaceControllerActionCfg(
+    arm_action: OperationalSpaceControllerActionCfg = field(
+        default_factory=lambda: OperationalSpaceControllerActionCfg(
             asset_name="robot",
             joint_names=_G1_ARM_JOINT_NAMES,
             body_name="left_elbow_link",
@@ -1329,18 +1334,22 @@ class _FloatingBaseOscActionsCfg:
 class _FloatingBaseOscObsCfg:
     @dataclass
     class _PolicyCfg(ObsGroup):
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot")}))
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot")})
+        )
 
-    policy: _PolicyCfg = config_field(_PolicyCfg())
+    policy: _PolicyCfg = field(default_factory=_PolicyCfg)
 
 
 @dataclass
 class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
-    scene: _FloatingBaseOscSceneCfg = config_field(_FloatingBaseOscSceneCfg(num_envs=4, env_spacing=4.0))
-    actions: _FloatingBaseOscActionsCfg = config_field(_FloatingBaseOscActionsCfg())
-    observations: _FloatingBaseOscObsCfg = config_field(_FloatingBaseOscObsCfg())
-    decimation: int = config_field(1)
-    sim: sim_utils.SimulationCfg = config_field(sim_utils.SimulationCfg(dt=0.01))
+    scene: _FloatingBaseOscSceneCfg = field(
+        default_factory=lambda: _FloatingBaseOscSceneCfg(num_envs=4, env_spacing=4.0)
+    )
+    actions: _FloatingBaseOscActionsCfg = field(default_factory=_FloatingBaseOscActionsCfg)
+    observations: _FloatingBaseOscObsCfg = field(default_factory=_FloatingBaseOscObsCfg)
+    decimation: int = 1
+    sim: sim_utils.SimulationCfg = field(default_factory=lambda: sim_utils.SimulationCfg(dt=0.01))
 
 
 @pytest.mark.isaacsim_ci

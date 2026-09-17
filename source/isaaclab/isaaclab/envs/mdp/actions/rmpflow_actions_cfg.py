@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from .rmpflow_task_space_actions import RMPFlowAction
@@ -28,24 +28,24 @@ class RMPFlowActionCfg(ActionTermCfg):
         "panda_hand" frame.
         """
 
-        pos: tuple[float, float, float] = config_field((0.0, 0.0, 0.0))
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = config_field((0.0, 0.0, 0.0, 1.0))
+        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
-    class_type: type[RMPFlowAction] | str = config_field("{DIR}.rmpflow_task_space_actions:RMPFlowAction")
+    class_type: type[RMPFlowAction] | str = "isaaclab.envs.mdp.actions.rmpflow_task_space_actions:RMPFlowAction"
 
-    joint_names: list[str] = config_field(MISSING)
+    joint_names: list[str] = REQUIRED
     """List of joint names or regex expressions that the action will be mapped to."""
-    body_name: str = config_field(MISSING)
+    body_name: str = REQUIRED
     """Name of the body or frame for which IK is performed."""
-    body_offset: OffsetCfg | None = config_field(None)
+    body_offset: OffsetCfg | None = None
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    scale: float | tuple[float, ...] = config_field(1.0)
+    scale: float | tuple[float, ...] = 1.0
 
-    controller: RmpFlowControllerCfg = config_field(MISSING)
+    controller: RmpFlowControllerCfg = REQUIRED
 
-    use_relative_mode: bool = config_field(False)
+    use_relative_mode: bool = False
     """
     Defaults to False.
     If True, then the controller treats the input command as a delta change in the position/pose.

@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
-from isaaclab.utils import config_field
 
 from . import mdp
 
@@ -17,8 +16,10 @@ class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
     # adr stands for automatic/adaptive domain randomization
-    adr: Any = config_field(
-        CurrTerm(func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10})
+    adr: Any = field(
+        default_factory=lambda: CurrTerm(
+            func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10}
+        )
     )
 
     def disable_observation_noise_terms(self) -> None:
@@ -32,8 +33,8 @@ class CurriculumCfg:
             if term is not None and ".noise." in term.params.get("address", ""):
                 setattr(self, term_name, None)
 
-    joint_pos_unoise_min_adr: Any = config_field(
-        CurrTerm(
+    joint_pos_unoise_min_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.proprio.joint_pos.noise.n_min",
@@ -43,8 +44,8 @@ class CurriculumCfg:
         )
     )
 
-    joint_pos_unoise_max_adr: Any = config_field(
-        CurrTerm(
+    joint_pos_unoise_max_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.proprio.joint_pos.noise.n_max",
@@ -54,8 +55,8 @@ class CurriculumCfg:
         )
     )
 
-    joint_vel_unoise_min_adr: Any = config_field(
-        CurrTerm(
+    joint_vel_unoise_min_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.proprio.joint_vel.noise.n_min",
@@ -65,8 +66,8 @@ class CurriculumCfg:
         )
     )
 
-    joint_vel_unoise_max_adr: Any = config_field(
-        CurrTerm(
+    joint_vel_unoise_max_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.proprio.joint_vel.noise.n_max",
@@ -76,8 +77,8 @@ class CurriculumCfg:
         )
     )
 
-    hand_tips_pos_unoise_min_adr: Any = config_field(
-        CurrTerm(
+    hand_tips_pos_unoise_min_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.proprio.hand_tips_state_b.noise.n_min",
@@ -87,8 +88,8 @@ class CurriculumCfg:
         )
     )
 
-    hand_tips_pos_unoise_max_adr: Any = config_field(
-        CurrTerm(
+    hand_tips_pos_unoise_max_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.proprio.hand_tips_state_b.noise.n_max",
@@ -98,8 +99,8 @@ class CurriculumCfg:
         )
     )
 
-    object_quat_unoise_min_adr: Any = config_field(
-        CurrTerm(
+    object_quat_unoise_min_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.policy.object_quat_b.noise.n_min",
@@ -109,8 +110,8 @@ class CurriculumCfg:
         )
     )
 
-    object_quat_unoise_max_adr: Any = config_field(
-        CurrTerm(
+    object_quat_unoise_max_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.policy.object_quat_b.noise.n_max",
@@ -120,8 +121,8 @@ class CurriculumCfg:
         )
     )
 
-    object_obs_unoise_min_adr: Any = config_field(
-        CurrTerm(
+    object_obs_unoise_min_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.perception.object_point_cloud.noise.n_min",
@@ -131,8 +132,8 @@ class CurriculumCfg:
         )
     )
 
-    object_obs_unoise_max_adr: Any = config_field(
-        CurrTerm(
+    object_obs_unoise_max_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "observations.perception.object_point_cloud.noise.n_max",
@@ -142,8 +143,8 @@ class CurriculumCfg:
         )
     )
 
-    oob_adr: Any = config_field(
-        CurrTerm(
+    oob_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "terminations.object_out_of_bound.params.in_bound_range.z",
@@ -153,8 +154,8 @@ class CurriculumCfg:
         )
     )
 
-    gravity_adr: Any = config_field(
-        CurrTerm(
+    gravity_adr: Any = field(
+        default_factory=lambda: CurrTerm(
             func=mdp.modify_term_cfg,
             params={
                 "address": "events.variable_gravity.params.gravity_distribution_params",

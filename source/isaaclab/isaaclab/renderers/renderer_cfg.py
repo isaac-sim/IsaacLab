@@ -10,8 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import config_field
-
 if TYPE_CHECKING:
     from .base_renderer import BaseRenderer
 
@@ -20,7 +18,7 @@ if TYPE_CHECKING:
 class RendererCfg:
     """Configuration for a renderer."""
 
-    class_type: type[BaseRenderer] | str | None = config_field(None)
+    class_type: type[BaseRenderer] | str | None = None
     """Renderer implementation class. Concrete configs must set this field."""
 
-    renderer_type: str = config_field("default")
+    renderer_type: str = "default"

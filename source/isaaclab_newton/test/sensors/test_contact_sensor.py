@@ -18,10 +18,11 @@ teleporting objects into interpenetrating states.
 # pyright: reportPrivateUsage=none
 
 import sys
+from dataclasses import field
 from pathlib import Path
 
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import config_field, copy_config
+from isaaclab.utils import copy_config
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -67,15 +68,15 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 class ContactSensorTestSceneCfg(InteractiveSceneCfg):
     """Configuration for contact sensor test scenes."""
 
-    terrain: TerrainImporterCfg | None = config_field(
-        TerrainImporterCfg(prim_path="/World/defaultGroundPlane", terrain_type="plane")
+    terrain: TerrainImporterCfg | None = field(
+        default_factory=lambda: TerrainImporterCfg(prim_path="/World/defaultGroundPlane", terrain_type="plane")
     )
-    object_a: RigidObjectCfg | None = config_field(None)
-    object_b: RigidObjectCfg | None = config_field(None)
-    object_c: RigidObjectCfg | None = config_field(None)
-    contact_sensor_a: ContactSensorCfg | None = config_field(None)
-    contact_sensor_b: ContactSensorCfg | None = config_field(None)
-    contact_sensor_c: ContactSensorCfg | None = config_field(None)
+    object_a: RigidObjectCfg | None = None
+    object_b: RigidObjectCfg | None = None
+    object_c: RigidObjectCfg | None = None
+    contact_sensor_a: ContactSensorCfg | None = None
+    contact_sensor_b: ContactSensorCfg | None = None
+    contact_sensor_c: ContactSensorCfg | None = None
 
 
 SIM_DT = 1.0 / 120.0

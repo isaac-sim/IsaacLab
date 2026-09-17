@@ -3,21 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
 class ObstaclesSceneCfg:
     """Configuration for a terrain with floating obstacles."""
 
-    min_num_obstacles: int = config_field(1)
-    max_num_obstacles: int = config_field(40)
-    ground_offset: float = config_field(3.0)
+    min_num_obstacles: int = 1
+    max_num_obstacles: int = 40
+    ground_offset: float = 3.0
 
-    env_size: tuple[float, float, float] = config_field(MISSING)
+    env_size: tuple[float, float, float] = REQUIRED
 
     @dataclass
     class BoxCfg:
@@ -35,73 +35,117 @@ class ObstaclesSceneCfg:
                 each axis. For fixed positions, set equal to center_ratio_min.
         """
 
-        size: tuple[float, float, float] = config_field(MISSING)
-        center_ratio_min: tuple[float, float, float] = config_field(MISSING)
-        center_ratio_max: tuple[float, float, float] = config_field(MISSING)
+        size: tuple[float, float, float] = REQUIRED
+        center_ratio_min: tuple[float, float, float] = REQUIRED
+        center_ratio_max: tuple[float, float, float] = REQUIRED
 
     # Obstacle configurations
-    panel_obs_cfg: Any = config_field(
-        BoxCfg(size=(0.1, 1.2, 3.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.95, 0.95))
+    panel_obs_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.1, 1.2, 3.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.95, 0.95)
+        )
     )
 
-    small_wall_obs_cfg: Any = config_field(
-        BoxCfg(size=(0.1, 0.5, 0.5), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9))
+    small_wall_obs_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.1, 0.5, 0.5), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+        )
     )
 
-    big_wall_obs_cfg: Any = config_field(
-        BoxCfg(size=(0.1, 1.0, 1.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9))
+    big_wall_obs_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.1, 1.0, 1.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+        )
     )
 
-    small_cube_obs_cfg: Any = config_field(
-        BoxCfg(size=(0.4, 0.4, 0.4), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9))
+    small_cube_obs_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.4, 0.4, 0.4), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+        )
     )
 
-    rod_obs_cfg: Any = config_field(
-        BoxCfg(size=(0.1, 0.1, 2.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9))
+    rod_obs_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.1, 0.1, 2.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+        )
     )
 
     # Wall configurations
-    left_wall_cfg: Any = config_field(
-        BoxCfg(size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 1.0, 0.5), center_ratio_max=(0.5, 1.0, 0.5))
+    left_wall_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 1.0, 0.5), center_ratio_max=(0.5, 1.0, 0.5)
+        )
     )
 
-    right_wall_cfg: Any = config_field(
-        BoxCfg(size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 0.0, 0.5), center_ratio_max=(0.5, 0.0, 0.5))
+    right_wall_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 0.0, 0.5), center_ratio_max=(0.5, 0.0, 0.5)
+        )
     )
 
-    back_wall_cfg: Any = config_field(
-        BoxCfg(size=(0.2, 8.0, 6.0), center_ratio_min=(0.0, 0.5, 0.5), center_ratio_max=(0.0, 0.5, 0.5))
+    back_wall_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.2, 8.0, 6.0), center_ratio_min=(0.0, 0.5, 0.5), center_ratio_max=(0.0, 0.5, 0.5)
+        )
     )
 
-    front_wall_cfg: Any = config_field(
-        BoxCfg(size=(0.2, 8.0, 6.0), center_ratio_min=(1.0, 0.5, 0.5), center_ratio_max=(1.0, 0.5, 0.5))
+    front_wall_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(0.2, 8.0, 6.0), center_ratio_min=(1.0, 0.5, 0.5), center_ratio_max=(1.0, 0.5, 0.5)
+        )
     )
 
-    top_wall_cfg: Any = config_field(
-        BoxCfg(size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 1.0), center_ratio_max=(0.5, 0.5, 1.0))
+    top_wall_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 1.0), center_ratio_max=(0.5, 0.5, 1.0)
+        )
     )
 
-    bottom_wall_cfg: Any = config_field(
-        BoxCfg(size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 0.0), center_ratio_max=(0.5, 0.5, 0.0))
+    bottom_wall_cfg: Any = field(
+        default_factory=lambda: ObstaclesSceneCfg.BoxCfg(
+            size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 0.0), center_ratio_max=(0.5, 0.5, 0.0)
+        )
     )
 
-    wall_cfgs: Any = config_field(
-        {
-            "left_wall": left_wall_cfg,
-            "right_wall": right_wall_cfg,
-            "back_wall": back_wall_cfg,
-            "front_wall": front_wall_cfg,
-            "bottom_wall": bottom_wall_cfg,
-            "top_wall": top_wall_cfg,
+    wall_cfgs: Any = field(
+        default_factory=lambda: {
+            "left_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 1.0, 0.5), center_ratio_max=(0.5, 1.0, 0.5)
+            ),
+            "right_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 0.0, 0.5), center_ratio_max=(0.5, 0.0, 0.5)
+            ),
+            "back_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(0.2, 8.0, 6.0), center_ratio_min=(0.0, 0.5, 0.5), center_ratio_max=(0.0, 0.5, 0.5)
+            ),
+            "front_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(0.2, 8.0, 6.0), center_ratio_min=(1.0, 0.5, 0.5), center_ratio_max=(1.0, 0.5, 0.5)
+            ),
+            "bottom_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 0.0), center_ratio_max=(0.5, 0.5, 0.0)
+            ),
+            "top_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 1.0), center_ratio_max=(0.5, 0.5, 1.0)
+            ),
         }
     )
 
-    obstacle_cfgs: Any = config_field(
-        {
-            "panel": panel_obs_cfg,
-            "small_wall": small_wall_obs_cfg,
-            "big_wall": big_wall_obs_cfg,
-            "small_cube": small_cube_obs_cfg,
-            "rod": rod_obs_cfg,
+    obstacle_cfgs: Any = field(
+        default_factory=lambda: {
+            "panel": ObstaclesSceneCfg.BoxCfg(
+                size=(0.1, 1.2, 3.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.95, 0.95)
+            ),
+            "small_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(0.1, 0.5, 0.5), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+            ),
+            "big_wall": ObstaclesSceneCfg.BoxCfg(
+                size=(0.1, 1.0, 1.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+            ),
+            "small_cube": ObstaclesSceneCfg.BoxCfg(
+                size=(0.4, 0.4, 0.4), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+            ),
+            "rod": ObstaclesSceneCfg.BoxCfg(
+                size=(0.1, 0.1, 2.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
+            ),
         }
     )

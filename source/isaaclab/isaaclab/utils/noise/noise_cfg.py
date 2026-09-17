@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 import torch
 
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from .noise_model import NoiseModel, NoiseModelWithAdditiveBias
@@ -21,13 +21,13 @@ if TYPE_CHECKING:
 class NoiseCfg:
     """Base configuration for a noise term."""
 
-    func: Callable[[torch.Tensor, NoiseCfg], torch.Tensor] = config_field(MISSING)
+    func: Callable[[torch.Tensor, NoiseCfg], torch.Tensor] = REQUIRED
     """The function to be called for applying the noise.
 
     Note:
         The shape of the input and output tensors must be the same.
     """
-    operation: Literal["add", "scale", "abs"] = config_field("add")
+    operation: Literal["add", "scale", "abs"] = "add"
     """The operation to apply the noise on the data. Defaults to "add"."""
 
 
@@ -35,9 +35,9 @@ class NoiseCfg:
 class ConstantNoiseCfg(NoiseCfg):
     """Configuration for an additive constant noise term."""
 
-    func: str = config_field("{DIR}.noise_model:constant_noise")
+    func: str = "isaaclab.utils.noise.noise_model:constant_noise"
 
-    bias: torch.Tensor | float = config_field(0.0)
+    bias: torch.Tensor | float = 0.0
     """The bias to add. Defaults to 0.0."""
 
 
@@ -45,11 +45,11 @@ class ConstantNoiseCfg(NoiseCfg):
 class UniformNoiseCfg(NoiseCfg):
     """Configuration for a additive uniform noise term."""
 
-    func: str = config_field("{DIR}.noise_model:uniform_noise")
+    func: str = "isaaclab.utils.noise.noise_model:uniform_noise"
 
-    n_min: torch.Tensor | float = config_field(-1.0)
+    n_min: torch.Tensor | float = -1.0
     """The minimum value of the noise. Defaults to -1.0."""
-    n_max: torch.Tensor | float = config_field(1.0)
+    n_max: torch.Tensor | float = 1.0
     """The maximum value of the noise. Defaults to 1.0."""
 
 
@@ -57,11 +57,11 @@ class UniformNoiseCfg(NoiseCfg):
 class GaussianNoiseCfg(NoiseCfg):
     """Configuration for an additive gaussian noise term."""
 
-    func: str = config_field("{DIR}.noise_model:gaussian_noise")
+    func: str = "isaaclab.utils.noise.noise_model:gaussian_noise"
 
-    mean: torch.Tensor | float = config_field(0.0)
+    mean: torch.Tensor | float = 0.0
     """The mean of the noise. Defaults to 0.0."""
-    std: torch.Tensor | float = config_field(1.0)
+    std: torch.Tensor | float = 1.0
     """The standard deviation of the noise. Defaults to 1.0."""
 
 
@@ -74,13 +74,13 @@ class GaussianNoiseCfg(NoiseCfg):
 class NoiseModelCfg:
     """Configuration for a noise model."""
 
-    class_type: type[NoiseModel] | str = config_field("{DIR}.noise_model:NoiseModel")
+    class_type: type[NoiseModel] | str = "isaaclab.utils.noise.noise_model:NoiseModel"
     """The class type of the noise model."""
 
-    noise_cfg: NoiseCfg = config_field(MISSING)
+    noise_cfg: NoiseCfg = REQUIRED
     """The noise configuration to use."""
 
-    func: Callable[[torch.Tensor], torch.Tensor] | None = config_field(None)
+    func: Callable[[torch.Tensor], torch.Tensor] | None = None
     """Function or callable class used by this noise model.
 
     The function must take a single `torch.Tensor` (the batch of observations) as input
@@ -98,15 +98,15 @@ class NoiseModelCfg:
 class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
     """Configuration for an additive gaussian noise with bias model."""
 
-    class_type: type[NoiseModelWithAdditiveBias] | str = config_field("{DIR}.noise_model:NoiseModelWithAdditiveBias")
+    class_type: type[NoiseModelWithAdditiveBias] | str = "isaaclab.utils.noise.noise_model:NoiseModelWithAdditiveBias"
 
-    bias_noise_cfg: NoiseCfg = config_field(MISSING)
+    bias_noise_cfg: NoiseCfg = REQUIRED
     """The noise configuration for the bias.
 
     Based on this configuration, the bias is sampled at every reset of the noise model.
     """
 
-    sample_bias_per_component: bool = config_field(True)
+    sample_bias_per_component: bool = True
     """Whether to sample a separate bias for each data component.
 
     Defaults to True.

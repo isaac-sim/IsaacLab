@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -30,7 +30,7 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
         class PDGainsCfg:
             """Configuration for the PD gains of the drive."""
 
-            stiffness: dict[str, float] | float | None = config_field(None)
+            stiffness: dict[str, float] | float | None = None
             """The stiffness of the joint drive in Nm/rad or N/rad. Defaults to None.
 
             If None, the stiffness values produced by the URDF importer are preserved.
@@ -38,7 +38,7 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
             the drive strength in joint velocity space.
             """
 
-            damping: dict[str, float] | float | None = config_field(None)
+            damping: dict[str, float] | float | None = None
             """The damping of the joint drive in Nm/(rad/s) or N/(rad/s). Defaults to None.
 
             If None, the damping is set to the value parsed from the URDF file or 0.0 if no value is found in the URDF.
@@ -68,23 +68,21 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
                 produced by the URDF importer. Use :class:`PDGainsCfg` instead.
             """
 
-            natural_frequency: dict[str, float] | float = config_field(MISSING)
+            natural_frequency: dict[str, float] | float = REQUIRED
             """The natural frequency of the joint drive.
 
             If :attr:`~UrdfConverterCfg.JointDriveCfg.target_type` is set to ``"velocity"``, this value determines the
             drive's natural frequency in joint velocity space.
             """
 
-            damping_ratio: dict[str, float] | float = config_field(0.005)
+            damping_ratio: dict[str, float] | float = 0.005
             """The damping ratio of the joint drive. Defaults to 0.005.
 
             If :attr:`~UrdfConverterCfg.JointDriveCfg.target_type` is set to ``"velocity"``, this value is ignored and
             only :attr:`natural_frequency` is used.
             """
 
-        drive_type: dict[str, Literal["acceleration", "force"]] | Literal["acceleration", "force"] = config_field(
-            "force"
-        )
+        drive_type: dict[str, Literal["acceleration", "force"]] | Literal["acceleration", "force"] = "force"
         """The drive type used for the joint. Defaults to ``"force"``.
 
         * ``"acceleration"``: The joint drive normalizes the inertia before applying the joint effort so it's invariant
@@ -93,20 +91,20 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
         """
 
         target_type: dict[str, Literal["none", "position", "velocity"]] | Literal["none", "position", "velocity"] = (
-            config_field("position")
+            "position"
         )
         """The drive target type used for the joint. Defaults to ``"position"``.
 
         If the target type is set to ``"none"``, the joint stiffness and damping are set to 0.0.
         """
 
-        gains: PDGainsCfg | NaturalFrequencyGainsCfg = config_field(PDGainsCfg())
+        gains: PDGainsCfg | NaturalFrequencyGainsCfg = field(default_factory=PDGainsCfg)
         """The drive gains configuration."""
 
-    fix_base: bool = config_field(MISSING)
+    fix_base: bool = REQUIRED
     """Create a fix joint to the root/base link."""
 
-    root_link_name: str | None = config_field(None)
+    root_link_name: str | None = None
     """The name of the root link. Defaults to None.
 
     If None, the root link will be set by PhysX.
@@ -115,14 +113,14 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
         This option is no longer supported by the URDF importer 3.0. A warning is logged if set.
     """
 
-    link_density: float = config_field(0.0)
+    link_density: float = 0.0
     """Default density in ``kg/m^3`` for links whose ``"inertial"`` properties are missing in the URDF.
     Defaults to 0.0.
 
     A value of ``0.0`` leaves density unchanged.
     """
 
-    merge_fixed_joints: bool = config_field(True)
+    merge_fixed_joints: bool = True
     """Consolidate links that are connected by fixed joints. Defaults to True.
 
     When enabled, a URDF XML pre-processing step removes all fixed joints and merges each
@@ -132,26 +130,24 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     :func:`isaacsim.asset.importer.urdf.impl.urdf_utils.merge_fixed_joints`.
     """
 
-    convert_mimic_joints_to_normal_joints: bool = config_field(False)
+    convert_mimic_joints_to_normal_joints: bool = False
     """Convert mimic joints to normal joints. Defaults to False.
 
     .. deprecated::
         This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
     """
 
-    joint_drive: JointDriveCfg | None = config_field(JointDriveCfg())
+    joint_drive: JointDriveCfg | None = field(default_factory=JointDriveCfg)
     """The joint drive settings. Defaults to :class:`JointDriveCfg`.
 
     The parameter can be set to ``None`` for URDFs without joints, in which case no joint drive
     overrides are sent to the importer.
     """
 
-    collision_from_visuals: bool = config_field(False)
+    collision_from_visuals: bool = False
     """Whether to create collision geometry from visual geometry. Defaults to False."""
 
-    collision_type: Literal["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"] = config_field(
-        "Convex Hull"
-    )
+    collision_type: Literal["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"] = "Convex Hull"
     """The collision shape simplification. Defaults to ``"Convex Hull"``.
 
     Supported values match the ``collision_type`` field of
@@ -163,27 +159,27 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     * ``"Bounding Cube"``: The collision shape is approximated by a bounding cube.
     """
 
-    self_collision: bool = config_field(False)
+    self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
 
-    replace_cylinders_with_capsules: bool = config_field(False)
+    replace_cylinders_with_capsules: bool = False
     """Replace cylinder shapes with capsule shapes. Defaults to False.
 
     .. deprecated::
         This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
     """
 
-    merge_mesh: bool = config_field(False)
+    merge_mesh: bool = False
     """Merge meshes where possible to optimize the model. Defaults to False."""
 
-    ros_package_paths: list[dict[str, str]] = config_field([])
+    ros_package_paths: list[dict[str, str]] = field(default_factory=list)
     """ROS package name/path mappings used to resolve ``package://`` URLs in the URDF.
 
     Each entry is a dictionary with keys ``name`` and ``path``. The list is forwarded directly
     to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
     """
 
-    robot_type: str = config_field("Default")
+    robot_type: str = "Default"
     """Robot type applied by the USD robot schema. Defaults to ``"Default"``.
 
     Supported types are: ``Default``, ``End Effector``, ``Manipulator``, ``Humanoid``, ``Wheeled``,
@@ -191,7 +187,7 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     Forwarded to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
     """
 
-    run_asset_transformer: bool = config_field(True)
+    run_asset_transformer: bool = True
     """Run the asset transformation profile to convert the flattened USD into a layered USD asset. Defaults to True.
 
     After running this profile, the USD asset will be a layered USD asset with the following structure:
@@ -205,12 +201,12 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     - payloads/Physics/mujoco.usda (MuJoCo attributes)
     """
 
-    run_multi_physics_conversion: bool = config_field(True)
+    run_multi_physics_conversion: bool = True
     """Enable to generate compatible MuJoCo attributes from the URDF joint attributes alongside PhysX.
     Defaults to True.
     """
 
-    debug_mode: bool = config_field(False)
+    debug_mode: bool = False
     """Enable debug mode in the underlying URDF importer. Defaults to False.
 
     When enabled, the importer writes intermediate conversion artifacts next to the output

@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-_MISSING = object()
+_REQUIRED = object()
 
 
 def register_scoped_rl_games_environment(
@@ -27,8 +27,8 @@ def register_scoped_rl_games_environment(
     Returns:
         Callback that restores the two prior registry entries.
     """
-    previous_vecenv = vecenv.vecenv_config.get("IsaacRlgWrapper", _MISSING)
-    previous_environment = env_configurations.configurations.get("rlgpu", _MISSING)
+    previous_vecenv = vecenv.vecenv_config.get("IsaacRlgWrapper", _REQUIRED)
+    previous_environment = env_configurations.configurations.get("rlgpu", _REQUIRED)
     vecenv.register("IsaacRlgWrapper", vecenv_factory)
     env_configurations.register(
         "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: environment}
@@ -40,11 +40,11 @@ def register_scoped_rl_games_environment(
         if restored:
             return
         restored = True
-        if previous_vecenv is _MISSING:
+        if previous_vecenv is _REQUIRED:
             vecenv.vecenv_config.pop("IsaacRlgWrapper", None)
         else:
             vecenv.vecenv_config["IsaacRlgWrapper"] = previous_vecenv
-        if previous_environment is _MISSING:
+        if previous_environment is _REQUIRED:
             env_configurations.configurations.pop("rlgpu", None)
         else:
             env_configurations.configurations["rlgpu"] = previous_environment

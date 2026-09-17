@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -33,58 +33,58 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 
 @dataclass
 class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(24)
-    max_iterations: Any = config_field(3000)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("franka_soft")
-    obs_groups: Any = config_field(
-        {
+    num_steps_per_env: Any = 24
+    max_iterations: Any = 3000
+    save_interval: Any = 50
+    experiment_name: Any = "franka_soft"
+    obs_groups: Any = field(
+        default_factory=lambda: {
             "actor": ["policy"],
             "critic": ["policy"],
         }
     )
-    actor: Any = config_field(
-        RslRlMLPModelCfg(
+    actor: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[256, 128, 64],
             activation="elu",
             obs_normalization=True,
             distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             hidden_dims=[256, 128, 64],
             activation="elu",
             obs_normalization=True,
         )
     )
-    algorithm: Any = config_field(replace_config(ALGO_CFG, learning_rate=1.0e-3))
+    algorithm: Any = field(default_factory=lambda: replace_config(ALGO_CFG, learning_rate=1.0e-3))
 
 
 @dataclass
 class FrankaClothPPORunnerCfg(FrankaDeformablePPORunnerCfg):
-    experiment_name: Any = config_field("lift_cloth")
+    experiment_name: Any = "lift_cloth"
 
 
 @dataclass
 class FrankaCablePPORunnerCfg(FrankaDeformablePPORunnerCfg):
-    experiment_name: Any = config_field("lift_cable")
+    experiment_name: Any = "lift_cable"
 
 
 @dataclass
 class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(24)
-    max_iterations: Any = config_field(5000)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("franka_deformable_camera")
-    obs_groups: Any = config_field(
-        {
+    num_steps_per_env: Any = 24
+    max_iterations: Any = 5000
+    save_interval: Any = 50
+    experiment_name: Any = "franka_deformable_camera"
+    obs_groups: Any = field(
+        default_factory=lambda: {
             "actor": ["policy", "proprio", "base_image"],
             "critic": ["policy", "proprio", "perception"],
         }
     )
-    actor: Any = config_field(
-        RslRlCNNModelCfg(
+    actor: Any = field(
+        default_factory=lambda: RslRlCNNModelCfg(
             obs_normalization=True,
             hidden_dims=[512, 256, 128],
             distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
@@ -97,16 +97,16 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
             activation="elu",
         )
     )
-    critic: Any = config_field(
-        RslRlMLPModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlMLPModelCfg(
             obs_normalization=True,
             hidden_dims=[512, 256, 128],
             activation="elu",
         )
     )
-    algorithm: Any = config_field(replace_config(ALGO_CFG, num_mini_batches=8))
+    algorithm: Any = field(default_factory=lambda: replace_config(ALGO_CFG, num_mini_batches=8))
 
 
 @dataclass
 class FrankaCableCameraPPORunnerCfg(FrankaDeformableCameraPPORunnerCfg):
-    experiment_name: Any = config_field("lift_cable_camera")
+    experiment_name: Any = "lift_cable_camera"

@@ -12,16 +12,16 @@ import importlib.util
 import pytest
 
 _REQUIRED_MODULES = ("isaaclab_ov", "pxr")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
     pytest.mark.skipif(
-        bool(_MISSING_MODULES),
-        reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+        bool(_REQUIRED_MODULES),
+        reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
     ),
 ]
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
         build_render_product_as_string,
         build_render_scope_usd,

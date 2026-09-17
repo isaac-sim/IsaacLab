@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -14,7 +14,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
@@ -85,8 +85,8 @@ def set_finger_joint_pos_grav(
 class EventCfg:
     """Configuration for events."""
 
-    small_gear_physics_material: Any = config_field(
-        EventTerm(
+    small_gear_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -99,8 +99,8 @@ class EventCfg:
         )
     )
 
-    medium_gear_physics_material: Any = config_field(
-        EventTerm(
+    medium_gear_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -113,8 +113,8 @@ class EventCfg:
         )
     )
 
-    large_gear_physics_material: Any = config_field(
-        EventTerm(
+    large_gear_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -127,8 +127,8 @@ class EventCfg:
         )
     )
 
-    gear_base_physics_material: Any = config_field(
-        EventTerm(
+    gear_base_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -141,8 +141,8 @@ class EventCfg:
         )
     )
 
-    robot_physics_material: Any = config_field(
-        EventTerm(
+    robot_physics_material: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
             params={
@@ -155,18 +155,18 @@ class EventCfg:
         )
     )
 
-    randomize_gear_type: Any = config_field(
-        EventTerm(
+    randomize_gear_type: Any = field(
+        default_factory=lambda: EventTerm(
             func=gear_assembly_events.randomize_gear_type,
             mode="reset",
             params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
         )
     )
 
-    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    randomize_gears_and_base_pose: Any = config_field(
-        EventTerm(
+    randomize_gears_and_base_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=gear_assembly_events.randomize_gears_and_base_pose,
             mode="reset",
             params={
@@ -188,8 +188,8 @@ class EventCfg:
         )
     )
 
-    set_robot_to_grasp_pose: Any = config_field(
-        EventTerm(
+    set_robot_to_grasp_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=gear_assembly_events.set_robot_to_grasp_pose,
             mode="reset",
             params={
@@ -208,7 +208,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     Flexiv Grav parallel gripper for gear manipulation tasks.
     """
 
-    ee_grasp_weight_ramp_steps: int = config_field(512_000)
+    ee_grasp_weight_ramp_steps: int = 512_000
 
     def __post_init__(self):
         # post init of parent

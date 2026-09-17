@@ -6,7 +6,6 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -250,7 +249,7 @@ def test_apply_namespaced_raises_without_namespace():
         # deliberately leaves ``_usd_namespace`` as None, violating the fragment invariant that
         # every field is authored as a namespaced USD attribute
         _usd_namespace: ClassVar[str | None] = None
-        rigid_body_enabled: bool | None = config_field(None)
+        rigid_body_enabled: bool | None = None
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))

@@ -10,9 +10,8 @@ This script checks the functionality of scale randomization.
 
 from __future__ import annotations
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -119,12 +118,12 @@ class CubeActionTerm(ActionTerm):
 class CubeActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
 
-    class_type: type = config_field(CubeActionTerm)
+    class_type: type = CubeActionTerm
     """The class corresponding to the action term."""
 
-    p_gain: float = config_field(5.0)
+    p_gain: float = 5.0
     """Proportional gain of the PD controller."""
-    d_gain: float = config_field(0.5)
+    d_gain: float = 0.5
     """Derivative gain of the PD controller."""
 
 
@@ -153,11 +152,13 @@ class MySceneCfg(InteractiveSceneCfg):
     """
 
     # add terrain
-    terrain: Any = config_field(TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False))
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+    )
 
     # add cube for scale randomization
-    cube1: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube1: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="/World/envs/env_[^/]+/cube1",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -171,8 +172,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # add cube for static scale values
-    cube2: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    cube2: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="/World/envs/env_[^/]+/cube2",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
@@ -186,8 +187,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -203,7 +204,7 @@ class MySceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos: Any = config_field(CubeActionTermCfg(asset_name="cube1"))
+    joint_pos: Any = field(default_factory=lambda: CubeActionTermCfg(asset_name="cube1"))
 
 
 @dataclass
@@ -215,22 +216,24 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # cube velocity
-        position: Any = config_field(ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube1")}))
+        position: Any = field(
+            default_factory=lambda: ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube1")})
+        )
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_base: Any = config_field(
-        EventTerm(
+    reset_base: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_root_state_uniform,
             mode="reset",
             params={
@@ -246,8 +249,8 @@ class EventCfg:
     )
 
     # Scale randomization as intended
-    randomize_cube1__scale: Any = config_field(
-        EventTerm(
+    randomize_cube1__scale: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_scale,
             mode="prestartup",
             params={
@@ -258,8 +261,8 @@ class EventCfg:
     )
 
     # Static scale values
-    randomize_cube2__scale: Any = config_field(
-        EventTerm(
+    randomize_cube2__scale: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_scale,
             mode="prestartup",
             params={
@@ -281,11 +284,11 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     # Note: replicate_physics=False is required for prestartup events (scale randomization)
-    scene: MySceneCfg = config_field(MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False))
+    scene: MySceneCfg = field(default_factory=lambda: MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    events: EventCfg = config_field(EventCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

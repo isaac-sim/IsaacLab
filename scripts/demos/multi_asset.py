@@ -23,9 +23,8 @@
 
 from __future__ import annotations
 
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
@@ -94,16 +93,20 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     """Configuration for a multi-object scene."""
 
     # ground plane
-    ground: Any = config_field(AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()))
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    )
 
     # lights
-    dome_light: Any = config_field(
-        AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
     )
 
     # rigid object
-    object: RigidObjectCfg = config_field(
-        RigidObjectCfg(
+    object: RigidObjectCfg = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="/World/envs/env_.*/Object",
             spawn=sim_utils.MultiAssetSpawnerCfg(
                 assets_cfg=[
@@ -125,8 +128,8 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     )
 
     # object collection
-    object_collection: RigidObjectCollectionCfg = config_field(
-        RigidObjectCollectionCfg(
+    object_collection: RigidObjectCollectionCfg = field(
+        default_factory=lambda: RigidObjectCollectionCfg(
             rigid_objects={
                 "object_A": RigidObjectCfg(
                     prim_path="/World/envs/env_.*/Object_A",
@@ -148,8 +151,8 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     )
 
     # articulation
-    robot: ArticulationCfg = config_field(
-        ArticulationCfg(
+    robot: ArticulationCfg = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="/World/envs/env_.*/Robot",
             spawn=sim_utils.MultiUsdFileCfg(
                 usd_path=[

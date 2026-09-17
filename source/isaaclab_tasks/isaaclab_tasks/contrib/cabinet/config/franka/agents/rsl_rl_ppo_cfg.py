@@ -6,16 +6,14 @@
 from dataclasses import dataclass
 from typing import Any
 
-from isaaclab.utils import config_field
-
 from isaaclab_tasks.core.cabinet.config.franka.agents.rsl_rl_ppo_cfg import CabinetPPORunnerCfg
 
 
 @dataclass
 class FrankaCabinetIKAbsPPORunnerCfg(CabinetPPORunnerCfg):
-    experiment_name: Any = config_field("franka_open_drawer_ik_abs")
+    experiment_name: Any = "franka_open_drawer_ik_abs"
 
 
 @dataclass
 class FrankaCabinetIKRelPPORunnerCfg(CabinetPPORunnerCfg):
-    experiment_name: Any = config_field("franka_open_drawer_ik_rel")
+    experiment_name: Any = "franka_open_drawer_ik_rel"

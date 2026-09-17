@@ -41,7 +41,7 @@ RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
-_MISSING = object()
+_REQUIRED = object()
 
 
 @contextmanager
@@ -55,11 +55,11 @@ def preserve_attribute(target: object, name: str) -> Iterator[None]:
         target: Object containing the attribute.
         name: Name of the attribute to restore.
     """
-    previous = getattr(target, name, _MISSING)
+    previous = getattr(target, name, _REQUIRED)
     try:
         yield
     finally:
-        if previous is _MISSING:
+        if previous is _REQUIRED:
             if hasattr(target, name):
                 delattr(target, name)
         else:

@@ -17,9 +17,10 @@ the terrain.
 
 """
 
+from dataclasses import field
 from typing import Any
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 """Launch Isaac Sim Simulator first."""
 
@@ -88,8 +89,8 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # add terrain
-    terrain: Any = config_field(
-        TerrainImporterCfg(
+    terrain: Any = field(
+        default_factory=lambda: TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="generator",
             terrain_generator=ROUGH_TERRAINS_CFG,
@@ -106,11 +107,13 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # add robot
-    robot: ArticulationCfg = config_field(replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
 
     # sensors
-    height_scanner: Any = config_field(
-        RayCasterCfg(
+    height_scanner: Any = field(
+        default_factory=lambda: RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
             offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
             ray_alignment="yaw",
@@ -121,8 +124,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -138,8 +141,10 @@ class MySceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos: Any = config_field(
-        mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    joint_pos: Any = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True
+        )
     )
 
 
@@ -152,20 +157,28 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_lin_vel: Any = config_field(ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)))
-        base_ang_vel: Any = config_field(ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)))
-        projected_gravity: Any = config_field(
-            ObsTerm(
+        base_lin_vel: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        )
+        base_ang_vel: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        )
+        projected_gravity: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.projected_gravity,
                 noise=Unoise(n_min=-0.05, n_max=0.05),
             )
         )
-        velocity_commands: Any = config_field(ObsTerm(func=constant_commands))
-        joint_pos: Any = config_field(ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)))
-        joint_vel: Any = config_field(ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5)))
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        height_scan: Any = config_field(
-            ObsTerm(
+        velocity_commands: Any = field(default_factory=lambda: ObsTerm(func=constant_commands))
+        joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        )
+        joint_vel: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
+        )
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        height_scan: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.height_scan,
                 params={"sensor_cfg": SceneEntityCfg("height_scanner")},
                 noise=Unoise(n_min=-0.1, n_max=0.1),
@@ -178,14 +191,14 @@ class ObservationsCfg:
             self.concatenate_terms = True
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_scene: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_scene: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
 
 ##
@@ -198,11 +211,11 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = config_field(MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5))
+    scene: MySceneCfg = field(default_factory=lambda: MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5))
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
-    events: EventCfg = config_field(EventCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
+    events: EventCfg = field(default_factory=EventCfg)
 
     def __post_init__(self):
         """Post initialization."""

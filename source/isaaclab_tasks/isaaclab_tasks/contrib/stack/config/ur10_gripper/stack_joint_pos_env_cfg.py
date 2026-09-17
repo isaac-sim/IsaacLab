@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_physx.assets import SurfaceGripperCfg
 
@@ -15,7 +15,7 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import config_field, copy_config, replace_config
+from isaaclab.utils import copy_config, replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -43,8 +43,8 @@ class EventCfgLongSuction:
     """Configuration for events."""
 
     # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose: Any = config_field(
-        EventTerm(
+    init_franka_arm_pose: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.set_default_joint_pose,
             mode="reset",
             params={
@@ -53,8 +53,8 @@ class EventCfgLongSuction:
         )
     )
 
-    randomize_franka_joint_state: Any = config_field(
-        EventTerm(
+    randomize_franka_joint_state: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_joint_by_gaussian_offset,
             mode="reset",
             params={
@@ -65,8 +65,8 @@ class EventCfgLongSuction:
         )
     )
 
-    randomize_cube_positions: Any = config_field(
-        EventTerm(
+    randomize_cube_positions: Any = field(
+        default_factory=lambda: EventTerm(
             func=franka_stack_events.randomize_object_pose,
             mode="reset",
             params={
@@ -81,8 +81,8 @@ class EventCfgLongSuction:
 @dataclass
 class UR10CubeStackEnvCfg(StackEnvCfg):
     # Rigid body properties of each cube
-    cube_properties: Any = config_field(
-        RigidBodyPropertiesCfg(
+    cube_properties: Any = field(
+        default_factory=lambda: RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,
             solver_velocity_iteration_count=1,
             max_angular_velocity=1000.0,
@@ -91,9 +91,9 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
             disable_gravity=False,
         )
     )
-    cube_scale: Any = config_field((1.0, 1.0, 1.0))
+    cube_scale: Any = (1.0, 1.0, 1.0)
     # Listens to the required transforms
-    marker_cfg: Any = config_field(copy_config(FRAME_MARKER_CFG))
+    marker_cfg: Any = field(default_factory=lambda: copy_config(FRAME_MARKER_CFG))
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     marker_cfg.prim_path = "/Visuals/FrameTransformer"
 

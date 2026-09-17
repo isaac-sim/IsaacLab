@@ -6,7 +6,7 @@
 """Franka Reach environment configuration."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
@@ -30,7 +30,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 # Pre-defined configs
 ##
 from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 
 ##
 # Environment configuration
@@ -41,13 +41,13 @@ from isaaclab.utils import config_field, replace_config
 class FrankaArmActionCfg(PresetCfg):
     """Arm-controller presets for Franka Reach."""
 
-    joint_pos: mdp.JointPositionActionCfg = config_field(
-        mdp.JointPositionActionCfg(
+    joint_pos: mdp.JointPositionActionCfg = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
             asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
         )
     )
-    diffik: DifferentialInverseKinematicsActionCfg = config_field(
-        DifferentialInverseKinematicsActionCfg(
+    diffik: DifferentialInverseKinematicsActionCfg = field(
+        default_factory=lambda: DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
@@ -61,11 +61,35 @@ class FrankaArmActionCfg(PresetCfg):
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         )
     )
-    diffik_abs: DifferentialInverseKinematicsActionCfg = config_field(
-        replace_config(
-            diffik,
+    diffik_abs: DifferentialInverseKinematicsActionCfg = field(
+        default_factory=lambda: replace_config(
+            DifferentialInverseKinematicsActionCfg(
+                asset_name="robot",
+                joint_names=["panda_joint.*"],
+                body_name="panda_hand",
+                controller=DifferentialIKControllerCfg(
+                    command_type="pose",
+                    use_relative_mode=True,
+                    ik_method="dls",
+                    ik_params={"lambda_val": 0.01},
+                ),
+                scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
+                body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+            ),
             controller=replace_config(
-                diffik.controller,
+                DifferentialInverseKinematicsActionCfg(
+                    asset_name="robot",
+                    joint_names=["panda_joint.*"],
+                    body_name="panda_hand",
+                    controller=DifferentialIKControllerCfg(
+                        command_type="pose",
+                        use_relative_mode=True,
+                        ik_method="dls",
+                        ik_params={"lambda_val": 0.01},
+                    ),
+                    scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
+                    body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+                ).controller,
                 use_relative_mode=False,
                 ik_params={"lambda_val": 0.45},
             ),
@@ -73,8 +97,8 @@ class FrankaArmActionCfg(PresetCfg):
             scale=1.0,
         )
     )
-    newton_ik: NewtonInverseKinematicsActionCfg = config_field(
-        NewtonInverseKinematicsActionCfg(
+    newton_ik: NewtonInverseKinematicsActionCfg = field(
+        default_factory=lambda: NewtonInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             controller=NewtonIKSolverCfg(optimizer="lm", jacobian_mode="analytic", iterations=4),
@@ -91,7 +115,11 @@ class FrankaArmActionCfg(PresetCfg):
             ],
         )
     )
-    default: mdp.JointPositionActionCfg = config_field(joint_pos)
+    default: mdp.JointPositionActionCfg = field(
+        default_factory=lambda: mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
+        )
+    )
 
 
 @dataclass

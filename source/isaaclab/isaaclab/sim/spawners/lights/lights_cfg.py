@@ -6,11 +6,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 
 @dataclass
@@ -24,18 +24,18 @@ class LightCfg(SpawnerCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    func: Callable | str = config_field("{DIR}.lights:spawn_light")
+    func: Callable | str = "isaaclab.sim.spawners.lights.lights:spawn_light"
 
-    prim_type: str = config_field(MISSING)
+    prim_type: str = REQUIRED
     """The prim type name for the light prim."""
 
-    color: tuple[float, float, float] = config_field((1.0, 1.0, 1.0))
+    color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """The color of emitted light, in energy-linear terms. Defaults to white."""
 
-    enable_color_temperature: bool = config_field(False)
+    enable_color_temperature: bool = False
     """Enables color temperature. Defaults to false."""
 
-    color_temperature: float = config_field(6500.0)
+    color_temperature: float = 6500.0
     """Color temperature (in Kelvin) representing the white point. The valid range is [1000, 10000]. Defaults to 6500K.
 
     The `color temperature <https://en.wikipedia.org/wiki/Color_temperature>`_ corresponds to the warmth
@@ -46,20 +46,20 @@ class LightCfg(SpawnerCfg):
         It only takes effect when :attr:`enable_color_temperature` is true.
     """
 
-    normalize: bool = config_field(False)
+    normalize: bool = False
     """Normalizes power by the surface area of the light. Defaults to false.
 
     This makes it easier to independently adjust the power and shape of the light, by causing the power
     to not vary with the area or angular size of the light.
     """
 
-    exposure: float = config_field(0.0)
+    exposure: float = 0.0
     """Scales the power of the light exponentially as a power of 2. Defaults to 0.0.
 
     The result is multiplied against the intensity.
     """
 
-    intensity: float = config_field(1.0)
+    intensity: float = 1.0
     """Scales the power of the light linearly. Defaults to 1.0."""
 
 
@@ -75,9 +75,9 @@ class DiskLightCfg(LightCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    prim_type: Any = config_field("DiskLight")
+    prim_type: Any = "DiskLight"
 
-    radius: float = config_field(0.5)
+    radius: float = 0.5
     """Radius of the disk (in m). Defaults to 0.5m."""
 
 
@@ -93,9 +93,9 @@ class DistantLightCfg(LightCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    prim_type: Any = config_field("DistantLight")
+    prim_type: Any = "DistantLight"
 
-    angle: float = config_field(0.53)
+    angle: float = 0.53
     """Angular size of the light (in degrees). Defaults to 0.53 degrees.
 
     As an example, the Sun is approximately 0.53 degrees as seen from Earth.
@@ -115,18 +115,16 @@ class DomeLightCfg(LightCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    prim_type: Any = config_field("DomeLight")
+    prim_type: Any = "DomeLight"
 
-    texture_file: str | None = config_field(None)
+    texture_file: str | None = None
     """A color texture to use on the dome, such as an HDR (high dynamic range) texture intended
     for IBL (image based lighting). Defaults to None.
 
     If None, the dome will emit a uniform color.
     """
 
-    texture_format: Literal["automatic", "latlong", "mirroredBall", "angular", "cubeMapVerticalCross"] = config_field(
-        "automatic"
-    )
+    texture_format: Literal["automatic", "latlong", "mirroredBall", "angular", "cubeMapVerticalCross"] = "automatic"
     """The parametrization format of the color map file. Defaults to "automatic".
 
     Valid values are:
@@ -140,7 +138,7 @@ class DomeLightCfg(LightCfg):
     * ``"cubeMapVerticalCross"``: A cube map with faces laid out as a vertical cross.
     """
 
-    visible_in_primary_ray: bool = config_field(True)
+    visible_in_primary_ray: bool = True
     """Whether the dome light is visible in the primary ray. Defaults to True.
 
     If true, the texture in the sky is visible, otherwise the sky is black.
@@ -159,15 +157,15 @@ class CylinderLightCfg(LightCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    prim_type: Any = config_field("CylinderLight")
+    prim_type: Any = "CylinderLight"
 
-    length: float = config_field(1.0)
+    length: float = 1.0
     """Length of the cylinder (in m). Defaults to 1.0m."""
 
-    radius: float = config_field(0.5)
+    radius: float = 0.5
     """Radius of the cylinder (in m). Defaults to 0.5m."""
 
-    treat_as_line: bool = config_field(False)
+    treat_as_line: bool = False
     """Treats the cylinder as a line source, i.e. a zero-radius cylinder. Defaults to false."""
 
 
@@ -183,10 +181,10 @@ class SphereLightCfg(LightCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    prim_type: Any = config_field("SphereLight")
+    prim_type: Any = "SphereLight"
 
-    radius: float = config_field(0.5)
+    radius: float = 0.5
     """Radius of the sphere. Defaults to 0.5m."""
 
-    treat_as_point: bool = config_field(False)
+    treat_as_point: bool = False
     """Treats the sphere as a point source, i.e. a zero-radius sphere. Defaults to false."""

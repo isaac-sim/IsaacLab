@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_physx.physics import PhysxCfg
@@ -15,7 +15,6 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import config_field
 
 from .assembly_tasks_cfg import ASSET_DIR, Insertion
 
@@ -45,42 +44,42 @@ STATE_DIM_CFG = {
 
 @dataclass
 class ObsRandCfg:
-    fixed_asset_pos: Any = config_field([0.001, 0.001, 0.001])
+    fixed_asset_pos: Any = field(default_factory=lambda: [0.001, 0.001, 0.001])
 
 
 @dataclass
 class CtrlCfg:
-    ema_factor: Any = config_field(0.2)
+    ema_factor: Any = 0.2
 
-    pos_action_bounds: Any = config_field([0.1, 0.1, 0.1])
-    rot_action_bounds: Any = config_field([0.01, 0.01, 0.01])
+    pos_action_bounds: Any = field(default_factory=lambda: [0.1, 0.1, 0.1])
+    rot_action_bounds: Any = field(default_factory=lambda: [0.01, 0.01, 0.01])
 
-    pos_action_threshold: Any = config_field([0.1, 0.1, 0.1])
-    rot_action_threshold: Any = config_field([0.01, 0.01, 0.01])
+    pos_action_threshold: Any = field(default_factory=lambda: [0.1, 0.1, 0.1])
+    rot_action_threshold: Any = field(default_factory=lambda: [0.01, 0.01, 0.01])
 
-    reset_joints: Any = config_field([0.0, 0.0, 0.0, -1.870, 0.0, 1.8675, 0.785398])
-    reset_task_prop_gains: Any = config_field([1000, 1000, 1000, 50, 50, 50])
+    reset_joints: Any = field(default_factory=lambda: [0.0, 0.0, 0.0, -1.870, 0.0, 1.8675, 0.785398])
+    reset_task_prop_gains: Any = field(default_factory=lambda: [1000, 1000, 1000, 50, 50, 50])
     # reset_rot_deriv_scale = 1.0
     # default_task_prop_gains = [1000, 1000, 1000, 50, 50, 50]
     # reset_task_prop_gains = [300, 300, 300, 20, 20, 20]
-    reset_rot_deriv_scale: Any = config_field(10.0)
-    default_task_prop_gains: Any = config_field([100, 100, 100, 30, 30, 30])
+    reset_rot_deriv_scale: Any = 10.0
+    default_task_prop_gains: Any = field(default_factory=lambda: [100, 100, 100, 30, 30, 30])
 
     # Null space parameters.
-    default_dof_pos_tensor: Any = config_field([0.0, 0.0, 0.0, -1.870, 0.0, 1.8675, 0.785398])
-    kp_null: Any = config_field(10.0)
-    kd_null: Any = config_field(6.3246)
+    default_dof_pos_tensor: Any = field(default_factory=lambda: [0.0, 0.0, 0.0, -1.870, 0.0, 1.8675, 0.785398])
+    kp_null: Any = 10.0
+    kd_null: Any = 6.3246
 
 
 @dataclass
 class AssemblyEnvCfg(DirectRLEnvCfg):
-    decimation: Any = config_field(8)
-    action_space: Any = config_field(6)
+    decimation: Any = 8
+    action_space: Any = 6
     # num_*: will be overwritten to correspond to obs_order, state_order.
-    observation_space: Any = config_field(24)
-    state_space: Any = config_field(44)
-    obs_order: list = config_field(
-        [
+    observation_space: Any = 24
+    state_space: Any = 44
+    obs_order: list = field(
+        default_factory=lambda: [
             "joint_pos",
             "fingertip_pos",
             "fingertip_quat",
@@ -89,8 +88,8 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
             "delta_pos",
         ]
     )
-    state_order: list = config_field(
-        [
+    state_order: list = field(
+        default_factory=lambda: [
             "joint_pos",
             "joint_vel",
             "fingertip_pos",
@@ -105,15 +104,15 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
         ]
     )
 
-    task_name: str = config_field("insertion")  # peg_insertion, gear_meshing, nut_threading
-    tasks: dict = config_field({"insertion": Insertion()})
-    obs_rand: ObsRandCfg = config_field(ObsRandCfg())
-    ctrl: CtrlCfg = config_field(CtrlCfg())
+    task_name: str = "insertion"  # peg_insertion, gear_meshing, nut_threading
+    tasks: dict = field(default_factory=lambda: {"insertion": Insertion()})
+    obs_rand: ObsRandCfg = field(default_factory=ObsRandCfg)
+    ctrl: CtrlCfg = field(default_factory=CtrlCfg)
 
     # episode_length_s = 10.0  # Probably need to override.
-    episode_length_s: Any = config_field(5.0)
-    sim: SimulationCfg = config_field(
-        SimulationCfg(
+    episode_length_s: Any = 5.0
+    sim: SimulationCfg = field(
+        default_factory=lambda: SimulationCfg(
             device="cuda:0",
             dt=1 / 120,
             gravity=(0.0, 0.0, -9.81),
@@ -136,10 +135,10 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
         )
     )
 
-    scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=128, env_spacing=2.0))
+    scene: InteractiveSceneCfg = field(default_factory=lambda: InteractiveSceneCfg(num_envs=128, env_spacing=2.0))
 
-    robot: Any = config_field(
-        ArticulationCfg(
+    robot: Any = field(
+        default_factory=lambda: ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ASSET_DIR}/franka_mimic.usd",

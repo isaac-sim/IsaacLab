@@ -19,7 +19,6 @@ from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDAc
 from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims, _resave_checkpoint_with_metadata
-from isaaclab.utils import config_field
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
@@ -28,14 +27,14 @@ _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 class UnsupportedNewtonActuatorCfg(ActuatorBaseCfg):
     """Explicit actuator config intentionally unsupported by Newton authoring."""
 
-    class_type: str = config_field("unsupported:ExplicitActuator")
+    class_type: str = "unsupported:ExplicitActuator"
 
 
 @dataclass
 class CustomDCMotorCfg(DCMotorCfg):
     """DC motor config that selects a custom Lab actuator implementation."""
 
-    class_type: str = config_field("unsupported:CustomDCMotor")
+    class_type: str = "unsupported:CustomDCMotor"
 
 
 class MisleadingImplicitActuatorDCMotor(DCMotor):

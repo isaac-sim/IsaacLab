@@ -5,8 +5,9 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from dataclasses import field
+
 from isaaclab.app import AppLauncher
-from isaaclab.utils import config_field
 
 # launch Kit app
 # need to set "enable_cameras" true to be able to do rendering tests
@@ -50,14 +51,16 @@ def create_manager_based_env(render_interval: int):
     class EnvCfg(ManagerBasedEnvCfg):
         """Configuration for the test environment."""
 
-        decimation: int = config_field(4)
-        episode_length_s: float = config_field(100.0)
-        sim: SimulationCfg = config_field(
-            SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        decimation: int = 4
+        episode_length_s: float = 100.0
+        sim: SimulationCfg = field(
+            default_factory=lambda: SimulationCfg(
+                dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+            )
         )
-        scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
-        actions: EmptyManagerCfg = config_field(EmptyManagerCfg())
-        observations: EmptyManagerCfg = config_field(EmptyManagerCfg())
+        scene: InteractiveSceneCfg = field(default_factory=lambda: InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
+        actions: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+        observations: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
 
     return ManagerBasedEnv(cfg=EnvCfg())
 
@@ -69,16 +72,18 @@ def create_manager_based_rl_env(render_interval: int):
     class EnvCfg(ManagerBasedRLEnvCfg):
         """Configuration for the test environment."""
 
-        decimation: int = config_field(4)
-        episode_length_s: float = config_field(100.0)
-        sim: SimulationCfg = config_field(
-            SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        decimation: int = 4
+        episode_length_s: float = 100.0
+        sim: SimulationCfg = field(
+            default_factory=lambda: SimulationCfg(
+                dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+            )
         )
-        scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
-        actions: EmptyManagerCfg = config_field(EmptyManagerCfg())
-        observations: EmptyManagerCfg = config_field(EmptyManagerCfg())
-        rewards: EmptyManagerCfg = config_field(EmptyManagerCfg())
-        terminations: EmptyManagerCfg = config_field(EmptyManagerCfg())
+        scene: InteractiveSceneCfg = field(default_factory=lambda: InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
+        actions: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+        observations: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+        rewards: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+        terminations: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
 
     return ManagerBasedRLEnv(cfg=EnvCfg())
 
@@ -101,14 +106,16 @@ def create_direct_rl_env(render_interval: int, episode_length_steps: int | None 
     class EnvCfg(DirectRLEnvCfg):
         """Configuration for the test environment."""
 
-        decimation: int = config_field(_decimation)
-        action_space: int = config_field(0)
-        observation_space: int = config_field(0)
-        episode_length_s: float = config_field(_episode_length_s)
-        sim: SimulationCfg = config_field(
-            SimulationCfg(dt=_dt, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        decimation: int = _decimation
+        action_space: int = 0
+        observation_space: int = 0
+        episode_length_s: float = _episode_length_s
+        sim: SimulationCfg = field(
+            default_factory=lambda: SimulationCfg(
+                dt=_dt, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+            )
         )
-        scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
+        scene: InteractiveSceneCfg = field(default_factory=lambda: InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
 
     class Env(DirectRLEnv):
         """Test environment."""
@@ -452,13 +459,15 @@ def create_manager_based_env_no_visualizer(render_interval: int):
     class EnvCfg(ManagerBasedEnvCfg):
         """Configuration for the test environment."""
 
-        decimation: int = config_field(4)
-        episode_length_s: float = config_field(100.0)
+        decimation: int = 4
+        episode_length_s: float = 100.0
         # empty visualizer_cfgs => offscreen render is the only possible rendering path
-        sim: SimulationCfg = config_field(SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=[]))
-        scene: InteractiveSceneCfg = config_field(InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
-        actions: EmptyManagerCfg = config_field(EmptyManagerCfg())
-        observations: EmptyManagerCfg = config_field(EmptyManagerCfg())
+        sim: SimulationCfg = field(
+            default_factory=lambda: SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=[])
+        )
+        scene: InteractiveSceneCfg = field(default_factory=lambda: InteractiveSceneCfg(num_envs=1, env_spacing=1.0))
+        actions: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
+        observations: EmptyManagerCfg = field(default_factory=EmptyManagerCfg)
 
     return ManagerBasedEnv(cfg=EnvCfg())
 

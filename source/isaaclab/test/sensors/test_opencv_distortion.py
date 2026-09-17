@@ -28,17 +28,17 @@ import numpy as np
 import pytest
 
 _REQUIRED_MODULES = ("isaaclab", "pxr", "warp")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+_REQUIRED_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
     pytest.mark.unit,
     pytest.mark.skipif(
-        bool(_MISSING_MODULES),
-        reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
+        bool(_REQUIRED_MODULES),
+        reason=f"requires optional modules: {', '.join(_REQUIRED_MODULES)}",
     ),
 ]
 
-if not _MISSING_MODULES:
+if not _REQUIRED_MODULES:
     import torch
 
     from pxr import Gf, Sdf, Usd, UsdGeom

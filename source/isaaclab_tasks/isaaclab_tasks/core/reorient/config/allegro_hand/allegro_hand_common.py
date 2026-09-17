@@ -9,7 +9,7 @@ Asset and marker configurations, joint/body name lists, backend physics
 presets, and the sim mixin. No task tunables.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -20,7 +20,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import replace_config
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -55,13 +55,13 @@ CUBE_CFG = RigidObjectCfg(
 
 @dataclass
 class PhysicsCfg(PresetCfg):
-    isaacsim_physx: Any = config_field(
-        PhysxCfg(
+    isaacsim_physx: Any = field(
+        default_factory=lambda: PhysxCfg(
             bounce_threshold_velocity=0.2,
         )
     )
-    newton_mjwarp: Any = config_field(
-        NewtonCfg(
+    newton_mjwarp: Any = field(
+        default_factory=lambda: NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 integrator="implicitfast",
                 njmax=80,
@@ -73,9 +73,28 @@ class PhysicsCfg(PresetCfg):
             num_substeps=2,
         )
     )
-    ovphysx: Any = config_field(OvPhysxCfg())
-    physx: Any = config_field(PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx))
-    default: Any = config_field(newton_mjwarp)
+    ovphysx: Any = field(default_factory=OvPhysxCfg)
+    physx: Any = field(
+        default_factory=lambda: PhysxAutoCfg(
+            isaacsim_physx=PhysxCfg(
+                bounce_threshold_velocity=0.2,
+            ),
+            ovphysx=OvPhysxCfg(),
+        )
+    )
+    default: Any = field(
+        default_factory=lambda: NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                integrator="implicitfast",
+                njmax=80,
+                nconmax=70,
+                impratio=10.0,
+                cone="elliptic",
+                update_data_interval=2,
+            ),
+            num_substeps=2,
+        )
+    )
 
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(

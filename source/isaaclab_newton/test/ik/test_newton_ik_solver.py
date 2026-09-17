@@ -20,8 +20,6 @@ from isaaclab_newton.ik.newton_ik_objectives_cfg import (
 from isaaclab_newton.ik.newton_ik_solver import NewtonIKSolver
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
-from isaaclab.utils import config_field
-
 # Maps the stub body names used across these tests to Newton link indices.
 _LINKS = {"ee": 0, "torso": 1, "custom": 0}
 
@@ -181,7 +179,7 @@ def test_custom_objective_cfg_is_built_and_wired(monkeypatch):
 
     @dataclass
     class _CustomObjectiveCfg(NewtonIKObjectiveCfg):
-        class_type: type | str = config_field(_CustomObjective)
+        class_type: type | str = _CustomObjective
 
     solver = _pose_solver(objectives=[NewtonIKPoseObjectiveCfg(body_name="ee"), _CustomObjectiveCfg()])
 

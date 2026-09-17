@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from isaaclab.utils import config_field
-
 from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import (
     BetaSamplingStrategy,
     UniformSamplingStrategy,
@@ -34,13 +32,15 @@ class BetaSamplingStrategyCfg:
           0          target             1
     """
 
-    class_type: type[BetaSamplingStrategy] | str = config_field("{DIR}.sampling_strategies:BetaSamplingStrategy")
+    class_type: type[BetaSamplingStrategy] | str = (
+        "isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies:BetaSamplingStrategy"
+    )
     """Runtime strategy class."""
-    weight: float = config_field(1.0)
+    weight: float = 1.0
     """Multiplier on this strategy's score before sampler normalization."""
-    target: float = config_field(0.66)
+    target: float = 0.66
     """Success rate where the Beta score peaks."""
-    kappa: float = config_field(1.0)
+    kappa: float = 1.0
     """Peak sharpness around :attr:`target`; larger values concentrate more mass near the target."""
 
 
@@ -60,9 +60,11 @@ class UniformSamplingStrategyCfg:
           +----------------------------> item index
     """
 
-    class_type: type[UniformSamplingStrategy] | str = config_field("{DIR}.sampling_strategies:UniformSamplingStrategy")
+    class_type: type[UniformSamplingStrategy] | str = (
+        "isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies:UniformSamplingStrategy"
+    )
     """Runtime strategy class."""
-    weight: float = config_field(1.0)
+    weight: float = 1.0
     """Multiplier on this strategy's constant score before sampler normalization."""
 
 

@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.rigid_object import RigidObjectCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 if TYPE_CHECKING:
     from .rigid_object_collection import RigidObjectCollection
@@ -17,15 +17,15 @@ if TYPE_CHECKING:
 class RigidObjectCollectionCfg:
     """Configuration parameters for a rigid object collection."""
 
-    class_type: type["RigidObjectCollection"] | str = config_field(
-        "{DIR}.rigid_object_collection:RigidObjectCollection"
+    class_type: type["RigidObjectCollection"] | str = (
+        "isaaclab.assets.rigid_object_collection.rigid_object_collection:RigidObjectCollection"
     )
     """The associated asset class.
 
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
 
-    rigid_objects: dict[str, RigidObjectCfg] = config_field(MISSING)
+    rigid_objects: dict[str, RigidObjectCfg] = REQUIRED
     """Dictionary of rigid object configurations to spawn.
 
     The keys are the names for the objects, which are used as unique identifiers throughout the code.

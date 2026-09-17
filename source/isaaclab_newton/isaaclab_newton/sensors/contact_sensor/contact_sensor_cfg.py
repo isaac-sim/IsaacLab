@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils import config_field
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -25,7 +24,7 @@ class ContactSensorCfg(BaseContactSensorCfg):
     :meth:`from_base_cfg`.
     """
 
-    class_type: type["ContactSensor"] | str = config_field("{DIR}.contact_sensor:ContactSensor")
+    class_type: type["ContactSensor"] | str = "isaaclab_newton.sensors.contact_sensor.contact_sensor:ContactSensor"
 
     @property
     def sensor_body_prim_expr(self) -> str:

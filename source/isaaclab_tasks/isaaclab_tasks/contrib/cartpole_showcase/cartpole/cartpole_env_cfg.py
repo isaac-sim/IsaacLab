@@ -5,12 +5,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from gymnasium import spaces
-
-from isaaclab.utils import config_field
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -43,10 +41,12 @@ class BoxBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(4,))
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Box(low=float("-inf"), high=float("inf"), shape=(4,))
     )  # or for simplicity: 4 or [4]
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -74,10 +74,10 @@ class BoxDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(4,))
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Box(low=float("-inf"), high=float("inf"), shape=(4,))
     )  # or for simplicity: 4 or [4]
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -112,10 +112,10 @@ class BoxMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Box(low=float("-inf"), high=float("inf"), shape=(4,))
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Box(low=float("-inf"), high=float("inf"), shape=(4,))
     )  # or for simplicity: 4 or [4]
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ###
@@ -158,8 +158,10 @@ class DiscreteBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(spaces.Discrete(16))  # or for simplicity: {16}
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    observation_space: Any = field(default_factory=lambda: spaces.Discrete(16))  # or for simplicity: {16}
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -199,8 +201,8 @@ class DiscreteDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(spaces.Discrete(16))  # or for simplicity: {16}
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    observation_space: Any = field(default_factory=lambda: spaces.Discrete(16))  # or for simplicity: {16}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -247,8 +249,8 @@ class DiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(spaces.Discrete(16))  # or for simplicity: {16}
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    observation_space: Any = field(default_factory=lambda: spaces.Discrete(16))  # or for simplicity: {16}
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ###
@@ -298,8 +300,12 @@ class MultiDiscreteBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(spaces.MultiDiscrete([2, 2, 2, 2]))  # or for simplicity: [{2}, {2}, {2}, {2}]
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    observation_space: Any = field(
+        default_factory=lambda: spaces.MultiDiscrete([2, 2, 2, 2])
+    )  # or for simplicity: [{2}, {2}, {2}, {2}]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -346,8 +352,10 @@ class MultiDiscreteDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(spaces.MultiDiscrete([2, 2, 2, 2]))  # or for simplicity: [{2}, {2}, {2}, {2}]
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    observation_space: Any = field(
+        default_factory=lambda: spaces.MultiDiscrete([2, 2, 2, 2])
+    )  # or for simplicity: [{2}, {2}, {2}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -401,8 +409,10 @@ class MultiDiscreteMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(spaces.MultiDiscrete([2, 2, 2, 2]))  # or for simplicity: [{2}, {2}, {2}, {2}]
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    observation_space: Any = field(
+        default_factory=lambda: spaces.MultiDiscrete([2, 2, 2, 2])
+    )  # or for simplicity: [{2}, {2}, {2}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ###
@@ -431,15 +441,17 @@ class DictBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Dict(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Dict(
             {
                 "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             }
         )
     )  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -465,15 +477,15 @@ class DictDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Dict(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Dict(
             {
                 "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             }
         )
     )  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -506,15 +518,15 @@ class DictMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Dict(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Dict(
             {
                 "joint-positions": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 "joint-velocities": spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             }
         )
     )  # or for simplicity: {"joint-positions": 2, "joint-velocities": 2}
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ###
@@ -543,15 +555,17 @@ class TupleBoxEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Tuple(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Tuple(
             (
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             )
         )
     )  # or for simplicity: (2, 2)
-    action_space: Any = config_field(spaces.Box(low=-1.0, high=1.0, shape=(1,)))  # or for simplicity: 1 or [1]
+    action_space: Any = field(
+        default_factory=lambda: spaces.Box(low=-1.0, high=1.0, shape=(1,))
+    )  # or for simplicity: 1 or [1]
 
 
 @dataclass
@@ -577,15 +591,15 @@ class TupleDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Tuple(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Tuple(
             (
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             )
         )
     )  # or for simplicity: (2, 2)
-    action_space: Any = config_field(spaces.Discrete(3))  # or for simplicity: {3}
+    action_space: Any = field(default_factory=lambda: spaces.Discrete(3))  # or for simplicity: {3}
 
 
 @dataclass
@@ -618,15 +632,15 @@ class TupleMultiDiscreteEnvCfg(CartpoleEnvCfg):
         ===  ===
     """
 
-    observation_space: Any = config_field(
-        spaces.Tuple(
+    observation_space: Any = field(
+        default_factory=lambda: spaces.Tuple(
             (
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
                 spaces.Box(low=float("-inf"), high=float("inf"), shape=(2,)),
             )
         )
     )  # or for simplicity: (2, 2)
-    action_space: Any = config_field(spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
+    action_space: Any = field(default_factory=lambda: spaces.MultiDiscrete([3, 2]))  # or for simplicity: [{3}, {2}]
 
 
 ##
@@ -647,19 +661,19 @@ class CartpoleShowcasePresetsEnvCfg(PresetCfg):
     one of them is loaded.
     """
 
-    box_box: Any = config_field(BoxBoxEnvCfg())
-    box_discrete: Any = config_field(BoxDiscreteEnvCfg())
-    box_multidiscrete: Any = config_field(BoxMultiDiscreteEnvCfg())
-    discrete_box: Any = config_field(DiscreteBoxEnvCfg())
-    discrete_discrete: Any = config_field(DiscreteDiscreteEnvCfg())
-    discrete_multidiscrete: Any = config_field(DiscreteMultiDiscreteEnvCfg())
-    multidiscrete_box: Any = config_field(MultiDiscreteBoxEnvCfg())
-    multidiscrete_discrete: Any = config_field(MultiDiscreteDiscreteEnvCfg())
-    multidiscrete_multidiscrete: Any = config_field(MultiDiscreteMultiDiscreteEnvCfg())
-    dict_box: Any = config_field(DictBoxEnvCfg())
-    dict_discrete: Any = config_field(DictDiscreteEnvCfg())
-    dict_multidiscrete: Any = config_field(DictMultiDiscreteEnvCfg())
-    tuple_box: Any = config_field(TupleBoxEnvCfg())
-    tuple_discrete: Any = config_field(TupleDiscreteEnvCfg())
-    tuple_multidiscrete: Any = config_field(TupleMultiDiscreteEnvCfg())
-    default: Any = config_field(box_box)  # canonical Cartpole shape: Box obs, Box action.
+    box_box: Any = field(default_factory=BoxBoxEnvCfg)
+    box_discrete: Any = field(default_factory=BoxDiscreteEnvCfg)
+    box_multidiscrete: Any = field(default_factory=BoxMultiDiscreteEnvCfg)
+    discrete_box: Any = field(default_factory=DiscreteBoxEnvCfg)
+    discrete_discrete: Any = field(default_factory=DiscreteDiscreteEnvCfg)
+    discrete_multidiscrete: Any = field(default_factory=DiscreteMultiDiscreteEnvCfg)
+    multidiscrete_box: Any = field(default_factory=MultiDiscreteBoxEnvCfg)
+    multidiscrete_discrete: Any = field(default_factory=MultiDiscreteDiscreteEnvCfg)
+    multidiscrete_multidiscrete: Any = field(default_factory=MultiDiscreteMultiDiscreteEnvCfg)
+    dict_box: Any = field(default_factory=DictBoxEnvCfg)
+    dict_discrete: Any = field(default_factory=DictDiscreteEnvCfg)
+    dict_multidiscrete: Any = field(default_factory=DictMultiDiscreteEnvCfg)
+    tuple_box: Any = field(default_factory=TupleBoxEnvCfg)
+    tuple_discrete: Any = field(default_factory=TupleDiscreteEnvCfg)
+    tuple_multidiscrete: Any = field(default_factory=TupleMultiDiscreteEnvCfg)
+    default: Any = field(default_factory=BoxBoxEnvCfg)  # canonical Cartpole shape: Box obs, Box action.

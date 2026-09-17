@@ -6,9 +6,9 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -138,19 +138,23 @@ def test_str(setup_env):
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            term_2: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=2))
-            term_3: Any = config_field(ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True}))
-            term_4: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0})
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10))
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=2))
+            term_3: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
             )
-            term_5: Any = config_field(
-                ObservationTermCfg(
+            term_4: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
+            )
+            term_5: Any = field(
+                default_factory=lambda: ObservationTermCfg(
                     func=grilled_chicken_with_yoghurt_and_bbq, scale=1.0, params={"hot": False, "bland": 2.0}
                 )
             )
 
-        policy: ObservationGroupCfg = config_field(SampleGroupCfg())
+        policy: ObservationGroupCfg = field(default_factory=SampleGroupCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -180,21 +184,27 @@ def test_str_with_history(setup_env):
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken, scale=10, history_length=TERM_1_HISTORY)
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken, scale=10, history_length=TERM_1_HISTORY
+                )
             )
-            term_2: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=2))
-            term_3: Any = config_field(ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True}))
-            term_4: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0})
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=2))
+            term_3: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
             )
-            term_5: Any = config_field(
-                ObservationTermCfg(
+            term_4: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
+            )
+            term_5: Any = field(
+                default_factory=lambda: ObservationTermCfg(
                     func=grilled_chicken_with_yoghurt_and_bbq, scale=1.0, params={"hot": False, "bland": 2.0}
                 )
             )
 
-        policy: ObservationGroupCfg = config_field(SampleGroupCfg())
+        policy: ObservationGroupCfg = field(default_factory=SampleGroupCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -223,17 +233,21 @@ def test_config_equivalence(setup_env):
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            your_term: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            his_term: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=2))
-            my_term: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
+            your_term: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10))
+            his_term: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=2))
+            my_term: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
             )
-            her_term: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0})
+            her_term: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
             )
 
-        policy: Any = config_field(SampleGroupCfg())
-        critic: Any = config_field(SampleGroupCfg(concatenate_terms=False, her_term=None))
+        policy: Any = field(default_factory=SampleGroupCfg)
+        critic: Any = field(
+            default_factory=lambda: MyObservationManagerCfg.SampleGroupCfg(concatenate_terms=False, her_term=None)
+        )
 
     cfg = MyObservationManagerCfg()
     obs_man_from_cfg = ObservationManager(cfg, env)
@@ -247,17 +261,27 @@ def test_config_equivalence(setup_env):
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            your_term: ObservationTermCfg = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            his_term: ObservationTermCfg = config_field(ObservationTermCfg(func=grilled_chicken, scale=2))
-            my_term: ObservationTermCfg = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
+            your_term: ObservationTermCfg = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10)
             )
-            her_term: ObservationTermCfg = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0})
+            his_term: ObservationTermCfg = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=2)
+            )
+            my_term: ObservationTermCfg = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
+            )
+            her_term: ObservationTermCfg = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(SampleGroupCfg())
-        critic: ObservationGroupCfg = config_field(SampleGroupCfg(concatenate_terms=False, her_term=None))
+        policy: ObservationGroupCfg = field(default_factory=SampleGroupCfg)
+        critic: ObservationGroupCfg = field(
+            default_factory=lambda: MyObservationManagerAnnotatedCfg.SampleGroupCfg(
+                concatenate_terms=False, her_term=None
+            )
+        )
 
     cfg = MyObservationManagerAnnotatedCfg()
     obs_man_from_annotated_cfg = ObservationManager(cfg, env)
@@ -284,32 +308,40 @@ def test_config_terms(setup_env):
         class SampleGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10))
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_curry, scale=0.0, params={"hot": False}
+                )
             )
 
         @dataclass
         class SampleMixedGroupCfg(ObservationGroupCfg):
             """Test config class for policy observation group with a mix of vector and matrix terms."""
 
-            concatenate_terms: Any = config_field(False)
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=2.0))
-            term_2: Any = config_field(ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5}))
+            concatenate_terms: Any = False
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=2.0))
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5})
+            )
 
         @dataclass
         class SampleImageGroupCfg(ObservationGroupCfg):
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1}
+                )
             )
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3}
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(SampleGroupCfg())
-        critic: ObservationGroupCfg = config_field(SampleGroupCfg(term_2=None))
-        mixed: ObservationGroupCfg = config_field(SampleMixedGroupCfg())
-        image: ObservationGroupCfg = config_field(SampleImageGroupCfg())
+        policy: ObservationGroupCfg = field(default_factory=SampleGroupCfg)
+        critic: ObservationGroupCfg = field(default_factory=lambda: MyObservationManagerCfg.SampleGroupCfg(term_2=None))
+        mixed: ObservationGroupCfg = field(default_factory=SampleMixedGroupCfg)
+        image: ObservationGroupCfg = field(default_factory=SampleImageGroupCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -342,32 +374,38 @@ def test_compute(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10))
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_curry, scale=0.0, params={"hot": False}
+                )
             )
-            term_3: Any = config_field(ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple))
-            term_4: Any = config_field(ObservationTermCfg(func=lin_vel_w_data, scale=1.5))
+            term_3: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple))
+            term_4: Any = field(default_factory=lambda: ObservationTermCfg(func=lin_vel_w_data, scale=1.5))
 
         @dataclass
         class CriticCfg(ObservationGroupCfg):
-            term_1: Any = config_field(ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple))
-            term_2: Any = config_field(ObservationTermCfg(func=lin_vel_w_data, scale=1.5))
-            term_3: Any = config_field(ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple))
-            term_4: Any = config_field(ObservationTermCfg(func=lin_vel_w_data, scale=1.5))
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple))
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=lin_vel_w_data, scale=1.5))
+            term_3: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple))
+            term_4: Any = field(default_factory=lambda: ObservationTermCfg(func=lin_vel_w_data, scale=1.5))
 
         @dataclass
         class ImageCfg(ObservationGroupCfg):
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1}
+                )
             )
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3}
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
-        critic: ObservationGroupCfg = config_field(CriticCfg())
-        image: ObservationGroupCfg = config_field(ImageCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
+        critic: ObservationGroupCfg = field(default_factory=CriticCfg)
+        image: ObservationGroupCfg = field(default_factory=ImageCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -409,12 +447,14 @@ def test_compute_with_history(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, history_length=HISTORY_LENGTH))
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken, history_length=HISTORY_LENGTH)
+            )
             # total observation size: term_dim (4) * history_len (5) = 20
-            term_2: Any = config_field(ObservationTermCfg(func=lin_vel_w_data))
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=lin_vel_w_data))
             # total observation size: term_dim (3) = 3
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -461,8 +501,8 @@ def test_compute_with_2d_history(setup_env):
         class FlattenedPolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(
-                ObservationTermCfg(
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
                     func=grilled_chicken_image, params={"bland": 1.0, "channel": 1}, history_length=HISTORY_LENGTH
                 )
             )
@@ -472,8 +512,8 @@ def test_compute_with_2d_history(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(
-                ObservationTermCfg(
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
                     func=grilled_chicken_image,
                     params={"bland": 1.0, "channel": 1},
                     history_length=HISTORY_LENGTH,
@@ -482,8 +522,8 @@ def test_compute_with_2d_history(setup_env):
             )
             # total observation size: (5, 128, 256, 1)
 
-        flat_obs_policy: ObservationGroupCfg = config_field(FlattenedPolicyCfg())
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        flat_obs_policy: ObservationGroupCfg = field(default_factory=FlattenedPolicyCfg)
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -512,16 +552,18 @@ def test_compute_with_group_history(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            history_length: Any = config_field(GROUP_HISTORY_LENGTH)
+            history_length: Any = field(default_factory=lambda: deepcopy(GROUP_HISTORY_LENGTH))
             # group level history length will override all terms
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, history_length=TERM_HISTORY_LENGTH))
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=grilled_chicken, history_length=TERM_HISTORY_LENGTH)
+            )
             # total observation size: term_dim (4) * history_len (5) = 20
             # with override total obs size: term_dim (4) * history_len (10) = 40
-            term_2: Any = config_field(ObservationTermCfg(func=lin_vel_w_data))
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=lin_vel_w_data))
             # total observation size: term_dim (3) = 3
             # with override total obs size: term_dim (3) * history_len (10) = 30
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -568,14 +610,18 @@ def test_invalid_observation_config(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_bbq, scale=0.1, params={"hot": False})
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_bbq, scale=0.1, params={"hot": False}
+                )
             )
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_with_yoghurt, scale=2.0, params={"hot": False})
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=2.0, params={"hot": False}
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -596,12 +642,14 @@ def test_callable_class_term(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            term_2: Any = config_field(
-                ObservationTermCfg(func=complex_function_class, scale=0.2, params={"interval": 0.5})
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10))
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=complex_function_class, scale=0.2, params={"interval": 0.5}
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -637,10 +685,12 @@ def test_non_callable_class_term(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            term_1: Any = config_field(ObservationTermCfg(func=grilled_chicken, scale=10))
-            term_2: Any = config_field(ObservationTermCfg(func=non_callable_complex_function_class, scale=0.2))
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=grilled_chicken, scale=10))
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=non_callable_complex_function_class, scale=0.2)
+            )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager config
     cfg = MyObservationManagerCfg()
@@ -666,25 +716,31 @@ def test_modifier_compute(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            concatenate_terms: Any = config_field(False)
-            term_1: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[]))
-            term_2: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1]))
-            term_3: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4]))
+            concatenate_terms: Any = False
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[]))
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1]))
+            term_3: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4])
+            )
 
         @dataclass
         class CriticCfg(ObservationGroupCfg):
             """Test config class for critic observation group"""
 
-            concatenate_terms: Any = config_field(False)
-            term_1: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[]))
-            term_2: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1]))
-            term_3: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2]))
-            term_4: Any = config_field(
-                ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2, modifier_3])
+            concatenate_terms: Any = False
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[]))
+            term_2: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1]))
+            term_3: Any = field(
+                default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2])
+            )
+            term_4: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=pos_w_data, modifiers=[modifier_1, modifier_2, modifier_3]
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
-        critic: ObservationGroupCfg = config_field(CriticCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
+        critic: ObservationGroupCfg = field(default_factory=CriticCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -728,10 +784,10 @@ def test_serialize(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            concatenate_terms: Any = config_field(False)
-            term_1: Any = config_field(ObservationTermCfg(func=test_serialize_term))
+            concatenate_terms: Any = False
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=test_serialize_term))
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -755,10 +811,10 @@ def test_modifier_invalid_config(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            concatenate_terms: Any = config_field(False)
-            term_1: Any = config_field(ObservationTermCfg(func=pos_w_data, modifiers=[modifier]))
+            concatenate_terms: Any = False
+            term_1: Any = field(default_factory=lambda: ObservationTermCfg(func=pos_w_data, modifiers=[modifier]))
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     # create observation manager
     cfg = MyObservationManagerCfg()
@@ -779,44 +835,56 @@ def test_concatenate_dim(setup_env):
         class PolicyCfg(ObservationGroupCfg):
             """Test config class for policy observation group."""
 
-            concatenate_terms: Any = config_field(True)
-            concatenate_dim: Any = config_field(1)  # Concatenate along dimension 1
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+            concatenate_terms: Any = True
+            concatenate_dim: Any = 1  # Concatenate along dimension 1
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1}
+                )
             )
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1}
+                )
             )
 
         @dataclass
         class CriticCfg(ObservationGroupCfg):
             """Test config class for critic observation group."""
 
-            concatenate_terms: Any = config_field(True)
-            concatenate_dim: Any = config_field(2)  # Concatenate along dimension 2
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+            concatenate_terms: Any = True
+            concatenate_dim: Any = 2  # Concatenate along dimension 2
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1}
+                )
             )
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1}
+                )
             )
 
         @dataclass
         class CriticCfg_neg_dim(ObservationGroupCfg):
             """Test config class for critic observation group."""
 
-            concatenate_terms: Any = config_field(True)
-            concatenate_dim: Any = config_field(-1)  # Concatenate along last dimension
-            term_1: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+            concatenate_terms: Any = True
+            concatenate_dim: Any = -1  # Concatenate along last dimension
+            term_1: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1}
+                )
             )
-            term_2: Any = config_field(
-                ObservationTermCfg(func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1})
+            term_2: Any = field(
+                default_factory=lambda: ObservationTermCfg(
+                    func=grilled_chicken_image, scale=1.0, params={"bland": 1.0, "channel": 1}
+                )
             )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
-        critic: ObservationGroupCfg = config_field(CriticCfg())
-        critic_neg_dim: ObservationGroupCfg = config_field(CriticCfg_neg_dim())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
+        critic: ObservationGroupCfg = field(default_factory=CriticCfg)
+        critic_neg_dim: ObservationGroupCfg = field(default_factory=CriticCfg_neg_dim)
 
     # create observation manager
     cfg = MyObservationManagerCfg()

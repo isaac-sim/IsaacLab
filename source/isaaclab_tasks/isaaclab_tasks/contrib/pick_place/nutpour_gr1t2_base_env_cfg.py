@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import tempfile
-from dataclasses import MISSING
+from dataclasses import field
 from typing import Any
 
 from isaaclab_teleop import XrCfg
 
-from isaaclab.utils import config_field, replace_config
+from isaaclab.utils import REQUIRED, replace_config
 
 # Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
 # environments in the test suite.
@@ -48,8 +48,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Nut Pour Base Scene."""
 
     # Table
-    table: Any = config_field(
-        AssetBaseCfg(
+    table: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
             init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -60,8 +60,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    sorting_scale: Any = config_field(
-        RigidObjectCfg(
+    sorting_scale: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/SortingScale",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.22236, 0.56, 0.9859], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -72,8 +72,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    sorting_bowl: Any = config_field(
-        RigidObjectCfg(
+    sorting_bowl: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/SortingBowl",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[0.02779, 0.43007, 0.9860], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -85,8 +85,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    sorting_beaker: Any = config_field(
-        RigidObjectCfg(
+    sorting_beaker: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/SortingBeaker",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.13739, 0.45793, 0.9861], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -97,8 +97,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    factory_nut: Any = config_field(
-        RigidObjectCfg(
+    factory_nut: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/FactoryNut",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.13739, 0.45793, 0.9995], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -110,8 +110,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    black_sorting_bin: Any = config_field(
-        RigidObjectCfg(
+    black_sorting_bin: Any = field(
+        default_factory=lambda: RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/BlackSortingBin",
             init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.32688, 0.46793, 0.98634], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
@@ -122,8 +122,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         )
     )
 
-    robot: ArticulationCfg = config_field(
-        replace_config(
+    robot: ArticulationCfg = field(
+        default_factory=lambda: replace_config(
             GR1T2_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
@@ -183,8 +183,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Set table view camera
-    robot_pov_cam: Any = config_field(
-        CameraCfg(
+    robot_pov_cam: Any = field(
+        default_factory=lambda: CameraCfg(
             prim_path="{ENV_REGEX_NS}/RobotPOVCam",
             update_period=0.0,
             height=160,
@@ -196,16 +196,16 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Ground plane
-    ground: Any = config_field(
-        AssetBaseCfg(
+    ground: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/GroundPlane",
             spawn=GroundPlaneCfg(),
         )
     )
 
     # Lights
-    light: Any = config_field(
-        AssetBaseCfg(
+    light: Any = field(
+        default_factory=lambda: AssetBaseCfg(
             prim_path="/World/light",
             spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
         )
@@ -219,7 +219,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    gr1_action: ActionTermCfg = config_field(MISSING)
+    gr1_action: ActionTermCfg = REQUIRED
 
 
 @dataclass
@@ -230,31 +230,39 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions: Any = config_field(ObsTerm(func=mdp.last_action))
-        robot_joint_pos: Any = config_field(
-            ObsTerm(
+        actions: Any = field(default_factory=lambda: ObsTerm(func=mdp.last_action))
+        robot_joint_pos: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=base_mdp.joint_pos,
                 params={"asset_cfg": SceneEntityCfg("robot")},
             )
         )
 
-        left_eef_pos: Any = config_field(ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"}))
-        left_eef_quat: Any = config_field(ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"}))
-        right_eef_pos: Any = config_field(ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"}))
-        right_eef_quat: Any = config_field(ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"}))
-
-        hand_joint_state: Any = config_field(
-            ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
+        left_eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_pos, params={"link_name": "left_hand_roll_link"})
         )
-        head_joint_state: Any = config_field(
-            ObsTerm(
+        left_eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_quat, params={"link_name": "left_hand_roll_link"})
+        )
+        right_eef_pos: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_pos, params={"link_name": "right_hand_roll_link"})
+        )
+        right_eef_quat: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_eef_quat, params={"link_name": "right_hand_roll_link"})
+        )
+
+        hand_joint_state: Any = field(
+            default_factory=lambda: ObsTerm(func=mdp.get_robot_joint_state, params={"joint_names": ["R_.*", "L_.*"]})
+        )
+        head_joint_state: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.get_robot_joint_state,
                 params={"joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
             )
         )
 
-        robot_pov_cam: Any = config_field(
-            ObsTerm(
+        robot_pov_cam: Any = field(
+            default_factory=lambda: ObsTerm(
                 func=mdp.image,
                 params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
             )
@@ -265,45 +273,45 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
     # observation groups
-    policy: PolicyCfg = config_field(PolicyCfg())
+    policy: PolicyCfg = field(default_factory=PolicyCfg)
 
 
 @dataclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out: Any = config_field(DoneTerm(func=mdp.time_out, time_out=True))
+    time_out: Any = field(default_factory=lambda: DoneTerm(func=mdp.time_out, time_out=True))
 
-    sorting_bowl_dropped: Any = config_field(
-        DoneTerm(
+    sorting_bowl_dropped: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum,
             params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("sorting_bowl")},
         )
     )
-    sorting_beaker_dropped: Any = config_field(
-        DoneTerm(
+    sorting_beaker_dropped: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum,
             params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("sorting_beaker")},
         )
     )
-    factory_nut_dropped: Any = config_field(
-        DoneTerm(
+    factory_nut_dropped: Any = field(
+        default_factory=lambda: DoneTerm(
             func=mdp.root_height_below_minimum,
             params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("factory_nut")},
         )
     )
 
-    success: Any = config_field(DoneTerm(func=mdp.task_done_nut_pour))
+    success: Any = field(default_factory=lambda: DoneTerm(func=mdp.task_done_nut_pour))
 
 
 @dataclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_all: Any = config_field(EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
+    reset_all: Any = field(default_factory=lambda: EventTerm(func=mdp.reset_scene_to_default, mode="reset"))
 
-    set_factory_nut_mass: Any = config_field(
-        EventTerm(
+    set_factory_nut_mass: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.randomize_rigid_body_mass,
             mode="startup",
             params={
@@ -314,8 +322,8 @@ class EventCfg:
         )
     )
 
-    reset_object: Any = config_field(
-        EventTerm(
+    reset_object: Any = field(
+        default_factory=lambda: EventTerm(
             func=mdp.reset_object_poses_nut_pour,
             mode="reset",
             params={
@@ -333,27 +341,29 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = config_field(ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True))
+    scene: ObjectTableSceneCfg = field(
+        default_factory=lambda: ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    )
     # Basic settings
-    observations: ObservationsCfg = config_field(ObservationsCfg())
-    actions: ActionsCfg = config_field(ActionsCfg())
+    observations: ObservationsCfg = field(default_factory=ObservationsCfg)
+    actions: ActionsCfg = field(default_factory=ActionsCfg)
     # MDP settings
-    terminations: TerminationsCfg = config_field(TerminationsCfg())
-    events: Any = config_field(EventCfg())
+    terminations: TerminationsCfg = field(default_factory=TerminationsCfg)
+    events: Any = field(default_factory=EventCfg)
 
     # Unused managers
-    commands: Any = config_field(None)
-    rewards: Any = config_field(None)
-    curriculum: Any = config_field(None)
+    commands: Any = None
+    rewards: Any = None
+    curriculum: Any = None
 
     # Temporary directory for URDF files
-    temp_urdf_dir: Any = config_field(tempfile.gettempdir())
+    temp_urdf_dir: Any = field(default_factory=tempfile.gettempdir)
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3),
     #                 right arm quat (4), left/right hand joint pos (22)]
-    idle_action: Any = config_field(
-        [
+    idle_action: Any = field(
+        default_factory=lambda: [
             -0.22878,
             0.2536,
             1.0953,

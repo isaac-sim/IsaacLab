@@ -12,7 +12,7 @@ are required.
 
 from __future__ import annotations
 
-from isaaclab.utils import config_field
+from dataclasses import field
 
 """Launch Isaac Sim Simulator first."""
 
@@ -75,14 +75,14 @@ def _make_cfg(frame_stack: int):
     class ObsCfg:
         @dataclass
         class PolicyCfg(ObservationGroupCfg):
-            img: ObservationTermCfg = config_field(
-                ObservationTermCfg(
+            img: ObservationTermCfg = field(
+                default_factory=lambda: ObservationTermCfg(
                     func=stacked_image,
                     params={"frame_stack": frame_stack},
                 )
             )
 
-        policy: ObservationGroupCfg = config_field(PolicyCfg())
+        policy: ObservationGroupCfg = field(default_factory=PolicyCfg)
 
     return ObsCfg()
 

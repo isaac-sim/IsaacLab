@@ -3,30 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-from isaaclab.utils import config_field
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlRNNModelCfg
 
 
 @dataclass
 class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env: Any = config_field(512)
-    max_iterations: Any = config_field(1500)
-    save_interval: Any = config_field(50)
-    experiment_name: Any = config_field("gear_assembly_ur10e")
-    clip_actions: Any = config_field(1.0)
-    resume: Any = config_field(False)
-    obs_groups: Any = config_field(
-        {
+    num_steps_per_env: Any = 512
+    max_iterations: Any = 1500
+    save_interval: Any = 50
+    experiment_name: Any = "gear_assembly_ur10e"
+    clip_actions: Any = 1.0
+    resume: Any = False
+    obs_groups: Any = field(
+        default_factory=lambda: {
             "actor": ["policy"],
             "critic": ["critic"],
         }
     )
-    actor: Any = config_field(
-        RslRlRNNModelCfg(
+    actor: Any = field(
+        default_factory=lambda: RslRlRNNModelCfg(
             hidden_dims=[256, 128, 64],
             activation="elu",
             obs_normalization=True,
@@ -36,8 +34,8 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
             rnn_num_layers=2,
         )
     )
-    critic: Any = config_field(
-        RslRlRNNModelCfg(
+    critic: Any = field(
+        default_factory=lambda: RslRlRNNModelCfg(
             hidden_dims=[256, 128, 64],
             activation="elu",
             obs_normalization=True,
@@ -46,8 +44,8 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
             rnn_num_layers=2,
         )
     )
-    algorithm: Any = config_field(
-        RslRlPpoAlgorithmCfg(
+    algorithm: Any = field(
+        default_factory=lambda: RslRlPpoAlgorithmCfg(
             value_loss_coef=1.0,
             use_clipped_value_loss=True,
             clip_param=0.2,

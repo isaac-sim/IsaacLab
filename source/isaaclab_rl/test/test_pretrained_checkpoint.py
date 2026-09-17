@@ -5,7 +5,7 @@
 
 """Tests for backend-aware pretrained checkpoint paths."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -16,7 +16,6 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import config_field
 
 from isaaclab_rl.utils import pretrained_checkpoint
 
@@ -25,15 +24,15 @@ from isaaclab_rl.utils import pretrained_checkpoint
 class _CameraCfg:
     """Minimal camera config for renderer-backend discovery."""
 
-    renderer_cfg: IsaacRtxRendererCfg | NewtonWarpRendererCfg = config_field(IsaacRtxRendererCfg())
+    renderer_cfg: IsaacRtxRendererCfg | NewtonWarpRendererCfg = field(default_factory=IsaacRtxRendererCfg)
 
 
 @dataclass
 class _EnvCfg:
     """Minimal resolved environment config for backend discovery."""
 
-    sim: SimulationCfg = config_field(SimulationCfg(physics=PhysxCfg()))
-    camera: _CameraCfg | None = config_field(None)
+    sim: SimulationCfg = field(default_factory=lambda: SimulationCfg(physics=PhysxCfg()))
+    camera: _CameraCfg | None = None
 
 
 def test_get_pretrained_checkpoint_filename_includes_backends():

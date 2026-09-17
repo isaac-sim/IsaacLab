@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING, dataclass, field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import config_field
+from isaaclab.utils import REQUIRED
 
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
@@ -35,11 +35,11 @@ class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     and in the registered Newton prototype model for the controlled asset.
     """
 
-    class_type: type[NewtonInverseKinematicsAction] | str = config_field(
+    class_type: type[NewtonInverseKinematicsAction] | str = (
         "isaaclab_newton.envs.mdp.actions.newton_ik_actions:NewtonInverseKinematicsAction"
     )
 
-    joint_names: list[str] = config_field(MISSING)
+    joint_names: list[str] = REQUIRED
     """Joints actuated by the action.
 
     The Newton solve resolves the whole prototype joint configuration jointly
@@ -47,7 +47,7 @@ class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     the articulation -- not a per-objective property.
     """
 
-    objectives: list[NewtonIKObjectiveCfg] = config_field(MISSING)
+    objectives: list[NewtonIKObjectiveCfg] = REQUIRED
     """Ordered IK objectives. Must contain at least one pose objective."""
 
     controller: NewtonIKSolverCfg = field(default_factory=NewtonIKSolverCfg)
