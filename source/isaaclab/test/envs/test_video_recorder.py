@@ -229,8 +229,8 @@ def test_visualizer_source_auto_picks_first_with_render_rgb_array():
     assert viz.render_calls == 1
 
 
-def test_visualizer_source_refreshes_physics_before_on_demand_capture():
-    """On-demand capture reads a frame after physics transforms are synchronized."""
+def test_visualizer_source_refreshes_render_state_before_on_demand_capture():
+    """Kinematic forward alone does not publish Newton poses to the renderer."""
     synchronized = False
 
     class _FreshFrameViz(_FakeViz):
@@ -241,11 +241,11 @@ def test_visualizer_source_refreshes_physics_before_on_demand_capture():
     env = _make_env(visualizers=[viz])
     env.sim.is_rendering = False
 
-    def synchronize_physics() -> None:
+    def publish_render_state() -> None:
         nonlocal synchronized
         synchronized = True
 
-    env.sim.forward.side_effect = synchronize_physics
+    env.sim.render.side_effect = publish_render_state
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
 
     frame = recorder._get_frame()
