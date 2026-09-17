@@ -36,7 +36,7 @@ Use these gates before calling a manipulation task ready:
 
 1. Environment launches with the intended backend and task ID.
 2. Scene assets spawn with usable collision and support geometry.
-3. Initial environment configuration is physically valid and reachable.
+3. Environment configuration at reset is physically valid and reachable.
 4. Action dimensions and controlled joints or bodies match the agent config.
 5. Observation terms expose the task frames needed by rewards and actions.
 6. Reward, termination, and metric geometry agree.
