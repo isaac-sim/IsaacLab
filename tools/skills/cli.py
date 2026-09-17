@@ -363,7 +363,11 @@ class Skill:
             except json.JSONDecodeError as exc:
                 errors.append(f"{_display_path(evals_json)}: invalid JSON: {exc}")
                 return errors
-            evals = data.get("evals", []) if isinstance(data, dict) else []
+            evals_raw = data.get("evals") if isinstance(data, dict) else None
+            if not isinstance(evals_raw, list):
+                errors.append(f"{_display_path(evals_json)}: 'evals' must be a JSON array")
+                return errors
+            evals = evals_raw
             valid_entries = [entry for entry in evals if isinstance(entry, dict)]
             if len(valid_entries) < 2:
                 errors.append(f"{_display_path(evals_json)}: must contain at least two eval entries")

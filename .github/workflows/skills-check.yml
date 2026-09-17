@@ -61,6 +61,10 @@ jobs:
     name: Validate skills (SkillEvaluator)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
+    # Requires explicit maintainer approval before running untrusted PR code on the
+    # self-hosted runner. Configure this environment in the repo settings with
+    # required reviewers to gate execution.
+    environment: skillevaluator-review
     if: github.event_name == 'pull_request'
 
     steps:

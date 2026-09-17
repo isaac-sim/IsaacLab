@@ -388,6 +388,15 @@ def test_validate_accepts_evals_json_null_expected_skill_for_negative_case(tmp_p
     assert not any("expected_skill" in error for error in errors)
 
 
+def test_validate_rejects_evals_json_null_evals_array(tmp_path):
+    skill = _write_skill(tmp_path)
+    evals_dir = skill.parent / "evals"
+    evals_dir.mkdir()
+    (evals_dir / "evals.json").write_text(json.dumps({"evals": None}), encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert any("must be a JSON array" in error for error in errors)
+
+
 def test_validate_rejects_non_object_eval_entries_and_excludes_them_from_minimum(tmp_path):
     skill = _write_skill(tmp_path)
     evals_dir = skill.parent / "evals"
