@@ -1743,7 +1743,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "17.0.2"
+version = "17.0.3"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2203,7 +2203,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "18.0.1"
+version = "18.0.2"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
