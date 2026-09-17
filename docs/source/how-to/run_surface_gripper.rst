@@ -23,7 +23,7 @@ directory.
 .. dropdown:: Code for run_surface_gripper.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_surface_gripper.py
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
       :language: python
       :emphasize-lines: 61-85, 124-125, 128-142, 147-150
       :linenos:
@@ -61,7 +61,7 @@ principle applies to the surface gripper. By passing the configuration object to
 constructor, the surface gripper is created and can be added to the scene. In practice, the object will only be
 initialized when the play button is pressed.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_surface_gripper.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
    :language: python
    :start-at: # Create separate groups called "Origin1", "Origin2"
    :end-at: surface_gripper = SurfaceGripper(cfg=surface_gripper_cfg)
@@ -79,7 +79,7 @@ Resetting the simulation
 To reset the surface gripper, we only need to call the :meth:`SurfaceGripper.reset` method which will reset the
 internal buffers and caches.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_surface_gripper.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
    :language: python
    :start-at: # Opens the gripper and makes sure the gripper is in the open state
    :end-at: surface_gripper.reset()
@@ -104,7 +104,7 @@ At every step, we randomly sample commands and set them to the gripper by callin
 :meth:`SurfaceGripper.write_data_to_sim` method to write the data to the PhysX buffer. Finally, we step
 the simulation.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_surface_gripper.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
    :language: python
    :start-at: # Sample a random command between -1 and 1.
    :end-at: surface_gripper.write_data_to_sim()
@@ -122,7 +122,7 @@ is called.
 - ``0`` --> Gripper is Closing
 - ``1`` --> Gripper is Closed
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_surface_gripper.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
    :language: python
    :start-at: # Read the gripper state from the simulation
    :end-at: surface_gripper_state = surface_gripper.state
@@ -154,7 +154,7 @@ This command should open a stage with a ground plane, lights, and two pick-and-p
 In the terminal, you should see the gripper state and the command being printed.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 
-.. figure:: ../../_static/tutorials/tutorial_run_surface_gripper.jpg
+.. figure:: ../_static/tutorials/tutorial_run_surface_gripper.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_surface_gripper.py

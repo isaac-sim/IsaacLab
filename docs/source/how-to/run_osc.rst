@@ -22,6 +22,9 @@ In this tutorial, we will learn how to use an OSC to control the robot.
 We will use the :class:`controllers.OperationalSpaceController` class to apply a constant force perpendicular to a
 tilted wall surface while tracking a desired end-effector pose in all the other directions.
 
+This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
+The target quaternions use ``(x, y, z, w)`` order and orient the end-effector toward the tilted wall.
+
 The Code
 ~~~~~~~~
 
@@ -32,7 +35,7 @@ The tutorial corresponds to the ``run_osc.py`` script in the
 .. dropdown:: Code for run_osc.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+   .. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
       :language: python
       :linenos:
 
@@ -56,16 +59,16 @@ in mind.
 For the motion control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
 ``target_types: "pose_abs"``) or relative to the end-effector's current pose (i.e., ``target_types: "pose_rel"``).
 For the force control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
-``target_types: "force_abs"``). If it is desired to apply pose and force control simultaneously, the ``target_types``
+``target_types: "wrench_abs"``). If it is desired to apply pose and force control simultaneously, the ``target_types``
 should be a list such as ``["pose_abs", "wrench_abs"]`` or ``["pose_rel", "wrench_abs"]``.
 
 The axes that the motion and force control will be applied can be specified using the ``motion_control_axes_task`` and
-``force_control_axes_task`` arguments, respectively. These lists should consist of 0/1 for all six axes (position and
+``contact_wrench_control_axes_task`` arguments, respectively. These lists should consist of 0/1 for all six axes (position and
 rotation) and be complementary to each other (e.g., for the x-axis, if the ``motion_control_axes_task`` is ``0``, the
-``force_control_axes_task`` should be ``1``).
+``contact_wrench_control_axes_task`` should be ``1``).
 
 For the motion control axes, desired stiffness, and damping ratio values can be specified using the
-``motion_control_stiffness`` and ``motion_damping_ratio_task`` arguments, which can be a scalar (same value for all
+``motion_stiffness_task`` and ``motion_damping_ratio_task`` arguments, which can be a scalar (same value for all
 axes) or a list of six scalars, one value corresponding to each axis. If desired, the stiffness and damping ratio
 values could be a command parameter (e.g., to learn the values using RL or change them on the go). For this,
 ``impedance_mode`` should be either ``"variable_kp"`` to include the stiffness values within the command or
@@ -109,7 +112,7 @@ We set the impedance mode to ``"variable_kp"`` to dynamically change the stiffne
 damped response). Finally, ``nullspace_control`` is set to use ``"position"`` where the joint set points are provided
 to be the center of the joint position limits.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Create the OSC
    :end-at: osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
@@ -122,7 +125,7 @@ about the robot. This includes the robot's Jacobian matrix, mass/inertia matrix,
 force (all in the root frame), and finally, the joint positions and velocities. Moreover, the user should provide
 gravity compensation vector and null-space joint position targets if required.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Update robot states
    :end-before: # Update the target commands
@@ -141,7 +144,7 @@ concatanated together.
 In this tutorial, the desired wrench is already defined w.r.t. the task frame, and the desired pose is transformed
 to the task frame as the following:
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Convert the target commands to the task frame
    :end-at: return command, task_frame_pose_b
@@ -150,14 +153,14 @@ The OSC command is set with the command vector in the task frame, the end-effect
 task (reference) frame pose in the base frame as the following. This information is needed, as the internal
 computations are done in the base frame.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # set the osc command
    :end-at: osc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
 
 The joint effort/torque values are computed using the provided robot states and the desired command as the following:
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # compute the joint commands
    :end-at: )
@@ -165,7 +168,7 @@ The joint effort/torque values are computed using the provided robot states and 
 
 The computed joint effort/torque targets can then be applied on the robot.
 
-.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # apply actions
    :end-at: robot.write_data_to_sim()
@@ -178,26 +181,26 @@ You can now run the script and see the result:
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
+   .. tab-item:: Isaac Sim PhysX (uv)
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/05_controllers/run_osc.py --num_envs 128
+         uv run isaaclab -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128
+         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
 
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.
 You should see that the robot reaches the desired pose while applying a constant force perpendicular to the wall
 surface.
 
-.. figure:: ../../_static/tutorials/tutorial_operational_space_controller.jpg
+.. figure:: ../_static/tutorials/tutorial_operational_space_controller.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_osc.py
 
-To stop the simulation, you can either close the window or press ``Ctrl+C`` in the terminal.
+Press ``Ctrl+C`` in the terminal to stop the simulation.

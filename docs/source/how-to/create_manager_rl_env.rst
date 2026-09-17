@@ -36,7 +36,7 @@ For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.c
 .. dropdown:: Code for cartpole_manager_env_cfg.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+   .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
       :language: python
       :emphasize-lines: 117-141, 144-154, 172-174
       :linenos:
@@ -49,7 +49,7 @@ The script for running the environment ``run_cartpole_rl_env.py`` is present in 
 .. dropdown:: Code for run_cartpole_rl_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
+   .. literalinclude:: ../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
       :emphasize-lines: 38-42, 56-57
       :linenos:
@@ -85,7 +85,7 @@ For the cartpole task, we will use the following reward terms:
 * **Cart Velocity Reward**: Encourage the agent to keep the cart velocity as small as possible.
 * **Pole Velocity Reward**: Encourage the agent to keep the pole velocity as small as possible.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
    :language: python
    :pyobject: RewardsCfg
 
@@ -108,7 +108,7 @@ The flag :attr:`managers.TerminationsCfg.time_out` specifies whether the term is
 or terminated term. These are used to indicate the two types of terminations as described in `Gymnasium's documentation
 <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
    :language: python
    :pyobject: TerminationsCfg
 
@@ -139,7 +139,7 @@ With all the above components defined, we can now create the :class:`ManagerBase
 cartpole environment. This is similar to the :class:`ManagerBasedEnvCfg` defined in :ref:`tutorial-create-manager-base-env`,
 only with the added RL components explained in the above sections.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
    :language: python
    :pyobject: CartpoleEnvCfg
 
@@ -152,7 +152,7 @@ The only difference is that we create an instance of :class:`envs.ManagerBasedRL
 such as the reward and termination status. The information dictionary also maintains logging of quantities
 such as the reward contribution from individual terms, the termination status of each term, the episode length etc.
 
-.. literalinclude:: ../../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
+.. literalinclude:: ../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
    :language: python
    :pyobject: main
 
@@ -173,7 +173,7 @@ returns more signals that specify the reward and termination status. Additionall
 environments reset themselves when they terminate based on the termination criteria specified in the
 configuration.
 
-.. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.jpg
+.. figure:: ../_static/tutorials/tutorial_create_manager_rl_env.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_cartpole_rl_env.py

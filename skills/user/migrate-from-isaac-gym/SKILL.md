@@ -75,5 +75,5 @@ Keep this skill synchronized with the Isaac Gym section in `docs/source/migratio
 - [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)
 - [Schema cfgs](../../../docs/source/concepts/schema_cfgs.rst)
 - [Environment browser](../../../docs/source/setup/environments.rst)
-- [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
-- [Create manager-based environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)
+- [Create direct workflow environment tutorial](../../../docs/source/how-to/create_direct_rl_env.rst)
+- [Create manager-based environment tutorial](../../../docs/source/how-to/create_manager_rl_env.rst)

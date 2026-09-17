@@ -7,6 +7,10 @@ Interacting with an articulation
 
 .. currentmodule:: isaaclab
 
+This runtime example complements :ref:`asset-authoring`. It uses an existing robot
+configuration; see :ref:`how-to-write-articulation-config` to create one and
+:ref:`asset-config-backends` to adapt its spawn properties to PhysX or Newton.
+
 
 This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
 :ref:`tutorial-interact-rigid-object` tutorial, where we learned how to interact with a rigid object.
@@ -23,7 +27,7 @@ directory.
 .. dropdown:: Code for run_articulation.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
       :language: python
       :emphasize-lines: 58-69, 91-104, 108-111, 116-117
       :linenos:
@@ -49,7 +53,7 @@ create this configuration object is provided in the :ref:`how-to-write-articulat
 As seen in the previous tutorial, we can spawn the articulation into the scene in a similar fashion by creating
 an instance of the :class:`assets.Articulation` class by passing the configuration object to its constructor.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
    :start-at: # Create separate groups called "Origin1", "Origin2"
    :end-at: cartpole = Articulation(cfg=cartpole_cfg)
@@ -72,7 +76,7 @@ To reset the articulation, we first set the root state by calling the :meth:`Art
 methods. Similarly, we set the joint states by calling the :meth:`Articulation.write_joint_state_to_sim` method.
 Finally, we call the :meth:`Articulation.reset` method to reset any internal buffers and caches.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
    :start-at: # reset the scene entities
    :end-at: robot.reset()
@@ -96,7 +100,7 @@ by calling ``robot.actuators.target_command.set_effort_index``. After setting th
 we call the :meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers.
 Finally, we step the simulation.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
    :start-at: # Apply random action
    :end-at: robot.write_data_to_sim()
@@ -108,7 +112,7 @@ Updating the state
 Every articulation class contains a :class:`assets.ArticulationData` object. This stores the state of the
 articulation. To update the state inside the buffer, we call the :meth:`assets.Articulation.update` method.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
    :start-at: # Update buffers
    :end-at: robot.update(sim_dt)
@@ -118,7 +122,8 @@ The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
 
-To run the code and see the results, let's run the script from the terminal:
+This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
+the Isaac Sim viewport shown below:
 
 .. tab-set::
 
@@ -126,20 +131,20 @@ To run the code and see the results, let's run the script from the terminal:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_articulation.py
+         uv run isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py --viz kit
 
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
-To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
+Press ``Ctrl+C`` in the terminal to stop the simulation.
 
-.. figure:: ../../_static/tutorials/tutorial_run_articulation.jpg
+.. figure:: ../_static/tutorials/tutorial_run_articulation.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_articulation.py
@@ -158,16 +163,16 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         uv run --extra isaacsim python scripts/demos/arms.py
+         uv run isaaclab -p scripts/demos/arms.py --viz kit
 
          # Spawn many different quadrupeds
-         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         uv run isaaclab -p scripts/demos/quadrupeds.py --viz kit
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         ./isaaclab.sh -p scripts/demos/arms.py
+         ./isaaclab.sh -p scripts/demos/arms.py --viz kit
 
          # Spawn many different quadrupeds
-         ./isaaclab.sh -p scripts/demos/quadrupeds.py
+         ./isaaclab.sh -p scripts/demos/quadrupeds.py --viz kit
