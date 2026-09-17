@@ -22,6 +22,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import standalone_script_cases as script_cases
@@ -369,6 +370,37 @@ def test_subprocess_supervisor_soaks_then_stops_process_group():
     assert result.ready
     assert result.stopped_after_soak
     assert result.elapsed < 2.0
+
+
+def test_subprocess_supervisor_completes_soak_after_startup_deadline(monkeypatch):
+    """Readiness just before the startup deadline must still receive the full soak."""
+    process = mock.Mock(returncode=None)
+    process.poll.side_effect = lambda: process.returncode
+    process.communicate.return_value = (b"", None)
+    selector = mock.Mock()
+    now = 0.0
+    poll_times = iter((299.0, 300.0, 304.0))
+
+    def select(timeout):
+        nonlocal now
+        if timeout == 0.0:
+            return []
+        now = next(poll_times)
+        if now == 299.0:
+            return [(mock.Mock(fileobj=process.stdout), script_cases.selectors.EVENT_READ)]
+        return []
+
+    selector.select.side_effect = select
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", lambda: selector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(script_cases.time, "monotonic", lambda: now)
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=300.0, soak_time=5.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert result.elapsed == 304.0
 
 
 def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(monkeypatch):
