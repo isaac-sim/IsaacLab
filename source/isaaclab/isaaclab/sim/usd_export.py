@@ -444,8 +444,10 @@ class UsdWriter:
                     raise ValueError(f"{path} is not a {schema} prim.")
             elif target.type_name is None:
                 raise NotImplementedError(f"Unregistered schema {schema} requires an explicit target type.")
-            elif author and not prim.AddAppliedSchema(target.schema.format(axis=axis)):
-                raise RuntimeError(f"Could not apply extension {target.schema} at {path}.")
+            else:
+                needs_schema = target.schema.format(axis=axis) not in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+                if author and not prim.AddAppliedSchema(target.schema.format(axis=axis)):
+                    raise RuntimeError(f"Could not apply extension {target.schema} at {path}.")
         attr = prim.GetAttribute(name)
         if target.type_name:
             value_type = Sdf.ValueTypeNames.Find(target.type_name)
