@@ -10,9 +10,13 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from pxr import Usd
+
 from isaaclab.managers import CommandTerm
+from isaaclab.sim import select_usd_variants
 
 from isaaclab_tasks.core.lift import mdp
+from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
@@ -56,6 +60,31 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "gripper_only"}
+
+
+@pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
+def test_franka_rigid_tasks_select_gripper_only_colliders(cfg_type) -> None:
+    """Rigid tasks avoid the arm colliders that intersect the ground during reset sampling."""
+    cfg = resolve_presets(cfg_type(), selected=())
+    stage = Usd.Stage.CreateInMemory()
+    robot = stage.DefinePrim("/Robot", "Xform")
+    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
+    for selection, prim_path, prim_type in (
+        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
+        ("primitives", "/Robot/link1_capsule", "Capsule"),
+        ("gripper_only", "/Robot/gripper_capsule", "Capsule"),
+    ):
+        colliders.AddVariant(selection)
+        colliders.SetVariantSelection(selection)
+        with colliders.GetVariantEditContext():
+            stage.DefinePrim(prim_path, prim_type)
+    colliders.SetVariantSelection("primitives")
+
+    select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
+
+    assert stage.GetPrimAtPath("/Robot/gripper_capsule").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
 def test_camera_normalization_is_stationary() -> None:
