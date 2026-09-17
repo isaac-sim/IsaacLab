@@ -440,12 +440,15 @@ class OVRTXRenderer(BaseRenderer):
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage, self._clone_plan)
 
-        # The clone plan already identifies every source row. Keep those rows independent so
-        # backend bindings for dynamic assets retain the paths they were compiled against.
+        # Unused variant rows retain placeholder source paths but have no spawned prim.
+        # Keep active rows independent so dynamic assets retain their compiled binding paths.
+        active_sources = tuple(
+            path for path, mask in zip(self._clone_plan.sources, self._clone_plan.clone_mask, strict=True) if mask.any()
+        )
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
-            source_paths=self._clone_plan.sources,
+            source_paths=active_sources,
             keep_env_roots=not self._use_ovstage,
         )
 
