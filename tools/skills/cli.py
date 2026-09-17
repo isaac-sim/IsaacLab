@@ -26,7 +26,7 @@ CLAUDE_SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
 NATIVE_SKILLS_ROOTS = (AGENT_SKILLS_ROOT, CLAUDE_SKILLS_ROOT)
 
 INTERNAL_DIR = "_internal"
-AUDIENCES = {"user"}
+AUDIENCES = {"developer", "user"}
 STATUSES = {"experimental", "stable", "deprecated"}
 REQUIRED_SECTIONS = {"When To Use", "Workflow", "Validation", "Maintenance", "References"}
 
@@ -168,7 +168,7 @@ class Skill:
         errors.extend(self._validate_links(self.path, body, enforce_one_level=True))
         errors.extend(self._validate_backtick_paths(self.path, body))
         errors.extend(self._validate_reference_files())
-        if not self.is_internal:
+        if metadata.get("audience") == "user":
             errors.extend(self._validate_user_evaluations(body))
         errors.extend(self._validate_scripts(body))
         return errors
@@ -209,15 +209,6 @@ class Skill:
             if lowered.startswith(("i ", "i can", "you ", "you can")):
                 errors.append(f"{_display_path(self.path)}: description must be written in third person")
 
-        if not isinstance(license_, str) or not license_:
-            errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'license'")
-
-        if not isinstance(author, str) or not author:
-            if isinstance(stray_top_level_author, str) and stray_top_level_author:
-                errors.append(f"{_display_path(self.path)}: 'author' must be nested under 'metadata:', not top-level")
-            else:
-                errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'metadata.author'")
-
         if self.is_internal:
             return errors
 
@@ -238,6 +229,19 @@ class Skill:
 
         if not isinstance(owners, list) or not owners or any(not owner for owner in owners):
             errors.append(f"{_display_path(self.path)}: owners must list at least one owner")
+
+        # license and metadata.author are only required for user-facing skills shared publicly.
+        if audience == "user":
+            if not isinstance(license_, str) or not license_:
+                errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'license'")
+
+            if not isinstance(author, str) or not author:
+                if isinstance(stray_top_level_author, str) and stray_top_level_author:
+                    errors.append(
+                        f"{_display_path(self.path)}: 'author' must be nested under 'metadata:', not top-level"
+                    )
+                else:
+                    errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'metadata.author'")
 
         return errors
 
