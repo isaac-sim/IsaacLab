@@ -20,21 +20,16 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
+
 from .. import mdp
-from . import (
-    AGX_ORIN_USD,
-    BACKGROUND_USD,
-    PROTECTIVE_BOX_USD,
-    TABLE_USD,
-    CameraPresets,
-    H2RobotPresets,
-)
+from .camera_config import CameraPresets
 from .metadata import (
     ACTION_DIM,
     H2_ACTION_JOINT_ORDER,
     POLICY_58_ORDER,
 )
-from .robot_config import h2_body_joint_offsets
+from .robot_config import H2RobotPresets, h2_body_joint_offsets
 
 # Reuse the proven bimanual, camera-facing H2 teleop pose until a pack-task
 # recording supplies a task-specific frame-zero pose.
@@ -101,6 +96,12 @@ _H2_PACK_AGX_ORIN_POLICY_58_POS: tuple[float, ...] = (
 assert len(_H2_PACK_AGX_ORIN_POLICY_58_POS) == ACTION_DIM
 H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS = dict(zip(POLICY_58_ORDER, _H2_PACK_AGX_ORIN_POLICY_58_POS, strict=True))
 H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
+
+
+TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256.usd"
+AGX_ORIN_USD = f"{PROP_ASSET_ROOT}/Assets/MiniPc001/MiniPc001.usd"
+PROTECTIVE_BOX_USD = f"{PROP_ASSET_ROOT}/Assets/ProtectiveBox001/ProtectiveBox001.usd"
+BACKGROUND_USD = f"{NUREC_ASSET_ROOT}/IMG_6246_nurec_aligned_scaled.usdz"
 
 
 @configclass
