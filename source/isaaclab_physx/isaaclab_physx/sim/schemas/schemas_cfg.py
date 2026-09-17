@@ -168,7 +168,7 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -306,7 +306,7 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'RigidBodyPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'RigidBodyPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg' for PhysX properties, or"
             " 'isaaclab.sim.schemas.RigidBodyBaseCfg' for solver-common properties only.",
             DeprecationWarning,
@@ -361,7 +361,7 @@ class PhysxJointCfg(JointDriveFragment):
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
         maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
         alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
-        removed in 4.0.
+        removed in 3.1.
     """
 
 
@@ -404,7 +404,7 @@ class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'JointDrivePropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'JointDrivePropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg' for PhysX properties, or"
             " 'isaaclab.sim.schemas.JointDriveBaseCfg' for solver-common properties only.",
             DeprecationWarning,
@@ -622,7 +622,7 @@ class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'ArticulationRootPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'ArticulationRootPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg' for PhysX properties, or"
             " 'isaaclab.sim.schemas.ArticulationRootBaseCfg' for solver-common properties only.",
             DeprecationWarning,
@@ -645,7 +645,7 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'CollisionPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'CollisionPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg' for PhysX properties, or"
             " 'isaaclab.sim.schemas.CollisionBaseCfg' for solver-common properties only.",
             DeprecationWarning,
@@ -1034,7 +1034,7 @@ class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'MeshCollisionPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'MeshCollisionPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab.sim.schemas.MeshCollisionBaseCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1053,7 +1053,7 @@ class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'ConvexHullPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'ConvexHullPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxConvexHullPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1072,7 +1072,7 @@ class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'ConvexDecompositionPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'ConvexDecompositionPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxConvexDecompositionPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1091,7 +1091,7 @@ class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'TriangleMeshPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'TriangleMeshPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxTriangleMeshPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1110,7 +1110,7 @@ class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPro
 
     def __post_init__(self):
         warnings.warn(
-            "'TriangleMeshSimplificationPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'TriangleMeshSimplificationPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1129,7 +1129,7 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'SDFMeshPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'SDFMeshPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxSDFMeshPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1196,7 +1196,7 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'FixedTendonPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'FixedTendonPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -1254,7 +1254,7 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
 
     def __post_init__(self):
         warnings.warn(
-            "'SpatialTendonPropertiesCfg' is deprecated and will be removed in 4.0. Use"
+            "'SpatialTendonPropertiesCfg' is deprecated and will be removed in 3.1. Use"
             " 'isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
