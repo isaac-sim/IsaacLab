@@ -7,6 +7,9 @@
 
 import pytest
 
+from pxr import Usd
+
+from isaaclab.sim import select_usd_variants
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.franka_pour import pour_env
@@ -111,6 +114,28 @@ def test_reset_dataset_contract_stores_root_relative_robot_asset_path():
     robot_asset = _reset_dataset_task_contract(cfg)["robot_asset"]
     assert robot_asset == "Robots/FrankaEmika/franka_panda.usda"
     assert f"{ISAACLAB_NUCLEUS_DIR}/{robot_asset}" == FRANKA_POUR_ROBOT_ASSET_ID
+
+
+def test_robot_selects_arm_collision_proxies_from_asset_variants():
+    """Pouring retains its arm collision meshes when the asset defaults to primitives."""
+    cfg = FrankaPourResetDatasetEnvCfg()
+    stage = Usd.Stage.CreateInMemory()
+    robot = stage.DefinePrim("/Robot", "Xform")
+    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
+    for selection, prim_path, prim_type in (
+        ("convex_hulls", "/Robot/link0_c/link0_c", "Mesh"),
+        ("primitives", "/Robot/link0_capsule", "Capsule"),
+    ):
+        colliders.AddVariant(selection)
+        colliders.SetVariantSelection(selection)
+        with colliders.GetVariantEditContext():
+            stage.DefinePrim(prim_path, prim_type)
+    colliders.SetVariantSelection("primitives")
+
+    select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
+
+    assert stage.GetPrimAtPath("/Robot/link0_c/link0_c").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link0_capsule").IsValid()
 
 
 def test_capacity_resolution_only_updates_world_dependent_solver_limits():
