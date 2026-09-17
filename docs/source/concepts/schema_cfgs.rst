@@ -385,7 +385,7 @@ sees them), defaulting to ``None``. ``__post_init__`` runs
 ``DeprecationWarning``, copies the value into the canonical field if the
 canonical is ``None``, then nulls the old field. Setting **both** in the same
 constructor is silent — the canonical wins; the old name's value is discarded.
-Both aliases are scheduled for removal in 5.0.
+Both aliases are scheduled for removal in 4.0.
 
 See also
 --------

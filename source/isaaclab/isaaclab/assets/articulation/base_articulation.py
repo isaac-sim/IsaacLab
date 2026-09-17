@@ -1687,7 +1687,7 @@ class BaseArticulation(AssetBase):
         from isaaclab.actuators.newton import write_group_parameter  # noqa: PLC0415
 
         warnings.warn(
-            f"{writer_name} is deprecated in 3.x and will be removed in 5.0. Use "
+            f"{writer_name} is deprecated in 3.x and will be removed in 4.0. Use "
             "randomize_actuator_gains for managed randomization or "
             "isaaclab.actuators.newton.write_group_parameter for direct controller writes.",
             DeprecationWarning,

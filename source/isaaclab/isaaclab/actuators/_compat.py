@@ -72,7 +72,7 @@ def _resolve_limit_aliases(
         if warn_deprecated:
             warnings.warn(
                 f"Actuator group '{actuator_name}' uses deprecated '{old_name}'. Use "
-                f"'{new_name}' instead; '{old_name}' will be removed in 5.0.",
+                f"'{new_name}' instead; '{old_name}' will be removed in 4.0.",
                 DeprecationWarning,
                 stacklevel=3,
             )

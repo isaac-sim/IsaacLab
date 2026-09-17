@@ -1672,7 +1672,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 5.0.
+            replacement. This method will be removed in 4.0.
 
         Args:
             stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
@@ -1695,7 +1695,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 5.0.
+            replacement. This method will be removed in 4.0.
 
         Args:
             damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
