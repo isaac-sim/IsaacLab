@@ -354,3 +354,52 @@ def test_apply_mass_properties_does_not_warn():
     deprecations = _deprecations(lambda: schemas.apply_mass_properties(prim_path, [fragment], stage=stage))
     assert deprecations == []
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(5.0)
+
+"""
+Silencing the warnings, as documented in the 3.0 migration guide.
+"""
+
+
+def _surviving(probe, **filter_kwargs) -> int:
+    """Return how many ``DeprecationWarning`` instances ``probe`` raises under ``filter_kwargs``."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        warnings.filterwarnings("ignore", category=DeprecationWarning, **filter_kwargs)
+        probe()
+    return len([w for w in caught if issubclass(w.category, DeprecationWarning)])
+
+
+def _legacy_writer_probe():
+    stage, prim_path = _stage_with_rigid_body()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        cfg = schemas_cfg.MassPropertiesCfg(mass=3.0)
+    schemas.modify_mass_properties(prim_path, cfg, stage)
+
+
+def test_documented_message_filter_silences_legacy_cfgs_and_writers():
+    """The message regex in the migration guide silences the cfg and writer deprecations."""
+    assert _surviving(schemas_cfg.MassPropertiesCfg, message=r"\w+ is deprecated\. Use ") == 0
+    assert _surviving(_legacy_writer_probe, message=r"\w+ is deprecated\. Use ") == 0
+
+
+def test_documented_message_filter_silences_renamed_field_aliases():
+    """The alias regex in the migration guide silences ``max_effort`` / ``max_velocity``."""
+
+    def probe():
+        schemas_cfg.JointDriveBaseCfg(max_effort=80.0, max_velocity=5.0)
+
+    # Three deprecations fire: the legacy class plus one per alias. Only the aliases are filtered.
+    assert _surviving(probe, message="no-such-warning") == 3
+    assert _surviving(probe, message=r"\'\w+\' is deprecated; use ") == 1
+
+
+def test_module_filter_cannot_silence_these_warnings():
+    """``module=`` matches the caller's module, so it never matches the schema modules.
+
+    The warnings intentionally use ``stacklevel`` to point at the user's call site. A filter
+    keyed on ``isaaclab.sim.schemas`` therefore silences nothing, which is why the migration
+    guide documents a ``message=`` filter instead.
+    """
+    assert _surviving(schemas_cfg.MassPropertiesCfg, module="isaaclab.sim.schemas.*") == 1
+    assert _surviving(_legacy_writer_probe, module="isaaclab.sim.schemas.*") == 1

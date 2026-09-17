@@ -599,14 +599,30 @@ are not deprecated.
 
 **Silencing the warnings while you migrate**
 
-The warnings are standard ``DeprecationWarning``\ s and can be filtered per
-module while a migration is in progress:
+The warnings are standard ``DeprecationWarning``\ s. Filter them by *message*
+while a migration is in progress:
 
 .. code-block:: python
 
    import warnings
 
-   warnings.filterwarnings("ignore", category=DeprecationWarning, module="isaaclab.sim.schemas.*")
+   # Silence one legacy symbol.
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"RigidBodyPropertiesCfg is deprecated")
+
+   # Silence every legacy schema cfg and writer at once.
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"\w+ is deprecated\. Use ")
+
+   # Silence the renamed joint-drive field aliases (``max_effort``, ``max_velocity``).
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"'\w+' is deprecated; use ")
+
+.. warning::
+
+   Do not filter these with ``module="isaaclab.sim.schemas.*"``. ``module`` is
+   matched against the ``__name__`` of the frame selected by the warning's
+   ``stacklevel``, and these warnings deliberately point at *your* call site, so
+   they are attributed to the module that constructed the cfg or called the
+   writer — never ``isaaclab.sim.schemas``. A ``module=`` filter silences
+   nothing here.
 
 .. note::
 
