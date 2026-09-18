@@ -52,11 +52,12 @@ jobs:
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
 
-  # SkillEvaluator Tier 1 / Tier 2A / Tier 2B for skills/user/* touched by this PR.
+  # SkillEvaluator Tier 1 / Tier 2A / Tier 2B / Tier 3 for skills/user/* touched by this PR.
   # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog.)
   # Uses the public NVIDIA/SkillEvaluator package (Apache 2.0); no internal registry
-  # access required. Tier 3 live-agent eval is skipped here — it needs Docker + Harbor
-  # and is run separately on internal infrastructure.
+  # access required. Tier 3 runs via Docker (open-source Harbor framework) using the
+  # repo's existing NVIDIA_INFERENCE_API_KEY with provider nv_build — no internal
+  # managed execution service needed. Tier 3 results are advisory (warnings only).
   validate-skills:
     name: Validate skills (SkillEvaluator)
     runs-on: [self-hosted, gpu]
@@ -92,7 +93,7 @@ jobs:
           set -euo pipefail
           python3 -m pip install --upgrade pip
           python3 -m pip install \
-            "skillevaluator[tier2,security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
+            "skillevaluator[tier2,security,tier3] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
           # gitleaks is needed for the code-integrity (Secrets Detection) check.
           # The security check (skillspector) is NVIDIA-internal and skipped via
           # --checks in the validate step. Install to RUNNER_TEMP (writable on
@@ -155,6 +156,7 @@ jobs:
             echo "===== Per-skill validation (Tier 1): ${skill_dir} ====="
             if ! skillevaluator validate "${skill_dir}" \
                   -c \
+                  --external \
                   --no-dedup \
                   --checks schema,version,pii,license,code-integrity,unicode,quality,lint; then
               failed=1
@@ -176,6 +178,29 @@ jobs:
             || echo "::warning::Tier 2B similarity-check failed (embedding API key unavailable?)"
 
           exit "${failed}"
+
+      - name: Run SkillEvaluator Tier 3 (advisory)
+        if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        env:
+          # nv_build provider: a single NVIDIA_API_KEY drives the evaluator LLM and
+          # the codex agent via SkillEvaluator's built-in NVIDIA Build compatibility
+          # bridge. Results are advisory (no --block-on-agent-eval) so Tier 3 failures
+          # emit warnings but do not block the PR.
+          SKILL_EVAL_LLM_PROVIDER: nv_build
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r skill_dir; do
+            [[ -n "$skill_dir" ]] || continue
+            echo ""
+            echo "===== Tier 3 live evaluation (advisory): ${skill_dir} ====="
+            skillevaluator tier3 evaluate "${skill_dir}" \
+              --agents codex \
+              --env-mode docker \
+              --external \
+              || echo "::warning::Tier 3 eval failed for ${skill_dir} (advisory — Docker or API key unavailable?)"
+          done <<< "${SKILL_DIRS}"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always() && steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
