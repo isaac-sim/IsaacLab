@@ -564,9 +564,9 @@ class OvPhysxManager(PhysicsManager):
         """Register the codeless USD schemas published by the OVPhysX wheel.
 
         OVStage maintains its own USD schema registry, so register the wheel's
-        schema root there even when the host USD runtime already provides the
-        same plugins. For the host USD registry, only register providers that
-        are not already available from a compiled plugin.
+        schema root and the optional Newton USD schema there before population.
+        For the host USD registry, only register PhysX providers that are not
+        already available from a compiled plugin.
         """
         if cls._physx_schemas_registered:
             return
@@ -584,7 +584,13 @@ class OvPhysxManager(PhysicsManager):
             schema_root = getattr(ovphysx, "codeless_schema_root", None)
             register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
             if callable(schema_root) and callable(register_ovstage_schemas):
-                register_ovstage_schemas(str(schema_root()))
+                schema_roots = [str(schema_root())]
+                newton_schema_root = getattr(ovphysx, "newton_schema_root", None)
+                if callable(newton_schema_root):
+                    # The separately installed Newton USD schema is optional.
+                    with contextlib.suppress(FileNotFoundError):
+                        schema_roots.append(str(newton_schema_root()))
+                register_ovstage_schemas(schema_roots)
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
