@@ -198,7 +198,6 @@ jobs:
             skillevaluator tier3 evaluate "${skill_dir}" \
               --agents codex \
               --env-mode docker \
-              --external \
               || echo "::warning::Tier 3 eval failed for ${skill_dir} (advisory — Docker or API key unavailable?)"
           done <<< "${SKILL_DIRS}"
 
