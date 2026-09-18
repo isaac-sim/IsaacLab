@@ -22,6 +22,10 @@ Tests:
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
         -> verify the RL extras omit tetrahedralization dependencies
+    - python -c "import isaaclab_rl" -> verify isaaclab_rl importable
+    - python -c "import isaaclab_tasks" -> verify isaaclab_tasks importable
+    - python -c "import importlib.metadata as m; m.version('isaacsim')"
+        -> verify isaacsim NOT installed (extra not requested)
 """
 
 from __future__ import annotations
@@ -190,3 +194,21 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert result.returncode == 0, (
             f"pytetwild should not be installed by {self._extras}:\n{result.stdout}\n{result.stderr}"
         )
+
+    def test_install_rl_tasks_makes_isaaclab_rl_importable(self):
+        """``import isaaclab_rl`` succeeds with the RL extras installed."""
+        result = self.run_in_uv_env(["python", "-c", "import isaaclab_rl"])
+        assert result.returncode == 0, f"import isaaclab_rl failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_tasks_makes_isaaclab_tasks_importable(self):
+        """``import isaaclab_tasks`` succeeds with the RL extras installed."""
+        result = self.run_in_uv_env(["python", "-c", "import isaaclab_tasks"])
+        assert result.returncode == 0, f"import isaaclab_tasks failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_tasks_omits_isaacsim(self):
+        """The Isaac Sim runtime is absent when the isaacsim extra is not requested.
+
+        Ask the distribution directly so this remains independent of namespace-package behavior.
+        """
+        result = self.run_in_uv_env(["python", "-c", "import importlib.metadata as m; m.version('isaacsim')"])
+        assert result.returncode != 0, f"isaacsim should not be installed by the {self._extras} extras"
