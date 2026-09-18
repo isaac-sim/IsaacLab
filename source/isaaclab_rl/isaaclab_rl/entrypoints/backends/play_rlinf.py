@@ -108,14 +108,7 @@ def main():
         # RLinf never reads runner.eval_policy_path. The extension overlays the weights while building the
         # rollout model, whose config the rollout worker copies from actor.model.
         if args_cli.checkpoint:
-            rl_weights = cli_args._resolve_rlinf_checkpoint(
-                args_cli.checkpoint,
-                log_root_path=str(Path("logs") / "rlinf"),
-                task=args_cli.task or task_id,
-                config_name=config_name,
-            )
-            # Resolved against the launcher's cwd, which the Ray workers do not share.
-            rl_weights = str(Path(rl_weights).expanduser().resolve())
+            rl_weights = cli_args._resolve_rlinf_checkpoint(args_cli.checkpoint)
             if cfg.actor.model.get("model_type", "gr00t") == "gr00t_n1d7":
                 # RLinf builds N1.7 models natively, so hand it the weights through its own hook.
                 cfg.runner.ckpt_path = rl_weights

@@ -140,14 +140,7 @@ def run(argv: list[str]) -> None:
         if args_cli.only_eval:
             cfg.runner.only_eval = True
         if args_cli.checkpoint:
-            checkpoint_path = cli_args._resolve_rlinf_checkpoint(
-                args_cli.checkpoint,
-                log_root_path=str(Path("logs") / "rlinf"),
-                task=args_cli.task or task_id,
-                config_name=config_name,
-            )
-            # Ray workers do not inherit the launcher's working directory, so the resolved directory
-            # is absolute.
+            checkpoint_path = cli_args._resolve_rlinf_checkpoint(args_cli.checkpoint)
             cfg.runner.resume_dir = cli_args._resolve_rlinf_resume_dir(checkpoint_path)
 
         # RLinf builds the eval rollout model from ``rollout.model`` (older releases deep-copied

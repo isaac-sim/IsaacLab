@@ -35,53 +35,28 @@ def resolve_config_dir(config_name: str, explicit_path: str | None) -> str:
     return _SCRIPT_DIR
 
 
-def _resolve_rlinf_checkpoint(
-    checkpoint: str,
-    *,
-    log_root_path: str,
-    task: str,
-    config_name: str,
-) -> str:
-    """Resolve an RLinf checkpoint selector or local path."""
-    from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+def _resolve_rlinf_checkpoint(checkpoint: str) -> str:
+    """Return the absolute ``full_weights.pt`` path: ``checkpoint`` is the file or a directory holding exactly one.
 
-    if checkpoint == "pretrained":
-        raise ValueError("Pre-trained checkpoints are not available for RLinf.")
-
-    if checkpoint in CHECKPOINT_SELECTORS:
-        return resolve_checkpoint_selector(
-            log_root_path,
-            checkpoint,
-            library="rlinf",
-            task=task,
-            checkpoint_pattern=r"full_weights[.]pt",
-            metadata={"config_name": config_name},
-            recursive=True,
-        )
-
-    checkpoint_path = Path(checkpoint)
-    if checkpoint_path.is_dir():
-        # RLinf writes full_weights.pt under actor/model_state_dict/ inside each global_step_<N> directory.
-        nested = checkpoint_path / "actor" / "model_state_dict" / "full_weights.pt"
-        checkpoint_path = nested if nested.exists() else checkpoint_path / "full_weights.pt"
-    return str(checkpoint_path)
+    Absolute because the Ray workers do not share the launcher's working directory.
+    """
+    path = Path(checkpoint).expanduser().resolve()
+    if path.is_dir():
+        matches = list(path.rglob("full_weights.pt"))
+        if len(matches) != 1:
+            raise FileNotFoundError(f"Expected exactly one full_weights.pt under {path}, found {len(matches)}.")
+        path = matches[0]
+    if not path.is_file():
+        raise FileNotFoundError(f"RLinf checkpoint does not exist: {path}")
+    return str(path)
 
 
 def _resolve_rlinf_resume_dir(weights_path: str) -> str:
-    """Return the checkpoint directory RLinf resumes training from.
-
-    RLinf appends ``actor`` to ``runner.resume_dir`` and reads the step count out of its name, so it
-    wants the ``global_step_<N>`` directory rather than the weights file inside it.
-
-    Args:
-        weights_path: Path to the ``full_weights.pt`` selected by ``--checkpoint``.
-
-    Returns:
-        The enclosing ``global_step_<N>`` directory, absolute; the file's parent when the path has no
-        such ancestor.
-    """
-    weights = Path(weights_path).expanduser().resolve()
-    return str(next((p for p in weights.parents if p.name.startswith("global_step_")), weights.parent))
+    """Return the enclosing ``global_step_<N>`` directory; RLinf resumes from it and parses the step from its name."""
+    for parent in Path(weights_path).parents:
+        if parent.name.startswith("global_step_"):
+            return str(parent)
+    raise ValueError(f"{weights_path} is not inside a global_step_<N> directory.")
 
 
 def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
@@ -110,7 +85,10 @@ def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
         "--checkpoint",
         type=str,
         default=None,
-        help="RL-finetuned checkpoint path, or latest/best.",
+        help=(
+            "RL-finetuned RLinf checkpoint: the full_weights.pt file, or its global_step_<N> directory "
+            "(or any directory between the two)."
+        ),
     )
     arg_group.add_argument(
         "--only_eval", action="store_true", default=False, help="Only run evaluation without training."

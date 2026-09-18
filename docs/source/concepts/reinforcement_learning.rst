@@ -153,6 +153,8 @@ Use ``play`` with one of the following checkpoint selectors:
    * - ``/path/to/checkpoint``
      - Loads a specific checkpoint.
 
+RLinf accepts only ``/path/to/checkpoint``; see :ref:`rlinf-post-training` for the accepted forms.
+
 For example, play the best local checkpoint and record a short video:
 
 .. code-block:: bash

@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import functools
 import importlib
 import os
 import runpy
@@ -400,22 +399,26 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     """RLinf accepts the public checkpoint and iteration option names."""
     from isaaclab_rl.entrypoints.backends import train_rlinf
 
-    args = train_rlinf._parse_args(["--config_name", "ppo", "--checkpoint", "latest", "--max_iterations", "10"])
+    args = train_rlinf._parse_args(
+        ["--config_name", "ppo", "--checkpoint", "logs/rlinf/run/checkpoints/global_step_4", "--max_iterations", "10"]
+    )
 
-    assert args.checkpoint == "latest"
+    assert args.checkpoint == "logs/rlinf/run/checkpoints/global_step_4"
     assert args.max_iterations == 10
 
 
-def test_rlinf_rejects_pretrained_checkpoint() -> None:
-    """RLinf has no published pre-trained checkpoint."""
+@pytest.mark.parametrize("checkpoint", ["latest", "best", "pretrained"])
+def test_rlinf_checkpoint_rejects_selector_keywords(checkpoint: str, tmp_path, monkeypatch) -> None:
+    """RLinf ``--checkpoint`` takes a path only; selector keywords are not files and fail up front."""
     from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
 
-    with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
-        _resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        _resolve_rlinf_checkpoint(checkpoint)
 
 
 def test_rlinf_checkpoint_directory_resolves_to_the_weights_file(tmp_path) -> None:
-    """A ``global_step_<N>`` directory names the weights RLinf wrote three levels inside it."""
+    """Any directory enclosing exactly one ``full_weights.pt`` resolves to that file, as does the file itself."""
     from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
 
     step_dir = tmp_path / "checkpoints" / "global_step_400"
@@ -423,12 +426,28 @@ def test_rlinf_checkpoint_directory_resolves_to_the_weights_file(tmp_path) -> No
     weights.parent.mkdir(parents=True)
     weights.write_bytes(b"")
 
-    resolve = functools.partial(
-        _resolve_rlinf_checkpoint, log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo"
-    )
-    assert resolve(str(step_dir)) == str(weights)
-    assert resolve(str(weights.parent)) == str(weights)
-    assert resolve(str(weights)) == str(weights)
+    assert _resolve_rlinf_checkpoint(str(step_dir)) == str(weights)
+    assert _resolve_rlinf_checkpoint(str(step_dir / "actor")) == str(weights)
+    assert _resolve_rlinf_checkpoint(str(weights.parent)) == str(weights)
+    assert _resolve_rlinf_checkpoint(str(weights)) == str(weights)
+
+
+def test_rlinf_checkpoint_directory_must_hold_exactly_one_weights_file(tmp_path) -> None:
+    """A directory with several or no ``full_weights.pt`` is ambiguous and rejected rather than guessed."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
+
+    for step in (200, 400):
+        weights = tmp_path / "checkpoints" / f"global_step_{step}" / "actor" / "model_state_dict" / "full_weights.pt"
+        weights.parent.mkdir(parents=True)
+        weights.write_bytes(b"")
+
+    with pytest.raises(FileNotFoundError, match="found 2"):
+        _resolve_rlinf_checkpoint(str(tmp_path / "checkpoints"))
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(FileNotFoundError, match="found 0"):
+        _resolve_rlinf_checkpoint(str(empty))
 
 
 def test_rlinf_resume_dir_is_the_global_step_directory(tmp_path) -> None:
@@ -443,8 +462,21 @@ def test_rlinf_resume_dir_is_the_global_step_directory(tmp_path) -> None:
     resume_dir = _resolve_rlinf_resume_dir(str(weights))
 
     assert resume_dir == str(step_dir)
+    # The two things RLinf does with resume_dir: append "actor" and parse the step from the name.
     assert os.path.isdir(os.path.join(resume_dir, "actor"))
     assert int(resume_dir.split("global_step_")[-1]) == 400
+
+
+def test_rlinf_resume_dir_requires_a_global_step_ancestor(tmp_path) -> None:
+    """Weights copied outside a ``global_step_<N>`` directory cannot be resumed from, so this fails early."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_resume_dir
+
+    weights = tmp_path / "exported" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"")
+
+    with pytest.raises(ValueError, match="global_step_<N>"):
+        _resolve_rlinf_resume_dir(str(weights))
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:

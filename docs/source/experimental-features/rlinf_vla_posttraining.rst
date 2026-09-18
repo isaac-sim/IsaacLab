@@ -225,9 +225,10 @@ The placeholders are configurable in the task YAML
 - ``<experiment_name>`` — ``runner.logger.experiment_name`` (default: ``test_gr00t``)
 - ``<N>`` — increments every ``runner.save_interval`` epochs
 
-The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume training, pass the
-``global_step_<N>`` directory via ``--checkpoint``. For playback, ``--checkpoint`` also
-accepts ``latest`` and ``best``; both select the newest saved RLinf checkpoint.
+The exact path is printed at startup as ``[INFO] Logging to: ...``. ``--checkpoint`` takes a path:
+the ``global_step_<N>`` directory, any directory below it, or the ``full_weights.pt`` file itself.
+Training resumes from the enclosing ``global_step_<N>`` directory (RLinf reads the step count from
+its name); playback loads the weights file.
 
 .. tip::
 

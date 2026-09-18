@@ -14,6 +14,11 @@ Changed
 * Changed the RLinf pin installed by ``setup_rlinf.py`` from the ``0.2.0dev2`` PyPI release to a git
   commit that dispatches on ``actor.model.model_type``, so one RLinf serves GR00T N1.5 and N1.7.
   Re-run the setup script to upgrade an existing environment.
+* **Breaking:** Changed the RLinf ``--checkpoint`` argument to accept a path only. The ``latest`` and
+  ``best`` selectors are no longer recognised for RLinf; pass the ``global_step_<N>`` directory (or any
+  directory below it, or the ``full_weights.pt`` file) printed under ``[INFO] Logging to: ...`` instead.
+  A path that does not exist, or a directory holding several checkpoints, is rejected at launch rather
+  than handed to RLinf.
 
 Fixed
 ^^^^^
