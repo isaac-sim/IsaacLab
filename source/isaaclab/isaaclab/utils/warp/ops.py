@@ -175,11 +175,11 @@ def raycast_mesh(
     wp.synchronize()
 
     if return_distance:
-        ray_distance = ray_distance.to(device).view(shape[0], shape[1])
+        ray_distance = ray_distance.to(device).view(shape[:-1])
     if return_normal:
         ray_normal = ray_normal.to(device).view(shape)
     if return_face_id:
-        ray_face_id = ray_face_id.to(device).view(shape[0], shape[1])
+        ray_face_id = ray_face_id.to(device).view(shape[:-1])
 
     return ray_hits.to(device).view(shape), ray_distance, ray_normal, ray_face_id
 
