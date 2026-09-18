@@ -185,8 +185,13 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        uv run --no-project --no-build --with pytest==9.1.1 \
-          python -m pytest -q docker/test/test_dockerfile_nonroot.py
+        contract_env="$(mktemp -d "${RUNNER_TEMP}/isaaclab-contract.XXXXXX")"
+        uv venv --python 3.12 "${contract_env}"
+        uv pip sync --require-hashes --only-binary :all: \
+          --python "${contract_env}/bin/python" docker/test/requirements.txt
+        uv pip check --python "${contract_env}/bin/python"
+        "${contract_env}/bin/python" -m pytest -q \
+          docker/test/test_dockerfile_nonroot.py docker/test/test_security_dependencies.py
 
   #region build jobs
   build:

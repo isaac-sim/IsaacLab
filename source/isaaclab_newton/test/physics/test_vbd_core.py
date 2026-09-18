@@ -100,14 +100,14 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     class Builder:
         def __init__(self):
             self.imports = []
-            self.color_calls = 0
+            self.color_calls = []
 
         def add_usd(self, stage, *, root_path=None, ignore_paths=(), schema_resolvers=()):
             self.imports.append((root_path, list(ignore_paths)))
             return {"path_shape_map": {}}
 
-        def color(self):
-            self.color_calls += 1
+        def color(self, *, balance_colors):
+            self.color_calls.append(balance_colors)
 
     children = [
         SimpleNamespace(
@@ -179,7 +179,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     else:
         assert builders[0].imports == [(None, ["/World/terrain", *deformable_paths])]
         assert hook_calls == [0]
-    assert builders[0].color_calls == 1
+    assert builders[0].color_calls == [False]
 
 
 def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
@@ -189,8 +189,8 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
     events = []
 
     class Builder:
-        def color(self):
-            events.append("color")
+        def color(self, *, balance_colors):
+            events.append(("color", balance_colors))
 
     monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
     monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
@@ -198,7 +198,7 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
 
     physics.NewtonVBDManager.start_simulation()
 
-    assert events == ["color", "start"]
+    assert events == [("color", False), "start"]
 
 
 @pytest.mark.parametrize("external_rigid_solver", [False, True])

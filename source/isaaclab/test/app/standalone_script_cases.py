@@ -489,7 +489,7 @@ def run_until_ready(
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
-            if now - start_time >= startup_timeout:
+            if ready_at is None and now - start_time >= startup_timeout:
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
