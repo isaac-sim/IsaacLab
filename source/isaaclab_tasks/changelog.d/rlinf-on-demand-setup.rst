@@ -27,6 +27,9 @@ Added
 Changed
 ^^^^^^^
 
+* Changed the pick-and-place apple and AGX Orin packing environments to set ``num_rerenders_on_reset = 2``.
+  Without a re-render the observation returned by ``reset`` carried the previous episode's camera
+  image, which the policy then acted on for its first action chunk.
 * Changed ``assemble_trocar`` to draw its scene from the same asset bundle as the H2 + Sharpa tasks
   instead of its own pinned Isaac Healthcare release, so props the tasks have in common are fetched
   and cached once. The files are byte-identical to the ones it used before.
