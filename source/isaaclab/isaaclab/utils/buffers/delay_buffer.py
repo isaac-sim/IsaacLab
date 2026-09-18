@@ -125,29 +125,34 @@ class DelayBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
 
+        # Build the requested lag state separately so an invalid update never poisons
+        # the active buffer configuration.
+        requested_time_lags = self._time_lags.clone()
+
         # parse requested time_lag
         if isinstance(time_lag, int):
-            # set the time lags across provided batch indices
-            self._time_lags[batch_ids] = time_lag
+            requested_time_lags[batch_ids] = time_lag
         elif isinstance(time_lag, torch.Tensor):
             # check valid dtype for time_lag: must be int or long
             if time_lag.dtype not in [torch.int, torch.long]:
                 raise TypeError(f"Invalid dtype for time_lag: {time_lag.dtype}. Expected torch.int or torch.long.")
-            # set the time lags
-            self._time_lags[batch_ids] = time_lag.to(device=self.device)
+            requested_time_lags[batch_ids] = time_lag.to(device=self.device)
         else:
             raise TypeError(f"Invalid type for time_lag: {type(time_lag)}. Expected int or integer tensor.")
 
-        # compute the min and max time lag
-        self._min_time_lag = int(torch.min(self._time_lags).item())
-        self._max_time_lag = int(torch.max(self._time_lags).item())
-        # check that time_lag is feasible
-        if self._min_time_lag < 0:
-            raise ValueError(f"The minimum time lag cannot be negative. Received: {self._min_time_lag}")
-        if self._max_time_lag > self._history_length:
+        # Validate the complete requested state before committing it.
+        min_time_lag = int(torch.min(requested_time_lags).item())
+        max_time_lag = int(torch.max(requested_time_lags).item())
+        if min_time_lag < 0:
+            raise ValueError(f"The minimum time lag cannot be negative. Received: {min_time_lag}")
+        if max_time_lag > self._history_length:
             raise ValueError(
-                f"The maximum time lag cannot be larger than the history length. Received: {self._max_time_lag}"
+                f"The maximum time lag cannot be larger than the history length. Received: {max_time_lag}"
             )
+
+        self._time_lags.copy_(requested_time_lags)
+        self._min_time_lag = min_time_lag
+        self._max_time_lag = max_time_lag
 
     def reset(self, batch_ids: Sequence[int] | None = None):
         """Reset the data in the delay buffer at the specified batch indices.
