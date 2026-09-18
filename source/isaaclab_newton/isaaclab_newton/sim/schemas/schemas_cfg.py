@@ -44,7 +44,7 @@ class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
 
 @configclass
@@ -80,7 +80,7 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
 
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
     gravcomp: float | None = None
     """Gravity compensation scale for the body [dimensionless].
@@ -163,7 +163,7 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
 
 @configclass
@@ -181,7 +181,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
 
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = "MjcJointAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
     actuatorgravcomp: bool | None = None
     """Route gravity compensation forces through the actuator channel.
@@ -311,7 +311,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
     contact_margin: float | None = None
     """Outward inflation of the collision surface [m].
@@ -345,7 +345,7 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonMeshCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
     max_hull_vertices: int | None = None
     """Maximum vertices in the convex hull approximation [dimensionless].
@@ -371,7 +371,7 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
+    # ``_usd_field_exceptions`` stays inherited: redeclaring it empty shadows the base routing.
 
     sdf_max_resolution: int | None = None
     """Maximum SDF grid dimension.
