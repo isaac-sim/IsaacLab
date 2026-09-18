@@ -60,9 +60,9 @@ class out_of_bound(ManagerTermBase):
                 self._upper[:, i] = self._origins[:, i] + hi
                 self._cached_axis[i] = bounds
 
-        pos_w = self._object.data.root_pos_w
-        quat_w = self._object.data.root_quat_w
-        vel_w = self._object.data.root_vel_w
+        pos_w = self._object.data.root_pos_w.torch
+        quat_w = self._object.data.root_quat_w.torch
+        vel_w = self._object.data.root_vel_w.torch
         invalid = (
             ~torch.isfinite(pos_w).all(dim=1) | ~torch.isfinite(quat_w).all(dim=1) | ~torch.isfinite(vel_w).all(dim=1)
         )

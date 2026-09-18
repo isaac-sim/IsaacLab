@@ -53,7 +53,7 @@ from isaaclab.utils.math import (
     subtract_frame_transforms,
 )
 
-from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
+from isaaclab_assets import FRANKA_PANDA_LEGACY_CFG, G1_29DOF_CFG  # isort:skip
 
 pytestmark = pytest.mark.integration
 
@@ -98,7 +98,8 @@ def sim():
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # Keep controller regressions on their original plant; canonical asset parity is tested by each backend.
+    robot_cfg = FRANKA_PANDA_LEGACY_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
     robot_cfg.actuators["panda_shoulder"].damping = 0.0
     robot_cfg.actuators["panda_forearm"].stiffness = 0.0

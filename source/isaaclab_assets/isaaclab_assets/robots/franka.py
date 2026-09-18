@@ -110,7 +110,8 @@ FRANKA_PANDA_CFG.actuators = {
 The flat asset contains PhysX and MuJoCo physics variants and gripper-only, primitive, and convex-hull
 collider variants. The gripper-only collider variant is the default. Explicit solver properties keep
 the actuator contract consistent across physics payloads. Only the leading finger has an active drive;
-the authored mimic constraint moves the passive follower.
+the authored mimic constraint moves the passive follower. The standalone configuration selects the PhysX
+payload by default; direct Newton consumers must select the ``mujoco`` physics variant explicitly.
 """
 
 
@@ -128,7 +129,7 @@ This configuration is useful for task-space control using differential IK.
 """
 
 
-FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_LEGACY_CFG.copy()
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
