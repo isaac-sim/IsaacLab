@@ -63,6 +63,8 @@ validated at the time of writing. The following pieces are available on
   `PR #5678 <https://github.com/isaac-sim/IsaacLab/pull/5678>`_.
 * :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
   surface-deformable support on CUDA simulation devices.
+* Fast-path cloning of heterogeneous rigid-body and articulation geometry
+  variants whose rigid-body counts and joint type/DOF structure match.
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
@@ -80,12 +82,13 @@ padded state that would produce incorrect reductions.
 Deformable scenes also require full-stage materialization. Startup cost therefore
 grows with the number of authored environments. Use this path for small validation
 scenes; training-scale workloads with thousands of environments are not currently
-supported.
+supported. Deformable bodies are not supported by the heterogeneous fast-path
+cloner.
 
 Installation
 ------------
 
-The public ``ovphysx`` extra remains pinned to OvPhysX 0.5.11. Install it from
+The public ``ovphysx`` extra is pinned to OvPhysX 0.6.3 and OVStage 0.2.0.377349. Install it from
 the repository root with:
 
 .. code-block:: bash

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Version compatibility between the public OVPhysX 0.5.11 API and OVPhysX 0.6 and later.
+"""Version compatibility between the legacy OVPhysX 0.5.11 API and OVPhysX 0.6 and later.
 
 OVPhysX 0.5.11 warms GPU state with ``warmup_gpu()`` and tears the runtime down
 with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and
@@ -11,8 +11,8 @@ with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and
 the entry-point names are resolved once at import and published as
 :data:`OVPHYSX_LIFECYCLE_ENTRY_POINTS`.
 
-The public extras stay pinned to ``ovphysx==0.5.11``; a missing or unparsable
-install keeps the 0.5.11 entry points and reversed-joint sign correction.
+The public extras are pinned to ``ovphysx==0.6.3``; a missing or unparsable
+install conservatively keeps the 0.5.11 entry points and reversed-joint sign correction.
 OvPhysX 0.6 fixes the dynamics tensor signs in the runtime, so that correction
 must be disabled on the new release line.
 """

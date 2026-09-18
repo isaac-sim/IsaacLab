@@ -8,6 +8,7 @@
 from collections.abc import Sequence
 
 CloneTransform = tuple[float, float, float, float, float, float, float]
+CloneRecipe = tuple[str, list[str], list[CloneTransform], list[int] | None]
 
 
 def clone_transforms_from_positions(positions: Sequence[Sequence[float]]) -> list[CloneTransform]:

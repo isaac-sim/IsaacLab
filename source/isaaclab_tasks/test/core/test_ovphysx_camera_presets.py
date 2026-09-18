@@ -12,7 +12,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.app import scan
-from isaaclab.sim import CuboidCfg
+from isaaclab.sim import MultiAssetSpawnerCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -61,7 +61,7 @@ def test_kuka_ovphysx_preset_uses_supported_task_configuration(task_name: str):
     robot_asset_cfg = env_cfg.events.robot_physics_material.params["asset_cfg"]
     object_asset_cfg = env_cfg.events.object_physics_material.params["asset_cfg"]
 
-    assert isinstance(env_cfg.scene.object.spawn, CuboidCfg)
+    assert isinstance(env_cfg.scene.object.spawn, MultiAssetSpawnerCfg)
     assert robot_asset_cfg.body_names == ".*"
     assert object_asset_cfg.body_names == ".*"
     assert env_cfg.events.variable_gravity is not None

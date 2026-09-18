@@ -37,7 +37,7 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_vertex_count,
 )
 
-from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
+from isaaclab_ov._clone import CloneRecipe, CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.stage import create_ovstage
@@ -415,10 +415,10 @@ class OvPhysxManager(PhysicsManager):
     _locked_device: ClassVar[str | None] = None
     # Active clone recipes survive the consumable pending queue so a forced
     # re-warmup can rebuild serialized-stage or runtime-only clones.
-    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _active_clone_recipes: ClassVar[list[CloneRecipe]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
     # these into serialized USDA; env-0-only warmup replays them with physx.clone().
-    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _pending_clones: ClassVar[list[CloneRecipe]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
     # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
@@ -461,14 +461,23 @@ class OvPhysxManager(PhysicsManager):
                 target roots. Each position uses an identity rotation.
         """
         target_transforms = clone_transforms_from_positions(parent_positions or [])
-        cls._register_clone_transforms(source, targets, target_transforms)
+        cls._register_clone_transforms(source, targets, target_transforms, None)
 
     @classmethod
     def _register_clone_transforms(
-        cls, source: str, targets: list[str], target_transforms: list[CloneTransform]
+        cls,
+        source: str,
+        targets: list[str],
+        target_transforms: list[CloneTransform],
+        target_env_ids: list[int] | None = None,
     ) -> None:
         """Register final target-root world poses for the current simulation context."""
-        recipe = (source, list(targets), list(target_transforms))
+        recipe = (
+            source,
+            list(targets),
+            list(target_transforms),
+            None if target_env_ids is None else list(target_env_ids),
+        )
         cls._active_clone_recipes.append(recipe)
         cls._pending_clones.append(recipe)
 
@@ -476,8 +485,13 @@ class OvPhysxManager(PhysicsManager):
     def _rearm_pending_clones(cls) -> None:
         """Refresh the consumable clone queue from active context recipes."""
         cls._pending_clones = [
-            (source, list(targets), list(target_transforms))
-            for source, targets, target_transforms in cls._active_clone_recipes
+            (
+                source,
+                list(targets),
+                list(target_transforms),
+                None if target_env_ids is None else list(target_env_ids),
+            )
+            for source, targets, target_transforms, target_env_ids in cls._active_clone_recipes
         ]
 
     _physx_schemas_registered: ClassVar[bool] = False
@@ -864,7 +878,7 @@ class OvPhysxManager(PhysicsManager):
         envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
         processed_targets: set[Sdf.Path] = set()
-        for source, targets, _ in pending_clones:
+        for source, targets, _, _ in pending_clones:
             source_path = Sdf.Path(source)
             if layer.GetPrimAtPath(source_path) is None:
                 raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from the full stage.")
@@ -915,17 +929,25 @@ class OvPhysxManager(PhysicsManager):
         return len(operations)
 
     @staticmethod
-    def _strip_nonzero_environments(layer: Any) -> int:
-        """Strip authored ``env_<i>`` prims other than ``env_0`` from a stage layer."""
+    def _strip_non_source_environments(layer: Any, sources: list[str]) -> int:
+        """Strip authored ``env_<i>`` prims that are not clone sources from a stage layer."""
         envs_spec = layer.GetPrimAtPath("/World/envs")
         if envs_spec is None or not envs_spec:
             return 0
+
+        envs_path = Sdf.Path("/World/envs")
+        source_environment_names = {"env_0"}
+        for source in sources:
+            for prefix in Sdf.Path(source).GetPrefixes():
+                if prefix.GetParentPath() == envs_path:
+                    source_environment_names.add(prefix.name)
+                    break
 
         env_name_re = re.compile(r"^env_(\d+)$")
         names_to_remove = [
             child_name
             for child_name in list(envs_spec.nameChildren.keys())
-            if (match := env_name_re.match(child_name)) and match.group(1) != "0"
+            if env_name_re.match(child_name) and child_name not in source_environment_names
         ]
         for child_name in names_to_remove:
             del envs_spec.nameChildren[child_name]
@@ -939,10 +961,11 @@ class OvPhysxManager(PhysicsManager):
             cls._materialize_pending_clones_in_layer(layer)
             logger.info("OvPhysxManager: serialized the full USD stage in memory")
         else:
-            removed_count = cls._strip_nonzero_environments(layer)
+            sources = [source for source, _, _, _ in cls._pending_clones]
+            removed_count = cls._strip_non_source_environments(layer, sources)
             if removed_count:
                 logger.info(
-                    "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
+                    "OvPhysxManager: stripped %d non-source env_<i> subtrees from in-memory USD",
                     removed_count,
                 )
             else:
@@ -957,7 +980,7 @@ class OvPhysxManager(PhysicsManager):
         if requires_full_stage:
             return
 
-        for source, targets, target_transforms in pending_clones:
+        for source, targets, target_transforms, target_env_ids in pending_clones:
             if not targets:
                 continue
             logger.info(
@@ -968,7 +991,7 @@ class OvPhysxManager(PhysicsManager):
                 targets[-1],
             )
             transforms = target_transforms or None
-            op_idx = physx.clone(source, targets, transforms)
+            op_idx = physx.clone(source, targets, transforms, env_ids=target_env_ids)
             physx.wait_op(op_idx)
 
     @classmethod

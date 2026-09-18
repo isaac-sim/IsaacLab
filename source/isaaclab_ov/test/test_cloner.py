@@ -13,7 +13,7 @@ import pytest
 from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.physics import PhysicsManager
@@ -71,9 +71,10 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
     assert len(OvPhysxManager._pending_clones) == 1
-    pending_source, pending_targets, pending_transforms = OvPhysxManager._pending_clones[0]
+    pending_source, pending_targets, pending_transforms, pending_env_ids = OvPhysxManager._pending_clones[0]
     assert pending_source == "/World/envs/env_0/Robot"
     assert pending_targets == ["/World/envs/env_1/Robot"]
+    assert pending_env_ids == [1]
     assert len(pending_transforms) == 1
     assert pending_transforms[0][:3] == pytest.approx(expected_transform[:3])
     orientation = np.asarray(pending_transforms[0][3:], dtype=np.float32)
@@ -103,6 +104,107 @@ def test_ovphysx_context_consumes_plan():
 
     assert recipes[0][0:2] == ("/World/envs/env_10/Robot", ["/World/envs/env_20/Robot"])
     assert recipes[0][2][0] == pytest.approx((1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
+    assert recipes[0][3] == [20]
+
+
+def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
+    """Each rigid-body geometry variant becomes one clone call with its selected env ids."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, geometry_type in ((0, "Cube"), (1, "Sphere")):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        source = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(source)
+        stage.DefinePrim(f"/World/envs/env_{env_id}/Object/Geometry", geometry_type)
+
+    recipes = []
+    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
+        destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"],
+        env_ids=np.arange(6, dtype=np.int64),
+        mapping=np.array(
+            [[True, False, True, False, True, False], [False, True, False, True, False, True]], dtype=np.bool_
+        ),
+    )
+
+    assert [(source, targets, env_ids) for source, targets, _, env_ids in recipes] == [
+        ("/World/envs/env_0/Object", ["/World/envs/env_2/Object", "/World/envs/env_4/Object"], [2, 4]),
+        ("/World/envs/env_1/Object", ["/World/envs/env_3/Object", "/World/envs/env_5/Object"], [3, 5]),
+    ]
+    assert set(recipes[0][3]).isdisjoint(recipes[1][3])
+
+
+def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
+    """A nonzero source environment is retained even when its variant has no clone targets."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id in range(2):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        source = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(source)
+
+    recipes = []
+    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
+        destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"],
+        env_ids=np.arange(2, dtype=np.int64),
+        mapping=np.eye(2, dtype=np.bool_),
+    )
+
+    assert recipes == [("/World/envs/env_1/Object", [], [], [])]
+
+
+def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monkeypatch):
+    """Equivalent articulations with distinct link geometry retain separate clone batches."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, geometry_type in ((0, "Cube"), (1, "Sphere")):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        robot = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot").GetPrim()
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        link = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot/Link").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(link)
+        UsdPhysics.RevoluteJoint.Define(stage, f"/World/envs/env_{env_id}/Robot/Joint")
+        stage.DefinePrim(f"/World/envs/env_{env_id}/Robot/Link/Geometry", geometry_type)
+
+    recipes = []
+    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],
+        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot"],
+        env_ids=np.arange(4, dtype=np.int64),
+        mapping=np.array([[True, False, True, False], [False, True, False, True]], dtype=np.bool_),
+    )
+
+    assert [(source, targets, env_ids) for source, targets, _, env_ids in recipes] == [
+        ("/World/envs/env_0/Robot", ["/World/envs/env_2/Robot"], [2]),
+        ("/World/envs/env_1/Robot", ["/World/envs/env_3/Robot"], [3]),
+    ]
+
+
+def test_raw_replicate_rejects_incompatible_articulation_dof_structure():
+    """Articulation variants with different joint counts fail before clone registration."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, joint_count in ((0, 1), (1, 2)):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        robot = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot").GetPrim()
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        for joint_id in range(joint_count):
+            UsdPhysics.RevoluteJoint.Define(stage, f"/World/envs/env_{env_id}/Robot/Joint_{joint_id}")
+
+    with pytest.raises(ValueError, match="incompatible rigid-body or joint topology"):
+        ovphysx_replicate(
+            stage,
+            sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],
+            destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot"],
+            env_ids=np.arange(4, dtype=np.int64),
+            mapping=np.array([[True, False, True, False], [False, True, False, True]], dtype=np.bool_),
+        )
 
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
@@ -112,7 +214,7 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
 
     OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
-    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None)]
     assert OvPhysxManager._active_clone_recipes == expected_recipes
     assert OvPhysxManager._pending_clones == expected_recipes
 
