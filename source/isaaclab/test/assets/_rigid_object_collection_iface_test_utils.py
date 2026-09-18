@@ -101,8 +101,8 @@ def create_physx_rigid_object_collection(
     data.body_names = [f"object_{i}" for i in range(num_bodies)]
 
     # Create wrench composers
-    mock_inst_wrench = WrenchComposer(collection)
-    mock_perm_wrench = WrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(collection, supports_world_at_com=True)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -260,8 +260,8 @@ def create_ovphysx_rigid_object_collection(
     collection._create_buffers()
 
     # Use production wrench composers for interface coverage.
-    mock_inst_wrench = WrenchComposer(collection)
-    mock_perm_wrench = WrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(collection, supports_world_at_com=True)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
