@@ -1,0 +1,6 @@
+{
+  "_comment": "Perf-smoke gate configuration. 'blocking' is intentionally false: in advisory mode aggregate.py exits 0 for every verdict, including HARD_FAILURE, so the gate never fails a pull request on its own. The verdict is still reported -- a BLOCK or HARD FAILURE paints the 'perf-smoke-test' commit status red and is spelled out in the sticky PR comment and the job summary. Gate malfunctions (no bench artifacts at all, unreadable baseline branch, failed baseline push) exit nonzero in both modes, because those mean no trustworthy verdict was produced. Flipping 'blocking' to true is a deliberate, separate rollout: HARD_FAILURE then exits 2 and BLOCK exits 1, failing the aggregate job itself, and the 'perf-smoke-test' status becomes suitable to mark as a required check. Only keys the gate actually reads belong here; the baseline window sizes (MIN_BASELINE_SAMPLES, MAX_BASELINE_SAMPLES) are imported directly by the oracle and the baseline loader and cannot be overridden from this file. runtime_compatibility is intentionally omitted so it is sourced from gate_config.DEFAULT_RUNTIME_COMPATIBILITY (see gate_config.py); add a key only to override the code default.",
+  "blocking": false,
+  "min_block_regression_pct": 3.0,
+  "baseline_push_retries": 3
+}

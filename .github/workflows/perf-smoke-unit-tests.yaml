@@ -1,0 +1,59 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Unit tests for the perf-smoke gate's own logic.
+#
+# The gate decides whether a PR's benchmark result is a regression, so a silent
+# break in its oracle, baseline matching, or contract hashing would either fail
+# innocent PRs or wave real regressions through. These tests pin that logic.
+#
+# They are pure Python -- no GPU, no simulator, no Isaac Lab install -- because
+# tools/perf_smoke_test/pyproject.toml makes pytest root there and skips the
+# isaaclab-importing tools/conftest.py above it. That keeps this check on a
+# free ubuntu-latest runner rather than the L40S pool the benchmarks need.
+
+name: Performance Smoke - Unit Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "tools/perf_smoke_test/**"
+      - "tools/subprocess_runner.py"
+      - ".github/workflows/perf-smoke-*.yaml"
+  push:
+    branches: [main, develop, 'release/**']
+    paths:
+      - "tools/perf_smoke_test/**"
+      - "tools/subprocess_runner.py"
+      - ".github/workflows/perf-smoke-*.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: perf-smoke-unit-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Gate logic unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        # pyyaml is needed by test_workflow_contracts.py, which parses the gate's
+        # own workflow files.
+        run: python3 -m pip install pytest pyyaml
+
+      - name: Test perf-smoke gate logic
+        run: python3 -m pytest tools/perf_smoke_test/ -q
