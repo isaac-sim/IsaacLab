@@ -346,9 +346,13 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
     """Preserve old HTML URLs without retaining duplicate guide sources."""
     if exception is not None or app.builder.format != "html":
         return
+    is_multiversion_build = bool(getattr(app.config, "smv_current_version", ""))
     for old, new in app.config.isaaclab_doc_redirects.items():
         destination = Path(app.builder.get_outfilename(new))
         if not destination.is_file():
+            # The current config is also used to build tags that predate these redirect targets.
+            if is_multiversion_build:
+                continue
             raise ValueError(f"Documentation redirect target was not built: {new}")
         output = Path(app.builder.get_outfilename(old))
         target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
