@@ -329,12 +329,16 @@ def _add_annotation_types(cls):
     cls.__annotations__ = hints
 
 
-def _validate(obj: object, prefix: str = "") -> list[str]:
+def _validate(
+    obj: object,
+    prefix: str = "",
+    _custom_validators: list[Callable[[], None]] | None = None,
+) -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
-    entries. Additionally, if the top-level object defines a ``_validate_config`` method, it is called to perform
-    domain-specific validation.
+    entries. Additionally, ``validate_config`` hooks are called on the root object and every nested configclass to
+    perform domain-specific validation.
 
     Subclasses can define ``validate_config(self)`` to add custom checks::
 
@@ -347,6 +351,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     Args:
         obj: The object to check.
         prefix: The prefix to add to the missing fields. Defaults to ''.
+        _custom_validators: Internal post-order accumulator for custom validation hooks.
 
     Returns:
         A list of missing fields.
@@ -355,6 +360,9 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         TypeError: When the object is not a valid configuration object.
     """
     missing_fields = []
+    is_root = _custom_validators is None and prefix == ""
+    if _custom_validators is None:
+        _custom_validators = []
 
     if type(obj).__name__ == "MeshConverterCfg":
         return missing_fields
@@ -365,7 +373,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     elif isinstance(obj, (list, tuple)):
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
-            missing_fields.extend(_validate(item, prefix=current_path))
+            missing_fields.extend(_validate(item, prefix=current_path, _custom_validators=_custom_validators))
         return missing_fields
     elif isinstance(obj, dict):
         # Convert any non-string keys to strings to allow validation of dict with non-string keys
@@ -383,19 +391,24 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         if key.startswith("__"):
             continue
         current_path = f"{prefix}.{key}" if prefix else key
-        missing_fields.extend(_validate(value, prefix=current_path))
+        missing_fields.extend(_validate(value, prefix=current_path, _custom_validators=_custom_validators))
 
-    # raise an error only once at the top-level call
-    if prefix == "" and missing_fields:
-        formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
-        raise TypeError(
-            f"Missing values detected in object {obj.__class__.__name__} for the following"
-            f" fields:\n{formatted_message}\n"
-        )
-    # invoke custom validation hook if defined on the object
-    if prefix == "":
+    # Collect hooks in post-order so nested configs validate before their owners.
+    # Arbitrary nested objects are traversed for missing fields but do not participate in this protocol.
+    if is_root or getattr(type(obj), "validate", None) is _validate:
         custom_validate = getattr(obj, "validate_config", None)
         if callable(custom_validate):
+            _custom_validators.append(custom_validate)
+
+    # raise an error only once at the top-level call
+    if is_root:
+        if missing_fields:
+            formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
+            raise TypeError(
+                f"Missing values detected in object {obj.__class__.__name__} for the following"
+                f" fields:\n{formatted_message}\n"
+            )
+        for custom_validate in _custom_validators:
             custom_validate()
     return missing_fields
 
