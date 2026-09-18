@@ -12,13 +12,32 @@ ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING = "/rtx/scenePartitioning/showA
 
 _SCENE_PARTITION_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 
+_scene_partition_default = True
+"""Fallback used by :func:`isaac_rtx_per_env_scene_partition_enabled` when the env var is unset."""
+
+
+def set_isaac_rtx_per_env_scene_partition_default(enabled: bool) -> None:
+    """Set the Isaac RTX scene-partitioning default used when the environment variable is unset.
+
+    :class:`~isaaclab.app.AppLauncher` calls this to turn partitioning off for launches that
+    render a view without a partition token, such as the Kit viewport and XR. An explicit
+    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` still wins over the value set here.
+
+    Args:
+        enabled: Whether per-environment scene partitioning is authored by default.
+    """
+    global _scene_partition_default
+    _scene_partition_default = enabled
+
 
 def isaac_rtx_per_env_scene_partition_enabled() -> bool:
     """Return the legacy environment-derived default for Isaac RTX scene partitioning.
 
     :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` uses this helper as
-    the construction default for ``enable_scene_partitioning``. Partitioning
-    is enabled when the environment variable is absent. Set
+    the construction default for ``enable_scene_partitioning``. When the environment
+    variable is absent, the default set by
+    :func:`set_isaac_rtx_per_env_scene_partition_default` applies, which is partitioning
+    enabled unless a launcher turned it off. Set
     ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to disable authoring of
     ``primvars:omni:scenePartition`` and ``omni:scenePartition`` on the USD stage.
     This setting does not affect OVRTX scene partitioning.
@@ -28,7 +47,7 @@ def isaac_rtx_per_env_scene_partition_enabled() -> bool:
     """
     value = os.environ.get(_SCENE_PARTITION_ENV_VAR)
     if value is None:
-        return True
+        return _scene_partition_default
     if value not in {"0", "1"}:
         raise ValueError(f"Invalid value for {_SCENE_PARTITION_ENV_VAR}: {value!r}. Expected '0' or '1'.")
     return value == "1"
