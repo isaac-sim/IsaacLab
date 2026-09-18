@@ -51,6 +51,19 @@ def test_redirect_rejects_missing_destination(tmp_path, redirects):
     assert not (tmp_path / "old.html").exists()
 
 
+def test_redirect_skips_missing_destination_for_historical_version(tmp_path, redirects):
+    """Do not apply current redirects to historical docs that predate their destinations."""
+    app = SimpleNamespace(
+        builder=SimpleNamespace(format="html", get_outfilename=lambda doc: str(tmp_path / (doc + ".html"))),
+        config=SimpleNamespace(
+            isaaclab_doc_redirects={"old": "missing"},
+            smv_current_version="v2.0.0",
+        ),
+    )
+    redirects(app, None)
+    assert not (tmp_path / "old.html").exists()
+
+
 def test_redirect_routes_split_sections_and_rejects_missing_page(tmp_path, redirects):
     """An old section reaches the page that now contains it, not the default landing page."""
     for name in ("index", "cluster"):
