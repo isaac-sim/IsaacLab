@@ -11,21 +11,19 @@ import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
 from isaaclab_tasks.utils import preset
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 
 @configclass
 class FrankaCabinetSceneCfg(CabinetSceneCfg):
     """Cabinet scene configured for the Franka robot."""
 
-    robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # Drawer interaction only requires hand and fingertip contacts.
-    robot.spawn.variants = preset(
-        default={"Physics": "mujoco", "Colliders": "gripper_only"},
-        isaacsim_physx={"Physics": "physx", "Colliders": "gripper_only"},
-        physx={"Physics": "physx", "Colliders": "gripper_only"},
-        ovphysx={"Physics": "physx", "Colliders": "gripper_only"},
-    )
+    robot.spawn.variants = {
+        "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
+        "Colliders": preset(default="gripper_only", arm_collisions="primitives"),
+    }
     ee_frame = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
         debug_vis=False,

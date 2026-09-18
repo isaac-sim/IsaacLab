@@ -10,10 +10,10 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from pxr import Usd
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.managers import CommandTerm
-from isaaclab.sim import select_usd_variants
+from isaaclab.sim import select_usd_variants, use_stage
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
@@ -23,6 +23,7 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -85,6 +86,23 @@ def test_franka_rigid_tasks_select_gripper_only_colliders(cfg_type) -> None:
     assert stage.GetPrimAtPath("/Robot/gripper_capsule").IsValid()
     assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+
+
+def test_reset_clearance_ignores_disabled_collision_geometry() -> None:
+    """Disabled colliders and visual-only geometry must not reject reset candidates."""
+    stage = Usd.Stage.CreateInMemory()
+    root = stage.DefinePrim("/Object", "Xform")
+    for name, enabled in (("default_enabled", None), ("explicit_enabled", True), ("disabled", False)):
+        prim = UsdGeom.Cube.Define(stage, f"/Object/{name}").GetPrim()
+        collision = UsdPhysics.CollisionAPI.Apply(prim)
+        if enabled is not None:
+            collision.CreateCollisionEnabledAttr(enabled)
+    UsdGeom.Cube.Define(stage, "/Object/visual_only")
+
+    with use_stage(stage):
+        meshes = collect_collision_meshes(root, lambda prim: (prim.GetName(), root))
+
+    assert set(meshes) == {"default_enabled", "explicit_enabled"}
 
 
 def test_camera_normalization_is_stationary() -> None:

@@ -15,14 +15,13 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import preset
 
-from isaaclab_assets.robots import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets.robots import FRANKA_PANDA_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
 
-# Lift uses the Menagerie asset's identified inertials and authored finger coupling
-# with task-specific actuators calibrated for contact-rich manipulation.
-FRANKA_PANDA_LIFT_CFG = FRANKA_PANDA_MENAGERIE_CFG.copy()
+# Lift uses task-specific actuators calibrated for contact-rich manipulation.
+FRANKA_PANDA_LIFT_CFG = FRANKA_PANDA_CFG.copy()
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # Inspired by libfranka's joint_impedance_control.cpp. ``actuator_velocity_limit``
     # remains the soft task-limit snapshot; ``joint_velocity_limit`` is the
@@ -88,12 +87,10 @@ class FrankaSceneCfg(lift.SceneCfg):
         super().__post_init__()
         # These tasks only require hand-object and fingertip-object contacts; the asset's
         # complete primitive colliders remain available for general robot use.
-        self.robot.spawn.variants = preset(
-            default={"Physics": "mujoco", "Colliders": "gripper_only"},
-            isaacsim_physx={"Physics": "physx", "Colliders": "gripper_only"},
-            physx={"Physics": "physx", "Colliders": "gripper_only"},
-            ovphysx={"Physics": "physx", "Colliders": "gripper_only"},
-        )
+        self.robot.spawn.variants = {
+            "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
+            "Colliders": preset(default="gripper_only", arm_collisions="primitives"),
+        }
         self.robot.spawn.activate_contact_sensors = True
         # the converted menagerie asset already authors the finger-coupling mimic in its
         # physics payload; re-enable _spawn_franka_with_finger_equality only for assets

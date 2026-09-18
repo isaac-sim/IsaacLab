@@ -42,7 +42,7 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         super().__post_init__()
 
         # Use an explicit actuator to enforce the USD-authored effort limits for effort control. Keep the
-        # asset's solver velocity limit: the Menagerie USD authors none, so dropping it leaves the arm unbounded.
+        # asset's solver velocity limit: the canonical USD authors none, so dropping it leaves the arm unbounded.
         arm_actuator = self.scene.robot.actuators["panda_arm"]
         self.scene.robot.actuators["panda_arm"] = IdealPDActuatorCfg(
             joint_names_expr=arm_actuator.joint_names_expr,

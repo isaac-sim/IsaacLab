@@ -29,7 +29,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
+from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
 
 
 ##
@@ -103,13 +103,11 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         # Reach has no robot-scene contact objective, so use the fast gripper collider preset.
-        self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.variants = preset(
-            default={"Physics": "mujoco", "Colliders": "gripper_only"},
-            isaacsim_physx={"Physics": "physx", "Colliders": "gripper_only"},
-            physx={"Physics": "physx", "Colliders": "gripper_only"},
-            ovphysx={"Physics": "physx", "Colliders": "gripper_only"},
-        )
+        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = {
+            "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
+            "Colliders": preset(default="gripper_only", arm_collisions="primitives"),
+        }
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [
             PhysxRigidBodyCfg(

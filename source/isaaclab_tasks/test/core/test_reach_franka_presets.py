@@ -21,11 +21,27 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
-from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets import FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
+_RIGID_FRANKA_TASKS = (
+    _TASK,
+    _OSC_TASK,
+    "Isaac-Open-Drawer-Franka",
+    "Isaac-Open-Drawer-Franka-Direct",
+    "Isaac-Lift-Franka",
+    "Isaac-Reorient-Franka",
+)
+_SOFT_FRANKA_TASKS = (
+    "Isaac-Lift-Soft-Franka",
+    "Isaac-Lift-Cloth-Franka",
+    "Isaac-Lift-Cable-Franka",
+    "Isaac-Lift-Soft-Franka-Camera",
+    "Isaac-Lift-Cloth-Franka-Camera",
+    "Isaac-Lift-Cable-Franka-Camera",
+)
 
 
 def _load_env_cfg(*presets: str):
@@ -45,6 +61,28 @@ def _without_controller_dependent_cfg(cfg):
         rigid_props.pop("disable_gravity", None)
         rigid_props.pop("gravcomp", None)
     return cfg_dict
+
+
+@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS + _SOFT_FRANKA_TASKS)
+def test_core_franka_tasks_select_the_canonical_asset_and_backend_payload(task):
+    default_cfg = _load_reach_env_cfg(task)
+    physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
+
+    for cfg, physics_variant in ((default_cfg, "mujoco"), (physx_cfg, "physx")):
+        assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
+        assert cfg.scene.robot.spawn.variants == {
+            "Physics": physics_variant,
+            "Colliders": "gripper_only",
+        }
+
+
+@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS)
+def test_rigid_franka_arm_collisions_are_an_independent_domain_preset(task):
+    newton_cfg = _load_reach_env_cfg(task, "arm_collisions")
+    physx_cfg = _load_reach_env_cfg(task, "arm_collisions", "isaacsim_physx")
+
+    assert newton_cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "primitives"}
+    assert physx_cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "primitives"}
 
 
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
@@ -233,11 +271,11 @@ def test_reach_tracks_success_without_terminating():
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
 
-def test_reach_osc_effort_actuator_keeps_menagerie_solver_properties():
+def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
     """Replacing the arm actuator with a zero-gain effort model must preserve its solver properties."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
     arm_actuator = cfg.scene.robot.actuators["panda_arm"]
-    source_actuator = FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"]
+    source_actuator = FRANKA_PANDA_CFG.actuators["panda_arm"]
 
     assert isinstance(arm_actuator, IdealPDActuatorCfg)
     assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0
@@ -264,7 +302,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert physx_props.disable_gravity is True
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.teleop_devices.devices == {}
-    assert domain_presets == {"diffik_abs"}
+    assert domain_presets == {"arm_collisions", "diffik_abs"}
 
 
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():

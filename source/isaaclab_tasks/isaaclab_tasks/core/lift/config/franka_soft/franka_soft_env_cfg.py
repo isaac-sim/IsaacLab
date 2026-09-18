@@ -58,7 +58,7 @@ from ... import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 
 
 ##
@@ -199,14 +199,12 @@ class PhysicsCfg(PresetCfg):
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # Deformable contact is restricted to the hand and fingertips for throughput.
-    robot.spawn.variants = preset(
-        default={"Physics": "mujoco", "Colliders": "gripper_only"},
-        isaacsim_physx={"Physics": "physx", "Colliders": "gripper_only"},
-        physx={"Physics": "physx", "Colliders": "gripper_only"},
-        ovphysx={"Physics": "physx", "Colliders": "gripper_only"},
-    )
+    robot.spawn.variants = {
+        "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
+        "Colliders": "gripper_only",
+    }
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
