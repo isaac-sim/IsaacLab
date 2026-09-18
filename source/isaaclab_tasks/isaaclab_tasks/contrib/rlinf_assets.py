@@ -2,6 +2,9 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+# TODO: switch the default to ISAACLAB_NUCLEUS_DIR once H2 + Sharpa ships on the official Isaac Nucleus server. 
+# Once done, confirm how to handle NuRec assets. One option is to have them in a separate repository.
+# Then this rlinf_assets.py can be removed.
 
 """Asset roots shared by the RLinf VLA post-training tasks.
 
