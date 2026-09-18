@@ -19,6 +19,8 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
+    from isaaclab.sim.usd_export import UsdWriter
+
     from .rigid_object_cfg import RigidObjectCfg
     from .rigid_object_data import RigidObjectData
 
@@ -123,6 +125,13 @@ class BaseRigidObject(AssetBase):
     """
     Operations.
     """
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Register the body while preserving its authored placement and mass properties."""
+
+        paths = writer.resolve_paths(self._usd_export_paths(writer.env_index)).bodies
+        writer.register_bodies(paths, 1)
+        writer.write_root_placement(self.data, paths)
 
     @abstractmethod
     def reset(

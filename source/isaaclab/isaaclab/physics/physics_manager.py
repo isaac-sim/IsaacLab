@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
     from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim.usd_export import UsdWriter
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,18 @@ class PhysicsManager(ABC):
 
     Overridden by backends that implement the recorder (currently PhysX-only).
     """
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Record the common initialization boundary; backend owners supply scene settings."""
+        writer.stage.GetRootLayer().customLayerData = {
+            **writer.stage.GetRootLayer().customLayerData,
+            "isaaclab:physicsDt": float(scene.sim.get_physics_dt()),
+            "isaaclab:configuration": (
+                "deployment after fixed initialization, before startup randomization; "
+                "reset/interval and controller/sensor runtime excluded"
+            ),
+        }
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:

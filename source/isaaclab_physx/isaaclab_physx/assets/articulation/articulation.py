@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -179,6 +180,32 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.shared_metatype.link_names
+
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from pxr import UsdPhysics
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        view = self.root_view
+        axes = {}
+        for path, name in zip(view.dof_paths[env_index], self.backend_joint_names):
+            prim = self.stage.GetPrimAtPath(str(path))
+            row = self.joint_names.index(name)
+            axis = AssetPaths.scalar_joint_axis(prim)
+            if axis is not None:
+                axes[row] = axis
+            elif prim.GetPrimTypeInfo().GetSchemaType() == UsdPhysics.Joint._GetStaticTfType():
+                _, _, suffix = name.rpartition(":")
+                if suffix not in {"0", "1", "2"}:
+                    raise NotImplementedError(f"Unknown PhysX joint axis for {path}: {name}.")
+                # PhysX exposes spherical DOFs in twist, swing1, swing2 order.
+                axes[self.joint_names.index(name)] = ("rotX", "rotY", "rotZ")[int(suffix)]
+        return AssetPaths(
+            AssetPaths.rows(view.link_paths[env_index], self.backend_body_names, self.body_names),
+            AssetPaths.rows(view.dof_paths[env_index], self.backend_joint_names, self.joint_names),
+            axes,
+        )
 
     @property
     def root_view(self) -> physx.ArticulationView:

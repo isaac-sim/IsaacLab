@@ -31,6 +31,7 @@ from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class RigidObject(BaseRigidObject):
@@ -85,6 +86,15 @@ class RigidObject(BaseRigidObject):
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object."""
         return self.root_view.link_names
+
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from isaaclab.sim.usd_export import AssetPaths
+
+        from isaaclab_newton.sim.views.identity import body_paths
+
+        paths = body_paths(self.root_view, SimulationManager.get_model(), env_index)
+        return AssetPaths(list(zip(paths, range(len(paths)))), [])
 
     @property
     def root_view(self) -> ArticulationView:

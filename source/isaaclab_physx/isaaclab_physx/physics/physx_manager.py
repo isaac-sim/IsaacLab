@@ -610,6 +610,14 @@ class PhysxManager(PhysicsManager):
         super().close()
 
     @classmethod
+    def author_fixed_configuration(cls, writer, scene) -> None:
+        """Retain imported contacts and supplement effective gravity and timestep."""
+        super().author_fixed_configuration(writer, scene)
+        writer.write_physx_timestep(scene.physics_scene_path, scene.sim.get_physics_dt())
+        native = cls.get_physics_sim_view()
+        writer.write_gravity(scene.physics_scene_path, native.get_gravity())
+
+    @classmethod
     def get_physics_sim_view(cls) -> omni.physics.tensors.SimulationView | None:
         return cls._view
 

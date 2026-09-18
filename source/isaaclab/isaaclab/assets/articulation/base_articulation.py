@@ -28,6 +28,7 @@ from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
     from isaaclab.actuators import ActuatorCollection
+    from isaaclab.sim.usd_export import UsdWriter
     from isaaclab.utils.wrench_composer import WrenchComposer
 
     from .articulation_cfg import ArticulationCfg
@@ -484,6 +485,30 @@ class BaseArticulation(AssetBase):
     """
     Operations.
     """
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Register the articulation and supplement only fixed actuator overrides."""
+        from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+
+        for name, cfg in self.cfg.actuators.items():
+            if not _is_implicit_actuator_cfg(cfg) and name not in self.actuators.usd_actuator_groups:
+                raise NotImplementedError(f"Controller {name!r} has no native USD representation.")
+        paths = writer.resolve_paths(self._usd_export_paths(writer.env_index))
+        data = self.data
+        writer.register_bodies(paths.bodies, self.num_bodies)
+        writer.write_root_placement(data, [(path, row) for path, row in paths.bodies if row == 0])
+        if sorted(row for _, row in paths.joints) != list(range(self.num_joints)):
+            raise RuntimeError(f"Incomplete DOF identities for {self.cfg.prim_path}.")
+        for path, row in paths.joints:
+            prim = writer.stage.GetPrimAtPath(path)
+            if not prim:
+                raise RuntimeError(f"Missing joint {path}.")
+            axis = paths.joint_axes.get(row)
+            if axis is None:
+                raise NotImplementedError(f"Unsupported driven joint {path} ({prim.GetTypeName()}).")
+            writer.write_properties(
+                path, axis, data, row=row, fields=self.actuators.usd_override_fields(row, env_index=writer.env_index)
+            )
 
     @abstractmethod
     def reset(

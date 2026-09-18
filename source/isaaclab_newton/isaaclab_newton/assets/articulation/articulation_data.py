@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.physics_properties import UsdAttribute, per_radian_to_per_degree, radians_to_degrees, usd_field
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
@@ -399,6 +400,64 @@ class ArticulationData(BaseArticulationData):
         return self._joint_damping_ta
 
     @property
+    def joint_limits_use_force_gains(self) -> np.ndarray:
+        """Whether each limit uses force-space gains, shape [num_instances, num_joints]."""
+        from newton._src.solvers.mujoco.constants import SOLREF_MODE_FORCE_SPACE
+
+        model = SimulationManager.get_model()
+        if not hasattr(getattr(model, "mujoco", None), "solreflimit_mode"):
+            return np.ones_like(self.joint_limit_stiffness, dtype=bool)
+        # Writing fallback gains would turn an implicit MuJoCo limit into a different force law.
+        modes = self._root_view.get_attribute("mujoco.solreflimit_mode", model).numpy()[:, 0]
+        values = modes == SOLREF_MODE_FORCE_SPACE
+        return values[:, self.joint_ordering.user_to_backend.numpy()] if self.has_joint_ordering else values
+
+    @property
+    @usd_field(
+        UsdAttribute(
+            "newton:limitStiffness",
+            type_name="float",
+            axes=("angular", "linear"),
+            condition="joint_limits_use_force_gains",
+        ),
+        UsdAttribute(
+            "newton:{axis}:limitStiffness",
+            type_name="float",
+            condition="joint_limits_use_force_gains",
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+            replaces=("newton:limitStiffness",),
+        ),
+        angular_conversion=per_radian_to_per_degree,
+    )
+    def joint_limit_stiffness(self) -> np.ndarray:
+        """Effective limit stiffness [N/m or N*m/rad], shape [num_instances, num_joints]."""
+        values = self._root_view.get_attribute("joint_limit_ke", SimulationManager.get_model()).numpy()[:, 0]
+        return values[:, self.joint_ordering.user_to_backend.numpy()] if self.has_joint_ordering else values
+
+    @property
+    @usd_field(
+        UsdAttribute(
+            "newton:limitDamping",
+            type_name="float",
+            axes=("angular", "linear"),
+            condition="joint_limits_use_force_gains",
+        ),
+        UsdAttribute(
+            "newton:{axis}:limitDamping",
+            type_name="float",
+            condition="joint_limits_use_force_gains",
+            axes=("rotX", "rotY", "rotZ", "transX", "transY", "transZ"),
+            replaces=("newton:limitDamping",),
+        ),
+        angular_conversion=per_radian_to_per_degree,
+    )
+    def joint_limit_damping(self) -> np.ndarray:
+        """Effective limit damping [N*s/m or N*m*s/rad], shape [num_instances, num_joints]."""
+        values = self._root_view.get_attribute("joint_limit_kd", SimulationManager.get_model()).numpy()[:, 0]
+        return values[:, self.joint_ordering.user_to_backend.numpy()] if self.has_joint_ordering else values
+
+    @property
+    @usd_field(UsdAttribute("newton:armature", type_name="float", require_uniform=True), extend=True)
     def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
@@ -407,6 +466,10 @@ class ArticulationData(BaseArticulationData):
         return self._joint_armature_ta
 
     @property
+    @usd_field(
+        UsdAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", type_name="float"),
+        UsdAttribute("newton:friction", type_name="float", require_uniform=True),
+    )
     def joint_friction_coeff(self) -> ProxyArray:
         """Newton joint friction force/torque provided to the simulation.
 
@@ -422,6 +485,15 @@ class ArticulationData(BaseArticulationData):
         return self._joint_friction_coeff_ta
 
     @property
+    @usd_field(
+        UsdAttribute(
+            "physxJointAxis:{axis}:viscousFrictionCoefficient",
+            "PhysxJointAxisAPI:{axis}",
+            type_name="float",
+        ),
+        angular_conversion=per_radian_to_per_degree,
+        actuator_config="viscous_friction",
+    )
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Newton passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
 
@@ -477,6 +549,9 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos_limits_ta
 
     @property
+    @usd_field(
+        UsdAttribute("newton:velocityLimit", type_name="float"), extend=True, angular_conversion=radians_to_degrees
+    )
     def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 

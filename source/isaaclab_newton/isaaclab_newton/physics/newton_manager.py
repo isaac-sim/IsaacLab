@@ -117,6 +117,8 @@ if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim.usd_export import UsdWriter
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -559,6 +561,100 @@ class NewtonManager(PhysicsManager):
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
+
+    @classmethod
+    def author_fixed_configuration(cls, writer: UsdWriter, scene: InteractiveScene) -> None:
+        """Preserve gravity, joint actuation semantics and contacts, including unregistered static colliders."""
+        from newton import JointTargetMode
+
+        cls.synchronize_model_changes()
+        super().author_fixed_configuration(writer, scene)
+        stage = writer.stage
+        model = cls.get_model()
+        if hasattr(model, "gravity"):
+            writer.write_gravity(
+                scene.physics_scene_path, model.gravity.numpy()[writer.env_id if model.world_count else -1]
+            )
+        gains = zip(
+            *(getattr(model, name).numpy() for name in ("joint_target_ke", "joint_target_kd", "joint_target_mode"))
+        )
+        starts = model.joint_qd_start.numpy()
+        selected_dofs = {
+            dof
+            for joint, world in enumerate(model.joint_world.numpy())
+            if world in (-1, writer.env_id)
+            for dof in range(starts[joint], starts[joint + 1])
+        }
+        modes = [(float(kp), float(kd), int(mode)) for dof, (kp, kd, mode) in enumerate(gains) if dof in selected_dofs]
+        supported = []
+        for force_both in (False, True):
+            if all(
+                int(JointTargetMode.from_gains(kp, kd, force_both, has_drive=mode != 0)) == mode
+                for kp, kd, mode in modes
+            ):
+                supported.append(force_both)
+        if not supported:
+            raise NotImplementedError("Newton's USD importer cannot represent mixed per-joint actuator modes.")
+        from pxr import UsdPhysics
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        target_modes = model.joint_target_mode.numpy()
+        for index, world in enumerate(model.joint_world.numpy()):
+            joint_modes = target_modes[starts[index] : starts[index + 1]]
+            if world not in (-1, writer.env_id) or not len(joint_modes) or np.any(joint_modes):
+                continue
+            path = writer.resolve_paths(AssetPaths([], [(model.joint_label[index], 0)])).joints[0][0]
+            prim = stage.GetPrimAtPath(path)
+            if not prim:
+                continue
+            # A zero-gain DriveAPI still means an active effort drive to Newton's importer.
+            for schema in prim.GetAppliedSchemas():
+                if schema.startswith("PhysicsDriveAPI:"):
+                    prim.RemoveAPI(UsdPhysics.DriveAPI, schema.split(":", 1)[1])
+        stage.GetRootLayer().customLayerData = {
+            **stage.GetRootLayer().customLayerData,
+            "isaaclab:newtonImportOptions": {"force_position_velocity_actuation": supported[0]},
+        }
+        cls._author_collision_configuration(writer, scene.sim.cfg.physics.default_shape_cfg)
+
+    @classmethod
+    def _author_collision_configuration(cls, writer: UsdWriter, shape_cfg: NewtonShapeCfg) -> None:
+        """Preserve imported contacts and author only configured builder-default overrides."""
+        from pxr import UsdPhysics
+
+        from isaaclab_newton.physics.contact_data import NewtonContactData
+
+        model = cls.get_model()
+        data = NewtonContactData(model)
+        resolvers = cls._get_usd_import_schema_resolvers()
+        materials = {}
+        worlds = model.shape_world.numpy() if hasattr(model, "shape_world") else None
+        for index, path in enumerate(model.shape_label):
+            if worlds is not None and worlds[index] not in (-1, writer.env_id):
+                continue
+            if path in writer.represented_collider_paths:
+                continue
+            from isaaclab.sim.usd_export import AssetPaths
+
+            path = writer.resolve_paths(AssetPaths([(path, 0)], [])).bodies[0][0]
+            prim = writer.stage.GetPrimAtPath(path)
+            if not prim or not prim.HasAPI(UsdPhysics.CollisionAPI):
+                if hasattr(model, "shape_flags") and int(model.shape_flags.numpy()[index]) & int(
+                    ShapeFlags.COLLIDE_SHAPES
+                ):
+                    raise NotImplementedError(
+                        f"Native collider {path!r} has no authored USD collision identity; "
+                        "its backend geometry needs an export representation."
+                    )
+                continue
+            collision_fields, material_fields = data.fixed_override_fields(prim, shape_cfg, resolvers)
+            writer.write_properties(
+                path, None, data, row=index, scope="collision", env_index=0, fields=collision_fields
+            )
+            if material_fields:
+                materials[path] = (index, material_fields)
+        writer.write_material_overrides(data, materials)
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -1011,12 +1107,7 @@ class NewtonManager(PhysicsManager):
 
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
 
-        # Notify solver of model changes
-        if cls._model_changes:
-            with wp.ScopedDevice(PhysicsManager._device):
-                for change in cls._model_changes:
-                    cls._solver.notify_model_changed(change)
-                NewtonManager._model_changes = set()
+        cls.synchronize_model_changes()
 
         # Lazy CUDA graph capture
         cfg = PhysicsManager._cfg
@@ -1449,6 +1540,15 @@ class NewtonManager(PhysicsManager):
         cls._cl_pending_sites.clear()
 
     @classmethod
+    def synchronize_model_changes(cls) -> None:
+        """Apply queued model-property changes to the native solver without advancing physics."""
+        if cls._model_changes:
+            with wp.ScopedDevice(PhysicsManager._device):
+                for change in cls._model_changes:
+                    cls._solver.notify_model_changed(change)
+                NewtonManager._model_changes = set()
+
+    @classmethod
     def add_model_change(cls, change: ModelFlags) -> None:
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
@@ -1858,7 +1958,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _inject_terrain_heightfields(
-        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str]
+        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str], device: str
     ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
@@ -1878,6 +1978,7 @@ class NewtonManager(PhysicsManager):
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
             root_paths: Concrete subtree roots to scan.
+            device: Device used to rasterize the source mesh.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
@@ -1885,6 +1986,8 @@ class NewtonManager(PhysicsManager):
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
         for prim in (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path))):
+            if prim.IsPseudoRoot():
+                continue
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
                 continue
@@ -1902,13 +2005,16 @@ class NewtonManager(PhysicsManager):
             # Transform vertices into world frame (USD uses row-vector convention).
             mat = np.array(xform_cache.GetLocalToWorldTransform(mesh_prim), dtype=np.float64).reshape(4, 4)
             world = (points @ mat[:3, :3] + mat[3, :3]).astype(np.float32)
-            device = str(PhysicsManager._device)
             wp_mesh = wp.Mesh(
                 points=wp.array(world, dtype=wp.vec3, device=device),
                 indices=wp.array(faces, dtype=wp.int32, device=device),
             )
             heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
-            builder.add_shape_heightfield(heightfield=heightfield, xform=xform)
+            shape_cfg = builder.default_shape_cfg.copy()
+            # Keep the source mesh identity when the runtime substitutes a heightfield.
+            builder.add_shape_heightfield(
+                heightfield=heightfield, xform=xform, cfg=shape_cfg, label=str(mesh_prim.GetPath())
+            )
             logger.info(
                 "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
                 prim.GetPath().pathString,
@@ -1978,7 +2084,9 @@ class NewtonManager(PhysicsManager):
         # ordering arguments are ever passed here, update the resolver
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder, root_paths=("/",))
+        hf_ignore_paths = cls._inject_terrain_heightfields(
+            stage, builder, root_paths=("/",), device=PhysicsManager.get_device()
+        )
         solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:

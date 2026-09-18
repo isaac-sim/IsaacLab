@@ -12,6 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -57,6 +58,10 @@ from .kernels import (
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 class Articulation(BaseArticulation):
@@ -161,6 +166,70 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self._body_names
+
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from pxr import Usd, UsdPhysics
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        roots = self.root_view.prim_paths
+        root = self.stage.GetPrimAtPath(roots[env_index])
+        if not root:
+            # Physics-only clones may lack USD prims; recover their authored source variant.
+            from isaaclab.cloner.query import path_to_source
+
+            plan = sim_utils.SimulationContext.instance().get_clone_plan()
+            source = path_to_source(plan, roots[env_index]) if plan is not None else None
+            if source is None:
+                raise RuntimeError(f"Missing articulation source variant for {roots[env_index]}.")
+            root = self.stage.GetPrimAtPath(source[0] + source[2])
+        bodies, joints = {}, {}
+        # An articulation-root API may be on a link; find the nearest scope containing every DOF/link.
+        while root and not root.IsPseudoRoot():
+            bodies, joints = {}, {}
+            for prim in Usd.PrimRange(root):
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    bodies.setdefault(prim.GetName(), []).append(str(prim.GetPath()))
+                elif prim.IsA(UsdPhysics.Joint):
+                    joints.setdefault(prim.GetName(), []).append(str(prim.GetPath()))
+            if (
+                set(self.body_names) <= bodies.keys()
+                and {name.split(":")[0] for name in self.joint_names} <= joints.keys()
+            ):
+                break
+            root = root.GetParent()
+
+        axes = {}
+
+        def resolve(names, paths):
+            result = []
+            for row, name in enumerate(names):
+                matches = paths.get(name, [])
+                if len(matches) != 1:
+                    joint_name, _, suffix = name.rpartition(":")
+                    if paths is joints and suffix in {"0", "1", "2"} and len(paths.get(joint_name, [])) == 1:
+                        matches = paths[joint_name]
+                        # OVPhysX names spherical DOFs by twist/swing1/swing2, corresponding to X/Y/Z.
+                        axes[row] = ("rotX", "rotY", "rotZ")[int(suffix)]
+                        if (
+                            self.stage.GetPrimAtPath(matches[0]).GetPrimTypeInfo().GetSchemaType()
+                            != UsdPhysics.Joint._GetStaticTfType()
+                        ):
+                            raise NotImplementedError(f"No per-axis USD drive representation for {matches[0]}.")
+                    else:
+                        raise RuntimeError(f"Ambiguous or missing physical identity {name}: {matches}")
+                if paths is joints and row not in axes:
+                    prim = self.stage.GetPrimAtPath(matches[0])
+                    axis = AssetPaths.scalar_joint_axis(prim)
+                    if axis is not None:
+                        axes[row] = axis
+                    else:
+                        raise NotImplementedError(f"No scalar joint axis for {matches[0]}.")
+                result.append((matches[0], row))
+            return result
+
+        return AssetPaths(resolve(self.body_names, bodies), resolve(self.joint_names, joints), axes)
 
     @property
     def root_view(self) -> OvPhysxView:

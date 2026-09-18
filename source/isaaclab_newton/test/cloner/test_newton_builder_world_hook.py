@@ -106,7 +106,7 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
 
     assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == ["/physicsScene", *global_paths]
     manager._inject_terrain_heightfields.assert_called_once_with(
-        stage, builder, root_paths=("/physicsScene", *global_paths)
+        stage, builder, root_paths=("/physicsScene", *global_paths), device=replicate_module.PhysicsManager.get_device()
     )
     model = builder.finalize("cpu")
     ground_index = model.shape_label.index("/World/Ground")

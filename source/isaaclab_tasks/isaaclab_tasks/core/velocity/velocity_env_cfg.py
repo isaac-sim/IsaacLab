@@ -15,6 +15,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -72,6 +73,15 @@ class RoughPhysicsCfg(PresetCfg):
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
     default = newton_mjwarp
+
+
+# One standard USD material for every backend; extension fields stay in the PhysX schema.
+ROBOT_MATERIAL_CFG = PhysxRigidBodyMaterialCfg(
+    static_friction=0.8,
+    dynamic_friction=0.6,
+    friction_combine_mode="multiply",
+    restitution_combine_mode="multiply",
+)
 
 
 ##
@@ -197,18 +207,6 @@ class EventsCfg:
     """Configuration for events."""
 
     # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
-
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",

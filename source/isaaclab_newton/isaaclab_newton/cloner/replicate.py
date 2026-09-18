@@ -114,7 +114,9 @@ def _build_newton_builder_from_mapping(
 
     builder = manager_cls.create_builder(up_axis=up_axis)
     import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
-    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(
+        stage, builder, root_paths=import_paths, device=PhysicsManager.get_device()
+    )
     import_results = []
     for root_path in import_paths:
         import_result = builder.add_usd(

@@ -26,6 +26,8 @@ from isaaclab.utils.warp import ProxyArray
 if TYPE_CHECKING:
     from pxr import Usd
 
+    from isaaclab.sim.usd_export import AssetPaths, UsdWriter
+
     from .asset_base_cfg import AssetBaseCfg
 
 
@@ -287,6 +289,20 @@ class AssetBase(ABC):
         selector_cache = getattr(self, "_selector_cache", None)
         if selector_cache is not None:
             selector_cache.clear()
+
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
+        """Resolve initialized prim identities in public data order for one fixed environment."""
+        raise NotImplementedError(f"Fixed USD identities are not implemented for {type(self).__name__}.")
+
+    def author_fixed_configuration(self, writer: UsdWriter) -> None:
+        """Supplement this asset's prims in an isolated fixed single-environment stage.
+
+        Implementations read initialized public data without modifying the live stage or
+        physics buffers. Existing authored geometry and schemas remain in ``writer.stage``.
+        The writer tracks body identities for scene-wide coverage checks.
+        Unsupported asset types raise rather than produce an incomplete environment.
+        """
+        raise NotImplementedError(f"Fixed USD export is not supported for {type(self).__name__}.")
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):

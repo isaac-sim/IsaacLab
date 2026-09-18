@@ -44,6 +44,7 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+    from isaaclab.sim.usd_export import AssetPaths
 
 
 # import logger
@@ -325,6 +326,45 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.link_names
+
+    def _usd_export_paths(self, env_index: int = 0) -> AssetPaths:
+        """Pair concrete view identities with public data rows in a fixed single environment."""
+        from pxr import UsdPhysics
+
+        from isaaclab.sim.usd_export import AssetPaths
+
+        view = self.root_view
+        if view.count_per_world != 1:
+            raise NotImplementedError("Register each articulation instance separately for fixed export.")
+        dofs = [path for path, count in zip(view.joint_labels, view.joint_dof_counts) for _ in range(count)]
+        axes = {}
+        model = SimulationManager.get_model()
+        native_axes = view.get_attribute("joint_axis", model).numpy()[env_index, 0]
+        dimensions = view.get_attribute("joint_dof_dim", model).numpy()[env_index, 0]
+        offset = 0
+        for path, count, (linear, angular) in zip(view.joint_labels, view.joint_dof_counts, dimensions):
+            prim = self.stage.GetPrimAtPath(path)
+            if prim.IsA(UsdPhysics.RevoluteJoint) or prim.IsA(UsdPhysics.PrismaticJoint):
+                if count != 1:
+                    raise RuntimeError(f"Unexpected DOF count for {path}: {count}.")
+                row = self.joint_names.index(self.backend_joint_names[offset])
+                axes[row] = AssetPaths.scalar_joint_axis(prim)
+            elif prim.GetPrimTypeInfo().GetSchemaType() == UsdPhysics.Joint._GetStaticTfType():
+                for local in range(count):
+                    vector = native_axes[offset + local]
+                    matches = [i for i, cardinal in enumerate(np.eye(3)) if np.allclose(vector, cardinal, atol=1e-6)]
+                    if len(matches) != 1:
+                        raise NotImplementedError(f"Non-cardinal multi-axis joint {path}: {vector}.")
+                    row = self.joint_names.index(self.backend_joint_names[offset + local])
+                    axes[row] = ("trans" if local < linear else "rot") + "XYZ"[matches[0]]
+            elif count:
+                raise NotImplementedError(f"No independent per-axis representation for {path} ({prim.GetTypeName()}).")
+            offset += count
+        return AssetPaths(
+            AssetPaths.rows(view.body_labels, self.backend_body_names, self.body_names),
+            AssetPaths.rows(dofs, self.backend_joint_names, self.joint_names),
+            axes,
+        )
 
     @property
     def root_view(self) -> ArticulationView:
