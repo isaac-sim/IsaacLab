@@ -1,0 +1,46 @@
+{
+  "skill_name": "isaaclab-writing-changelog-fragments",
+  "evals": [
+    {
+      "id": "isaaclab-writing-changelog-fragments-001",
+      "prompt": "I added a new sensor API to isaaclab.sensors. Write a changelog fragment for it.",
+      "expected_output": "Creates a correctly named .rst fragment under source/isaaclab.sensors/changelog.d/ with an Added entry.",
+      "assertions": [
+        "The agent identified isaaclab-writing-changelog-fragments as the primary skill without being told its name",
+        "Places the fragment under source/isaaclab.sensors/changelog.d/",
+        "Uses the .rst suffix for a patch-level change or .minor.rst for a new API",
+        "Puts the entry under the Added section",
+        "Writes the entry in past tense",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-writing-changelog-fragments",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-writing-changelog-fragments-002",
+      "prompt": "I removed a deprecated method from isaaclab.utils. What changelog fragment do I need?",
+      "expected_output": "Creates a fragment with a Removed entry that includes a breaking change marker and migration guidance.",
+      "assertions": [
+        "The agent identified isaaclab-writing-changelog-fragments as the primary skill without being told its name",
+        "Puts the entry under the Removed section",
+        "Prefixes the entry with **Breaking:**",
+        "Includes migration guidance pointing to the replacement API",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-writing-changelog-fragments",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-writing-changelog-fragments-neg-001",
+      "prompt": "I only changed a CI config file. Do I need a changelog fragment?",
+      "expected_output": "Explains that CI-only changes do not require a changelog fragment.",
+      "assertions": [
+        "The agent did not use isaaclab-writing-changelog-fragments as the primary skill",
+        "Correctly identifies that CI, tools, or skills changes without source package modifications do not require a fragment",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}

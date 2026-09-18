@@ -8,7 +8,7 @@ Migration from Isaac Gym and IsaacGymEnvs
 .. seealso::
 
    This section is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
-   (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).
+   (`skills/user/isaaclab-migrating-from-isaac-gym/ <../../../skills/user/isaaclab-migrating-from-isaac-gym/SKILL.md>`__).
    When you change this section, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
