@@ -58,7 +58,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton import JointTargetMode, JointType, Model, ModelBuilder, ShapeFlags
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -796,7 +796,7 @@ def test_active_manager_create_builder_registers_mpm_attributes():
     assert builder.has_custom_attribute("mpm:young_modulus")
 
 
-@pytest.mark.parametrize("import_path", ["clone", "standalone"])
+@pytest.mark.parametrize("import_path", ["clone", "flat"])
 @pytest.mark.parametrize(
     ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
     [
@@ -808,8 +808,18 @@ def test_production_imports_scope_mujoco_joint_properties(
     monkeypatch, import_path, manager_cls, solver_cfg, expected_friction, expected_damping
 ):
     """Only MJWarp imports MuJoCo joint properties through either production path."""
-    from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
+    builder = _run_usd_importer_path(monkeypatch, import_path, manager_cls, NewtonCfg(solver_cfg=solver_cfg))
+    model = builder.finalize(device="cpu")
+    revolute_joints = np.asarray(builder.joint_type) == JointType.REVOLUTE
+    revolute_dofs = model.joint_qd_start.numpy()[:-1][revolute_joints]
+    assert len(revolute_dofs) == (2 if import_path == "clone" else 1)
 
+    np.testing.assert_allclose(model.joint_friction.numpy()[revolute_dofs], expected_friction)
+    np.testing.assert_allclose(model.joint_damping.numpy()[revolute_dofs], expected_damping)
+
+
+def _make_usd_importer_stage(import_path):
+    """Create one articulated source plus a shared rigid body for importer tests."""
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateInMemory()
@@ -818,14 +828,27 @@ def test_production_imports_scope_mujoco_joint_properties(
     physics_prim_path = "/physicsScene"
     UsdPhysics.Scene.Define(stage, physics_prim_path)
 
-    root_path = "/Sources/robot" if import_path == "clone" else "/World/robot"
+    shared = UsdGeom.Cube.Define(stage, "/World/shared").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(shared)
+    shared.CreateAttribute("test:importMarker", Sdf.ValueTypeNames.Float, True).Set(11.0)
+
+    if import_path == "clone":
+        root_path = "/Sources/robot"
+    elif import_path == "flat":
+        root_path = "/World/robot"
+    else:
+        root_path = "/World/Env_0/robot"
+        UsdGeom.Xform.Define(stage, "/World/Env_1")
+
     root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(root)
     UsdPhysics.ArticulationRootAPI.Apply(root)
+    root.CreateAttribute("test:importMarker", Sdf.ValueTypeNames.Float, True).Set(17.0)
 
     child_path = f"{root_path}/child"
     child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(child)
+    child.CreateAttribute("test:importMarker", Sdf.ValueTypeNames.Float, True).Set(19.0)
 
     joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
     joint.CreateAxisAttr().Set("Z")
@@ -833,17 +856,25 @@ def test_production_imports_scope_mujoco_joint_properties(
     joint.CreateBody1Rel().SetTargets([child_path])
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+    return stage, physics_prim_path, root_path
 
+
+def _run_usd_importer_path(monkeypatch, import_path, manager_cls, cfg):
+    """Import one test stage through a selected production builder path."""
+    from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
+
+    stage, physics_prim_path, root_path = _make_usd_importer_stage(import_path)
     monkeypatch.setattr(
         PhysicsManager,
         "_sim",
         SimpleNamespace(physics_manager=manager_cls, cfg=SimpleNamespace(physics_prim_path=physics_prim_path)),
     )
-    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
+    monkeypatch.setattr(PhysicsManager, "_cfg", cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(NewtonManager, "_builder", None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
     monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
     monkeypatch.setattr(NewtonManager, "_world_xforms", None)
 
@@ -852,9 +883,10 @@ def test_production_imports_scope_mujoco_joint_properties(
             stage=stage,
             sources=(root_path,),
             destinations=("/World/envs/env_{}/robot",),
-            env_ids=np.array([0], dtype=np.int64),
-            mapping=np.ones((1, 1), dtype=np.bool_),
+            env_ids=np.array([3, 7], dtype=np.int64),
+            mapping=np.ones((1, 2), dtype=np.bool_),
             load_visual_shapes=False,
+            global_paths=("/World/shared",),
         )
     else:
         monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
@@ -865,11 +897,85 @@ def test_production_imports_scope_mujoco_joint_properties(
         monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
         manager_cls.instantiate_builder_from_stage()
         builder = NewtonManager._builder
+    return builder
 
+
+@pytest.mark.parametrize(
+    ("import_path", "expected_markers", "expected_joint_count", "use_custom_importer"),
+    [
+        pytest.param("clone", [11.0, 17.0, 19.0, 17.0, 19.0], 2, True, id="custom-clone"),
+        pytest.param("flat", [17.0, 19.0, 11.0], 1, True, id="custom-flat-fallback"),
+        pytest.param("direct_env", [11.0, 17.0, 19.0, 17.0, 19.0], 2, True, id="custom-direct-env-fallback"),
+        pytest.param("direct_env", [11.0, 17.0, 19.0, 17.0, 19.0], 2, False, id="native-direct-env-fallback"),
+    ],
+)
+def test_usd_importer_preserves_real_builder_results(
+    monkeypatch, import_path, expected_markers, expected_joint_count, use_custom_importer
+):
+    """Native and custom importers produce finalized bodies and native joint properties."""
+
+    def importer(builder, source, **native_options):
+        builder.add_custom_attribute(
+            ModelBuilder.CustomAttribute(
+                name="marker",
+                namespace="import_test",
+                dtype=wp.float32,
+                frequency=Model.AttributeFrequency.BODY,
+                default=-1.0,
+                usd_attribute_name="test:importMarker",
+            )
+        )
+        return builder.add_usd(source, **native_options)
+
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), usd_importer=importer if use_custom_importer else None)
+    builder = _run_usd_importer_path(monkeypatch, import_path, NewtonMJWarpManager, cfg)
     model = builder.finalize(device="cpu")
 
-    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
-    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+    assert model.body_count == len(expected_markers)
+    assert sum(joint_type == JointType.REVOLUTE for joint_type in builder.joint_type) == expected_joint_count
+    friction = model.joint_friction.numpy()
+    damping = model.joint_damping.numpy()
+    np.testing.assert_allclose(friction[friction != 0.0], np.full(expected_joint_count, 0.11))
+    np.testing.assert_allclose(damping[damping != 0.0], np.full(expected_joint_count, 0.23))
+    if use_custom_importer:
+        np.testing.assert_allclose(model.import_test.marker.numpy(), expected_markers)
+    else:
+        assert not builder.has_custom_attribute("import_test:marker")
+
+
+def test_usd_importer_dispatch_preserves_arguments_and_result(monkeypatch):
+    """The dispatcher forwards native arguments and returns the callback's dictionary unchanged."""
+    builder = object()
+    source = object()
+    native_options = {"root_path": "/World/robot", "ignore_paths": ["/World/ignored"]}
+    result = {"path_shape_map": {"/World/robot/shape": 2}}
+    received = []
+
+    def importer(actual_builder, actual_source, **actual_options):
+        received.append((actual_builder, actual_source, actual_options))
+        return result
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(usd_importer=importer))
+
+    actual = NewtonMJWarpManager._import_usd(builder, source, **native_options)
+
+    assert actual is result
+    assert received == [(builder, source, native_options)]
+
+
+def test_usd_importer_dispatch_preserves_exception(monkeypatch):
+    """The dispatcher propagates the callback's exception object unchanged."""
+    error = RuntimeError("custom USD import failed")
+
+    def importer(_builder, _source, **_native_options):
+        raise error
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(usd_importer=importer))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        NewtonMJWarpManager._import_usd(object(), object(), root_path="/World/robot")
+
+    assert exc_info.value is error
 
 
 @pytest.mark.parametrize(

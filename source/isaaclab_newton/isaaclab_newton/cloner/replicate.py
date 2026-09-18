@@ -117,7 +117,8 @@ def _build_newton_builder_from_mapping(
     hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
     import_results = []
     for root_path in import_paths:
-        import_result = builder.add_usd(
+        import_result = NewtonManager._import_usd(
+            builder,
             stage,
             root_path=root_path,
             ignore_paths=hf_ignore_paths,
@@ -154,6 +155,7 @@ def _build_newton_builder_from_mapping(
         schema_resolvers,
         ignore_paths=deformable_ignore_paths or None,
         load_visual_shapes=load_visual_shapes,
+        usd_importer=NewtonManager._import_usd,
     )
 
     # Inject registered sites into source builders (and global sites into main builder).

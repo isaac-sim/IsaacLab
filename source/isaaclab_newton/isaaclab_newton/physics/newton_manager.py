@@ -1938,6 +1938,26 @@ class NewtonManager(PhysicsManager):
         return resolvers
 
     @classmethod
+    def _import_usd(cls, builder: ModelBuilder, source: Any, **native_options) -> dict[str, Any]:
+        """Import USD with the configured callback or Newton's native importer.
+
+        Args:
+            builder: Newton builder populated by the import.
+            source: USD source accepted by ModelBuilder.add_usd.
+            **native_options: Options forwarded unchanged to the importer.
+
+        Returns:
+            The importer's result dictionary.
+        """
+        cfg = PhysicsManager._cfg
+        importer = cfg.usd_importer if isinstance(cfg, NewtonCfg) else None
+        return (
+            builder.add_usd(source, **native_options)
+            if importer is None
+            else importer(builder, source, **native_options)
+        )
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -1983,8 +2003,8 @@ class NewtonManager(PhysicsManager):
 
         if not env_paths:
             # No env Xforms — flat loading
-            import_result = builder.add_usd(
-                stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
+            import_result = cls._import_usd(
+                builder, stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
             )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
@@ -2001,14 +2021,17 @@ class NewtonManager(PhysicsManager):
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
             ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
-            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            import_result = cls._import_usd(
+                builder, stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers
+            )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
-            import_result = source_builders[proto_path].add_usd(
+            import_result = cls._import_usd(
+                source_builders[proto_path],
                 stage,
                 root_path=proto_path,
                 ignore_paths=solver_ignore_paths,
