@@ -1,3 +1,0 @@
-Test-only change: skip ``IsaacContrib-DrLegs-Walk`` (and its deprecated alias) in the contributed
-environment smoke test because the Kamino solver intermittently diverges to NaN under random actions.
-No user-visible behavior change.

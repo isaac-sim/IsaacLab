@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+7.0.0 (2026-09-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed production PhysX cloning through the simulation-owned
+  ``PhysxReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT``, ``queue(...)``,
+  and ``queue_mapping(...)``. Standalone tooling may continue to use ``physx_replicate(...)`` with
+  NumPy arrays; its unused ``device`` argument was removed.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor` reporting the last in-contact force forever after a
+  body left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its
+  data was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The PhysX getters are now
+  called on every physics step regardless of the history length, while the warp kernels that consume the
+  fetched buffers stay lazy. As a consequence, :meth:`~isaaclab_physx.sensors.ContactSensor.update` now
+  raises a ``RuntimeError`` for such sensors when called inside an outer CUDA graph capture, as it already
+  did for history-bearing sensors: update the sensor outside the capture.
+* Fixed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` rendering ``simple_shading_*``
+  camera outputs through the full path-tracing pipeline. The renderer selected only the
+  Minimal shading level, through the process-wide ``/rtx/minimal/mode`` carb setting, while
+  leaving the render mode at ``RealTimePathTracing``. It now authors
+  ``omni:rtx:rendermode = "Minimal"`` and ``omni:rtx:minimal:mode`` on the requesting render
+  product, matching the OVRTX renderer. Cameras requesting different shading levels no longer
+  overwrite each other, and color cameras, the Kit viewport, and deterministic rendering keep
+  path tracing.
+
+
 6.0.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~
 

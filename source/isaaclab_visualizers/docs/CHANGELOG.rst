@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+1.9.0 (2026-09-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dynamic mesh logging through the public Newton visualizer interface.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` so it honored its configured particle color.
+
+
 1.8.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,97 @@
 Changelog
 ---------
 
+18.0.0 (2026-09-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a PEP 517 build target under ``tools/wheel_builder`` so package managers can install the aggregate Isaac Lab
+  package directly from a Git source without duplicating Isaac Lab's dependency list downstream.
+* Added static Isaac Lab 3 and NVIDIA greetings to the loading screen, selected at random for each run.
+* Added a synchronized timer around the renderer call inside
+  :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera`, gated by the ``ISAACLAB_RENDER_PROFILE``
+  environment variable, so any rendering backend can be profiled through the same scope name
+  (:data:`~isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`). When enabled, each render prints its elapsed
+  time to the log.
+
+Changed
+^^^^^^^
+
+* Changed the pinned Newton version from ``1.6.0rc1`` to the final ``1.6.0`` release. No user
+  action is required; new environments now resolve the stable release instead of the release candidate.
+* Changed the cuRobo Docker image to install from ``uv.lock`` into the virtual environment at
+  ``/opt/isaaclab-venv``, matching the base image. Isaac Sim's site-packages is left untouched,
+  so the image no longer deletes the prebundled torch, re-bootstraps ``pip`` afterwards, or
+  uninstalls ``quadprog``. cuRobo itself is still built from its pinned commit against the
+  environment's torch.
+* Changed the pinned Newton version from ``1.5.1`` to ``1.6.0rc1``, the first release carrying
+  `newton#4017 <https://github.com/newton-physics/newton/pull/4017>`_, which makes
+  ``ArticulationView`` generic over custom frequencies. Reading a MuJoCo actuator attribute such
+  as ``mujoco.actuator_trntype`` through an articulation view previously raised *"has custom
+  frequency 'mujoco:actuator' which is not supported by ArticulationView"*.
+* Changed ``warp-lang`` from ``1.16.0`` to ``1.17.0`` and ``mujoco``/``mujoco-warp`` from
+  ``3.11.0`` to ``3.12.0``, which Newton ``1.6.0rc1`` requires.
+* Changed the Docker images to install from ``uv.lock`` into a virtual environment at
+  ``/opt/isaaclab-venv`` instead of into Isaac Sim's own site-packages, leaving the shipped
+  Isaac Sim environment untouched and applying ``[tool.uv] override-dependencies``.
+* Changed the ``teleop`` extra to carry only the teleop stack; Isaac Sim is no longer bundled
+  with it. Environments that already provide Kit, such as the container images, no longer
+  install a second copy of it. Install ``--extra teleop,isaacsim`` to get the Isaac Sim wheel
+  as before.
+* Renamed the ``test`` extra to ``dev``, which still carries the test suite plus the
+  documentation toolchain. Use ``--extra dev`` where ``--extra test`` was used to build docs.
+* Changed the ``test`` extra to carry the test suite alone, without the documentation
+  toolchain, so the container images can install it without shipping Sphinx and its
+  GPL-3.0-or-later ``docutils`` dependency.
+* Changed the loading screen's wide layout to start at 130 columns rather than 120, giving the
+  Isaac Lab 3 wordmark room to fit. Terminals between 120 and 129 columns now use the 80-column layout.
+* **Breaking:** Routed clone backends through one :class:`~isaaclab.cloner.ClonePlan` using its
+  ``context_rows`` mapping. Replace ``UsdReplicateContext.queue(...)`` or
+  ``queue_mapping(...)`` followed by ``replicate()`` with
+  ``UsdReplicateContext.replicate(plan)``. Standalone callers can use
+  :func:`~isaaclab.cloner.usd_replicate`. Removed the former ``stage`` argument from
+  :func:`~isaaclab.cloner.replicate` and :class:`~isaaclab.cloner.ReplicateSession`.
+  Custom ``cloning_contexts`` must be registered with
+  ``sim.get_or_create_backend(ContextType, ...)`` before dispatch; built-in physics managers
+  register their own context. Changed clone-plan arrays, grid transforms, and clone strategies
+  to NumPy and removed their ``device`` arguments, including ``CloneCfg.device``. Changed
+  :func:`~isaaclab.cloner.usd_replicate` to accept NumPy arrays instead of tensors. Convert an
+  array to a runtime tensor only where its consuming component requires one.
+* **Breaking:** Published :class:`~isaaclab.cloner.ReplicateSession` plans on entry and dispatched
+  them on exit. Empty :class:`~isaaclab.scene.InteractiveScene` configurations now author only
+  ``env_0``; direct workflows must finish setup with :func:`~isaaclab.cloner.clone_plan_from_env_0`
+  and :func:`~isaaclab.cloner.replicate`.
+* Allowed the shared generalized-force ordering kernel to omit direction signs for backends that already returned
+  forces in the public joint basis. Callers supplying direction signs retained their existing behavior.
+
+Fixed
+^^^^^
+
+* Fixed ``--video`` training continuously updating PhysX Fabric and the capture-only Kit visualizer
+  between recording windows. Physics transforms are now synchronized on demand before each captured frame.
+* Fixed play benchmarks failing on ``DirectMARLEnv`` tasks by creating and converting environments
+  with the same backend-specific rules as training.
+* Fixed operational-space controller velocity feedback to use the same link origins as the end-effector pose and
+  Jacobian in the action term and integration tests.
+* Fixed ``isaaclab.sh`` and the ``isaaclab`` CLI rejecting a virtual environment that was created on
+  a downloaded Isaac Sim package's own Python. Such an environment reuses that interpreter, so Kit's
+  extension modules load exactly as they do under the bundled Python; only environments supplying
+  their own interpreter, such as conda, are still refused. Create one with
+  ``uv venv --python _isaac_sim/kit/python/bin/python3``.
+* Fixed the Isaac Lab wheel to install core modules in a flat ``isaaclab`` package instead of
+  exposing a nested source package through a modified package search path.
+* Fixed :attr:`~isaaclab.envs.mimic_env_cfg.DataGenConfig.max_num_failures` being ignored. The field
+  documented a cap on failed generation attempts but was never read, so a run with
+  :attr:`~isaaclab.envs.mimic_env_cfg.DataGenConfig.generation_guarantee` enabled retried without
+  bound on a task with a low success rate. Its default is now ``None`` (no limit) and setting it to
+  an integer stops generation once that many attempts have failed.
+* Pinned the PyTorch stack in the published package dependencies so downstream projects no
+  longer selected newer, untested builds when installing the Isaac Lab wheel.
+* Fixed Docker installs leaving dangling package links in expanded Isaac Sim prebundles.
+
+
 17.0.3 (2026-09-17)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+18.1.0 (2026-09-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``newton_mjwarp`` branch to ``DigitPhysicsCfg``, so the Digit velocity tasks run on the
+  Newton backend with ``presets=newton_mjwarp``. Gated on that preset: ``self_collision_enabled``
+  (the asset authors ``enabledSelfCollisions=False`` and ``DIGIT_V4_CFG`` sets no
+  ``articulation_props``, so Newton filters all 253 intra-articulation shape pairs). An armature
+  floor for the ten joints below MJWarp's observed stability threshold (expressed as a second
+  actuator group) and ``entropy_coef = 0.005`` apply on **both** backends, consistent with #7607's
+  direction of not special-casing PhysX for values that do not hurt it there.
+* Added the contributed ``IsaacContrib-Multitask-Manipulation`` manager-based task for training one policy across heterogeneous
+  OpenArm lift, Franka cabinet, and UR10 reach environments using selection-aware physics-view indexing, including
+  task-specific Gaussian policy and value heads, task-wise PPO advantage normalization, bounded cabinet joint targets,
+  cabinet state-safety resets, task-balanced OpenArm reward scaling, and playback visualization with shortened
+  evaluation horizons and task-appropriate command markers.
+* Added the ``Isaac-RenderBenchmark-Franka-Cabinet`` direct task, an animated Franka-and-cabinet scene with no
+  policy or reward used to compare rendering backends under ``scripts/benchmarks/benchmark_renderer.py``.
+
+Changed
+^^^^^^^
+
+* Moved benchmark-only tasks into a new ``isaaclab_tasks.benchmark`` package so they are no longer mixed in with
+  the trainable ``core`` and ``contrib`` task families. The ``IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct``
+  task id is unchanged, but its configuration moved from
+  ``isaaclab_tasks.contrib.reorient.config.shadow_hand.shadow_hand_camera_benchmark_env_cfg`` to
+  ``isaaclab_tasks.benchmark.shadow_hand_camera.shadow_hand_camera_benchmark_env_cfg``. Code that imports the
+  configuration class directly must update the import path; code that resolves the task through ``gym.make`` or
+  ``load_cfg_from_registry`` needs no change.
+* Unified rough-velocity task inputs across physics backends by removing MJWarp-only actuator armatures,
+  using 5,000 G1 training iterations for every backend, and representing shared base-COM randomization as a
+  plain event. Downstream configurations that require the former backend-specific behavior should set it
+  explicitly.
+
+Fixed
+^^^^^
+
+* Fixed Franka Lift and Reorient reset sampling with updated Franka assets by explicitly selecting the convex-hull
+  arm colliders used by the tasks' clearance criteria.
+* Fixed the Franka Pour task selecting the primitive robot collider variant,
+  which omitted the arm collision meshes required by the task.
+* Fixed 32 ``CollisionAPI`` prims on Digit's RealSense camera decoration meshes -- glass, USB-C and
+  case halves -- becoming collision shapes. This applies on **both** backends, so the PhysX contact
+  behaviour of the Digit tasks changes: those 32 shapes no longer collide.
+* Fixed ``test_manipulation_env_determinism`` asserting bit-reproducible rewards without requesting
+  a determinism guarantee. Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which
+  Warp's atomics may accumulate in any order, so the test failed intermittently depending on GPU
+  scheduling. It now passes ``deterministic_mode="run_to_run"``, as the Newton cartpole cases
+  already did.
+
+
 18.0.2 (2026-09-17)
 ~~~~~~~~~~~~~~~~~~~
 

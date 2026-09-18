@@ -1,6 +1,68 @@
 Changelog
 ---------
 
+3.0.0 (2026-09-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added version-selected support for the OVPhysX 0.6 ``warmup()`` and ``destroy()``
+  lifecycle APIs while retaining the released 0.5.11 ``warmup_gpu()`` and
+  ``release()`` path. The public extras remain pinned to ``ovphysx==0.5.11``.
+* Added compatibility with the OVRTX 0.5 ``frame.render_vars`` API, which keys render vars by the
+  authored RenderVar prim path (for example ``/Render/Vars/LdrColor``) instead of the source name.
+  The key form is resolved from the installed ``ovrtx`` version when
+  :mod:`isaaclab_ov.renderers.ovrtx_compat` is imported; OVRTX 0.4 keeps source-name keys and the
+  public extras stay pinned to ``ovrtx==0.4.1.364340``.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed production OvPhysX cloning through the simulation-owned
+  ``OvPhysxReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT``, ``queue(...)``,
+  and ``queue_mapping(...)``. Standalone tooling may continue to use ``ovphysx_replicate(...)`` with
+  NumPy arrays; its unused ``device`` argument was removed.
+* Changed :func:`~isaaclab_ov.stage.create_ovstage` to select the ovstage hierarchy computation
+  model from the installed ovstage version instead of always requesting
+  ``HierarchyComputationModel.CPU_INCREMENTAL``. ovstage 0.2 and later place objects correctly
+  under ``GPU_INCREMENTAL``, which moves world-transform computation off the host; ovstage 0.1
+  keeps the host model. The version is resolved once at import by the new
+  :mod:`isaaclab_ov.ovstage_compat` module. No migration is required: the public extras stay
+  pinned to ``ovstage==0.1.1.355824``, so the host model remains in force until that pin moves,
+  and a missing or unparsable install also keeps the host model.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.sensors.ContactSensor` reporting the last in-contact force forever after a body
+  left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its data
+  was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The ovphysx contact bindings
+  are now read on every physics step regardless of the history length, while the warp kernels that consume
+  the fetched buffers stay lazy.
+* Fixed implicit actuator PD estimates being submitted as additional joint forces
+  alongside the native ovphysx joint drives. Implicit actuators now submit only
+  their feedforward effort commands while retaining PD estimates as telemetry.
+* Fixed missing cloned visuals in the legacy OVRTX renderer by expanding nested USD instances
+  in its exported clone sources. Simulation stages and the ovstage renderer path retained
+  their original instancing.
+* Fixed OVPhysX articulation joint properties (stiffness, damping, armature, position/velocity/effort
+  limits, friction) and body mass/inertia being re-read from their CPU-only bindings on every simulation
+  step. These static properties are now read once after invalidation and kept current by the
+  ``write_*`` / ``set_*`` setters. This removes three blocking host round-trips per physics step from the
+  native Newton actuator path, which made it several times slower than the Isaac Lab actuator path on
+  OVPhysX at large environment counts.
+* Projected source-only world frames from clone-plan positions when destination USD environment prims are absent.
+* Disabled the reversed-joint sign correction for OvPhysX 0.6 and newer, which already returned Jacobians and mass matrices
+  in the public joint basis. Preserved the correction for the default OvPhysX 0.5.11
+  runtime and custom joint and body ordering on both versions.
+* Removed an unnecessary reversed-joint sign correction from gravity compensation forces on OvPhysX 0.5.11.
+* Registered the OvPhysX codeless physics schemas with OVStage before scene population when its registration API was
+  available, including when the host USD registry already provided those schemas.
+
+
 2.2.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~
 

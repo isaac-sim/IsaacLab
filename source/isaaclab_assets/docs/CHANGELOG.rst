@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.7.2 (2026-09-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :obj:`~isaaclab_assets.robots.agility.DIGIT_V4_CFG` to disable colliders on the
+  RealSense camera mount's decoration meshes and to split actuators into a stable-armature and a
+  low-armature group, matching what the Digit velocity tasks previously configured per-task.
+* Changed :attr:`SHADOW_HAND_PHYSX_CFG` and :attr:`SHADOW_HAND_NEWTON_CFG` to select the
+  Shadow Hand asset's ``Colliders="simplified"`` variant. Set ``spawn.variants["Colliders"]``
+  to ``"full"`` to use the previous collision model.
+
+
 0.7.1 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~
 

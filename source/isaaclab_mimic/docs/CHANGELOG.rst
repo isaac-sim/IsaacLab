@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+2.0.7 (2026-09-18)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``datagen_config.max_num_failures = 25`` assignment from the shipped Mimic environment
+  configs. The field was never read when those lines were written, so honouring it now would newly
+  cap every shipped task at 25 failed attempts and cut short any run asking for a large number of
+  demos. Set the field explicitly to opt into a cap.
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation SDG generation with NuRec backgrounds by enabling camera capture, applying Isaac RTX
+  Gaussian renderer settings, syncing randomized fixture poses, and recording the projected scene state after
+  placement. ``--high_res_video`` now records RGB observations at 512x320 instead of 960x540; update MP4
+  conversion dimensions and model input shapes accordingly.
+* Fixed the Mimic generation loop never bounding a run by failure count. ``env_loop`` now stops when
+  ``datagen_config.max_num_failures`` failed attempts have accumulated, alongside the existing stop
+  on enough successes or attempts.
+
+
 2.0.6 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~
 

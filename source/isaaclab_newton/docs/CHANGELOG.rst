@@ -1,6 +1,55 @@
 Changelog
 ---------
 
+6.0.0 (2026-09-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed production Newton cloning through the simulation-owned
+  ``NewtonReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT`` and
+  ``queue_mapping(...)``. Standalone tooling may continue to use ``newton_physics_replicate(...)``
+  with NumPy arrays; its unused ``device`` argument was removed. Changed world-builder hooks to
+  receive independent NumPy arrays for the environment position and orientation instead of Python lists.
+* Changed homogeneous Newton cloning to assign labels during replication, avoiding a second full-model pass.
+* Changed importer-generated floating-base root joints to use ``{body}_free_joint`` instead of
+  generated ``joint_<n>`` labels, giving replicated environments stable body-derived joint paths.
+
+Removed
+^^^^^^^
+
+* Removed the Newton 1.5 compatibility shim for the MuJoCo tendon adapter. Newton 1.6.0rc1
+  provides the ``mujoco:actuator`` custom-frequency view API (newton-physics/newton#4017)
+  directly, so the adapter now reads it from the articulation view and model rather than
+  through a wrapper. No migration is needed: the shim was internal and became a no-op once
+  the Newton pin moved to 1.6.0rc1.
+
+Fixed
+^^^^^
+
+* Prevented Newton VBD initialization from hanging in Warp's graph-color balancing pass.
+* Fixed :attr:`~isaaclab_newton.assets.articulation.articulation_data.ArticulationData.joint_pos`
+  exposing Newton's ``joint_q`` -- joint *coordinate* space -- rather than DOF positions. A ball
+  joint occupies 4 quaternion components against 3 DOFs, so on an articulation containing one the
+  array was wider than ``num_joints`` while ``joint_names``, ``joint_vel``, ``default_joint_pos``
+  and the joint gains stayed in DOF space, and every consumer indexing them with the same joint ids
+  read a different joint past the first ball joint. Added
+  :class:`~isaaclab_newton.assets.articulation.joint_coordinates.JointCoordinateMap`, which converts
+  between the two spaces on read and on write. Articulations whose joints all have one coordinate
+  per DOF keep the existing zero-copy view and are unaffected.
+
+* Fixed joint position targets being written in DOF space into Newton's coordinate-layout
+  ``joint_target_q``. That array follows ``newton.use_coord_layout_targets``, which defaults to
+  ``True`` from Newton 1.6, so on a ball-jointed articulation the actuators were writing 50 DOF
+  targets into a 56-wide coordinate array. Targets now go through a DOF-shaped staging buffer and
+  the same coordinate map.
+* Fixed Newton visualizers showing nested static collision geometry, including generated proxy-collider visual meshes,
+  when the rigid-body root had a separate visual subtree.
+* Built Newton shadow visualization layouts from clone-plan positions when destination USD environment prims are absent.
+* Fixed batched scene cloning duplicating custom-frequency label prefixes, which prevented MuJoCo tendon actuators from resolving their targets.
+
+
 5.4.1 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~
 
