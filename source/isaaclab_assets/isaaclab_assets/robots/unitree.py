@@ -819,7 +819,8 @@ This configuration is designed for high-precision manipulation tasks such as tro
 
 # Root of the Unitree H2 + Sharpa USDs. Point ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` at a mirror
 # keeping the same subtree to serve them from disk.
-# TODO: switch the default to ISAACLAB_NUCLEUS_DIR once H2 + Sharpa ships on the official Isaac Nucleus server. Then remove the Hugging Face fallback and os import.
+# TODO: switch the default to ISAACLAB_NUCLEUS_DIR once H2 + Sharpa ships on the official Isaac Nucleus server. 
+# Then remove the Hugging Face fallback and os import.
 
 import os
 H2_SHARPA_ASSET_ROOT: str = os.environ.get(
