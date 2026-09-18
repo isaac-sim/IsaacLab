@@ -255,8 +255,16 @@ class EventManager(ManagerBase):
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
-                    self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
-                    self._reset_term_last_triggered_once[index][env_ids] = True
+                    # device-side fills: scalar index assignments synchronize the stream on every call
+                    if isinstance(env_ids, slice):
+                        self._reset_term_last_triggered_step_id[index].fill_(global_env_step_count)
+                        self._reset_term_last_triggered_once[index].fill_(True)
+                    else:
+                        env_ids_long = torch.as_tensor(env_ids, device=self.device).long()
+                        self._reset_term_last_triggered_step_id[index].index_fill_(
+                            0, env_ids_long, global_env_step_count
+                        )
+                        self._reset_term_last_triggered_once[index].index_fill_(0, env_ids_long, True)
 
                     # call the event term with the environment indices
                     term_cfg.func(self._env, env_ids, **term_cfg.params)
