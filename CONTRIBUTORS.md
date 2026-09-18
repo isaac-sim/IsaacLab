@@ -167,6 +167,7 @@ Guidelines for modifications:
 * Philipp Reist
 * Piotr Barejko
 * Pulkit Goyal
+* Qian Lin
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu
