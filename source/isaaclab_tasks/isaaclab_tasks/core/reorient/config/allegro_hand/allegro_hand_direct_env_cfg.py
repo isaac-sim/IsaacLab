@@ -10,6 +10,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
@@ -38,6 +39,13 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
+        default_visualizer_cfg=VisualizerCfg(
+            eye=(0.75, -0.95, 0.95),
+            lookat=(-0.05, -0.28, 0.6),
+            focal_length=30.0,
+            origin_type="env",
+            origin_env_index="center",
+        ),
     )
     # robot
     robot_cfg: ArticulationCfg = ALLEGRO_HAND_ROBOT_CFG

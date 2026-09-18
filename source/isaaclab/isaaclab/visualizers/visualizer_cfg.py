@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import math
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
@@ -46,10 +47,10 @@ class VisualizerCfg:
 
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Interactive visualizer camera eye position in world coordinates."""
+    """Camera eye offset [m] relative to :attr:`origin_type`."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Interactive visualizer camera look-at target in world coordinates."""
+    """Camera look-at offset [m] relative to :attr:`origin_type`."""
 
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
@@ -59,6 +60,45 @@ class VisualizerCfg:
 
     Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
     backend's native background. Scene lighting remains independent of the visible background.
+    """
+
+    origin_type: Literal["world", "env", "asset"] = "world"
+    """Origin for :attr:`eye` and :attr:`lookat`.
+
+    ``"world"`` uses world coordinates. ``"env"`` fixes the camera relative to the selected
+    environment's initial origin. ``"asset"`` follows the asset root or body specified by
+    :attr:`origin_track_path`. These settings affect the interactive camera, not sensor streams.
+    """
+
+    origin_env_index: int | Literal["center"] = 0
+    """Environment used by ``"env"`` and ``"asset"`` origins.
+
+    ``"center"`` selects the visible environment nearest the horizontal bounding-box center
+    of all environment origins, with the lowest index breaking ties. Selection happens once
+    when the scene becomes available and is retained across episode resets. Explicit indices
+    must be in range and visible. The default preserves environment zero.
+    """
+
+    origin_track_path: str | None = None
+    """Scene asset to follow when :attr:`origin_type` is ``"asset"``.
+
+    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body. A body path must
+    match exactly one body on the asset.
+    """
+
+    origin_follow_heading: bool = False
+    """Rotate :attr:`eye` and :attr:`lookat` offsets with the tracked asset's yaw.
+
+    Only used with ``origin_type="asset"``. Roll and pitch are ignored to keep the horizon
+    level. The default follows position only, with offsets aligned to the world axes.
+    """
+
+    origin_heading_smoothing_time_constant: float = 0.0
+    """Exponential heading-filter time constant [s]. Zero disables smoothing.
+
+    Only used with ``origin_type="asset"`` and ``origin_follow_heading=True``. Positive values
+    smooth yaw along the shortest rotation while position follows immediately. Larger values
+    reduce rapid rotation more, with more lag. The first valid heading is applied immediately.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
@@ -191,6 +231,12 @@ class VisualizerCfg:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
                 raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
             self.background_color = tuple(float(value) for value in self.background_color)
+
+        if (
+            not math.isfinite(self.origin_heading_smoothing_time_constant)
+            or self.origin_heading_smoothing_time_constant < 0.0
+        ):
+            raise ValueError("origin_heading_smoothing_time_constant must be finite and non-negative.")
 
         _simple = [
             ("tiled_cam_view", "streaming_view"),

@@ -25,6 +25,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -227,6 +228,16 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(3.5, -1.0, 2.8),
+            lookat=(0.0, 0.0, 0.0),
+            focal_length=26.0,
+            origin_type="asset",
+            origin_env_index="center",
+            origin_track_path="robot",
+            origin_follow_heading=True,
+            origin_heading_smoothing_time_constant=0.5,
+        )
         self.sim.physics = AntPhysicsCfg()
         # default friction material
         self.sim.physics_material.static_friction = 1.0

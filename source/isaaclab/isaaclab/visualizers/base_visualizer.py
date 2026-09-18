@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.scene_data import SceneDataProvider
 
+    from .camera_controller import _CameraController
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -52,6 +53,9 @@ class BaseVisualizer(ABC):
         self._live_plot_env_idx: int = 0
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
+        self._camera_controller: _CameraController | None = None
+        self._camera_origin_spec: tuple | None = None
+        self._pending_world_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -144,6 +148,14 @@ class BaseVisualizer(ABC):
     def is_closed(self) -> bool:
         """Check if close() has been called."""
         return self._is_closed
+
+    @property
+    def camera_env_index(self) -> int | None:
+        """Resolved camera environment, or ``None`` while automatic selection is pending."""
+        if self._camera_controller is not None:
+            return self._camera_controller.env_index
+        index = self.cfg.origin_env_index
+        return index if isinstance(index, int) else None
 
     @property
     def physics_backend(self) -> str | None:
@@ -296,13 +308,69 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    def set_camera_view(self, eye: tuple, target: tuple) -> None:
-        """Set camera view position.
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set a world-space camera view and preserve it as offsets for subsequent tracking.
 
         Args:
-            eye: Camera eye position.
-            target: Camera target position.
+            eye: Camera eye position in world coordinates [m].
+            target: Camera look-at target in world coordinates [m].
         """
+        eye = tuple(float(v) for v in eye)
+        target = tuple(float(v) for v in target)
+        self._set_camera_pose_cfg(eye, target)
+        self._apply_camera_pose((eye, target))
+
+    def _update_camera_tracking(self, dt: float = 0.0) -> None:
+        """Apply the task camera before rendering, without rewriting configured offsets."""
+        origin_spec = (self.cfg.origin_type, self.cfg.origin_env_index, self.cfg.origin_track_path)
+        if origin_spec != self._camera_origin_spec:
+            self._camera_controller = None
+            self._camera_origin_spec = origin_spec
+        if self.cfg.origin_type == "world":
+            pose = self._pending_world_camera_pose
+        else:
+            if self._camera_controller is None:
+                # The scene and asset state may become available after visualizer initialization.
+                from .camera_controller import _CameraController
+
+                if self._scene_data_provider is None:
+                    return
+                scene = self._scene_data_provider.get_interactive_scene()
+                if scene is None:
+                    return
+                self._camera_controller = _CameraController(
+                    self.cfg, scene, getattr(self, "_resolved_visible_env_ids", None)
+                )
+            pose = self._camera_controller.update(dt)
+        if pose is not None:
+            if self._pending_world_camera_pose is not None:
+                pose = self._pending_world_camera_pose
+                self._set_camera_pose_cfg(*pose)
+            self._apply_camera_pose(pose)
+
+    def _set_camera_pose_cfg(self, eye: tuple[float, float, float], target: tuple[float, float, float]) -> None:
+        """Persist a world-space camera edit as offsets in the configured origin frame."""
+        eye = tuple(float(v) for v in eye)
+        target = tuple(float(v) for v in target)
+        if self.cfg.origin_type != "world":
+            origin_spec = (self.cfg.origin_type, self.cfg.origin_env_index, self.cfg.origin_track_path)
+            if (
+                self._camera_controller is None
+                or not self._camera_controller.has_pose
+                or origin_spec != self._camera_origin_spec
+            ):
+                # A queued world-space edit must wait for the first valid origin and heading.
+                self._pending_world_camera_pose = (eye, target)
+                return
+            eye, target = self._camera_controller.world_to_offsets(eye, target)
+        self.cfg.eye = eye
+        self.cfg.lookat = target
+        self._pending_world_camera_pose = None
+
+    def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
+        """Apply a world-space pose; backends must preserve the configured camera offsets."""
         pass
 
     def _resolve_cfg_camera_pose(

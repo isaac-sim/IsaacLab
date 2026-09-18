@@ -212,8 +212,11 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        # Frame the hand, which lies horizontal around (0, -0.25, 0.51). Looking at the origin
-        # from 2 m away renders a 20 cm hand a few pixels wide, so a recorded video shows nothing.
+        # Include the hand and the offset reference cube.
         self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0
+            eye=(0.75, -0.95, 0.95),
+            lookat=(-0.05, -0.28, 0.6),
+            focal_length=30.0,
+            origin_type="env",
+            origin_env_index="center",
         )

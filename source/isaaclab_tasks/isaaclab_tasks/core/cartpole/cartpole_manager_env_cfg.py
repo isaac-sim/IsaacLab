@@ -219,7 +219,13 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 5
         # visualizer camera settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(8.0, 0.0, 2.5),
+            lookat=(0.0, 0.0, 2.5),
+            focal_length=24.0,
+            origin_type="env",
+            origin_env_index="center",
+        )
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

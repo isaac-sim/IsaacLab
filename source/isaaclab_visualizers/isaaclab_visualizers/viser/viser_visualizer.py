@@ -440,6 +440,7 @@ class ViserVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
         self._is_initialized = True
+        self._update_camera_tracking()
 
     def step(self, dt: float) -> None:
         """Advance visualization by one simulation step.
@@ -452,6 +453,7 @@ class ViserVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
+        self._update_camera_tracking(dt)
         self._apply_pending_camera_pose()
 
         self._state = NewtonManager.get_state(self._scene_data_provider)
@@ -805,7 +807,7 @@ class ViserVisualizer(BaseVisualizer):
         if self.cfg.open_browser:
             _open_viser_web_viewer(viewer_url)
         initial_pose = self._resolve_initial_camera_pose()
-        self._set_viser_camera_view(initial_pose)
+        self._apply_camera_pose(initial_pose)
         self._sim_time = 0.0
 
     def _setup_isaaclab_sidebar(self, server) -> None:
@@ -928,7 +930,7 @@ class ViserVisualizer(BaseVisualizer):
                 continue
         return applied
 
-    def _set_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
+    def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply or defer camera pose update depending on client readiness."""
         if self._try_apply_viser_camera_view(pose):
             self._last_camera_pose = pose
@@ -943,16 +945,3 @@ class ViserVisualizer(BaseVisualizer):
         if self._try_apply_viser_camera_view(self._pending_camera_pose):
             self._last_camera_pose = self._pending_camera_pose
             self._pending_camera_pose = None
-
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set every connected client's camera eye/target.
-
-        Args:
-            eye: Camera eye position.
-            target: Camera look-at target.
-        """
-        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
-        target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self._set_viser_camera_view((eye_t, target_t))
