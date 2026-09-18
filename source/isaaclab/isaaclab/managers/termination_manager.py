@@ -142,7 +142,7 @@ class TerminationManager(ManagerBase):
         # add to episode dict
         extras = {}
         # move to host once; per-element .item() would sync per term
-        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0).cpu()
+        last_episode_done_stats = self._last_episode_dones[env_ids].float().mean(dim=0).cpu()
         for i, key in enumerate(self._term_names):
             # store information
             extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
