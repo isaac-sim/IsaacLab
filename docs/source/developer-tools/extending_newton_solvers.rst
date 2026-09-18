@@ -131,6 +131,15 @@ resources from the real model. ``_register_builder_attributes()`` runs before
 particles are added and before ``finalize()``, so it is the only place to
 register Newton custom attributes.
 
+Execution hooks (post-actuator, state-force, and post-step) belong to the
+finalized model. Register them during ``PHYSICS_READY`` on each model build,
+before solver initialization and graph capture. Their membership stays fixed
+while the scene runs. On a hard reset, the manager discards the graph and clears
+these hooks before dispatching ``MODEL_INIT``. Owners release model-bound
+resources there and create new bindings during ``PHYSICS_READY``. Lifecycle
+subscriptions survive the rebuild; ``STOP`` handles final owner teardown. A soft
+reset preserves the hooks, resources, and graph.
+
 ``step()`` takes one of two paths, selected by
 :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`. When every
 actuator is on the graph-safe Newton fast path, actuators and substeps run

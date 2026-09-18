@@ -1289,6 +1289,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.picking_enabled = self._picking_enabled
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
+                NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
 
     def _release_viewer(self) -> None:
         """Release the viewer this visualizer owns and drop the reference to it.
