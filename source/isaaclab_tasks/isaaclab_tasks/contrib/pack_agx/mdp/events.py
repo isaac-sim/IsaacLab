@@ -100,7 +100,7 @@ def align_prop_material(
 ) -> None:
     """Tame an authored OmniPBR prop so its baked textures stay visible.
 
-    The LightWheel props apply their ORM texture's metallic channel at full
+    The Lightwheel props apply their ORM texture's metallic channel at full
     influence.  In this room that turns the AGX into a mirror of a dark
     environment and it renders at 2/255 instead of the real 120, so the metallic
     and roughness channels are driven by constants while the diffuse, normal and

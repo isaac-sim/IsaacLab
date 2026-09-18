@@ -20,6 +20,9 @@ Added
   ``isaaclab_assets.sensors.unitree.H2_HEAD_CAMERA_CFG``.
 * Added ``isaaclab_tasks.contrib.rlinf_assets``, the scene-asset roots the three RLinf post-training
   tasks share, and ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` to point them at a local mirror.
+* Added the Lightwheel attribution for the tasks' SimReady scene assets, alongside their Creative
+  Commons Attribution-NonCommercial 4.0 International terms in
+  ``docs/licenses/assets/lightwheel-license.txt``.
 
 Changed
 ^^^^^^^

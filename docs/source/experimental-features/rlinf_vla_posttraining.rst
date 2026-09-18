@@ -291,3 +291,34 @@ Key Files
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
 use the unified ``./isaaclab.sh train --rl_library rlinf`` and ``./isaaclab.sh play --rl_library rlinf`` commands.
+
+Attribution and Citation
+------------------------
+
+SimReady Assets
+~~~~~~~~~~~~~~~
+
+The SimReady scene assets used by the post-training tasks are powered by
+`Lightwheel <https://lightwheel.ai/>`__.
+
+.. attention::
+
+   These assets are licensed under the `Creative Commons Attribution-NonCommercial 4.0 International
+   License <https://creativecommons.org/licenses/by-nc/4.0/>`__, whose terms are collected in
+   ``docs/licenses/assets/lightwheel-license.txt``. Commercial use is not granted. The per-asset
+   terms are served next to each USD, as ``LICENSE.txt`` in place of the file's base name.
+
+RL Training Framework
+~~~~~~~~~~~~~~~~~~~~~
+
+The RL training framework is powered by `RLinf <https://github.com/RLinf/RLinf>`__. If you find the
+RL capabilities helpful, please cite:
+
+.. code-block:: text
+
+   @article{yu2025rlinf,
+     title={RLinf: Flexible and Efficient Large-scale Reinforcement Learning via Macro-to-Micro Flexibility},
+     author={Yu, Chao and Wang, Yuanqing and Guo, Zhen and Lin, Hao and Xu, Si and Zang, Hongzhi},
+     journal={arXiv preprint arXiv:2509.15965},
+     year={2025}
+   }
