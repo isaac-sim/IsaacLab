@@ -11,8 +11,6 @@ Fixed
 * Fixed Franka operational-space control to retain the asset's solver limits and joint properties.
 * Restored continuous Reach tracking by removing the early success termination and restoring the
   fine-grained position reward, while retaining position-and-orientation success metrics.
-* Fixed Franka deformable camera observations to use stationary RGB normalization compatible with
-  pretrained visual policies.
 * Restored symmetric point-cloud noise in the Lift and Reorient ADR curriculum.
 * Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training.
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.
