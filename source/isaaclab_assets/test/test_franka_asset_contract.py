@@ -17,7 +17,6 @@ from isaaclab_assets import (  # noqa: E402
     FRANKA_PANDA_MENAGERIE_CFG,
 )
 
-
 _GRIPPER_COLLIDERS = {"left_finger_pad", "right_finger_pad", "hand_capsule"}
 _PRIMITIVE_ARM_COLLIDERS = {
     "link0_capsule",
@@ -50,8 +49,7 @@ def _enabled_colliders(stage: Usd.Stage) -> set[str]:
     return {
         prim.GetName()
         for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies())
-        if prim.HasAPI(UsdPhysics.CollisionAPI)
-        and UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+        if prim.HasAPI(UsdPhysics.CollisionAPI) and UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
     }
 
 
@@ -100,6 +98,5 @@ def test_franka_flat_asset_collider_and_visual_contract() -> None:
             variants.SetSelection("Colliders", collider_variant)
             assert _enabled_colliders(stage) == expected
             assert all(
-                prim.GetName() != "physx_visuals"
-                for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies())
+                prim.GetName() != "physx_visuals" for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies())
             )
