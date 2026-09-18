@@ -93,8 +93,8 @@ def raycast_mesh(
     and data types to ensure proper execution. Additionally, they all must be in the same frame.
 
     Args:
-        ray_starts: The starting position of the rays. Shape (N, 3).
-        ray_directions: The ray directions for each ray. Shape (N, 3).
+        ray_starts: The starting position of the rays. Shape (..., 3).
+        ray_directions: The ray directions for each ray. Shape (..., 3).
         mesh: The warp mesh to ray-cast against.
         max_dist: The maximum distance to ray-cast. Defaults to 1e6.
         return_distance: Whether to return the distance of the ray until it hits the mesh. Defaults to False.
@@ -102,20 +102,28 @@ def raycast_mesh(
         return_face_id: Whether to return the face id of the mesh face the ray hits. Defaults to False.
 
     Returns:
-        The ray hit position. Shape (N, 3).
+        The ray hit position. Shape (..., 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit distance. Shape (N,).
+        The ray hit distance. Shape (...,).
             Will only return if :attr:`return_distance` is True, else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit normal. Shape (N, 3).
+        The ray hit normal. Shape (..., 3).
             Will only return if :attr:`return_normal` is True else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit face id. Shape (N,).
+        The ray hit face id. Shape (...,).
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
+
+    Raises:
+        ValueError: If :attr:`ray_directions` does not have the same shape as :attr:`ray_starts`.
     """
     # extract device and shape information
     shape = ray_starts.shape
+    if ray_directions.shape != shape:
+        raise ValueError(
+            "Expected ray_directions to have the same shape as ray_starts. Received ray_starts"
+            f" {tuple(shape)} and ray_directions {tuple(ray_directions.shape)}."
+        )
     device = ray_starts.device
     # device of the mesh
     torch_device = wp.device_to_torch(mesh.device)
@@ -175,11 +183,11 @@ def raycast_mesh(
     wp.synchronize()
 
     if return_distance:
-        ray_distance = ray_distance.to(device).view(shape[0], shape[1])
+        ray_distance = ray_distance.to(device).view(shape[:-1])
     if return_normal:
         ray_normal = ray_normal.to(device).view(shape)
     if return_face_id:
-        ray_face_id = ray_face_id.to(device).view(shape[0], shape[1])
+        ray_face_id = ray_face_id.to(device).view(shape[:-1])
 
     return ray_hits.to(device).view(shape), ray_distance, ray_normal, ray_face_id
 

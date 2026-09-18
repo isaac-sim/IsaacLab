@@ -187,6 +187,7 @@ Guidelines for modifications:
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
+* Samir Bhattarai
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
