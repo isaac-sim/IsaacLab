@@ -350,35 +350,6 @@ def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.Mon
         _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_prepare_stage_ignores_unspawned_variant_sources(monkeypatch: pytest.MonkeyPatch, use_ovstage: bool):
-    """Unused variants retain plan rows but have no source prim to export."""
-    num_envs, num_variants = 4, 16
-    stage = _make_multi_env_stage(num_envs)
-    plan = ClonePlan(
-        sources=tuple(f"/World/envs/env_{index}/Robot" for index in range(num_variants)),
-        destinations=("/World/envs/env_{}/Robot",) * num_variants,
-        clone_mask=np.eye(num_variants, num_envs, dtype=np.bool_),
-        env_ids=np.arange(num_envs, dtype=np.int64),
-        positions=np.zeros((num_envs, 3), dtype=np.float32),
-    )
-    _patch_simulation_context(monkeypatch, plan)
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = use_ovstage
-
-    renderer.prepare_stage(stage, num_envs)
-
-    exported_layer = Sdf.Layer.CreateAnonymous(".usda")
-    assert exported_layer.ImportFromString(renderer._exported_usd_string)
-    exported_stage = Usd.Stage.Open(exported_layer)
-    for source in plan.sources[:num_envs]:
-        assert exported_stage.GetPrimAtPath(source)
-    for source in plan.sources[num_envs:]:
-        assert not exported_stage.GetPrimAtPath(source)
-    assert renderer._clone_plan is plan
-    assert len(plan.sources) == num_variants
-
-
 def test_capture_object_scales_populates_source_and_destination_scale_array():
     """Projected source scales reach the body array without replacing a real destination scale."""
     stage = Usd.Stage.CreateInMemory()

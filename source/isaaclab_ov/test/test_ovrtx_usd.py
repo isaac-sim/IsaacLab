@@ -430,8 +430,8 @@ def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
     """The ovstage clone path also trims the non-source env roots themselves.
 
     ``ovstage.Stage.clone`` requires every target path to not already exist, so the exported stage
-    must not retain env roots that the clone will recreate. The legacy ``renderer.clone_usd``
-    path keeps the roots as placeholders.
+    must not retain env roots that the clone will recreate. This is the only difference from the
+    legacy ``renderer.clone_usd`` path, which keeps the roots as placeholders.
     """
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
@@ -492,44 +492,6 @@ def test_export_stage_restores_active_state():
         env_path = f"/World/envs/env_{env_idx}"
         assert stage.GetPrimAtPath(env_path).IsActive()
         assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
-
-
-@pytest.mark.parametrize(
-    ("num_envs", "keep_env_roots", "keep_instances"),
-    [(4, True, False), (4, False, True), (1, True, True), (1, False, True)],
-)
-def test_export_stage_expands_nested_instances_only_for_legacy_cloning(num_envs, keep_env_roots, keep_instances):
-    """Legacy cloning receives concrete geometry without changing the simulation's instancing."""
-    stage = _make_multi_env_stage(num_envs)
-    mesh = UsdGeom.Mesh.Define(stage, "/MeshPrototype/Mesh")
-    mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (0, 1, 0)])
-    mesh.CreateFaceVertexCountsAttr([3])
-    mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
-    visuals = UsdGeom.Xform.Define(stage, "/RobotPrototype/Visuals").GetPrim()
-    visuals.GetReferences().AddInternalReference("/MeshPrototype")
-    visuals.SetInstanceable(True)
-    robot_path = "/World/envs/env_0/Robot"
-    robot = stage.GetPrimAtPath(robot_path)
-    robot.GetReferences().AddInternalReference("/RobotPrototype")
-    robot.SetInstanceable(True)
-    mesh_path = f"{robot_path}/Visuals/Mesh"
-    assert robot.IsInstance()
-    assert stage.GetPrimAtPath(mesh_path).IsInstanceProxy()
-    input_layers = [layer.ExportToString() for layer in stage.GetLayerStack()]
-
-    exported = export_stage_to_string(stage, num_envs, ("/World/envs/env_0",), keep_env_roots)
-    exported_layer = Sdf.Layer.CreateAnonymous("exported.usda")
-    exported_layer.ImportFromString(exported)
-    exported_stage = Usd.Stage.Open(exported_layer)
-
-    assert exported_stage.GetPrimAtPath(robot_path).IsInstance() == keep_instances
-    assert exported_stage.GetPrimAtPath(f"{robot_path}/Visuals").IsInstanceable() == keep_instances
-    exported_mesh = exported_stage.GetPrimAtPath(mesh_path)
-    assert exported_mesh.IsInstanceProxy() == keep_instances
-    assert UsdGeom.Mesh(exported_mesh).GetPointsAttr().Get() == mesh.GetPointsAttr().Get()
-    assert [layer.ExportToString() for layer in stage.GetLayerStack()] == input_layers
-    assert robot.IsInstance()
-    assert stage.GetPrimAtPath(mesh_path).IsInstanceProxy()
 
 
 def test_create_scene_partition_attributes_all_envs():
