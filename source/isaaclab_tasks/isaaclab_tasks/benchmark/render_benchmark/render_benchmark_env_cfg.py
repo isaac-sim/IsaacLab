@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+from typing import Literal
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -26,6 +27,51 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
+
+BenchmarkMode = Literal["render", "physics_render"]
+"""How much work the physics backend does to produce each frame a renderer is timed on.
+
+``"render"`` isolates the renderer: each frame's pose is written straight into the simulation
+after the last physics step and before the camera is read, so the rendered scene is the analytic
+sinusoid and no actuator had to be solved to reach it.
+
+``"physics_render"`` exercises the whole step: the same poses are requested as actuator targets
+before the physics steps, so the solver does the tracking work an ordinary task's solver does and
+the rendered scene is whatever it arrived at.
+
+Note that the physics backend still integrates in ``"render"`` mode, because an Isaac Lab
+environment has no way to skip its own physics step; that mode removes the actuation and
+overwrites the solver's result before rendering, rather than skipping the step. Either way
+``ISAACLAB_PHYSICS_PROFILE`` records each step's cost in the run log, so what physics contributed
+stays visible next to the render times ``benchmark_renderer.py`` reports.
+"""
+
+BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
+"""Every value :attr:`RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode` accepts."""
+
+
+def _read_benchmark_mode() -> BenchmarkMode:
+    """Read the default benchmark mode from ``BENCHMARK_MODE``, rejecting unknown values.
+
+    Read from the environment rather than taken as a preset so a sweep can be pointed at either
+    mode without touching ``benchmark_renderer.py``, the same way ``ISAACLAB_RENDER_PROFILE``
+    turns the render timer on. A typo raises here instead of silently benchmarking the wrong
+    thing for the whole sweep.
+
+    Returns:
+        The configured mode, or ``"render"`` when the variable is unset.
+
+    Raises:
+        ValueError: If ``BENCHMARK_MODE`` is set to a value outside :data:`BENCHMARK_MODES`.
+    """
+    mode = os.getenv("BENCHMARK_MODE", "render")
+    if mode not in BENCHMARK_MODES:
+        raise ValueError(f"Unknown BENCHMARK_MODE '{mode}'. Expected one of {list(BENCHMARK_MODES)}.")
+    return mode  # type: ignore[return-value]
+
+
+BENCHMARK_MODE: BenchmarkMode = _read_benchmark_mode()
+"""Default :attr:`RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode`, read once at import."""
 
 
 @configclass
@@ -96,6 +142,9 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     Franka's seven, and a sinusoidal animation drives all of them so every rendered frame has
     moving articulated geometry rather than a static scene. There is no policy: actions are
     ignored, rewards are zero, and the episode only ends on time-out.
+
+    :attr:`benchmark_mode` selects what the run is meant to measure -- the renderer alone, or
+    physics together with the renderer. See :data:`BenchmarkMode`.
 
     A mirrored layout of the canonical ``Isaac-Franka-Cabinet-Direct-v0`` task, which places the
     Franka at the origin facing its default ``+X``: here the Franka sits at ``(1.0, 0, 0)`` rotated
@@ -208,6 +257,13 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     joint_animation_freq_hz: float = 0.35
     """Frequency of the joint animation [Hz]."""
+
+    benchmark_mode: BenchmarkMode = BENCHMARK_MODE
+    """Whether to benchmark the renderer alone or physics together with the renderer.
+
+    See :data:`BenchmarkMode`. Defaults to the ``BENCHMARK_MODE`` environment variable, or
+    ``"render"`` when it is unset.
+    """
 
     write_image_to_file: bool = os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1"
     """Whether to dump each rendered frame to a PNG, for eyeballing renderer output."""

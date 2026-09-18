@@ -295,3 +295,62 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
 
     assert context_alive_during_gc == [False]
     assert context_ref() is None
+
+
+def _stub_context_for_step(recorder: list[str]):
+    """Build the minimum ``SimulationContext`` surface :meth:`SimulationContext.step` touches."""
+    from isaaclab.sim import SimulationContext
+
+    context = object.__new__(SimulationContext)
+    context._physics_step_count = 0
+    context.physics_manager = SimpleNamespace(
+        wait_for_playing=lambda: recorder.append("wait"),
+        step=lambda: recorder.append("step"),
+    )
+    return context
+
+
+def test_step_is_unaffected_by_the_physics_profile_flag(monkeypatch):
+    """Enabling ``ISAACLAB_PHYSICS_PROFILE`` only wraps the physics step in a printed timer.
+
+    The wrapping must not change the call order, drop the step itself, or skip the step count.
+    """
+    from isaaclab.sim import SimulationContext
+    from isaaclab.sim import simulation_context as context_module
+
+    monkeypatch.setattr(context_module, "_PHYSICS_PROFILE_ENABLED", True)
+    calls: list[str] = []
+    context = _stub_context_for_step(calls)
+
+    SimulationContext.step(context, render=False)
+
+    assert calls == ["wait", "step"]
+    assert context._physics_step_count == 1
+
+
+def test_step_prints_timing_line_when_physics_profile_enabled(monkeypatch, capsys):
+    """The printed line must match the format ``scripts/benchmarks/benchmark_renderer.py`` parses."""
+    import re
+
+    from isaaclab.sim import SimulationContext
+    from isaaclab.sim import simulation_context as context_module
+
+    monkeypatch.setattr(context_module, "_PHYSICS_PROFILE_ENABLED", True)
+    context = _stub_context_for_step([])
+
+    SimulationContext.step(context, render=False)
+
+    assert re.search(rf"{re.escape(context_module.PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms", capsys.readouterr().out)
+
+
+def test_step_prints_nothing_when_physics_profile_disabled(monkeypatch, capsys):
+    """Profiling is off by default, so an ordinary run pays neither the print nor the sync."""
+    from isaaclab.sim import SimulationContext
+    from isaaclab.sim import simulation_context as context_module
+
+    monkeypatch.setattr(context_module, "_PHYSICS_PROFILE_ENABLED", False)
+    context = _stub_context_for_step([])
+
+    SimulationContext.step(context, render=False)
+
+    assert context_module.PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out
