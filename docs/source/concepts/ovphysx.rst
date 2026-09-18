@@ -97,6 +97,13 @@ Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.
 
+Before populating OVStage, the backend registers the codeless PhysX schemas
+and the installed Newton USD schema when the ovphysx package provides its
+discovery helper. Registering both with OVStage preserves authored
+``newton:*`` attributes used by the physics runtime. The Newton schema is
+optional for scenes without those attributes; scenes that author them need
+the ``newton-usd-schemas`` package installed.
+
 Testing the Installation
 ------------------------
 

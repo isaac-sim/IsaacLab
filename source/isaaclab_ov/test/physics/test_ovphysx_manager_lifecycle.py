@@ -72,23 +72,40 @@ def _fake_ovphysx_module(bootstrap):
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths", "schema_root", "has_registration_api"),
+    ("registered_names", "expected_paths", "schema_root", "has_registration_api", "newton_schema"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True, None),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True, None),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True, None),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False, None),
         pytest.param(
             ["physxSchema"],
             ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
             "/schemas",
             None,
+            None,
             id="ovstage-import-unavailable",
+        ),
+        pytest.param(
+            ["PhysxSchema", "OmniUsdPhysicsDeformableSchema"],
+            [],
+            "/schemas",
+            True,
+            "/newton",
+            id="newton-schema-installed",
+        ),
+        pytest.param(
+            ["physxSchema"],
+            ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
+            "/schemas",
+            True,
+            FileNotFoundError("optional Newton schema package is not installed"),
+            id="newton-schema-package-missing",
         ),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
+    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api, newton_schema
 ):
     manager = manager_module.OvPhysxManager
     schema_paths = [
@@ -102,6 +119,14 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     fake_ovphysx.codeless_schema_paths = lambda: schema_paths
     if schema_root is not None:
         fake_ovphysx.codeless_schema_root = lambda: Path(schema_root)
+    if newton_schema is not None:
+
+        def newton_schema_root():
+            if isinstance(newton_schema, FileNotFoundError):
+                raise newton_schema
+            return Path(newton_schema)
+
+        fake_ovphysx.newton_schema_root = newton_schema_root
 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.population = SimpleNamespace()
@@ -125,7 +150,10 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    expected_roots = [schema_root]
+    if isinstance(newton_schema, str):
+        expected_roots.append(newton_schema)
+    assert ovstage_registrations == ([expected_roots] if schema_root is not None and has_registration_api else [])
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
