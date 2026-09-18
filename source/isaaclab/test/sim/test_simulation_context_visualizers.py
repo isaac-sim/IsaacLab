@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import sys
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
+import numpy as np
 import pytest
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
@@ -25,6 +26,8 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.envs.utils.video_recorder import VideoRecorder
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -580,6 +583,74 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_model"] == "dummy-model"
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+
+
+def test_headless_kit_recorder_publishes_state_and_renders_once(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    """Exercise real render/step/capture methods with only the physics and Kit boundaries stubbed."""
+    physics_value = 0
+    published_value = 0
+    pixels = np.zeros((8, 12, 3), dtype=np.uint8)
+
+    def publish_transforms():
+        nonlocal published_value
+        published_value = physics_value
+
+    def render_pixels():
+        pixels.fill(published_value)
+
+    app = Mock()
+    app.is_running.return_value = True
+    app.update.side_effect = render_pixels
+    product = Mock()
+    annotator = Mock()
+    annotator.get_data.side_effect = lambda: pixels.copy()
+
+    # Kit is imported lazily by capture. Stub its boundary without starting a GPU runtime.
+    modules = {
+        name: ModuleType(name)
+        for name in ("omni", "omni.kit", "omni.kit.app", "omni.replicator", "omni.replicator.core")
+    }
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+        parent, _, attr = name.rpartition(".")
+        if parent:
+            setattr(modules[parent], attr, module)
+    modules["omni.kit.app"].get_app = lambda: app
+    rep = modules["omni.replicator.core"]
+    rep.create = SimpleNamespace(render_product=Mock(return_value=product))
+    rep.AnnotatorRegistry = SimpleNamespace(get_annotator=Mock(return_value=annotator))
+    settings = Mock()
+    settings.get.return_value = True
+    monkeypatch.setattr(kit_visualizer, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", Mock())
+
+    viz = kit_visualizer.KitVisualizer(KitVisualizerCfg(headless=True, window_width=12, window_height=8))
+    viz._is_initialized = True
+    viz._scene_data_provider = _FakeProvider()
+    monkeypatch.setattr(viz, "_apply_render_product_background", Mock())
+    ctx = _make_context([viz])
+    ctx.physics_manager = Mock()
+    ctx.physics_manager.pre_render.side_effect = publish_transforms
+    ctx._viz_dt = 0.1
+    ctx._render_callbacks = {}
+    ctx._render_generation = 0
+    monkeypatch.setattr(SimulationContext, "is_rendering", property(lambda self: False))
+    recorder = VideoRecorder(
+        VideoRecorderCfg(source="visualizer:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=ctx)
+    )
+
+    for physics_value in (64, 128, 192):
+        app.update.reset_mock()
+        frame = recorder._get_frame()
+
+        # forward() alone leaves the published state stale. An extra app pump in
+        # KitVisualizer.step() would fail the render count even if pixels are fresh.
+        np.testing.assert_array_equal(frame, np.full_like(pixels, physics_value))
+        app.update.assert_called_once_with()
+        product.pause.assert_called()
+
+    rep.create.render_product.assert_called_once()
+    assert product.resume.call_count == 2
 
 
 def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
