@@ -39,3 +39,21 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+gym.register(
+    id="IsaacContrib-PickPlace-FixedBaseNewtonIK-G1-Abs",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.fixed_base_newton_ik_g1_env_cfg:FixedBaseNewtonIKG1EnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="IsaacContrib-PickPlace-FixedBasePinkIK-G1-Abs",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.fixed_base_newton_ik_g1_env_cfg:FixedBasePinkIKG1EnvCfg",
+    },
+    disable_env_checker=True,
+)
