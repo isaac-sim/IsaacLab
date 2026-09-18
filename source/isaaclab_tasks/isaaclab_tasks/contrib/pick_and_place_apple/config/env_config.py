@@ -479,6 +479,8 @@ class PnpAppleEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics.gpu_max_num_partitions = 32
         # One render per environment step; the policy reads a camera only once per step.
         self.sim.render_interval = 4
+        # Without a re-render the observation returned by reset() carries the previous episode's image.
+        self.num_rerenders_on_reset = 2
         # SimulationCfg.render only exists on IsaacLab builds that ship RenderCfg;
         # it is absent from the pinned checkout here, where the bare attribute
         # access raised AttributeError before the environment was ever built.
