@@ -25,6 +25,10 @@ RLINF_DEMO_ASSET_ROOT: str = os.environ.get(
 )
 """Root of the asset bundle shared by the RLinf demo tasks."""
 
+# Props powered by Lightwheel (https://lightwheel.ai/). These assets are licensed under the Creative
+# Commons Attribution-NonCommercial 4.0 International License, whose terms are collected in
+# ``docs/licenses/assets/lightwheel-license.txt``. Per-asset terms are served next to each USD, as
+# ``LICENSE.txt`` in place of the file's base name.
 PROP_ASSET_ROOT: str = f"{RLINF_DEMO_ASSET_ROOT}/Props/Lightwheel"
 """Table, object and background USDs."""
 
