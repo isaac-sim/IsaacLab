@@ -3,13 +3,34 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-from .rough_env_cfg import H1RoughEnvCfg
+import isaaclab_tasks.core.velocity.mdp as mdp
+
+from .rough_env_cfg import H1Rewards, H1RoughEnvCfg
+
+
+@configclass
+class H1FlatRewards(H1Rewards):
+    """Reward terms for the MDP."""
+
+    # fixes the tilted gait
+    air_time_variance = RewTerm(
+        func=mdp.feet_air_time_variance,
+        weight=-2.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+            "command_name": "base_velocity",
+        },
+    )
 
 
 @configclass
 class H1FlatEnvCfg(H1RoughEnvCfg):
+    rewards: H1FlatRewards = H1FlatRewards()
+
     def __post_init__(self):
         super().__post_init__()
 
