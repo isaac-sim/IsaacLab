@@ -103,7 +103,12 @@ class CircularBuffer:
         Returns:
             Complete circular buffer with most recent entry at the end and oldest entry at the beginning of
             dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
+
+        Raises:
+            RuntimeError: If no data has been appended yet.
         """
+        if self._buffer is None:
+            raise RuntimeError("The buffer is empty. Please append data before retrieving.")
         if self._stack_dim_internal is None:
             return torch.transpose(self._buffer, dim0=0, dim1=1)
         return torch.movedim(self._buffer, source=self._stack_dim_internal, destination=1)
