@@ -195,6 +195,13 @@ class JointPositionAction(JointAction):
         if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        super().reset(env_ids)
+        if self.cfg.use_default_offset:
+            if env_ids is None:
+                env_ids = slice(None)
+            self._offset[env_ids] = self._asset.data.default_joint_pos.torch[env_ids][:, self._joint_ids]
+
     def apply_actions(self):
         # set position targets
         self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
@@ -245,6 +252,13 @@ class JointVelocityAction(JointAction):
         # use default joint velocity as offset
         if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_vel.torch[:, self._joint_ids].clone()
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        super().reset(env_ids)
+        if self.cfg.use_default_offset:
+            if env_ids is None:
+                env_ids = slice(None)
+            self._offset[env_ids] = self._asset.data.default_joint_vel.torch[env_ids][:, self._joint_ids]
 
     def apply_actions(self):
         # set joint velocity targets
