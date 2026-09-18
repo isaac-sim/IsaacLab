@@ -730,6 +730,255 @@ def apply_rigid_body_properties(
     return success
 
 
+"""
+Deformable body properties.
+"""
+
+
+def _warn_if_no_deformable_material(prim: Usd.Prim) -> None:
+    """Warn when a newly created deformable body has no physics material binding.
+
+    A ``physics`` material may be bound directly on the deformable body prim or on a child
+    geometry prim (USD material bindings do not propagate upward), so the whole subtree is
+    inspected before warning. The check is advisory only and never blocks authoring.
+    """
+    from pxr import UsdShade  # noqa: PLC0415
+
+    for descendant in Usd.PrimRange(prim):
+        if not descendant.HasAPI(UsdShade.MaterialBindingAPI):
+            continue
+        if UsdShade.MaterialBindingAPI(descendant).GetDirectBindingRel("physics").GetTargets():
+            return
+    logger.warning(
+        "Deformable body '%s' was created without a physics material binding; runtime behavior"
+        " is undefined until a deformable material is bound.",
+        prim.GetPath().pathString,
+    )
+
+
+# Simulation-mesh API schemas that record whether an authored deformable body is a volume or a
+# surface deformable. The generic deformable-body anchor on the body prim does not carry that
+# split, so both backend spellings are matched here.
+_DEFORMABLE_SIM_API_TYPES = {
+    "OmniPhysicsVolumeDeformableSimAPI": "volume",
+    "PhysicsVolumeDeformableSimAPI": "volume",
+    "OmniPhysicsSurfaceDeformableSimAPI": "surface",
+    "PhysicsSurfaceDeformableSimAPI": "surface",
+}
+
+
+def _authored_deformable_type(prim: Usd.Prim) -> str | None:
+    """Report the deformable type an already-anchored body was authored with.
+
+    The volume/surface distinction lives on the simulation mesh (its sim API schema), not on the
+    deformable-body anchor, so the subtree is inspected for the first simulation-mesh API schema.
+
+    Args:
+        prim: The deformable-body prim to inspect.
+
+    Returns:
+        ``"volume"``, ``"surface"``, or None when the subtree carries no simulation-mesh API and
+        the type cannot be determined.
+    """
+    for descendant in Usd.PrimRange(prim):
+        for schema in descendant.GetPrimTypeInfo().GetAppliedAPISchemas():
+            # multi-apply schemas carry an instance suffix (``Api:instance``); the split is a no-op
+            # for the single-apply sim APIs matched here
+            authored_type = _DEFORMABLE_SIM_API_TYPES.get(schema.split(":", 1)[0])
+            if authored_type is not None:
+                return authored_type
+    return None
+
+
+def _apply_deformable_body_properties(
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.DeformableBodyFragment],
+    deformable_type: str,
+    create_if_missing: bool,
+    stage: Usd.Stage | None,
+    sim_mesh_name: str,
+    warn_missing_material: bool,
+    tetrahedralization_edge_length_fac: float,
+) -> bool:
+    """Shared implementation of the volume/surface deformable family writers."""
+    fragments = list(fragments)
+    if stage is None:
+        stage = get_current_stage()
+    if not fragments and not create_if_missing:
+        return True
+    for cfg in fragments:
+        if deformable_type not in type(cfg)._deformable_types:
+            logger.warning(
+                "Fragment '%s' is not meaningful for %s deformables; authoring anyway.",
+                type(cfg).__name__,
+                deformable_type,
+            )
+    targets, creation_candidates, any_skipped = _match_fragment_targets(prim_path_expr, has_deformable_body_api, stage)
+    # the deformable-body anchor is type-agnostic, so a prim authored as the other deformable type
+    # also matches here. Authoring this family onto it would leave the body simulating as its
+    # authored type while carrying this family's attributes, so drop it instead.
+    matched_targets, targets = targets, []
+    mismatched = False
+    for prim in matched_targets:
+        authored_type = _authored_deformable_type(prim)
+        if authored_type is not None and authored_type != deformable_type:
+            mismatched = True
+            logger.warning(
+                "Prim '%s' is already authored as a %s deformable but was matched by '%s' as a %s"
+                " deformable; skipping it. Author it through the %s deformable family instead.",
+                prim.GetPath().pathString,
+                authored_type,
+                prim_path_expr,
+                deformable_type,
+                authored_type,
+            )
+        else:
+            targets.append(prim)
+    any_skipped = any_skipped or mismatched
+    if create_if_missing and creation_candidates:
+        # Keep this import local to avoid the SimulationContext -> schemas import cycle.
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            raise RuntimeError(
+                f"Cannot create deformable bodies matched by '{prim_path_expr}' without an active simulation."
+            )
+        for prim in creation_candidates:
+            sim_mesh_prim_path = f"{prim.GetPath().pathString}/{sim_mesh_name}"
+            sim_mesh_prim, vis_mesh_prim = _setup_deformable_meshes(
+                prim, deformable_type, sim_mesh_prim_path, stage, tetrahedralization_edge_length_fac
+            )
+            sim.physics_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim, stage)
+            if warn_missing_material:
+                _warn_if_no_deformable_material(prim)
+            targets.append(prim)
+    if not targets:
+        if not mismatched:
+            logger.warning("No deformable-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
+    dispatchers = [cfg.func if callable(cfg.func) else string_to_callable(cfg.func) for cfg in fragments]
+    # aggregate per-target, per-fragment results so a reported failure is not masked
+    success = not any_skipped
+    for target in targets:
+        target_path = target.GetPath().pathString
+        for cfg, func in zip(fragments, dispatchers):
+            success = bool(func(cfg, target_path, stage)) and success
+    return success
+
+
+def apply_volume_deformable_properties(
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.DeformableBodyFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
+    sim_mesh_name: str = "sim_mesh",
+    warn_missing_material: bool = True,
+    tetrahedralization_edge_length_fac: float = 0.1,
+) -> bool:
+    """Apply deformable-body fragments to the volume deformables matched by an expression.
+
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Body/.*`` every descendant of a prim. Matched prims that
+    already carry a deformable-body anchor (per :func:`~isaaclab.sim.utils.has_deformable_body_api`)
+    are modified in place: each fragment is dispatched to every such target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+
+    With :paramref:`create_if_missing`, every matched prim without the anchor receives a full
+    volume-deformable setup: the simulation ``TetMesh`` is created as a ``sim_mesh_name`` child
+    (reusing a pre-tetrahedralized ``UsdGeom.TetMesh`` child when present, tetrahedralizing the
+    visual mesh via the optional ``pytetwild`` package otherwise), collision is enabled on it,
+    and the anchor schemas are applied through the active physics backend. Creation therefore
+    requires an active simulation. Zero targets warn and return False; instanced matches are
+    skipped with a warning; fragments not meaningful for volume deformables warn but author.
+    Matched prims already authored as surface deformables are skipped with a warning rather than
+    being given a volume family they do not simulate with.
+
+    Args:
+        prim_path_expr: The prim path expression matched against the stage.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` instances.
+        create_if_missing: Whether to run the full deformable setup on matched prims that do
+            not carry the anchor. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
+            stage is used.
+        sim_mesh_name: Name of the simulation-mesh child prim created per target. Defaults to
+            ``"sim_mesh"``.
+        warn_missing_material: Whether to warn when a newly created deformable body has no
+            physics material bound anywhere in its subtree. Callers that bind a deformable
+            material after creation (e.g. the spawners) pass False to silence the advisory.
+            Defaults to True.
+        tetrahedralization_edge_length_fac: Relative target edge length for automatic
+            tetrahedralization. Defaults to ``0.1``.
+
+    Returns:
+        True if every target and fragment succeeded and no matched prim was skipped.
+
+    Raises:
+        RuntimeError: If creation is requested without an active simulation.
+    """
+    return _apply_deformable_body_properties(
+        prim_path_expr,
+        fragments,
+        "volume",
+        create_if_missing,
+        stage,
+        sim_mesh_name,
+        warn_missing_material,
+        tetrahedralization_edge_length_fac,
+    )
+
+
+def apply_surface_deformable_properties(
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.DeformableBodyFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
+    sim_mesh_name: str = "sim_mesh",
+    warn_missing_material: bool = True,
+    tetrahedralization_edge_length_fac: float = 0.1,
+) -> bool:
+    """Apply deformable-body fragments to the surface deformables matched by an expression.
+
+    Same contract as :func:`apply_volume_deformable_properties` with surface structural work:
+    the simulation mesh is a triangle-mesh copy of the visual mesh (no tetrahedralization), and
+    matched prims already authored as volume deformables are the ones skipped with a warning.
+
+    Args:
+        prim_path_expr: The prim path expression matched against the stage.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` instances.
+        create_if_missing: Whether to run the full deformable setup on matched prims that do
+            not carry the anchor. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
+            stage is used.
+        sim_mesh_name: Name of the simulation-mesh child prim created per target. Defaults to
+            ``"sim_mesh"``.
+        warn_missing_material: Whether to warn when a newly created deformable body has no
+            physics material bound anywhere in its subtree. Callers that bind a deformable
+            material after creation (e.g. the spawners) pass False to silence the advisory.
+            Defaults to True.
+        tetrahedralization_edge_length_fac: Accepted for signature parity with
+            :func:`apply_volume_deformable_properties` and unused, since surface deformables are
+            not tetrahedralized. Defaults to ``0.1``.
+
+    Returns:
+        True if every target and fragment succeeded and no matched prim was skipped.
+
+    Raises:
+        RuntimeError: If creation is requested without an active simulation.
+    """
+    return _apply_deformable_body_properties(
+        prim_path_expr,
+        fragments,
+        "surface",
+        create_if_missing,
+        stage,
+        sim_mesh_name,
+        warn_missing_material,
+        tetrahedralization_edge_length_fac,
+    )
+
+
 def apply_mesh_collision(
     cfg: schemas_cfg.MeshCollisionFragment, prim_path: str, stage: Usd.Stage | None = None
 ) -> bool:
@@ -2002,61 +2251,46 @@ def define_deformable_curve_properties(prim_path: str, stage: Usd.Stage | None =
         raise RuntimeError(f"Failed to set deformable curve API on prim '{prim_path}'.")
 
 
-def define_deformable_body_properties(
-    prim_path: str,
-    cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,
-    stage: Usd.Stage | None = None,
-    deformable_type: str = "volume",
-    sim_mesh_prim_path: str | None = None,
+def _setup_deformable_meshes(
+    root_prim: Usd.Prim,
+    deformable_type: str,
+    sim_mesh_prim_path: str,
+    stage: Usd.Stage,
     tetrahedralization_edge_length_fac: float = 0.1,
-):
-    """Apply the deformable body schema on the input prim and set its properties. The input prim should
-    have a visual surface mesh as child. Volume deformables will have their simulation tetrahedral mesh
-    automatically computed from the surface mesh of the input prim. Surface deformables simply copy the visual mesh
-    as simulation mesh.
+) -> tuple[Usd.Prim, Usd.Prim]:
+    """Author the backend-neutral simulation and visual meshes for a deformable body.
 
-    See :func:`modify_deformable_body_properties` for more details on how the properties are set.
 
-    .. note::
-        If the input prim is not a mesh, this function will traverse the prim and find the first mesh
-        under it. If no mesh or multiple meshes are found, an error is raised. This is because the deformable
-        body schema can only be applied to a single mesh.
-
-    .. note::
-        This function authors a new deformable body setup from scratch. It does not remove or clear existing
-        deformable body schemas, simulation meshes, or pose data. Use :func:`modify_deformable_body_properties`
-        to update properties on an existing deformable body, or clear any previous setup before calling this
-        function.
+    This resolves the visual surface mesh under the deformable root prim, creates the simulation
+    mesh (a copy of the visual mesh for surface deformables, or a tetrahedralized volume for volume
+    deformables), applies the collision API, and hides the simulation mesh from rendering. The
+    backend-specific simulation APIs and rest-shape attributes are applied by the caller.
 
     Args:
-        prim_path: The prim path where to apply the deformable body schema.
-        cfg: The configuration for the deformable body.
-        stage: The stage where to find the prim. Defaults to None, in which case the
-            current stage is used.
-        deformable_type: The type of the deformable body (surface or volume).
-            This is used to determine which USD API to use for the deformable body. Defaults to "volume".
-        sim_mesh_prim_path: Optional override for the simulation mesh creation prim path.
-            Ignored when pre-tetrahedralized mesh is found for volume deformables.
-            If None, it is set to ``{prim_path}/sim_mesh``.
-        tetrahedralization_edge_length_fac: Relative target edge length for automatic tetrahedralization.
-            Defaults to ``0.1``.
+        root_prim: The deformable root prim under which to find or author the meshes.
+        deformable_type: The type of the deformable body ("surface" or "volume").
+        sim_mesh_prim_path: The prim path at which to create the simulation mesh. Ignored when a
+            pre-tetrahedralized mesh is found for volume deformables.
+        stage: The stage on which the prims live.
+        tetrahedralization_edge_length_fac: Relative target edge length for automatic
+            tetrahedralization. Defaults to ``0.1``.
+
+    Returns:
+        A tuple of the simulation mesh prim and the visual mesh prim.
 
     Raises:
-        ValueError: When the prim path is not valid.
-        ValueError: When the prim has no mesh or multiple meshes.
-        ModuleNotFoundError: When automatic volume tetrahedralization is requested
-            without its optional dependencies.
-        RuntimeError: When setting the deformable body properties fails.
-    """
-    # get stage handle
-    if stage is None:
-        stage = get_current_stage()
+        ValueError: When the deformable type is unsupported, no mesh or multiple meshes are found,
+            or a resolved mesh prim is invalid.
+        RuntimeError: When applying the collision API fails.
 
-    # get USD prim
-    root_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
-    if not root_prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    """
+    if deformable_type not in ("surface", "volume"):
+        raise ValueError(
+            f"""Unsupported deformable type: '{deformable_type}'.
+            Only surface and volume deformables are supported."""
+        )
+
+    prim_path = str(root_prim.GetPrimPath())
 
     sim_mesh_prim = None
     # for volume deformables, we check if a pre-tetrahedralized TetMesh exists for the sim_mesh
@@ -2117,12 +2351,6 @@ def define_deformable_body_properties(
     if not vis_mesh_prim.IsValid():
         raise ValueError(f"Mesh prim path '{vis_mesh_prim.GetPrimPath()}' is not valid.")
 
-    # define authors a fresh deformable setup; callers must clear any previous setup before calling this function.
-    # We check the USD namespace to determine which API to use for the deformable body.
-    use_omni_physics_apis = getattr(cfg, "_usd_namespace", None) != "newton"
-
-    # create and set simulation/root prim properties based on the type of the deformable mesh (surface vs volume)
-    sim_mesh_prim_path = prim_path + "/sim_mesh" if sim_mesh_prim_path is None else sim_mesh_prim_path
     # extract visual surface mesh vertices and faces
     vertices = np.array(vis_mesh_prim.GetAttribute("points").Get())
     faces = np.array(vis_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
@@ -2139,18 +2367,7 @@ def define_deformable_body_properties(
             },
             stage=stage,
         )
-        # apply sim API
-        if use_omni_physics_apis:
-            if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-            # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
-            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(vertices)
-            sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(faces)
-        else:
-            if not sim_mesh_prim.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-
-    elif deformable_type == "volume":
+    else:
         if sim_mesh_prim is None:
             try:
                 from pytetwild import tetrahedralize
@@ -2198,30 +2415,11 @@ def define_deformable_body_properties(
                 stage=stage,
             )
 
-        # apply sim API
-        if use_omni_physics_apis:
-            if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
-        else:
-            if not sim_mesh_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
-
-        # set surface faces and rest-shape attributes required by OmniPhysicsVolumeDeformableSimAPI
+        # set surface faces required by the deformable simulation APIs
         surface_face_indices = UsdGeom.TetMesh.ComputeSurfaceFaces(
             UsdGeom.TetMesh(sim_mesh_prim), Usd.TimeCode.Default()
         )
         UsdGeom.TetMesh(sim_mesh_prim).GetSurfaceFaceVertexIndicesAttr().Set(surface_face_indices)
-        if use_omni_physics_apis:
-            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
-            sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
-                sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
-            )
-
-    else:
-        raise ValueError(
-            f"""Unsupported deformable type: '{deformable_type}'.
-            Only surface and volume deformables are supported."""
-        )
 
     # apply collision API
     if not sim_mesh_prim.ApplyAPI(UsdPhysics.CollisionAPI):
@@ -2229,6 +2427,101 @@ def define_deformable_body_properties(
 
     # disable simulation mesh for rendering
     UsdGeom.Imageable(sim_mesh_prim).GetPurposeAttr().Set(UsdGeom.Tokens.guide)
+
+    return sim_mesh_prim, vis_mesh_prim
+
+
+def define_deformable_body_properties(
+    prim_path: str,
+    cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,
+    stage: Usd.Stage | None = None,
+    deformable_type: str = "volume",
+    sim_mesh_prim_path: str | None = None,
+    tetrahedralization_edge_length_fac: float = 0.1,
+):
+    """Apply the deformable body schema on the input prim and set its properties. The input prim should
+    have a visual surface mesh as child. Volume deformables will have their simulation tetrahedral mesh
+    automatically computed from the surface mesh of the input prim. Surface deformables simply copy the visual mesh
+    as simulation mesh.
+
+    See :func:`modify_deformable_body_properties` for more details on how the properties are set.
+
+    .. note::
+        If the input prim is not a mesh, this function will traverse the prim and find the first mesh
+        under it. If no mesh or multiple meshes are found, an error is raised. This is because the deformable
+        body schema can only be applied to a single mesh.
+
+    .. note::
+        This function authors a new deformable body setup from scratch. It does not remove or clear existing
+        deformable body schemas, simulation meshes, or pose data. Use :func:`modify_deformable_body_properties`
+        to update properties on an existing deformable body, or clear any previous setup before calling this
+        function.
+
+    Args:
+        prim_path: The prim path where to apply the deformable body schema.
+        cfg: The configuration for the deformable body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+        deformable_type: The type of the deformable body (surface or volume).
+            This is used to determine which USD API to use for the deformable body. Defaults to "volume".
+        sim_mesh_prim_path: Optional override for the simulation mesh creation prim path.
+            Ignored when pre-tetrahedralized mesh is found for volume deformables.
+            If None, it is set to ``{prim_path}/sim_mesh``.
+        tetrahedralization_edge_length_fac: Relative target edge length for automatic
+            tetrahedralization. Defaults to ``0.1``.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+        ValueError: When the prim has no mesh or multiple meshes.
+        RuntimeError: When setting the deformable body properties fails.
+    """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
+    # get USD prim
+    root_prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not root_prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    # define authors a fresh deformable setup; callers must clear any previous setup before calling this function.
+    # We check the USD namespace to determine which API to use for the deformable body.
+    use_omni_physics_apis = getattr(cfg, "_usd_namespace", None) != "newton"
+
+    # create the backend-neutral simulation and visual meshes
+    sim_mesh_prim_path = prim_path + "/sim_mesh" if sim_mesh_prim_path is None else sim_mesh_prim_path
+    sim_mesh_prim, vis_mesh_prim = _setup_deformable_meshes(
+        root_prim, deformable_type, sim_mesh_prim_path, stage, tetrahedralization_edge_length_fac
+    )
+
+    # apply the simulation API and rest state on the simulation mesh (backend-specific)
+    if deformable_type == "surface":
+        if use_omni_physics_apis:
+            if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
+            # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
+            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+            # flatten through numpy so USD coerces the flat index run into the Vec3i array the
+            # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
+            sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
+                np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
+            )
+        else:
+            if not sim_mesh_prim.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
+    else:
+        if use_omni_physics_apis:
+            if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
+            # set rest-shape attributes required by OmniPhysicsVolumeDeformableSimAPI
+            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+            sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
+                sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
+            )
+        else:
+            if not sim_mesh_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
 
     if use_omni_physics_apis:
         # For PhysX: bind visual to sim mesh by applying bind pose deformable pose API

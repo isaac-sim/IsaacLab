@@ -179,6 +179,10 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     Deformable bodies collide through their simulation mesh, so collision offsets are set through the mesh
     spawner's ``collision_props`` rather than :attr:`deformable_props`.
 
+    When a deformable slot (:attr:`volume_deformable_props` or :attr:`surface_deformable_props`) is set,
+    collision tuning rides the :attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.collision_props` family
+    keyed to the created simulation mesh (e.g. ``{"/sim_mesh": [...]}``), anchored at the spawn prim.
+
     Note:
         By default, all properties are set to None. This means that no properties will be added or modified
         to the prim outside of the properties available by default when spawning the prim.
@@ -189,3 +193,27 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
 
     deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = None
     """Deformable body properties."""
+
+    volume_deformable_props: dict[str, list[schemas.DeformableBodyFragment]] | None = None
+    """Volume (tetrahedral FEM) deformable-body properties as a mapping from target pattern to a
+    list of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` fragments.
+
+    Keys are regular-expression suffixes appended to the spawn prim (the container prim for both mesh and USD assets),
+    so a key carries its own leading ``/`` when it targets descendants (``""`` the spawn prim, ``"/[^/]+"`` its direct
+    children, ``"(/.*)?"`` the spawn prim and its whole subtree). Entries are applied in insertion order, so on
+    overlapping targets later entries override earlier ones per attribute. The spawner always creates missing
+    deformable setups on matched prims (equivalent to ``create_if_missing=True``); the simulation mesh is created as a
+    ``sim_mesh`` child of each target.
+
+    At most one of :attr:`volume_deformable_props`, :attr:`surface_deformable_props`, and the
+    legacy :attr:`deformable_props` may be set. ``UsdPhysics.MassAPI`` is ignored for deformable
+    bodies; set mass through :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`.
+    """
+
+    surface_deformable_props: dict[str, list[schemas.DeformableBodyFragment]] | None = None
+    """Surface (cloth/triangle-mesh) deformable-body properties as a mapping from target pattern
+    to a list of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` fragments.
+
+    Same key semantics as :attr:`volume_deformable_props`; the simulation mesh is a triangle-mesh
+    copy of the visual mesh instead of a tetrahedral mesh.
+    """

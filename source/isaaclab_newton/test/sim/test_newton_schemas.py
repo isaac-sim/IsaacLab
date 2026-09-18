@@ -171,10 +171,10 @@ def test_newton_material_fragment_composes_with_usd_physics_fragment(setup_sim):
     both the ``newton:*`` and solver-common ``physics:*`` namespaces on the same material prim."""
     from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material_from_fragments
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
-    prim = spawn_rigid_body_material_from_fragments(
+    prim = spawn_physics_material_from_fragments(
         "/World/newton_mat_frag",
         [
             UsdPhysicsRigidBodyMaterialCfg(static_friction=0.6, dynamic_friction=0.5),
@@ -201,9 +201,9 @@ def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
     from newton._src.usd.schema_resolver import PrimType
     from newton._src.usd.schemas import SchemaResolverNewton
 
-    from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials import spawn_physics_material_from_fragments
 
-    prim = spawn_rigid_body_material_from_fragments(
+    prim = spawn_physics_material_from_fragments(
         "/World/newton_mat_contact",
         NewtonMaterialCfg(
             torsional_friction=0.3,

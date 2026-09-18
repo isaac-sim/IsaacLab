@@ -101,3 +101,41 @@ def subtree_carries_api(prim_path: str, api_type, stage) -> bool:
         if candidate.HasAPI(api_type):
             return True
     return False
+
+
+def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
+    """Pick the active deformable slot on a spawner cfg.
+
+    Deformable bodies come in two flavours that share no attributes, so a spawner exposes one
+    slot per flavour and at most one may be set. The legacy ``deformable_props`` field counts as
+    a third, mutually exclusive spelling.
+
+    The convenience form always resolves to the spawn prim itself, on every spawner type. The
+    deformable writers create a whole simulation-mesh setup on each target rather than tuning an
+    existing one, so widening the default to a subtree the way the rigid-body, collision, and
+    mass families do would tetrahedralize every mesh under the asset. Targeting anything other
+    than the spawn prim has to be spelled out as a mapping.
+
+    Args:
+        cfg: The spawner configuration to inspect.
+
+    Returns:
+        The active slot as a ``(kind, mapping)`` pair where ``kind`` is ``"volume"`` or
+        ``"surface"``, or None when neither fragment slot is set.
+
+    Raises:
+        ValueError: If more than one deformable slot (including the legacy ``deformable_props``)
+            is set.
+    """
+    slots = [
+        ("volume", getattr(cfg, "volume_deformable_props", None)),
+        ("surface", getattr(cfg, "surface_deformable_props", None)),
+    ]
+    active = [(kind, fragment_mapping(value)) for kind, value in slots if value is not None]
+    legacy = getattr(cfg, "deformable_props", None)
+    if len(active) + (legacy is not None) > 1:
+        raise ValueError(
+            "A spawner configuration may set at most one deformable slot: 'volume_deformable_props',"
+            " 'surface_deformable_props', or the legacy 'deformable_props'."
+        )
+    return active[0] if active else None

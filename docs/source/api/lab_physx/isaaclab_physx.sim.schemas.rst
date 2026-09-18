@@ -54,6 +54,8 @@ isaaclab_physx.sim.schemas
 
     OmniPhysicsDeformableBodyPropertiesCfg
     PhysxDeformableBodyPropertiesCfg
+    PhysxDeformableBodyCfg
+    PhysxSurfaceDeformableBodyCfg
     DeformableBodyPropertiesCfg
 
   .. rubric:: Functions
@@ -165,6 +167,16 @@ Deformable Body
     :members:
     :show-inheritance:
     :exclude-members: __init__
+
+.. autoclass:: PhysxDeformableBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: PhysxSurfaceDeformableBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: DeformableBodyPropertiesCfg
     :members:
