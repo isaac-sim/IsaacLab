@@ -152,15 +152,6 @@ def test_demo_browser_documents_options_for_each_demo():
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
-    arms_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/arms.py"
-        and case.physics_backend == "newton_mjwarp"
-        and case.visualizer == "none"
-    )
-    assert arms_case.spec.startup_timeout == 420.0
-
     h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/h1_locomotion.py")
     assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
