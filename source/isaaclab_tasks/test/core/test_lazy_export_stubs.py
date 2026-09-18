@@ -107,7 +107,7 @@ def test_parse_stub_single_absolute_named_import():
         os.unlink(stub)
 
     assert "some.package" in absolute_named
-    assert absolute_named["some.package"] == ["alpha", "beta"]
+    assert absolute_named["some.package"] == [("alpha", "alpha"), ("beta", "beta")]
 
 
 def test_parse_stub_multiple_absolute_named_imports():
@@ -118,8 +118,8 @@ def test_parse_stub_multiple_absolute_named_imports():
     finally:
         os.unlink(stub)
 
-    assert absolute_named["pkg_a"] == ["foo"]
-    assert absolute_named["pkg_b"] == ["bar", "baz"]
+    assert absolute_named["pkg_a"] == [("foo", "foo")]
+    assert absolute_named["pkg_b"] == [("bar", "bar"), ("baz", "baz")]
 
 
 def test_parse_stub_same_package_multiple_lines_accumulates():
@@ -130,7 +130,7 @@ def test_parse_stub_same_package_multiple_lines_accumulates():
     finally:
         os.unlink(stub)
 
-    assert absolute_named["pkg"] == ["a", "b", "c"]
+    assert absolute_named["pkg"] == [("a", "a"), ("b", "b"), ("c", "c")]
 
 
 def test_parse_stub_absolute_wildcard_not_in_absolute_named():
@@ -170,7 +170,7 @@ def test_parse_stub_mixed_import_kinds():
 
     assert fallbacks == ["abs.pkg"]
     assert rel_wildcards == ["wildmod"]
-    assert absolute_named == {"abs.other": ["x", "y"]}
+    assert absolute_named == {"abs.other": [("x", "x"), ("y", "y")]}
     assert filtered_path is not None
 
 
