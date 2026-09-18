@@ -97,6 +97,9 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     which typically occurs with complex collision geometries (e.g. multi-finger hands).
     """
 
+    enable_multiccd: bool = False
+    """Whether to generate multiple contacts for each colliding geometry pair."""
+
     ls_parallel: bool = False
     """Deprecated parallel line search option.
 
