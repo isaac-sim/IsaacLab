@@ -1,0 +1,7 @@
+# Runtime dependencies of the perf-smoke gate's baseline store.
+#
+# The gate runs on the CI *runner host*, outside the Isaac Sim container, so these are
+# installed into a throwaway virtualenv by the workflow rather than into the image or
+# the isaaclab package. Everything else in tools/perf_smoke is standard library, and
+# the baseline store is the only part that needs it.
+azure-storage-blob>=12.19,<13
