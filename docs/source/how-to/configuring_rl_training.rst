@@ -28,7 +28,7 @@ As an example, we will look at the configuration included for the task ``Isaac-C
 in the ``isaaclab_tasks`` package. This is the same task that we used in the
 :ref:`tutorial-run-rl-training` tutorial.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
    :lines: 50-64
 
@@ -95,7 +95,7 @@ reads the configuration instance:
 .. dropdown:: Code for train_sb3.py with SB3
     :icon: code
 
-    .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
+    .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
       :language: python
       :linenos:
       :emphasize-lines: 56-60, 97-98

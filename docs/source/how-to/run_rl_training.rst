@@ -42,7 +42,7 @@ For this tutorial, we use the training implementation from `Stable-Baselines3`_ 
 .. dropdown:: Code for train_sb3.py
     :icon: code
 
-    .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
+    .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
       :language: python
       :linenos:
       :emphasize-lines: 97-100, 104-109, 121-137, 145-157, 164-170
