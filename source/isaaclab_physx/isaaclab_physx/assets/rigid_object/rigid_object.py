@@ -23,6 +23,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
+from isaaclab_physx.sim.views._pose_tracking_view import _PoseTrackingView
 
 from .rigid_object_data import RigidObjectData
 
@@ -1004,7 +1005,10 @@ class RigidObject(BaseRigidObject):
         resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
-        self._root_view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(root_prim_path_expr))
+        self._root_view = _PoseTrackingView(
+            self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(root_prim_path_expr)),
+            SimulationManager._mark_tensor_pose_write,
+        )
 
         # check if the rigid body was created
         if self.root_view._backend is None:

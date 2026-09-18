@@ -47,13 +47,14 @@ _RTX_FIELD_TO_SETTING = {
     "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
 }
 
-# Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
+# Module-level dedup stamp: tracks the last simulation, physics step, render generation, and scene revision at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
 # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
 # any stale stamp from a previous instance.
-_last_render_update_key: tuple[int, int, int] = (0, -1, -1)
+_last_render_update_key: tuple[int, int, int, int] = (0, -1, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
+_PLAY_SIMULATIONS_SETTING = "/app/player/playSimulations"
 
 
 def _setting_path_from_key(key: str) -> str:
@@ -197,11 +198,12 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
-    current ``(id(sim), step_count, render_generation)`` tuple.
+    current ``(id(sim), step_count, render_generation, scene_state_revision)`` tuple.
 
-    The key is a ``(sim_instance_id, step_count, render_generation)`` tuple so that:
+    The key includes the simulation instance, physics step, render generation, and scene revision so that:
     - creating a new ``SimulationContext`` invalidates stale stamps, and
     - render/reset transitions that do not advance physics step count still force a fresh update.
+    - external pose writes invalidate a frame already produced during the same public step.
 
     After the initial ``app.update()`` the streaming subsystem is queried
     synchronously via ``UsdContext.get_stage_streaming_status()``.  If textures
@@ -220,16 +222,22 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
         return
 
     render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
-    key = (id(sim), sim._physics_step_count, render_generation)
+    scene_state_revision = sim.render_context.scene_state_revision
+    key = (id(sim), sim._physics_step_count, render_generation, scene_state_revision)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
 
     # If a visualizer already pumps the Kit app loop, mark as done and skip.
     # However, on the very first call for a new SimulationContext, the visualizer
     # has not had a chance to pump yet (sim.render() was never called), so we
-    # must perform the initial app.update() ourselves to populate annotator buffers.
+    # must perform the initial app.update() ourselves to populate annotator buffers. A
+    # scene mutation after that pump also requires a new frame in the same public step.
     first_call_for_sim = _last_render_update_key[0] != id(sim)
-    if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
+    if (
+        not first_call_for_sim
+        and sim.render_context.scene_state_is_rendered
+        and any(viz.pumps_app_update() for viz in sim.visualizers)
+    ):
         _last_render_update_key = key
         return
 
@@ -246,16 +254,21 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     # call _update_fabric(), so without this the render would lag one frame behind.
     sim.physics_manager.forward()
 
+    frame_scene_state_revision = sim.render_context.scene_state_revision
+    key = (id(sim), sim._physics_step_count, render_generation, frame_scene_state_revision)
     import omni.kit.app
 
-    sim.set_setting("/app/player/playSimulations", False)
-    omni.kit.app.get_app().update()
+    play_flag = sim.get_setting(_PLAY_SIMULATIONS_SETTING)
+    sim.set_setting(_PLAY_SIMULATIONS_SETTING, False)
+    try:
+        omni.kit.app.get_app().update()
 
-    if _get_stage_streaming_busy():
-        _wait_for_streaming_complete()
+        if _get_stage_streaming_busy():
+            _wait_for_streaming_complete()
+    finally:
+        sim.set_setting(_PLAY_SIMULATIONS_SETTING, bool(play_flag) if play_flag is not None else True)
 
-    sim.set_setting("/app/player/playSimulations", True)
-
+    sim.render_context.mark_scene_state_rendered(frame_scene_state_revision)
     _last_render_update_key = key
 
 
