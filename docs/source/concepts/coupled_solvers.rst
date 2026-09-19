@@ -200,6 +200,65 @@ runtime and cannot repair an unstable entry. The generated
 default; Newton's concept page explains the underlying algorithms.
 
 
+Tune Rigid--MPM Proxy Coupling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`, first stabilize each
+solver alone. Then tune the additional controls:
+
+* ``CouplerEntryCfg.substeps`` divides one coupled step for that entry. Increase
+  the MPM entry's value when only the particle solve needs a smaller timestep.
+* ``CouplerProxyCfg.iterations`` repeats the proxy exchange and relaxation; it
+  does not replace smaller physical timesteps.
+* ``CouplerProxyMappingCfg.mass_scale`` scales the source body's effective mass
+  and inertia only in the destination proxy view. It does not change the body's
+  authored mass in the rigid solver.
+* ``CouplerProxyMappingCfg.proxy_relaxation`` relaxes updates to the force fed
+  back to the source. With fixed relaxation, ``0`` preserves the initial zero
+  feedback for a one-way run; ``1`` accepts each new force estimate. Values
+  between them blend the new estimate with the previous feedback. Start each
+  comparison from a fresh state rather than switching an ongoing run to zero.
+  ``proxy_relaxation_mode="aitken"`` adapts the value within a coupled step and
+  clamps it between ``proxy_relaxation_min`` and
+  ``proxy_relaxation_max``.
+
+Start ``mass_scale`` at ``1`` for a freely moving collider. Increase it when the
+rigid solver strongly constrains the collider during MPM contact. For example, a
+cup resting on a table has much greater effective resistance in the supported
+direction than its free-body mass suggests. Sweep finite values geometrically,
+such as ``1``, ``10``, and ``100``, and keep the smallest value that prevents
+unrealistic proxy motion. Newton requires a finite positive value: do not use
+infinity. An excessively large scalar also suppresses legitimate motion in
+unsupported directions and can make the interaction effectively one-way.
+
+Do not use ``mode="lagged"`` as a synonym for one-way coupling. Both ``lagged``
+and ``staggered`` transfer modes can return forces. Use zero
+``proxy_relaxation`` when the intended experiment must suppress feedback.
+
+Validate both the supported and free-moving cases after changing coupling. If
+the uncoupled systems are unstable, fix their timestep, contacts, and reset
+states before adjusting ``mass_scale`` or coupling iterations.
+
+The G1 comparison deploys one policy across successive sand, snow, and clay
+strips. A fall or stall is a legitimate feedback result, not a policy success
+metric. Keep the policy, seed, commands, collision proxies, and material strips
+fixed between one-way and two-way runs:
+
+.. code-block:: bash
+
+   uv run --extra rsl-rl python scripts/demos/mpm/tuning/g1_coupling.py \
+     --coupling two_way --visualizer kit
+
+Historical recordings use 25 mm voxels and 20 cm strips; the current demo
+defaults to 40 mm voxels and 16 cm strips for faster iteration. The existing
+one-way recording uses lower-leg proxies, while the full-body two-way recording
+uses all robot collision geometry. Do not present them as a single-variable
+comparison. Rerun both modes with identical ``--proxy_bodies`` settings for that
+purpose. The recordings are awaiting publication as
+``g1_mpm_one_way_kit_20260919.mp4`` and
+``g1_mpm_two_way_all_geometry_kit_20260919.mp4``.
+
+
 Start from a maintained task
 ----------------------------
 

@@ -12,6 +12,10 @@ Explore focused scripts that demonstrate Isaac Lab's robots, objects, sensors, a
 Choose a demo card, then select a supported physics backend and visualizer to build a ready-to-run command.
 The command automatically includes the optional dependency groups required by the selection.
 
+For controlled particle-material experiments, see :ref:`newton-tuning-mpm`.
+The standalone MPM tuning demos cover material response and the nearly rigid
+particle limit.
+
 Command Builder
 ---------------
 

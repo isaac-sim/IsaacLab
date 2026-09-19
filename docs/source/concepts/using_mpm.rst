@@ -9,6 +9,50 @@ Start with the compact ``scripts/demos/mpm/newton_mpm_granular.py`` example;
 ``snowball_smash.py`` adds coupling and ``teapot_fill.py`` adds cavity sampling.
 
 
+Explore the MPM Demos
+---------------------
+
+The standalone scenes introduce MPM construction and interaction before any
+parameter study. Run them in Kit to inspect the authored particles directly:
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Granular drop
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/newton_mpm_granular.py \
+           --device cuda:0 --visualizer kit
+
+   .. grid-item-card:: Two-way sphere pit
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/newton_mpm_twoway_coupling.py \
+           --device cuda:0 --visualizer kit
+
+   .. grid-item-card:: Snowball smash
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/snowball_smash.py \
+           --device cuda:0 --visualizer kit
+
+   .. grid-item-card:: Teapot fill
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/teapot_fill.py \
+           --device cuda:0 --visualizer kit --fluid_render_mode particles
+
+Selected Kit recordings are awaiting publication to the documentation media
+host: ``mpm_granular_kit_20260919.mp4``,
+``mpm_two_way_coupling_kit_20260919.mp4``,
+``mpm_snowball_smash_kit_20260919.mp4``, and
+``mpm_teapot_fill_particles_kit_20260919.mp4``.
+
+
 .. _franka-pour-reset-artifact:
 
 Train and Regenerate Franka Pour
@@ -103,6 +147,10 @@ states, collision geometry, or a stable timestep. Coupled MPM entries do not
 support this manager-level projection pass.
 
 
+Controlled material experiments, comparison demos, and practical solver advice
+are collected in :ref:`newton-tuning-mpm`.
+
+
 Render a Particle Surface
 -------------------------
 
@@ -112,7 +160,7 @@ material behavior. Run the teapot example to compare the available modes:
 
 .. code-block:: bash
 
-   # Reconstructed surface (default)
+   # Reconstructed surface
    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
      --visualizer newton_gl --fluid_render_mode surface
    # Surface and source particles together
@@ -122,8 +170,24 @@ material behavior. Run the teapot example to compare the available modes:
    uv run --extra ovrtx python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
      --visualizer newton_rtx --fluid_render_mode surface
 
+The teapot demo defaults to particles. This keeps the source MPM state visible
+in Kit and avoids making a reconstruction choice on behalf of the user. Select
+``surface`` or ``both`` explicitly for Newton GL or Newton RTX.
+
 Surface rendering is available in the Newton GL and Newton RTX visualizers.
 The Kit visualizer continues to render the MPM particles directly.
+
+Use the focused reconstruction comparison to keep the water simulation fixed
+while changing only surface extraction parameters:
+
+.. code-block:: bash
+
+   uv run python scripts/demos/mpm/tuning/surface_reconstruction.py \
+     --device cuda:0 --surface_preset balanced --visualizer newton_gl
+
+The balanced Newton RTX recording is awaiting publication as
+``mpm_surface_splash_balanced_rtx_20260919.mp4``. It demonstrates rendering
+appearance, not a different constitutive model.
 
 To reconstruct a surface in another Newton MPM script, create one reusable
 ``newton.geometry.ParticleSurface`` after ``sim.reset()``. On each render update,
@@ -155,51 +219,9 @@ dynamic topology in one reusable helper:
       :pyobject: FluidSurfaceRenderer
 
 
-Tune Resolution, Time, Then Convergence
----------------------------------------
+Next Steps
+----------
 
-Tune one group at a time in this order:
-
-1. **Voxel and particle resolution.** ``MPMSolverCfg.voxel_size`` controls the
-   background grid. Smaller voxels resolve thinner geometry but increase active
-   cells and memory. ``MPMGridCfg.particles_per_cell`` controls particle density;
-   doubling it along each axis creates about eight times as many particles in
-   3D. Start coarse, then refine until the measured behavior stops changing.
-2. **Timestep and substeps.** Each Newton substep uses
-   ``SimulationCfg.dt / NewtonCfg.num_substeps``. Reduce ``dt`` or increase
-   ``num_substeps`` first when contacts tunnel, jitter, or become unstable.
-   Substeps do not change the policy period, which also includes environment
-   decimation.
-3. **Iterations and tolerance.** ``MPMSolverCfg.max_iterations`` caps the
-   rheology solve; ``tolerance`` permits an earlier exit after convergence.
-   Increase the cap only when the solver reaches it, and lower the tolerance
-   only when tighter convergence improves a physical metric. These settings do
-   not repair an unstable timestep, invalid reset, or incorrect collider.
-
-
-Tune Rigid-MPM Coupling
------------------------
-
-For :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`, first stabilize each
-solver alone. Then tune the additional controls:
-
-* ``CouplerEntryCfg.substeps`` divides one coupled step for that entry. Increase
-  the MPM entry's value when only the particle solve needs a smaller timestep.
-* ``CouplerProxyCfg.iterations`` repeats the proxy exchange and relaxation; it
-  does not replace smaller physical timesteps.
-* ``CouplerProxyMappingCfg.mass_scale`` scales the source body's effective mass
-  and inertia only in the destination proxy view. It does not change the body's
-  authored mass in the rigid solver.
-
-Start ``mass_scale`` at ``1`` for a freely moving collider. Increase it when the
-rigid solver strongly constrains the collider during MPM contact. For example, a
-cup resting on a table has much greater effective resistance in the supported
-direction than its free-body mass suggests. Sweep finite values geometrically,
-such as ``1``, ``10``, and ``100``, and keep the smallest value that prevents
-unrealistic proxy motion. Newton requires a finite positive value: do not use
-infinity. An excessively large scalar also suppresses legitimate motion in
-unsupported directions and can make the interaction effectively one-way.
-
-Validate both the supported and free-moving cases after changing coupling. If
-the uncoupled systems are unstable, fix their timestep, contacts, and reset
-states before adjusting ``mass_scale`` or coupling iterations.
+See :ref:`newton-tuning-mpm` for resolution and convergence tuning, controlled
+material comparisons, and the nearly rigid MPM limit. See
+:ref:`newton-coupled-solvers` for rigid--MPM coupling.
