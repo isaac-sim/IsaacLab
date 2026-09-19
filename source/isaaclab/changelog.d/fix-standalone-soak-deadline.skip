@@ -1,1 +1,0 @@
-Allowed standalone smoke tests that reached readiness before the startup deadline to complete their full soak interval.

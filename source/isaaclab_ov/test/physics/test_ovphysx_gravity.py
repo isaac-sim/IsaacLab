@@ -33,7 +33,7 @@ def test_gravity_event_changes_rigid_body_motion():
                 spawn=sim_utils.CuboidCfg(
                     size=(0.5, 0.5, 0.5),
                     rigid_props=sim_utils.RigidBodyBaseCfg(),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
                     collision_props=sim_utils.CollisionBaseCfg(),
                 ),
             )

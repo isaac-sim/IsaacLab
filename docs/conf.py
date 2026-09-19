@@ -344,6 +344,7 @@ html_js_files = [
 
 html_theme_options = {
     "path_to_docs": "docs/",
+    "navbar_persistent": [],
     "collapse_navigation": True,
     "repository_url": "https://github.com/isaac-sim/IsaacLab",
     "use_repository_button": True,
