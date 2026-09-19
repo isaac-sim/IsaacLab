@@ -9,12 +9,17 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
+import warp as wp
+
+from isaaclab.scene_data import SceneDataFormat
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .path import split
 
 if TYPE_CHECKING:
     from pxr import Usd
+
+    from isaaclab.scene_data import SceneDataProvider
 
     from .clone_plan import ClonePlan
 
@@ -40,6 +45,7 @@ class UsdReplicateContext:
             stage: USD stage to author replicated prim specs into.
         """
         self.stage = stage
+        self._fabric_output: SceneDataFormat.FabricMatrix44 | None = None
 
     def replicate(self, plan: ClonePlan) -> None:
         """Apply this context's routed rows from a clone plan.
@@ -63,6 +69,77 @@ class UsdReplicateContext:
         # no-op outside a live Kit application.
         with disabled_fabric_change_notifies(self.stage):
             self._apply(replication_rows)
+
+    def _prepare_fabric(self, provider: SceneDataProvider, device: str) -> None:
+        """Bind native publication paths to their existing Fabric destinations."""
+        if self._fabric_output is not None:
+            return
+        # Fabric is supplied by the running Kit application, not the standalone USD wheel.
+        import usdrt  # noqa: PLC0415
+        import usdrt.hierarchy  # noqa: PLC0415
+        from pxr import UsdUtils  # noqa: PLC0415
+
+        stage_id = UsdUtils.StageCache.Get().GetId(self.stage).ToLongInt()
+        self._fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
+        self._fabric_stage.SynchronizeToFabric()
+        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+            self._fabric_stage.GetFabricId(), self._fabric_stage.GetStageIdAsStageId()
+        )
+        self._fabric_hierarchy.update_world_xforms()
+        gpu_options = getattr(usdrt.hierarchy, "FabricHierarchyGpuUpdateOptions", None)
+        self._fabric_update_options = (
+            gpu_options.RIGID_BODY | gpu_options.FORCE_UPDATE
+            if gpu_options is not None and hasattr(self._fabric_hierarchy, "update_world_xforms_gpu_with_options")
+            else None
+        )
+        self._fabric_selection = self._fabric_stage.SelectPrims(
+            require_applied_schemas=["PhysicsRigidBodyAPI"],
+            require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite)],
+            device=device,
+            want_paths=True,
+        )
+        self._fabric_provider = provider
+        self._fabric_device = device
+        self._fabric_paths = provider.backend.transform_paths
+        self._fabric_generation = -1
+        self._fabric_output = SceneDataFormat.FabricMatrix44()
+        provider._prepare_fabric_output = self._prepare_fabric_output
+
+    def _prepare_fabric_output(self) -> SceneDataFormat.FabricMatrix44:
+        """Refresh a cached Fabric selection after topology changes."""
+        changed = self._fabric_selection.PrepareForReuse()
+        if changed or self._fabric_output.matrices is None:
+            slots = {str(path): index for index, path in enumerate(self._fabric_selection.GetPaths())}
+            paths = [path for path in self._fabric_paths if path in slots]
+            indices = wp.array([slots[path] for path in paths], dtype=wp.int32, device=self._fabric_device)
+            self._fabric_output = SceneDataFormat.FabricMatrix44(
+                matrices=wp.indexedfabricarray(
+                    fa=wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix"), indices=indices
+                ),
+                mapping=self._fabric_provider.create_mapping(paths),
+            )
+            self._fabric_generation = -1
+        return self._fabric_output
+
+    def _update_fabric(self) -> None:
+        """Consume SDP poses and propagate them without rebuilding Fabric connectivity."""
+        if self._fabric_update_options is not None:
+            self._fabric_hierarchy.track_world_xform_changes(False)
+            self._fabric_hierarchy.track_local_xform_changes(False)
+        try:
+            self._fabric_provider.request_transforms(SceneDataFormat.FabricMatrix44)
+            generation = self._fabric_provider.transform_generation
+            if generation != self._fabric_generation:
+                wp.synchronize_device(self._fabric_device)
+                if self._fabric_update_options is None:
+                    self._fabric_hierarchy.update_world_xforms()
+                else:
+                    self._fabric_hierarchy.update_world_xforms_gpu_with_options(self._fabric_update_options)
+                self._fabric_generation = generation
+        finally:
+            if self._fabric_update_options is not None:
+                self._fabric_hierarchy.track_world_xform_changes(True)
+                self._fabric_hierarchy.track_local_xform_changes(True)
 
     def _apply(
         self,

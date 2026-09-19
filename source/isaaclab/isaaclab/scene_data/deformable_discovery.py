@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from itertools import chain
 
 import numpy as np
 
@@ -224,7 +226,9 @@ def _classify_deformable_meshes(
     )
 
 
-def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry]:
+def discover_deformables_on_stage(
+    stage: Usd.Stage, *, root_paths: Sequence[str] | None = None
+) -> list[DeformableStageEntry]:
     """Discover PhysX/OVPhysX deformable bodies under ``stage``.
 
     Callers that need the result in more than one place should keep the returned
@@ -233,12 +237,18 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
 
     Args:
         stage: USD stage to traverse.
+        root_paths: Declared prototype or shared-asset roots to inspect. None selects the complete stage.
 
     Returns:
         One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
     """
     entries: list[DeformableStageEntry] = []
-    for prim in stage.Traverse():
+    prims = (
+        stage.Traverse()
+        if root_paths is None
+        else chain.from_iterable(Usd.PrimRange(stage.GetPrimAtPath(path)) for path in root_paths)
+    )
+    for prim in prims:
         if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
             continue
 

@@ -21,8 +21,10 @@ from packaging import version
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -134,6 +136,13 @@ class IsaacRtxRenderer(BaseRenderer):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    def initialize(self) -> None:
+        """Bind the shared USD clone context to SDP's native transform publication."""
+        sim = SimulationContext.instance()
+        self._scene_data_provider = sim.get_scene_data_provider()
+        self._clone_context = sim.get_or_create_backend(UsdReplicateContext, sim.stage)
+        self._clone_context._prepare_fabric(self._scene_data_provider, sim.device)
 
     @property
     def visual_material_writer(self):
@@ -531,9 +540,8 @@ class IsaacRtxRenderer(BaseRenderer):
             )
 
     def update_transforms(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        pass
+        """Request one native-to-Fabric conversion and update the visual hierarchy."""
+        self._clone_context._update_fabric()
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.

@@ -191,10 +191,10 @@ class SimulationContext:
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
         self.physics_manager.initialize(self)
 
-        # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
+        # Consumers are constructed before cloning and initialized after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
-        self._pending_visualizer_cfgs: list[Any] | None = None
+        self._pending_visualizers: list[BaseVisualizer] | None = []
         self._reset_requested: bool = False
         # Set by the visualizers and renderers in use; read by the scene data provider.
         self.requires_usd_stage = False
@@ -245,7 +245,12 @@ class SimulationContext:
             order=5,
         )
 
-        type(self)._instance = self  # Mark as valid singleton only after successful init
+        type(self)._instance = self
+        try:
+            self._pending_visualizers = self._create_visualizers()
+        except Exception:
+            self.clear_instance()
+            raise
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -633,78 +638,62 @@ class SimulationContext:
         return resolved
 
     def initialize_visualizers(self) -> None:
-        """Initialize visualizers from ``SimulationCfg.visualizer_cfgs``."""
-        if self._pending_visualizer_cfgs == [] or (self._pending_visualizer_cfgs is None and self._visualizers):
-            return
-
-        visualizer_cfgs = self._get_visualizer_cfgs()
-        if not visualizer_cfgs:
-            return
-
+        """Initialize visualizers constructed before scene cloning."""
         self._initialize_visualizers()
 
-        if not self._visualizers and self._scene_data_provider is not None:
-            close_provider = getattr(self._scene_data_provider, "close", None)
-            if callable(close_provider):
-                close_provider()
-            self._scene_data_provider = None
-
-    def _get_visualizer_cfgs(self) -> list[Any]:
-        """Resolve visualizer configs for the current initialization cycle."""
-        if self._pending_visualizer_cfgs is None:
-            self._pending_visualizer_cfgs = self._resolve_visualizer_cfgs()
-        return self._pending_visualizer_cfgs
-
-    def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
-        """Initialize pending visualizers, optionally restricted by config."""
-        physics_dt = getattr(self.cfg.physics, "dt", None)
-        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
-
-        visualizer_cfgs = self._get_visualizer_cfgs()
-        if not visualizer_cfgs:
-            return
-
-        cli_explicit = self._is_cli_visualizer_explicit()
-
-        configs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
-        for config in configs:
-            if config.visualizer_type is not None:
-                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[config.visualizer_type]
+    def _create_visualizers(self) -> list[BaseVisualizer]:
+        """Construct declared consumers early enough to register their clone resources."""
+        visualizers = []
+        for cfg in self._resolve_visualizer_cfgs():
+            if cfg.visualizer_type is not None:
+                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type]
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
-
-        pending_cfgs = []
-        new_visualizers = []
-        for cfg in visualizer_cfgs:
-            if config_filter is not None and not config_filter(cfg):
-                pending_cfgs.append(cfg)
-                continue
             try:
-                visualizer = cfg.class_type(cfg)
-                visualizer.initialize(self._scene_data_provider)
-                self._visualizers.append(visualizer)
-                new_visualizers.append(visualizer)
+                visualizers.append(cfg.class_type(cfg))
             except Exception as exc:
-                if cli_explicit:
+                if self._is_cli_visualizer_explicit():
                     raise RuntimeError(
                         f"Visualizer '{cfg.visualizer_type}' was explicitly requested "
                         f"but failed to create or initialize: {exc}"
                     ) from exc
-                logger.exception(
-                    "Failed to initialize visualizer '%s' (%s): %s",
-                    cfg.visualizer_type,
-                    type(cfg).__name__,
-                    exc,
-                )
-        self._pending_visualizer_cfgs = pending_cfgs
+                logger.exception("Failed to construct visualizer '%s': %s", cfg.visualizer_type, exc)
+        return visualizers
+
+    def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
+        """Initialize pending consumers without constructing another native resource."""
+        if self._pending_visualizers is None:
+            # Reopening a closed viewer reuses the native resource registered before cloning.
+            self._pending_visualizers = self._create_visualizers()
+        physics_dt = getattr(self.cfg.physics, "dt", None)
+        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
+        pending_visualizers = []
+        new_visualizers = []
+        for visualizer in self._pending_visualizers:
+            cfg = visualizer.cfg
+            if config_filter is not None and not config_filter(cfg):
+                pending_visualizers.append(visualizer)
+                continue
+            try:
+                visualizer.initialize(self._scene_data_provider)
+                self._visualizers.append(visualizer)
+                new_visualizers.append(visualizer)
+            except Exception as exc:
+                if self._is_cli_visualizer_explicit():
+                    raise RuntimeError(
+                        f"Visualizer '{cfg.visualizer_type}' was explicitly requested "
+                        f"but failed to create or initialize: {exc}"
+                    ) from exc
+                logger.exception("Failed to initialize visualizer '%s': %s", cfg.visualizer_type, exc)
+        self._pending_visualizers = pending_visualizers
 
         # Replay any camera pose requested before visualizers were initialized.
-        pending = getattr(self, "_pending_camera_view", None)
+        pending = self._pending_camera_view
         if pending is not None:
             eye, target = pending
             for viz in new_visualizers:
                 viz.set_camera_view(eye, target)
-            if not pending_cfgs:
+            if not pending_visualizers:
                 self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
@@ -913,7 +902,7 @@ class SimulationContext:
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
         if visualizers_to_remove and not self._visualizers:
-            self._pending_visualizer_cfgs = None
+            self._pending_visualizers = None
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""

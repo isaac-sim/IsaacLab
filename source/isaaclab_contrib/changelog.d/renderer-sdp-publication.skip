@@ -1,0 +1,1 @@
+Updated coupling internals to use the existing Newton model and state accessors.

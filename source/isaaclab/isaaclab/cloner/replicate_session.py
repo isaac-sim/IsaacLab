@@ -26,7 +26,8 @@ if TYPE_CHECKING:
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     """Dispatch the active fully routed clone plan.
 
-    Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
+    Planning derives asset routing from the input cfgs. Whole-scene consumers registered during
+    construction join the same plan before dispatch; its source layout remains unchanged.
     Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
     only ``plan``.
 
@@ -40,8 +41,16 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
     if sim.get_clone_plan() is not plan:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
+    scene_rows = tuple(map(int, np.flatnonzero(plan.clone_mask.any(axis=1))))
+    for context_type, resource in sim._backend_registry.items():
+        if getattr(resource, "replicates_scene", False):
+            plan.context_rows[context_type] = scene_rows
     context_types = tuple(
-        context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
+        context_type
+        for context_type in plan.context_rows
+        if replicate_physics
+        or context_type is UsdReplicateContext
+        or getattr(sim._backend_registry.get(context_type), "replicates_scene", False)
     )
     missing = [context_type for context_type in context_types if context_type not in sim._backend_registry]
     if missing:

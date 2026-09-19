@@ -272,7 +272,7 @@ class NewtonMPMManager(NewtonManager):
             ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
         """
         solver = NewtonManager._solver
-        model = NewtonManager._model
+        model = NewtonManager._backend.model
         if solver is None or model is None or not cls._implicit_mpm_solvers():
             raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
 
@@ -288,7 +288,7 @@ class NewtonMPMManager(NewtonManager):
                 if selected[0] and not selected[-1]:
                     reset_mask = None
 
-        candidates = (state,) if state is not None else (NewtonManager._state_1, NewtonManager._state_0)
+        candidates = (state,) if state is not None else (NewtonManager._backend.state_1, NewtonManager._backend.state_0)
         states: list[State] = []
         seen: set[int] = set()
         for candidate in candidates:

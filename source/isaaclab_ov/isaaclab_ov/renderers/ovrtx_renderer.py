@@ -66,9 +66,12 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
+from pxr import Gf, Usd, UsdGeom
+
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -86,7 +89,6 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
-    sync_newton_transforms_kernel,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
@@ -328,10 +330,8 @@ class OVRTXRenderer(BaseRenderer):
         # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
         self._warp_device: wp.Device | None = None
         self._render_product_paths = []
-        # Shared by both paths. The legacy-only binding handles that pair with these live in
-        # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
-        # through its stage queries.
-        self._object_newton_indices: wp.array | None = None
+        self._sdp = SimulationContext.instance().get_scene_data_provider()
+        self._transform_generation = -1
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._deformable_particle_offsets: list[int] = []
@@ -450,7 +450,7 @@ class OVRTXRenderer(BaseRenderer):
         )
 
     def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
-        """Record composed world scales of scaled environment prims before the stage is exported.
+        """Record composed world scales of planned prototypes before the stage is exported.
 
         The per-frame object transform write rebuilds each body's matrix from a Newton
         ``transformf``, which carries only translation and rotation, so any scale authored on the
@@ -467,20 +467,15 @@ class OVRTXRenderer(BaseRenderer):
         """
         self._object_scales_by_path.clear()
 
-        from pxr import Gf, Usd, UsdGeom
-
-        envs_prim = stage.GetPrimAtPath("/World/envs")
-        if not envs_prim.IsValid():
-            return
-
         xform_cache = UsdGeom.XformCache()
-        for prim in Usd.PrimRange(envs_prim):
-            if not prim.IsA(UsdGeom.Xformable):
-                continue
-            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
-            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
-            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
-                self._object_scales_by_path[str(prim.GetPath())] = scale
+        for root in dict.fromkeys((*plan.sources, *plan.global_paths)):
+            for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
+                if not prim.IsA(UsdGeom.Xformable):
+                    continue
+                scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+                scale = tuple(map(float, scale))
+                if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                    self._object_scales_by_path[str(prim.GetPath())] = scale
 
         # OVRTX creates non-source rows after this stage is exported, so those destination prims
         # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
@@ -491,10 +486,10 @@ class OVRTXRenderer(BaseRenderer):
                 self._object_scales_by_path.setdefault(clone_path, scale)
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
-        """Build the device scale array aligned with the Newton body binding order.
+        """Build the device scale array aligned with the published body binding order.
 
         Args:
-            object_paths: Bound body prim paths, ordered to match the Newton index array.
+            object_paths: Bound body prim paths, ordered to match the SDP publication.
 
         Returns:
             Per-body scale factors, shape ``[len(object_paths)]``, unit where no scale was authored.
@@ -505,14 +500,10 @@ class OVRTXRenderer(BaseRenderer):
     def _init_fields_legacy(self) -> None:
         """Initialize the legacy-path instance fields.
 
-        Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the ``bind_attribute``/``bind_array_attribute`` handles and the caller-owned object
-        transform buffer. State shared by both paths (``_object_newton_indices``, the particle
-        offset/count lists) stays in :meth:`__init__`.
+        Only binding handles live here; geometry offsets and counts are shared with ovstage.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
-        self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
         self._particle_workaround_applied = False
@@ -670,57 +661,24 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
     def _setup_xform_bindings_legacy(self):
-        """Setup OVRTX bindings for scene objects to sync with Newton physics."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping object bindings")
+        """Bind the plan-owned body paths published through SDP."""
+        object_paths = self._sdp.backend.transform_paths
+        if not object_paths:
             return
-
-        if SimulationContext.instance() is None:
-            logger.info("No active simulation context, will not set up ovrtx object bindings for newton")
-            return
-
-        newton_model = NewtonManager.get_model()
-        if newton_model is None:
-            logger.debug("Newton model not available, skipping object bindings")
-            return
-
-        all_body_paths = getattr(newton_model, "body_label", None)
-        if all_body_paths is None:
-            logger.info("Newton model has no body_label, skipping object bindings")
-            return
-
-        object_paths = []
-        newton_indices = []
-        for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                object_paths.append(path)
-                newton_indices.append(idx)
-
-        if len(object_paths) == 0:
-            logger.info("No dynamic objects found for binding")
-            return
-
         self._object_xform_binding = self._renderer.bind_attribute(
             prim_paths=object_paths,
             attribute_name="omni:xform",
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.EXISTING_ONLY,
         )
-
         self._renderer.write_attribute(
             prim_paths=object_paths,
             attribute_name="omni:resetXformStack",
             tensor=np.full(len(object_paths), True, dtype=np.bool_),
         )
-
         if self._object_xform_binding is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
-
-        self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
-        self._object_transform_buffer = wp.zeros(len(newton_indices), dtype=wp.mat44d, device=self._device)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -729,13 +687,14 @@ class OVRTXRenderer(BaseRenderer):
             num_envs: Number of environments.
         """
         try:
-            from isaaclab_newton.physics import NewtonManager
+            from isaaclab_newton.cloner import NewtonReplicateContext
         except ImportError:
-            logger.debug("NewtonManager not available, skipping deformable body bindings")
+            logger.debug("Newton not available, skipping deformable body bindings")
             return
 
         # Early return if the deformable registry is empty.
-        deformable_registry = NewtonManager._deformable_registry
+        sim = SimulationContext.instance()
+        deformable_registry = sim.get_or_create_backend(NewtonReplicateContext, sim)._deformable_registry
         if not deformable_registry:
             logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
@@ -953,41 +912,18 @@ class OVRTXRenderer(BaseRenderer):
                 )
 
     def _update_transforms_legacy(self) -> None:
-        """Sync transforms to OVRTX."""
-        if (
-            self._object_xform_binding is None
-            or self._object_newton_indices is None
-            or self._object_scales is None
-            or self._object_transform_buffer is None
-        ):
+        """Write SDP's requested native matrix layout without another conversion."""
+        if self._object_xform_binding is None:
             return
-
-        # If self._object_newton_indices is not None, then Newton's the current physics backend
-
-        from isaaclab_newton.physics import NewtonManager
-
-        newton_state = NewtonManager.get_state()
-        if newton_state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        body_q = getattr(newton_state, "body_q", None)
-        if body_q is None:
+        transforms = self._sdp.request_transforms(SceneDataFormat.TransposedMatrix44d, scales=self._object_scales)
+        if self._transform_generation == self._sdp.transform_generation:
             return
-
-        wp.launch(
-            kernel=sync_newton_transforms_kernel,
-            dim=len(self._object_newton_indices),
-            inputs=[self._object_transform_buffer, self._object_newton_indices, body_q, self._object_scales],
-            device=self._device,
-        )
-        # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
-        # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
-        # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
         self._object_xform_binding.write(
-            self._object_transform_buffer,
+            transforms.matrices,
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
+        self._transform_generation = self._sdp.transform_generation
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -1551,7 +1487,6 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_xform_binding = None
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
-        self._object_transform_buffer = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
         _safe_unbind(self._particle_points_binding, "particle points")
@@ -1975,41 +1910,12 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
     def _setup_xform_bindings_ovstage(self) -> None:
-        """Setup OVRTX bindings for scene objects to sync with Newton physics (ovstage path)."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping object bindings")
+        """Bind the plan-owned body paths published through SDP."""
+        object_paths = self._sdp.backend.transform_paths
+        if not object_paths:
             return
-
-        if SimulationContext.instance() is None:
-            logger.info("No active simulation context, will not set up ovrtx object bindings for newton")
-            return
-
-        newton_model = NewtonManager.get_model()
-        if newton_model is None:
-            logger.debug("Newton model not available, skipping object bindings")
-            return
-
-        all_body_paths = getattr(newton_model, "body_label", None)
-        if all_body_paths is None:
-            logger.info("Newton model has no body_label, skipping object bindings")
-            return
-
-        object_paths = []
-        newton_indices = []
-        for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                object_paths.append(path)
-                newton_indices.append(idx)
-
-        if len(object_paths) == 0:
-            logger.info("No dynamic objects found for binding")
-            return
-
         self._object_paths_list = self._stage_paths.create_path_list_from_strings(object_paths)
         self._object_xform_query = self._stage.query_from_path_list(self._object_paths_list)
-
         self._stage.write_attribute(
             self._object_xform_query,
             "omni:resetXformStack",
@@ -2017,11 +1923,6 @@ class OVRTXRenderer(BaseRenderer):
             tensors=np.full(len(object_paths), True, dtype=np.bool_),
             is_array=False,
         ).wait()
-
-        if self._object_xform_query is None:
-            raise RuntimeError("Failed to create OVRTX object bindings")
-
-        self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
@@ -2031,13 +1932,14 @@ class OVRTXRenderer(BaseRenderer):
             num_envs: Number of environments.
         """
         try:
-            from isaaclab_newton.physics import NewtonManager
+            from isaaclab_newton.cloner import NewtonReplicateContext
         except ImportError:
-            logger.debug("NewtonManager not available, skipping deformable body bindings")
+            logger.debug("Newton not available, skipping deformable body bindings")
             return
 
         # Early return if the deformable registry is empty.
-        deformable_registry = NewtonManager._deformable_registry
+        sim = SimulationContext.instance()
+        deformable_registry = sim.get_or_create_backend(NewtonReplicateContext, sim)._deformable_registry
         if not deformable_registry:
             logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
@@ -2213,45 +2115,22 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX particle point bindings")
 
     def _update_transforms_ovstage(self) -> None:
-        if self._object_xform_query is None or self._object_newton_indices is None or self._object_scales is None:
+        """Write SDP's native matrix layout through the active ovstage ordinal."""
+        if self._object_xform_query is None:
             return
-
-        # If self._object_newton_indices is not None, then Newton's the current physics backend
-
-        from isaaclab_newton.physics import NewtonManager
-
-        newton_state = NewtonManager.get_state()
-        if newton_state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        body_q = getattr(newton_state, "body_q", None)
-        if body_q is None:
+        transforms = self._sdp.request_transforms(SceneDataFormat.TransposedMatrix44d, scales=self._object_scales)
+        if self._transform_generation == self._sdp.transform_generation:
             return
-
-        num_objects = len(self._object_newton_indices)
-        object_transforms = wp.empty(num_objects, dtype=wp.mat44d, device=self._device)
-        wp.launch(
-            kernel=sync_newton_transforms_kernel,
-            dim=num_objects,
-            inputs=[object_transforms, self._object_newton_indices, body_q, self._object_scales],
-            device=self._device,
-        )
-        # The tensor is handed over zero-copy, so ovstage reads ``object_transforms`` in place and
-        # must not do so until the kernel above has landed. Passing the producing Warp stream as
-        # ``cuda_stream`` gives producer ordering: ovstage drains the work already queued on that
-        # stream before it touches the tensor. That replaces the device-wide
-        # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
-        # not a nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
-        # A GPU-side wait would need the event-based API instead.
         self._stage.write_attribute(
             self._object_xform_query,
             "omni:xform",
             ordinal=self._current_ordinal,
-            tensors=xform_tensor_from_warp(object_transforms),
+            tensors=xform_tensor_from_warp(transforms.matrices),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
+        self._transform_generation = self._sdp.transform_generation
 
     def _update_geometries_ovstage(self) -> None:
         if self._deformable_points_query is not None or self._particle_points_query is not None:
@@ -2461,7 +2340,6 @@ class OVRTXRenderer(BaseRenderer):
         _safe_destroy_path_list(self._cable_paths_list, "cable paths")
         self._cable_paths_list = None
 
-        self._object_newton_indices = None
         self._object_scales = None
         self._object_scales_by_path = {}
         self._deformable_particle_offsets = []

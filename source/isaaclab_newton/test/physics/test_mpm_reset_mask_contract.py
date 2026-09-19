@@ -14,6 +14,11 @@ from isaaclab_newton.physics import MPMSolverCfg, NewtonManager, NewtonMPMManage
 from newton.solvers import SolverImplicitMPM
 
 
+@pytest.fixture(autouse=True)
+def native_resource(monkeypatch):
+    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=None, state_0=None, state_1=None))
+
+
 @pytest.fixture(scope="module")
 def cpu_mpm_solver_and_state():
     """Build a minimal two-world MPM solver through the Isaac Lab factory."""
@@ -63,7 +68,7 @@ def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_st
 
     monkeypatch.setattr(SolverImplicitMPM, "reset", record_reset)
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_model", solver.model)
+    monkeypatch.setattr(NewtonManager._backend, "model", solver.model)
     world_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
 
     NewtonMPMManager.reset_solver_state(state=state, world_mask=world_mask, flags=0)
@@ -79,7 +84,7 @@ def test_mpm_manager_explicit_reset_rejects_local_only_mask(cpu_mpm_solver_and_s
     """The explicit API requires the final global-world entry."""
     solver, state = cpu_mpm_solver_and_state
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_model", solver.model)
+    monkeypatch.setattr(NewtonManager._backend, "model", solver.model)
     local_only_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
 
     with pytest.raises(ValueError, match=r"world_mask must have shape \(3,\); got \(2,\)"):
@@ -92,7 +97,7 @@ def test_mpm_manager_explicit_reset_promotes_selected_single_world(monkeypatch):
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace(world_count=1))
+    monkeypatch.setattr(NewtonManager._backend, "model", SimpleNamespace(world_count=1))
     monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
 
@@ -108,9 +113,9 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace(world_count=2))
-    monkeypatch.setattr(NewtonManager, "_state_0", state_0)
-    monkeypatch.setattr(NewtonManager, "_state_1", state_1)
+    monkeypatch.setattr(NewtonManager._backend, "model", SimpleNamespace(world_count=2))
+    monkeypatch.setattr(NewtonManager._backend, "state_0", state_0)
+    monkeypatch.setattr(NewtonManager._backend, "state_1", state_1)
     monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
     world_mask = wp.array([True, False, False], dtype=wp.bool, device="cpu")
 
@@ -122,7 +127,7 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     ]
 
     calls.clear()
-    monkeypatch.setattr(NewtonManager, "_state_1", state_0)
+    monkeypatch.setattr(NewtonManager._backend, "state_1", state_0)
 
     NewtonMPMManager.reset_solver_state(world_mask=world_mask, flags=17)
 

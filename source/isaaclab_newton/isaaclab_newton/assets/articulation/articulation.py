@@ -233,7 +233,7 @@ class Articulation(BaseArticulation):
 
     def _configure_joint_target_modes(self, _event) -> None:
         """Apply configured actuator modes to the private Newton model builder."""
-        builder = SimulationManager._builder
+        builder = SimulationManager._backend.builder
         if builder is not None:
             _configure_builder_joint_target_modes(builder, self.cfg)
 
