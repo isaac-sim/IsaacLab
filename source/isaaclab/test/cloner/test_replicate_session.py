@@ -66,21 +66,14 @@ def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
     assert make_clone_plan((cfg,), 2, 1.0).context_rows == {Explicit: (0,)}
 
 
-def test_queue_collects_only_before_plan_publication(monkeypatch):
-    """Post-construction planning ignores cfgs built after a plan is active."""
-    cfg = object()
-    plan = _plan()
-    published = None
-    simulation = SimpleNamespace(get_clone_plan=lambda: published)
-    replicate_session.REPLICATION_QUEUE.clear()
+def test_make_clone_plan_routes_global_only_plan_to_physics(monkeypatch):
+    """A native physics context receives global roots even when no clone rows exist."""
+    simulation = SimpleNamespace(physics_manager=SimpleNamespace(clone_context_type=_Context))
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
-    replicate_session.queue_replication(cfg)
-    assert [cfg] == replicate_session.REPLICATION_QUEUE
-
-    published = plan
-    replicate_session.queue_replication(object())
-    assert [cfg] == replicate_session.REPLICATION_QUEUE
+    empty = make_clone_plan((), 2, 1.0, global_paths=("/World/Ground",))
+    assert empty.context_rows == {_Context: ()}
+    assert empty.global_paths == ("/World/Ground",)
 
 
 @pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
@@ -112,19 +105,16 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
         replicate_priority = -1
 
     plan = _plan(Late, Early)
-    published = []
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Late),
         _backend_registry={Late: Late(calls), Early: Early(calls)},
-        get_clone_plan=lambda: None,
-        set_clone_plan=published.append,
+        get_clone_plan=lambda: plan,
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     replicate_session.replicate(plan)
 
     assert calls == [(Early, plan), (Late, plan)]
-    assert published == [plan]
 
 
 def test_replicate_physics_false_runs_only_usd(monkeypatch):

@@ -20,7 +20,6 @@ import numpy as np
 import torch
 
 from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.noise import NoiseModel
@@ -148,7 +147,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = self.cfg.scene.class_type(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -750,14 +749,10 @@ class DirectRLEnv(gym.Env):
     """
 
     def _setup_scene(self):
-        """Setup the scene for the environment.
+        """Perform optional task-specific setup after the configured scene is constructed.
 
-        This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
-        directly creating the scene objects and registering them with the scene manager.
-
-        We leave the implementation of this function to the derived classes. If the environment does not require
-        any explicit scene setup, the function can be left empty.
+        Normal workflows declare assets and sensors on :attr:`DirectRLEnvCfg.scene`. Override this
+        hook only for setup that cannot be represented by the scene configuration.
         """
         pass
 

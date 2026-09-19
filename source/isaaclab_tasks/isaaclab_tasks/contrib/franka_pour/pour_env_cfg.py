@@ -340,6 +340,7 @@ class PourSceneCfg(InteractiveSceneCfg):
     )
     robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
+    robot.spawn.variants = {"Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions
     # The pouring asset relies on arm self-collision; author it in both namespaces so whichever
     # backend resolves the articulation sees the flag.
