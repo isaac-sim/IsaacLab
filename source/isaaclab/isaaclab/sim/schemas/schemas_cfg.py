@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
-import functools
 import warnings
 from collections.abc import Callable
 from typing import ClassVar, Literal
+
+from typing_extensions import deprecated
 
 from isaaclab.utils import configclass
 
@@ -108,56 +109,14 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
 
 
 def _deprecated_schema_cfg(replacement: str):
-    """Mark a legacy schema cfg class as deprecated in favor of schema fragments.
+    """Warn when a legacy schema cfg is constructed.
 
-    Returns a class decorator that wraps the dataclass ``__init__`` so a ``DeprecationWarning``
-    naming :paramref:`replacement` is raised when the class is *instantiated*. Warning from
-    ``__init__`` rather than from the class body keeps the warning off users who merely import
-    the module, and keeps it to exactly one per construction: ``dataclasses`` regenerates
-    ``__init__`` for every decorated class, so a decorated subclass of a decorated base warns
-    once, for the concrete class the caller actually named. Warning from ``__post_init__``
-    would not have that property, because :func:`~isaaclab.utils.configclass` chains
-    ``__post_init__`` along the inheritance graph.
-
-    Apply it *above* ``@configclass`` so it wraps the generated ``__init__``::
-
-        @_deprecated_schema_cfg("[MassCfg(...)]")
-        @configclass
-        class MassPropertiesCfg: ...
-
-    Dataclass machinery is preserved: the wrapper forwards every argument, and
-    ``functools.wraps`` keeps the generated signature visible to :func:`inspect.signature`, so
-    ``copy()``, ``replace()`` and ``to_dict()`` keep working (``copy()`` and ``replace()``
-    reconstruct the instance and therefore warn again, which is intended -- they are still uses
-    of the legacy class).
-
-    Args:
-        replacement: Fragment list shown in the warning, written as the literal the caller should
-            pass in the spawner slot, e.g. ``"[MassCfg(...)]"`` or
-            ``"[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]"``. It must name *every*
-            fragment needed to cover the decorated class's fields, including fields inherited
-            from a legacy base -- naming only the backend-specific fragment would tell the user
-            to silently drop the rest. Fields with no fragment home (``fix_root_link``,
-            ``ensure_drives_exist``, ``mesh_collision_property``) are called out in a trailing
-            parenthetical pointing at the spawner cfg.
-
-    Returns:
-        A class decorator that installs the warning.
+    Apply above @configclass. Name all replacement fragments and fields moved to the spawner.
     """
 
     def decorator(cls):
-        original_init = cls.__init__
-
-        @functools.wraps(original_init)
-        def __init__(self, *args, **kwargs):
-            warnings.warn(
-                f"{cls.__name__} is deprecated. Use {replacement} instead; {cls.__name__} will be removed in 3.2.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            original_init(self, *args, **kwargs)
-
-        cls.__init__ = __init__
+        message = f"{cls.__name__} is deprecated. Use {replacement} instead; {cls.__name__} will be removed in 3.2."
+        cls.__init__ = deprecated(message)(cls.__init__)
         return cls
 
     return decorator

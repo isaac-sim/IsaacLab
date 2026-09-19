@@ -29,8 +29,10 @@ Deprecated
   raises a ``DeprecationWarning`` when called and will be removed in 3.2. Replace
   ``define_rigid_body_properties`` / ``modify_rigid_body_properties`` with
   :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`, and likewise for the collision, mass,
-  articulation-root, joint-drive, mesh-collision and tendon families. Nested legacy writer calls
-  warn only once, per calling thread. The deformable writers are unaffected.
+  articulation-root, joint-drive, mesh-collision and tendon families. Internal delegation bypasses
+  the warning wrapper so each public call warns once. Use ``inspect.unwrap(writer)`` to access the
+  raw per-prim writer; ``modify_*.__wrapped__`` now retains subtree traversal. The deformable writers
+  are unaffected.
 * Reworded the deprecation notices on the previously deprecated ``*PropertiesCfg`` schema aliases
   to point at the new fragment replacements instead of the intermediate split classes, so the
   whole legacy schema cfg surface is documented to be removed in the same release as the classes

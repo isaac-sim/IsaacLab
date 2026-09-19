@@ -18,7 +18,6 @@ import inspect
 import json
 import subprocess
 import sys
-import threading
 import warnings
 
 import pytest
@@ -339,33 +338,44 @@ def test_legacy_writer_documents_its_replacement(name, replacement):
     assert "removed" in doc and "3.2" in doc, f"{name}: docstring does not state the removal version"
 
 
-def test_modify_mass_properties_warns_and_writes():
-    """The legacy mass writer warns once and still authors ``physics:mass``."""
+@pytest.mark.parametrize("name", ["define_mass_properties", "modify_mass_properties"])
+def test_legacy_mass_writer_warns_once_and_traverses_children(name):
+    """Direct and delegated writers warn at the caller and retain subtree traversal."""
     stage, prim_path = _stage_with_rigid_body()
+    child = UsdGeom.Cube.Define(stage, f"{prim_path}/Child").GetPrim()
+    UsdPhysics.MassAPI.Apply(child)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         cfg = schemas_cfg.MassPropertiesCfg(mass=3.0)
 
-    deprecations = _deprecations(lambda: schemas.modify_mass_properties(prim_path, cfg, stage))
+    deprecations = _deprecations(lambda: getattr(schemas, name)(prim_path, cfg, stage))
     assert len(deprecations) == 1
+    assert deprecations[0].filename == __file__
     message = str(deprecations[0].message)
-    assert "modify_mass_properties is deprecated" in message
+    assert f"{name} is deprecated" in message
     assert "apply_mass_properties" in message
     assert "3.2" in message
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(3.0)
+    assert child.GetAttribute("physics:mass").Get() == pytest.approx(3.0)
 
 
-def test_define_mass_properties_warns_once_despite_delegation():
-    """``define_*`` delegates to ``modify_*`` but the caller still sees a single warning."""
-    stage, prim_path = _stage_with_rigid_body()
+@pytest.mark.parametrize("name", ["define_collision_properties", "modify_collision_properties"])
+def test_legacy_collision_writer_warns_once_despite_mesh_delegation(name):
+    """Nested mesh configuration still writes through multiple legacy writer calls."""
+    stage = Usd.Stage.CreateInMemory()
+    prim_path = "/World/Mesh"
+    prim = UsdGeom.Mesh.Define(stage, prim_path).GetPrim()
+    UsdPhysics.CollisionAPI.Apply(prim)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.MassPropertiesCfg(mass=7.0)
+        cfg = schemas_cfg.CollisionBaseCfg(
+            mesh_collision_property=schemas_cfg.MeshCollisionBaseCfg(mesh_approximation_name="boundingCube")
+        )
 
-    deprecations = _deprecations(lambda: schemas.define_mass_properties(prim_path, cfg, stage))
+    deprecations = _deprecations(lambda: getattr(schemas, name)(prim_path, cfg, stage))
     assert len(deprecations) == 1
-    assert "define_mass_properties is deprecated" in str(deprecations[0].message)
-    assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(7.0)
+    assert f"{name} is deprecated" in str(deprecations[0].message)
+    assert UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "boundingCube"
 
 
 def test_modify_rigid_body_properties_warns_and_writes():
@@ -391,46 +401,10 @@ def test_apply_mass_properties_does_not_warn():
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(5.0)
 
 
-def test_legacy_writer_warns_per_thread():
-    """Concurrent legacy writer calls each warn: the nesting guard must not be process-global.
-
-    Two threads are held inside a decorated writer at the same time, so each one observes the
-    other's nesting depth. With a shared module-level depth the second thread sees a nonzero
-    depth and stays silent; the depth must be per-thread for both callers to be told.
-    """
-    barrier = threading.Barrier(2, timeout=60)
-
-    @schemas_impl._deprecated_schema_writer("apply_mass_properties")
-    def legacy_writer():
-        barrier.wait()
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        threads = [threading.Thread(target=legacy_writer) for _ in range(2)]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join(timeout=60)
-
-    assert all(not thread.is_alive() for thread in threads)
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 2, f"expected one warning per calling thread, got {len(deprecations)}"
-
-
-def test_legacy_writer_still_warns_once_when_nested_on_one_thread():
-    """Nesting on a single thread is still collapsed to the outermost warning."""
-
-    @schemas_impl._deprecated_schema_writer("apply_mass_properties")
-    def inner():
-        return None
-
-    @schemas_impl._deprecated_schema_writer("apply_mass_properties")
-    def outer():
-        return inner()
-
-    assert len(_deprecations(outer)) == 1
-    # The depth is restored on exit, so a later top-level call warns again.
-    assert len(_deprecations(inner)) == 1
+def test_legacy_writers_do_not_track_warning_depth():
+    """Keep deprecation at public entry points, without custom nesting state."""
+    for name in ("_deprecated_schema_writer", "_legacy_writer_state", "_legacy_writer_depth"):
+        assert not hasattr(schemas_impl, name)
 
 
 """

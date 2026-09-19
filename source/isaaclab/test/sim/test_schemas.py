@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import inspect
 import math
 import warnings
 
@@ -151,7 +152,7 @@ def test_max_joint_velocity_on_base_cfg(setup_simulation):
 
     prim_path = "/World/Articulation/joint_0"
     # use unwrapped function (no parent traversal) so this returns the inner bool
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+    inspect.unwrap(schemas.modify_joint_drive_properties)(prim_path, base_cfg)
 
     # Revolute drives convert rad/s -> deg/s; check the authored value.
     attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxJoint:maxJointVelocity")
@@ -185,7 +186,7 @@ def test_max_velocity_deprecation_alias(setup_simulation):
     sim_utils.create_prim("/World/Articulation_dep/body1", prim_type="Cube")
     UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation_dep/joint_0")
     prim_path = "/World/Articulation_dep/joint_0"
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+    inspect.unwrap(schemas.modify_joint_drive_properties)(prim_path, base_cfg)
 
     attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxJoint:maxJointVelocity")
     assert attr.IsValid()
@@ -216,7 +217,7 @@ def test_max_effort_deprecation_alias(setup_simulation):
     sim_utils.create_prim("/World/Articulation_eff/body1", prim_type="Cube")
     UsdPhysics.PrismaticJoint.Define(stage, "/World/Articulation_eff/joint_0")
     prim_path = "/World/Articulation_eff/joint_0"
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+    inspect.unwrap(schemas.modify_joint_drive_properties)(prim_path, base_cfg)
 
     attr = stage.GetPrimAtPath(prim_path).GetAttribute("drive:linear:physics:maxForce")
     assert attr.IsValid()
@@ -244,7 +245,7 @@ def test_joint_drive_base_no_physx_schema_when_max_joint_velocity_unset(setup_si
     UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation/joint_0")
 
     prim_path = "/World/Articulation/joint_0"
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+    inspect.unwrap(schemas.modify_joint_drive_properties)(prim_path, base_cfg)
 
     applied = stage.GetPrimAtPath(prim_path).GetAppliedSchemas()
     assert "PhysxJointAPI" not in applied, (
@@ -942,7 +943,7 @@ def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
     This test ensures both the joint-drive skip predicate and the fixed-tendon writer handle
     multiple-apply schema tokens correctly.
 
-    We call the unwrapped functions directly (via ``__wrapped__``) to bypass the
+    We call the unwrapped functions directly (via ``inspect.unwrap``) to bypass the
     ``@apply_nested`` decorator, which traverses children and does not return the
     inner function's bool result.
     """
@@ -950,8 +951,8 @@ def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
     stage = sim_utils.get_current_stage()
 
     # unwrap to get the raw functions that return bool
-    _modify_joint_drive = schemas.modify_joint_drive_properties.__wrapped__
-    _modify_fixed_tendon = schemas.modify_fixed_tendon_properties.__wrapped__
+    _modify_joint_drive = inspect.unwrap(schemas.modify_joint_drive_properties)
+    _modify_fixed_tendon = inspect.unwrap(schemas.modify_fixed_tendon_properties)
 
     # -- set up two body prims connected by a revolute joint
     sim_utils.create_prim("/World/tendon_test", prim_type="Xform")
