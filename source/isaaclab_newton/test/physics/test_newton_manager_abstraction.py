@@ -26,13 +26,18 @@ Covers:
 
 from __future__ import annotations
 
+import ctypes
 import logging
+import subprocess
+import sys
+import textwrap
 from inspect import signature
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
@@ -1146,6 +1151,60 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is False
+
+
+@pytest.mark.parametrize(
+    ("torch_cuda", "available", "expected"),
+    [
+        ("12.8", "libcudart.so.12,libcudart.so.13", "libcudart.so.12"),
+        ("13.0", "libcudart.so.12,libcudart.so.13", "libcudart.so.13"),
+        ("13.0", "libcudart.so.12,libcudart.so", "libcudart.so.13"),
+        ("", "libcudart.so.12,libcudart.so.13", ""),
+    ],
+    ids=["cuda12", "cuda13", "matching_runtime_missing", "cpu"],
+)
+def test_cuda_runtime_selection_matches_torch_in_isolated_import(torch_cuda, available, expected):
+    """Graph capture must use Torch's runtime major, even when another CUDA runtime is available."""
+    code = textwrap.dedent("""\
+        import ctypes
+        import sys
+        import torch
+
+        torch.version.cuda = sys.argv[1] or None
+        available = set(sys.argv[2].split(","))
+        expected = sys.argv[3]
+        runtime = object()
+        requested = []
+        original_cdll = ctypes.CDLL
+
+        def load_library(name, *args, **kwargs):
+            if not str(name).startswith("libcudart.so"):
+                return original_cdll(name, *args, **kwargs)
+            requested.append(name)
+            if name not in available:
+                raise OSError("CUDA runtime is unavailable")
+            return runtime
+
+        ctypes.CDLL = load_library
+        import isaaclab_newton.physics.newton_manager as manager
+
+        assert requested == ([expected] if expected else []), requested
+        assert manager._cudart is (runtime if expected in available else None)
+        """)
+    result = subprocess.run(
+        [sys.executable, "-c", code, torch_cuda, available, expected], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_cuda_runtime_loaded_version_matches_torch():
+    """CUDA-enabled Linux wheels must expose the matching runtime without requiring a GPU context."""
+    if sys.platform != "linux" or torch.version.cuda is None:
+        pytest.skip("CUDA runtime loading is supported for CUDA-enabled Linux wheels.")
+    assert newton_manager_module._cudart is not None
+    runtime_version = ctypes.c_int()
+    assert newton_manager_module._cudart.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0
+    assert runtime_version.value // 1000 == int(torch.version.cuda.split(".")[0])
 
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):

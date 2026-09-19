@@ -25,13 +25,11 @@ import warp as wp
 # Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
 # cudaStreamCaptureModeRelaxed (2) allows the RTX compositor's background
 # CUDA stream to keep running during capture without invalidating it.
+# Match the CUDA runtime already loaded by PyTorch.
 try:
-    _cudart = ctypes.CDLL("libcudart.so.12")
+    _cudart = ctypes.CDLL(f"libcudart.so.{torch.version.cuda.split('.')[0]}") if torch.version.cuda else None
 except OSError:
-    try:
-        _cudart = ctypes.CDLL("libcudart.so")
-    except OSError:
-        _cudart = None
+    _cudart = None
 
 
 @contextlib.contextmanager
