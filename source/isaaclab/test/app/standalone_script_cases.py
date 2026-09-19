@@ -196,6 +196,32 @@ OVERRIDES = {
         readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
+    "scripts/demos/mpm/tuning/material_parameters.py": ScriptOverride(
+        args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
+        readiness_pattern=r"Spawned \d+ specimens with \d+ particles",
+        fixed_physics_backend="newton_mpm",
+        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+    ),
+    "scripts/demos/mpm/tuning/rigid_body_equivalence.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.1"),
+        readiness_pattern=r"Rigid-versus-MPM comparison ready",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        required_modules=("isaaclab_contrib",),
+    ),
+    "scripts/demos/mpm/tuning/g1_coupling.py": ScriptOverride(
+        args=("--max_steps", "2"),
+        readiness_pattern=r"G1 .* playback ready",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        required_modules=("isaaclab_contrib", "rsl_rl"),
+    ),
+    "scripts/demos/mpm/tuning/surface_reconstruction.py": ScriptOverride(
+        args=("--max_steps", "2"),
+        readiness_pattern=r"Surface splash ready",
+        fixed_physics_backend="newton_mpm",
+        visualizers=("newton_gl", "newton_rtx"),
+    ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "scripts/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         args=("--max_steps", "20"),

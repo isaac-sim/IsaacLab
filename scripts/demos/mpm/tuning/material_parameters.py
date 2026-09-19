@@ -227,8 +227,10 @@ args_cli = parser.parse_args()
 
 if not 0.0 <= args_cli.particle_jitter_fraction <= 0.5:
     parser.error("--particle_jitter_fraction must be in [0, 0.5].")
-if args_cli.simulation_hz <= 0:
-    parser.error("--simulation_hz must be positive.")
+if not np.isfinite(args_cli.voxel_size) or args_cli.voxel_size <= 0:
+    parser.error("--voxel_size must be finite and positive.")
+if not np.isfinite(args_cli.simulation_hz) or args_cli.simulation_hz <= 0:
+    parser.error("--simulation_hz must be finite and positive.")
 if args_cli.solver_iterations <= 0:
     parser.error("--solver_iterations must be positive.")
 
@@ -296,19 +298,20 @@ def create_visualizer_cfgs():
 
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
-    visualizer_kwargs = {}
-    if cfg_type is NewtonRTXVisualizerCfg:
-        visualizer_kwargs = {"rtx_environment": "studio"}
-    cfgs.append(
-        cfg_type(
-            eye=CAMERA_EYE,
-            lookat=CAMERA_TARGET,
-            streaming_view=False,
-            show_particles=True,
-            **visualizer_kwargs,
+    for name in requested:
+        if name not in {"newton", "newton_gl", "newton_rtx"}:
+            continue
+        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
+        visualizer_kwargs = {"rtx_environment": "studio"} if name == "newton_rtx" else {}
+        cfgs.append(
+            cfg_type(
+                eye=CAMERA_EYE,
+                lookat=CAMERA_TARGET,
+                streaming_view=False,
+                show_particles=True,
+                **visualizer_kwargs,
+            )
         )
-    )
     return cfgs
 
 

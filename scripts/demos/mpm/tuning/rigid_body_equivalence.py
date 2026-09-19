@@ -226,20 +226,21 @@ def create_visualizer_cfgs():
 
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
-    visualizer_kwargs = {}
-    if cfg_type is NewtonRTXVisualizerCfg:
-        visualizer_kwargs = {"rtx_environment": "studio"}
-    cfgs.append(
-        cfg_type(
-            eye=CAMERA_EYE,
-            lookat=CAMERA_TARGET,
-            streaming_view=False,
-            show_particles=True,
-            update_frequency=1,
-            **visualizer_kwargs,
+    for name in requested:
+        if name not in {"newton", "newton_gl", "newton_rtx"}:
+            continue
+        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
+        visualizer_kwargs = {"rtx_environment": "studio"} if name == "newton_rtx" else {}
+        cfgs.append(
+            cfg_type(
+                eye=CAMERA_EYE,
+                lookat=CAMERA_TARGET,
+                streaming_view=False,
+                show_particles=True,
+                update_frequency=1,
+                **visualizer_kwargs,
+            )
         )
-    )
     return cfgs
 
 

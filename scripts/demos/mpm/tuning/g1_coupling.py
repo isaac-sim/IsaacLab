@@ -293,20 +293,21 @@ def _configure_common_environment(env_cfg: Any) -> None:
     if {"newton", "newton_gl", "newton_rtx"}.intersection(requested_visualizers):
         from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-        cfg_type = NewtonRTXVisualizerCfg if requested_visualizers == ["newton_rtx"] else NewtonGLVisualizerCfg
-        visualizer_kwargs = {}
-        if cfg_type is NewtonRTXVisualizerCfg:
+        for name in requested_visualizers:
+            if name not in {"newton", "newton_gl", "newton_rtx"}:
+                continue
+            cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
             # Keep the standalone comparison independent of optional HDR assets.
-            visualizer_kwargs = {"rtx_environment": "studio"}
-        visualizer_cfgs.append(
-            cfg_type(
-                eye=CAMERA_EYE,
-                lookat=CAMERA_TARGET,
-                streaming_view=False,
-                show_particles=True,
-                **visualizer_kwargs,
+            visualizer_kwargs = {"rtx_environment": "studio"} if name == "newton_rtx" else {}
+            visualizer_cfgs.append(
+                cfg_type(
+                    eye=CAMERA_EYE,
+                    lookat=CAMERA_TARGET,
+                    streaming_view=False,
+                    show_particles=True,
+                    **visualizer_kwargs,
+                )
             )
-        )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",

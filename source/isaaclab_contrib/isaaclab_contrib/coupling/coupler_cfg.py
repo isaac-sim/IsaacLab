@@ -113,8 +113,10 @@ class CouplerProxyMappingCfg:
     proxy_relaxation: float = 1.0
     """Relaxation factor applied to lagged proxy-feedback forces.
 
-    Setting this to ``0`` suppresses feedback while preserving source-to-destination
-    proxy motion, which yields one-way coupling.
+    Fixed relaxation blends the new force estimate with the previous feedback.
+    Setting this to ``0`` from a fresh state preserves zero feedback while
+    retaining source-to-destination proxy motion, which yields one-way coupling.
+    Switching an ongoing run to zero instead preserves its existing feedback.
     """
 
     proxy_relaxation_mode: Literal["fixed", "aitken"] = "fixed"

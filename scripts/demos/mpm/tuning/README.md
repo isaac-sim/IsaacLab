@@ -3,7 +3,7 @@
 These standalone examples provide reproducible, presentation-ready experiments
 for Newton implicit MPM. Each script owns a complete scene and changes one
 controlled dimension. The maintained methodology, parameter interpretation,
-and video publication slots are in the [MPM guide](../../../../docs/source/concepts/using_mpm.rst).
+and example videos are in the [MPM tuning guide](../../../../docs/source/concepts/solver-tuning/tune_mpm.rst).
 
 This is the right location for runnable demonstrations. Reusable simulation
 configuration belongs in `isaaclab_newton`; task-specific learning code belongs
