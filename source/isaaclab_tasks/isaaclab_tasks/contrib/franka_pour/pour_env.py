@@ -7,14 +7,13 @@
 
 The visible dynamic source cup and kinematic receiving cup are scene-owned rigid objects loaded
 from one authored USD asset. A narrow per-world Newton hook assigns the authored bowls their
-particle-collision roles, replaces the receiver's rigid mesh with an analytic box, and adds a
-particle-only spill floor.
+particle-collision roles and replaces the receiver's rigid mesh with an analytic box.
 
 A Newton :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` advances the robot and both cups
-in the ``arm`` MJWarp entry and the particles and spill floor in the implicit ``media`` entry. Proxy
-coupling makes both cups' particle colliders available to MPM without assigning one body to two
-entries. The policy commands arm joint positions and a continuous symmetric finger target; all
-observable and reset state flows through the scene assets' public APIs.
+in the ``arm`` MJWarp entry and the particles in the implicit ``media`` entry. Proxy coupling makes
+both cups' particle colliders available to MPM without assigning one body to two entries. The policy
+commands arm joint positions and a continuous symmetric finger target; all observable and reset state
+flows through the scene assets' public APIs.
 """
 
 from __future__ import annotations
@@ -138,7 +137,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._mpm_collider_margin = MPM_COLLIDER_MARGIN
         self._particle_max_velocity = float(cfg.particle_max_velocity)
 
-    def _add_pour_world_to_builder(self, builder, env_id: int, position, quaternion) -> None:
+    def _add_pour_world_to_builder(self, builder, env_id: int, _position, _quaternion) -> None:
         """Add only solver-specific collision representations to one imported scene world."""
         builder.particle_max_velocity = self._particle_max_velocity
         env_root = f"/World/envs/env_{env_id}"
@@ -229,34 +228,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         )
         builder.shape_margin[table_collider] = 0.0
         self._configure_mjwarp_force_space_shape(builder, table_collider)
-
-        world_xform = wp.transform(
-            wp.vec3(*[float(value) for value in position]),
-            wp.quat(*[float(value) for value in quaternion]),
-        )
-        spill_floor = builder.add_body(
-            xform=world_xform,
-            mass=0.0,
-            inertia=wp.mat33(),
-            is_kinematic=True,
-            lock_inertia=True,
-            label=f"{env_root}/SpillFloor",
-        )
-        spill_shape = builder.add_shape_plane(
-            body=spill_floor,
-            xform=wp.transform_identity(),
-            width=0.0,
-            length=0.0,
-            cfg=newton.ModelBuilder.ShapeConfig(
-                mu=0.8,
-                margin=self._mpm_collider_margin,
-                has_shape_collision=False,
-                has_particle_collision=True,
-            ),
-            color=(0.3, 0.3, 0.3),
-            label=f"{env_root}/SpillFloor/Collision",
-        )
-        self._set_shape_roles(builder, spill_shape, rigid=False, particles=True, visible=False)
 
     @staticmethod
     def _current_world_range(builder, prefix: str, env_id: int) -> range:
