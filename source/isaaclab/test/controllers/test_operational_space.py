@@ -125,8 +125,6 @@ def sim():
         ],
         device=sim.device,
     )
-    # These orientations also define task frames, whose transforms require unit quaternions.
-    ee_goal_abs_quad_set_b /= torch.linalg.vector_norm(ee_goal_abs_quad_set_b, dim=-1, keepdim=True)
     ee_goal_rel_pos_set = torch.tensor(
         [
             [0.2, 0.0, 0.0],
@@ -1196,8 +1194,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
         motion_stiffness_task=500.0,
-        # Avoid hitting joint limits during the large pose steps while centering the nullspace.
-        motion_damping_ratio_task=2.0,
+        motion_damping_ratio_task=1.0,
         nullspace_control="position",
         nullspace_stiffness=1.0,
     )
