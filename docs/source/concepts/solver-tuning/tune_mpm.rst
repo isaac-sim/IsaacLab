@@ -5,13 +5,12 @@
 
 .. _newton-tuning-mpm:
 
-MPM Solver and Material Tuning
-==============================
+MPM Solver Tuning
+=================
 
 Start with :ref:`newton-using-mpm` for scene construction. These experiments
-help separate numerical accuracy, constitutive response, coupling, and surface
-appearance. They are qualitative examples, not calibrated material models or
-performance benchmarks.
+help separate numerical accuracy from constitutive response. They are
+qualitative examples, not calibrated material models or performance benchmarks.
 
 Tune Resolution, Time, Then Convergence
 ---------------------------------------
@@ -33,46 +32,6 @@ Tune one group at a time in this order:
    Increase the cap only when the solver reaches it, and lower the tolerance
    only when tighter convergence improves a physical metric. These settings do
    not repair an unstable timestep, invalid reset, or incorrect collider.
-
-
-Tune Rigid-MPM Coupling
------------------------
-
-For :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`, first stabilize each
-solver alone. Then tune the additional controls:
-
-* ``CouplerEntryCfg.substeps`` divides one coupled step for that entry. Increase
-  the MPM entry's value when only the particle solve needs a smaller timestep.
-* ``CouplerProxyCfg.iterations`` repeats the proxy exchange and relaxation; it
-  does not replace smaller physical timesteps.
-* ``CouplerProxyMappingCfg.mass_scale`` scales the source body's effective mass
-  and inertia only in the destination proxy view. It does not change the body's
-  authored mass in the rigid solver.
-* ``CouplerProxyMappingCfg.proxy_relaxation`` relaxes updates to the force fed
-  back to the source. With fixed relaxation, ``0`` preserves the initial zero
-  feedback for a one-way run; ``1`` accepts each new force estimate. Values
-  between them blend the new estimate with the previous feedback. Start each
-  comparison from a fresh state rather than switching an ongoing run to zero.
-  ``proxy_relaxation_mode="aitken"`` adapts the value within a coupled step and
-  clamps it between ``proxy_relaxation_min`` and
-  ``proxy_relaxation_max``.
-
-Start ``mass_scale`` at ``1`` for a freely moving collider. Increase it when the
-rigid solver strongly constrains the collider during MPM contact. For example, a
-cup resting on a table has much greater effective resistance in the supported
-direction than its free-body mass suggests. Sweep finite values geometrically,
-such as ``1``, ``10``, and ``100``, and keep the smallest value that prevents
-unrealistic proxy motion. Newton requires a finite positive value: do not use
-infinity. An excessively large scalar also suppresses legitimate motion in
-unsupported directions and can make the interaction effectively one-way.
-
-Do not use ``mode="lagged"`` as a synonym for one-way coupling. Both ``lagged``
-and ``staggered`` transfer modes can return forces. Use zero
-``proxy_relaxation`` when the intended experiment must suppress feedback.
-
-Validate both the supported and free-moving cases after changing coupling. If
-the uncoupled systems are unstable, fix their timestep, contacts, and reset
-states before adjusting ``mass_scale`` or coupling iterations.
 
 
 Run Controlled Tuning Experiments
@@ -106,26 +65,6 @@ owns a complete scene; reusable solver and material APIs remain in
          uv run python scripts/demos/mpm/tuning/rigid_body_equivalence.py \
            --visualizer kit
 
-   .. grid-item-card:: One-way and two-way coupling
-
-      Deploy the published G1 policy across successive sand, snow, and clay
-      strips. The one-way run moves particles without returning reaction forces.
-
-      .. code-block:: bash
-
-         uv run --extra rsl-rl python scripts/demos/mpm/tuning/g1_coupling.py \
-           --coupling two_way --visualizer kit
-
-   .. grid-item-card:: Surface reconstruction
-
-      Keep one water simulation fixed while changing only reconstruction
-      resolution, kernel anisotropy, or smoothing.
-
-      .. code-block:: bash
-
-         uv run python scripts/demos/mpm/tuning/surface_reconstruction.py \
-           --surface_preset balanced --visualizer newton_gl
-
 The material runner includes the following presentation presets. Use
 ``--variant_index`` to render one member of a comparison, or omit it for the
 side-by-side view.
@@ -138,7 +77,7 @@ side-by-side view.
      - Varied values
      - Behavior to inspect
    * - ``young_modulus``
-     - 10 kPa, 100 kPa, 1 MPa
+     - 100 kPa, 300 kPa, 1 MPa
      - Compression, recovery, and impact rebound
    * - ``poisson_ratio``
      - 0.05, 0.30, 0.499
@@ -179,6 +118,10 @@ Use these practices when adapting the examples:
 * Choose values that bracket visibly different regimes. Geometric spacing is
   usually more informative than small linear increments for stiffness, yield,
   viscosity, and coupling mass scales.
+* Preserve the feature the comparison is meant to explain. If a soft elastic
+  specimen loses its silhouette before rebound can be read, reduce the impact
+  energy or raise the lower end of the stiffness range. Do not shorten a clip
+  merely to hide later breakup.
 * Use deterministic jitter for constitutive comparisons so lattice alignment
   does not dominate the motion. Keep the no-jitter case as a separate packing
   diagnostic.
@@ -188,9 +131,6 @@ Use these practices when adapting the examples:
 * Tune numerical resolution and timestep before interpreting material values.
   Record the voxel size, particles per voxel axis, particle count, physics
   timestep, substeps, iterations, tolerance, random seed, and code revision.
-* Treat surface reconstruction as rendering. Keep the MPM state identical when
-  comparing surface parameters, and do not infer a material change from a
-  smoother reconstructed mesh.
 * Check a quantitative signal alongside the video when possible: center of
   mass, runout distance, rebound height, retained volume, or settled height.
 
@@ -205,8 +145,9 @@ Interpret the Comparisons
 
 * **Elastic response:** Poisson's ratio changes both bulk and shear moduli at
   fixed Young's modulus. Values close to 0.5 approach incompressibility; this
-  is not an independent sweep of volume stiffness. The preset uses 20 kPa
-  Young's modulus so the impact produces visible strain.
+  is not an independent sweep of volume stiffness. The preset uses 50 kPa
+  Young's modulus and a gentler drop so the impact produces visible strain
+  without obscuring the comparison through loss of the specimen silhouette.
 * **Plastic response:** yielding, hardening, friction, and dilatancy interact.
   Keep the other fields fixed within a preset, not necessarily between presets.
   A high-friction label is not a water-content model; these sand, snow, and
@@ -217,14 +158,6 @@ Interpret the Comparisons
   silhouettes and mass as well as motion; increase resolution only after
   checking timestep and convergence. The default three-particle-per-axis
   comparison is intentionally more expensive than the other examples.
-* **G1 coupling:** hold the policy, seed, commands, collision proxies, and
-  material strips fixed between runs. A fall or stall is a legitimate result
-  of feedback, not a success metric. The policy was trained on rigid ground,
-  and this demonstration is not a controlled policy-performance benchmark.
-* **Surface reconstruction:** run identical water dynamics and vary only the
-  extraction parameters. A smoother mesh is not evidence of a more viscous
-  material. Kit shows the particle baseline; surface meshes require Newton GL
-  or Newton RTX.
 
 
 Example Recordings
@@ -250,7 +183,7 @@ to reproduce a comparison rather than treating video duration as simulation time
 
    .. grid-item-card:: Elastic stiffness
 
-      Compression and rebound at 10 kPa, 100 kPa, and 1 MPa.
+      Compression and rebound at 100 kPa, 300 kPa, and 1 MPa.
 
       Run ``material_parameters.py --preset young_modulus --visualizer kit``.
 
@@ -258,7 +191,7 @@ to reproduce a comparison rather than treating video duration as simulation time
 
    .. grid-item-card:: Compressibility
 
-      Poisson ratios 0.05, 0.30, and 0.499 at E = 20 kPa.
+      Poisson ratios 0.05, 0.30, and 0.499 at E = 50 kPa.
 
       Run ``material_parameters.py --preset poisson_ratio --visualizer kit``.
 
@@ -328,10 +261,10 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Video pending: ``mpm_tune_particle_jitter_20260919.mp4``.
 
-Comparison Demos
-~~~~~~~~~~~~~~~~
+Nearly Rigid Limit
+~~~~~~~~~~~~~~~~~~
 
-.. grid:: 1 1 2 2
+.. grid:: 1
    :gutter: 2
 
    .. grid-item-card:: Nearly rigid MPM versus MJWarp
@@ -341,33 +274,3 @@ Comparison Demos
       implementation; high stiffness does not enforce rigid shape constraints.
 
       Video pending: ``mpm_rigid_equivalence_kit_wide18_y26_20260919.mp4``.
-
-   .. grid-item-card:: G1 coupling examples
-
-      Historical recordings use 25 mm voxels and 20 cm strips; the current demo
-      defaults to 40 mm voxels and 16 cm strips for faster iteration. The one-way
-      recording uses lower-leg proxies, whereas the full-body two-way recording
-      uses all robot collision geometry. Do not present those two as a
-      single-variable comparison. Rerun both modes with identical
-      ``--proxy_bodies`` settings for that purpose.
-
-      Video pending: ``g1_mpm_one_way_kit_20260919.mp4``.
-
-      Video pending: ``g1_mpm_two_way_all_geometry_kit_20260919.mp4``.
-
-   .. grid-item-card:: Water surface reconstruction
-
-      A Newton RTX recording of the balanced water-surface preset. This shows
-      reconstruction appearance, not a different MPM constitutive model.
-
-      Video pending: ``mpm_surface_splash_balanced_rtx_20260919.mp4``.
-
-   .. grid-item-card:: Core MPM scenes
-
-      Kit particle recordings of the granular drop, two-way sphere pit,
-      snowball smash, and teapot fill are separate from parameter studies.
-
-      Videos pending: ``mpm_granular_kit_20260919.mp4``,
-      ``mpm_two_way_coupling_kit_20260919.mp4``,
-      ``mpm_snowball_smash_kit_20260919.mp4``, and
-      ``mpm_teapot_fill_particles_kit_20260919.mp4``.

@@ -9,6 +9,50 @@ Start with the compact ``scripts/demos/mpm/newton_mpm_granular.py`` example;
 ``snowball_smash.py`` adds coupling and ``teapot_fill.py`` adds cavity sampling.
 
 
+Explore the MPM Demos
+---------------------
+
+The standalone scenes introduce MPM construction and interaction before any
+parameter study. Run them in Kit to inspect the authored particles directly:
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Granular drop
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/newton_mpm_granular.py \
+           --device cuda:0 --visualizer kit
+
+   .. grid-item-card:: Two-way sphere pit
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/newton_mpm_twoway_coupling.py \
+           --device cuda:0 --visualizer kit
+
+   .. grid-item-card:: Snowball smash
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/snowball_smash.py \
+           --device cuda:0 --visualizer kit
+
+   .. grid-item-card:: Teapot fill
+
+      .. code-block:: bash
+
+         uv run python scripts/demos/mpm/teapot_fill.py \
+           --device cuda:0 --visualizer kit --fluid_render_mode particles
+
+Selected Kit recordings are awaiting publication to the documentation media
+host: ``mpm_granular_kit_20260919.mp4``,
+``mpm_two_way_coupling_kit_20260919.mp4``,
+``mpm_snowball_smash_kit_20260919.mp4``, and
+``mpm_teapot_fill_particles_kit_20260919.mp4``.
+
+
 .. _franka-pour-reset-artifact:
 
 Train and Regenerate Franka Pour
@@ -133,6 +177,18 @@ in Kit and avoids making a reconstruction choice on behalf of the user. Select
 Surface rendering is available in the Newton GL and Newton RTX visualizers.
 The Kit visualizer continues to render the MPM particles directly.
 
+Use the focused reconstruction comparison to keep the water simulation fixed
+while changing only surface extraction parameters:
+
+.. code-block:: bash
+
+   uv run python scripts/demos/mpm/tuning/surface_reconstruction.py \
+     --device cuda:0 --surface_preset balanced --visualizer newton_gl
+
+The balanced Newton RTX recording is awaiting publication as
+``mpm_surface_splash_balanced_rtx_20260919.mp4``. It demonstrates rendering
+appearance, not a different constitutive model.
+
 To reconstruct a surface in another Newton MPM script, create one reusable
 ``newton.geometry.ParticleSurface`` after ``sim.reset()``. On each render update,
 extract from the current Newton particle positions, radii, flags, and world indices,
@@ -166,5 +222,6 @@ dynamic topology in one reusable helper:
 Next Steps
 ----------
 
-See :ref:`newton-tuning-mpm` for resolution and convergence tuning, material
-comparisons, rigid-MPM coupling, and the example video gallery.
+See :ref:`newton-tuning-mpm` for resolution and convergence tuning, controlled
+material comparisons, and the nearly rigid MPM limit. See
+:ref:`newton-coupled-solvers` for rigid--MPM coupling.

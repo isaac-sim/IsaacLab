@@ -46,8 +46,8 @@ PRESETS = {
         title="Elastic stiffness",
         subtitle="Young's modulus E · equal spheres · yielding disabled",
         field="young_modulus",
-        values=(1.0e4, 1.0e5, 1.0e6),
-        labels=("SOFT · 10 kPa", "COMPLIANT · 100 kPa", "STIFF ELASTIC · 1 MPa"),
+        values=(1.0e5, 3.0e5, 1.0e6),
+        labels=("COMPLIANT · 100 kPa", "ELASTIC · 300 kPa", "STIFF ELASTIC · 1 MPa"),
         colors=((0.10, 0.42, 0.92), (0.52, 0.24, 0.86), (0.92, 0.16, 0.12)),
         geometry="sphere_plate",
         fixed={
@@ -60,14 +60,14 @@ PRESETS = {
     ),
     "poisson_ratio": TuningPreset(
         title="Compressibility",
-        subtitle="Poisson ratio ν · equal elastic spheres · E = 20 kPa",
+        subtitle="Poisson ratio ν · equal elastic spheres · E = 50 kPa",
         field="poisson_ratio",
         values=(0.05, 0.30, 0.499),
         labels=("COMPRESSIBLE · ν = 0.05", "BALANCED · ν = 0.30", "NEAR-INCOMPRESSIBLE · ν = 0.499"),
         colors=((0.12, 0.60, 0.88), (0.22, 0.72, 0.48), (0.94, 0.48, 0.10)),
         geometry="sphere_plate",
         fixed={
-            "young_modulus": 2.0e4,
+            "young_modulus": 5.0e4,
             "friction": 0.0,
             "damping": 0.02,
             "yield_pressure": 1.0e20,
@@ -244,6 +244,11 @@ else:
 if args_cli.preset == "yield_pressure":
     SPECIMEN_INITIAL_Z = 1.90
     SPECIMEN_INITIAL_VELOCITY_Z = -8.0
+elif args_cli.preset == "poisson_ratio":
+    # A gentler impact isolates volume response without destroying the
+    # low-Poisson-ratio specimen's silhouette.
+    SPECIMEN_INITIAL_Z = 0.90
+    SPECIMEN_INITIAL_VELOCITY_Z = 0.0
 elif PRESET.geometry == "sphere_plate":
     SPECIMEN_INITIAL_Z = 1.25
     SPECIMEN_INITIAL_VELOCITY_Z = -0.20
