@@ -29,7 +29,9 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.renderers.visual_material import VisualMaterialWriter
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -52,6 +54,7 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -437,8 +440,6 @@ class _NewtonViewerUIMixin:
                             )
                     _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
                     _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
-                    from isaaclab.sim import SimulationContext
-
                     sim = SimulationContext.instance()
                     marker_groups = () if sim is None else sim.vis_marker_registry.get_groups().values()
                     for marker in marker_groups:
@@ -955,7 +956,7 @@ class NewtonVisualizer(BaseVisualizer):
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
-        return NewtonManager.create_visual_material_writer
+        return lambda batches: VisualMaterialWriter(self._newton.model, batches)
 
     class _ViewerPickingBinding:
         """Stable Newton-manager callback for viewer picking.
@@ -1004,6 +1005,8 @@ class NewtonVisualizer(BaseVisualizer):
         """
         super().__init__(cfg)
         self.cfg: NewtonVisualizerCfg = cfg
+        sim = SimulationContext.instance()
+        self._newton = sim.get_or_create_backend(NewtonReplicateContext, sim)
         self._viewer: NewtonViewerGL | NewtonViewerRTX | None = None
         self._sim_time = 0.0
         self._step_counter = 0
@@ -1041,8 +1044,6 @@ class NewtonVisualizer(BaseVisualizer):
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
 
-        from isaaclab.sim import SimulationContext
-
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
@@ -1073,10 +1074,10 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        self._model = NewtonManager.get_model()
-        self._state = (
-            NewtonManager.get_state_0() if newton_backend_active else NewtonManager.get_state(self._scene_data_provider)
-        )
+        self._model = self._newton.model
+        if not newton_backend_active:
+            self._newton.update_transforms()
+        self._state = self._newton.state_0
 
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -1191,11 +1192,13 @@ class NewtonVisualizer(BaseVisualizer):
         # Headless mode renders on demand via render_rgb_array(). Keep the latest
         # physics state available without paying the per-step render cost.
         if self._runtime_headless:
-            self._state = NewtonManager.get_state(self._scene_data_provider)
+            self._newton.update_transforms()
+            self._state = self._newton.state_0
             return
 
         if self._viewer is None:
-            self._state = NewtonManager.get_state(self._scene_data_provider)
+            self._newton.update_transforms()
+            self._state = self._newton.state_0
             return
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
@@ -1203,11 +1206,12 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         self._pre_step()
-        num_envs = NewtonManager.get_num_envs()
+        num_envs = self._newton.model.world_count
 
         try:
             if not self._viewer.is_paused():
-                self._state = NewtonManager.get_state(self._scene_data_provider)
+                self._newton.update_transforms()
+                self._state = self._newton.state_0
                 self._viewer.begin_frame(self._sim_time)
                 try:
                     if self._state is not None:
@@ -1273,11 +1277,11 @@ class NewtonVisualizer(BaseVisualizer):
         if soft or not self._picking_enabled or not self._is_initialized or self._is_closed:
             return
 
-        model = NewtonManager.get_model()
+        model = self._newton.model
         if model is self._model:
             return
         self._model = model
-        self._state = NewtonManager.get_state_0()
+        self._state = self._newton.state_0
         if self._viewer is not None:
             self._viewer.set_model(self._model)
             if self._picking_enabled:
@@ -2223,7 +2227,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
                     render_newton_visualization_markers(
                         self._viewer,
                         self._resolved_visible_env_ids,
-                        num_envs=NewtonManager.get_num_envs(),
+                        num_envs=self._newton.model.world_count,
                     )
                 self._log_pending_meshes()
             finally:

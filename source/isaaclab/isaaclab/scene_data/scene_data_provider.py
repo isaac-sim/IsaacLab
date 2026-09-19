@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import deque
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -63,6 +64,88 @@ class SceneDataProvider:
         self.backend = backend
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
+        self._transform_generation = 0
+        self._transform_cache: dict[tuple, tuple[int, Any]] = {}
+        self._prepare_fabric_output: Callable | None = None
+
+    @property
+    def transform_generation(self) -> int:
+        """Generation of the last consumed transform publication."""
+        return self._transform_generation
+
+    def request_transforms(
+        self,
+        output_format: Any,
+        mapping: wp.array | None = None,
+        count: int | None = None,
+        *,
+        scales: wp.array | None = None,
+    ) -> Any | None:
+        """Request shared transforms, converting at most once per dirty generation and layout.
+
+        A matching native format and ordering returns the producer's pointer without a copy.
+        Converted outputs belong to SDP and are reused across consumers and clean requests.
+
+        Args:
+            output_format: Requested :class:`SceneDataFormat` type.
+            mapping: Native-to-output indices from :meth:`create_mapping`, or identity ordering.
+            count: Destination count when remapping, or the native transform count.
+            scales: Static output scales for ``TransposedMatrix44d``, shape [count].
+
+        Returns:
+            The requested format, or None when no transforms are published. Treat its arrays as read-only.
+        """
+        publication = self.backend.transform_publication
+        if publication.dirty:
+            self._transform_generation += 1
+            publication.dirty = False
+        if self.transform_count == 0:
+            return None
+        count = self.transform_count if count is None else count
+        if mapping is None and count != self.transform_count:
+            raise ValueError("A different destination count requires an explicit transform mapping.")
+        if scales is not None and output_format is not SceneDataFormat.TransposedMatrix44d:
+            raise ValueError("Static scales are supported only for TransposedMatrix44d destinations.")
+        fabric_output = None
+        if output_format is SceneDataFormat.FabricMatrix44:
+            if mapping is not None:
+                raise ValueError("Fabric destinations already specify native ordering and authored scale.")
+            if self._prepare_fabric_output is None:
+                raise RuntimeError("A USD renderer must bind Fabric destinations before requesting transforms.")
+            fabric_output = self._prepare_fabric_output()
+        key = (output_format, mapping, count, scales)
+        cached = self._transform_cache.get(key)
+        if (
+            cached is not None
+            and cached[0] == self._transform_generation
+            and (fabric_output is None or cached[1] is fabric_output)
+        ):
+            return cached[1]
+        source = publication.data
+        if source._cls is output_format and mapping is None and scales is None:
+            output = source
+        elif output_format is SceneDataFormat.FabricMatrix44:
+            output = fabric_output
+            kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_FabricMatrix44")
+            wp.launch(
+                kernel,
+                dim=count,
+                inputs=[source, output.mapping],
+                outputs=[output.matrices],
+                device=_publication_device(source),
+            )
+        else:
+            output = cached[1] if cached is not None else output_format()
+            _init_output(output, count, _publication_device(source))
+            kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{output_format.__name__}")
+            inputs = [source, mapping]
+            if output_format is SceneDataFormat.TransposedMatrix44d:
+                inputs.append(scales)
+            wp.launch(
+                kernel, dim=self.transform_count, inputs=inputs, outputs=[output], device=_publication_device(source)
+            )
+        self._transform_cache[key] = (self._transform_generation, output)
+        return output
 
     def set_interactive_scene(self, scene: Any) -> None:
         """Attach the active interactive scene for scene-owned sensor discovery."""
@@ -361,12 +444,137 @@ class SceneDataProvider:
 
 class ConversionKernels:
     @wp.func
+    def fabric_transform(pose: wp.transformf, previous: wp.mat44d) -> wp.mat44d:
+        """Preserve authored world scale while replacing a rigid body's pose."""
+        matrix = wp.mat44f(previous)
+        scale = wp.vec3f(
+            wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
+            wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
+            wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
+        )
+        return wp.mat44d(
+            wp.transpose(
+                wp.transform_compose(wp.transform_get_translation(pose), wp.transform_get_rotation(pose), scale)
+            )
+        )
+
+    @wp.kernel(enable_backward=False)
+    def convert_Transform_to_FabricMatrix44(
+        input: SceneDataFormat.Transform,
+        mapping: wp.array(dtype=wp.int32),
+        output: wp.indexedfabricarray(dtype=wp.mat44d),
+    ):
+        i = wp.tid()
+        index = ConversionKernels.get_output_index(i, mapping)
+        if index > -1:
+            output[index] = ConversionKernels.fabric_transform(input.transforms[i], output[index])
+
+    @wp.kernel(enable_backward=False)
+    def convert_Vec3_Quat_to_FabricMatrix44(
+        input: SceneDataFormat.Vec3_Quat,
+        mapping: wp.array(dtype=wp.int32),
+        output: wp.indexedfabricarray(dtype=wp.mat44d),
+    ):
+        i = wp.tid()
+        index = ConversionKernels.get_output_index(i, mapping)
+        if index > -1:
+            pose = wp.transformf(input.positions[i], input.orientations[i])
+            output[index] = ConversionKernels.fabric_transform(pose, output[index])
+
+    @wp.kernel(enable_backward=False)
+    def convert_Vec3_Matrix33_to_FabricMatrix44(
+        input: SceneDataFormat.Vec3_Matrix33,
+        mapping: wp.array(dtype=wp.int32),
+        output: wp.indexedfabricarray(dtype=wp.mat44d),
+    ):
+        i = wp.tid()
+        index = ConversionKernels.get_output_index(i, mapping)
+        if index > -1:
+            pose = wp.transformf(input.positions[i], wp.quat_from_matrix(input.orientations[i]))
+            output[index] = ConversionKernels.fabric_transform(pose, output[index])
+
+    @wp.kernel(enable_backward=False)
+    def convert_Matrix44_to_FabricMatrix44(
+        input: SceneDataFormat.Matrix44,
+        mapping: wp.array(dtype=wp.int32),
+        output: wp.indexedfabricarray(dtype=wp.mat44d),
+    ):
+        i = wp.tid()
+        index = ConversionKernels.get_output_index(i, mapping)
+        if index > -1:
+            output[index] = ConversionKernels.fabric_transform(
+                wp.transform_from_matrix(input.matrices[i]), output[index]
+            )
+
+    @wp.func
     def get_output_index(tid: wp.int32, mapping: wp.array(dtype=wp.int32)) -> wp.int32:
         if not mapping.shape[0]:
             return tid
         if tid < mapping.shape[0]:
             return mapping[tid]
         return wp.int32(-1)
+
+    @wp.func
+    def transposed_matrix(matrix: wp.mat44f, scales: wp.array(dtype=wp.vec3f), index: int) -> wp.mat44d:
+        result = wp.mat44d(wp.transpose(matrix))
+        if scales.shape[0]:
+            scale = scales[index]
+            for row in range(3):
+                for column in range(3):
+                    result[row, column] = result[row, column] * wp.float64(scale[row])
+        return result
+
+    @wp.kernel(enable_backward=False)
+    def convert_Transform_to_TransposedMatrix44d(
+        input: SceneDataFormat.Transform,
+        mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
+        output: SceneDataFormat.TransposedMatrix44d,
+    ):
+        tid = wp.tid()
+        index = ConversionKernels.get_output_index(tid, mapping)
+        if index > -1:
+            output.matrices[index] = ConversionKernels.transposed_matrix(
+                wp.transform_to_matrix(input.transforms[tid]), scales, index
+            )
+
+    @wp.kernel(enable_backward=False)
+    def convert_Vec3_Quat_to_TransposedMatrix44d(
+        input: SceneDataFormat.Vec3_Quat,
+        mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
+        output: SceneDataFormat.TransposedMatrix44d,
+    ):
+        tid = wp.tid()
+        index = ConversionKernels.get_output_index(tid, mapping)
+        if index > -1:
+            pose = wp.transformf(input.positions[tid], input.orientations[tid])
+            output.matrices[index] = ConversionKernels.transposed_matrix(wp.transform_to_matrix(pose), scales, index)
+
+    @wp.kernel(enable_backward=False)
+    def convert_Vec3_Matrix33_to_TransposedMatrix44d(
+        input: SceneDataFormat.Vec3_Matrix33,
+        mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
+        output: SceneDataFormat.TransposedMatrix44d,
+    ):
+        tid = wp.tid()
+        index = ConversionKernels.get_output_index(tid, mapping)
+        if index > -1:
+            pose = wp.transformf(input.positions[tid], wp.quat_from_matrix(input.orientations[tid]))
+            output.matrices[index] = ConversionKernels.transposed_matrix(wp.transform_to_matrix(pose), scales, index)
+
+    @wp.kernel(enable_backward=False)
+    def convert_Matrix44_to_TransposedMatrix44d(
+        input: SceneDataFormat.Matrix44,
+        mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
+        output: SceneDataFormat.TransposedMatrix44d,
+    ):
+        tid = wp.tid()
+        index = ConversionKernels.get_output_index(tid, mapping)
+        if index > -1:
+            output.matrices[index] = ConversionKernels.transposed_matrix(input.matrices[tid], scales, index)
 
     @wp.kernel
     def convert_Vec3_Quat_to_Vec3_Quat(

@@ -363,35 +363,25 @@ class TestVisualizationClonePlan(unittest.TestCase):
         if translation is not None:
             xform.AddTranslateOp().Set(translation)
 
-    def test_visualization_builder_imports_standalone_stage_as_one_world(self):
+    def test_visualization_builder_imports_only_declared_global_roots(self):
         stage = Usd.Stage.CreateInMemory()
-        self._define_xform(stage, "/World")
-        self._define_xform(stage, "/World/Robot")
-        builder = mock.Mock()
-        builder.shape_collision_filter_pairs = []
-        builder.shape_collision_group = []
-        builder.shape_count = 0
-        builder.add_usd.return_value = {"path_shape_map": {}}
-
-        with (
-            mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
-            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
-            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
-            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
-        ):
-            result, (shadow_entities, registry_groups) = (
-                visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
-            )
-
-        self.assertIs(result, builder)
-        self.assertEqual(shadow_entities, [])
-        self.assertEqual(registry_groups, [])
-        builder.add_usd.assert_called_once_with(
-            stage,
-            schema_resolvers=["newton", "physx"],
-            ignore_paths=None,
-            skip_mesh_approximation=True,
+        for path in ("/World/Robot", "/World/Undeclared"):
+            prim = UsdGeom.Cube.Define(stage, path).GetPrim()
+            UsdPhysics.RigidBodyAPI.Apply(prim)
+            UsdPhysics.CollisionAPI.Apply(prim)
+        plan = ClonePlan(
+            sources=(),
+            destinations=(),
+            clone_mask=np.empty((0, 1), dtype=np.bool_),
+            env_ids=np.arange(1),
+            positions=np.zeros((1, 3), dtype=np.float32),
+            global_paths=("/World/Robot",),
         )
+
+        builder, _ = visualization_builder_module.build_visualization_builder_from_plan(stage, plan)
+
+        self.assertEqual(builder.body_label, ["/World/Robot"])
+        self.assertEqual(builder.world_count, 1)
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
@@ -422,36 +412,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
         )
-        for env_paths, plan, expected_shape_count in (
-            ([], None, 2),
-            ([(0, "/World/envs/env_0"), (1, "/World/envs/env_1")], clone_plan, 4),
-        ):
-            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
-                stage, env_paths, plan
-            )
-            model = builder.finalize(device="cpu")
+        builder, _ = visualization_builder_module.build_visualization_builder_from_plan(stage, clone_plan)
+        model = builder.finalize(device="cpu")
 
-            self.assertEqual(model.shape_count, expected_shape_count)
-            self.assertEqual(len(model.shape_collision_filter_pairs), 0)
-            self.assertEqual(model.shape_contact_pair_count, 0)
-
-    def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
-        """A cloned scene must not be cached as an incomplete single-world model."""
-        stage = Usd.Stage.CreateInMemory()
-        self._define_xform(stage, "/World")
-        clone_plan = ClonePlan(
-            sources=(),
-            destinations=(),
-            clone_mask=np.empty((0, 0), dtype=np.bool_),
-            env_ids=np.empty(0, dtype=np.int64),
-        )
-
-        with (
-            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
-            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
-            self.assertRaisesRegex(ValueError, "requires at least one environment path"),
-        ):
-            visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], clone_plan)
+        self.assertEqual(model.shape_count, 4)
+        self.assertEqual(len(model.shape_collision_filter_pairs), 0)
+        self.assertEqual(model.shape_contact_pair_count, 0)
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
@@ -482,8 +448,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
             mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):
-            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
-                stage, env_paths, clone_plan
+            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_plan(
+                stage, clone_plan
             )
 
         self.assertEqual(

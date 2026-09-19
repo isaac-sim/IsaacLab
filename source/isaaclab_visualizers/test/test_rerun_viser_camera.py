@@ -9,8 +9,17 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+
+from isaaclab.sim import SimulationContext
+
+
+@pytest.fixture(autouse=True)
+def simulation(monkeypatch):
+    simulation = SimpleNamespace(get_or_create_backend=lambda *args: None)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
 
 def test_rerun_visualizer_set_camera_view():

@@ -28,6 +28,8 @@ an unusable viewer disables itself instead of aborting training.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizer
@@ -87,6 +89,7 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     visualizer._camera_sensor = None
     visualizer._camera_is_owned = False
     visualizer._pending_mesh_submissions = {}
+    visualizer._newton = SimpleNamespace(model=SimpleNamespace(world_count=1))
     if viewer is not None:
         viewer.owner = visualizer
     return visualizer
@@ -220,7 +223,7 @@ def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -
     viewer.is_paused = _unrecoverable  # type: ignore[method-assign]
 
 
-def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_step_failure_releases_the_viewer() -> None:
     """An unrecoverable viewer failure during ``step()`` must release the viewer.
 
     ``NewtonRTXVisualizer`` sets ``_disable_viewer_on_step_exception`` so the
@@ -233,7 +236,6 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     visualizer._picking_enabled = True
     visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 
@@ -248,7 +250,7 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     assert viewer.apply_forces_calls == 0
 
 
-def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_step_contains_a_failing_viewer_teardown() -> None:
     """A viewer that fails to close must not abort training from ``step()``.
 
     This is the whole purpose of the ``_disable_viewer_on_step_exception``
@@ -259,7 +261,6 @@ def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch
     viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 

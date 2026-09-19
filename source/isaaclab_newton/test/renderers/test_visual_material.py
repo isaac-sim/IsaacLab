@@ -5,14 +5,12 @@
 
 """Tests for Newton's compiled visual-material writers."""
 
+from types import SimpleNamespace
+
 import torch
 import warp as wp
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
-from isaaclab_newton.renderers.visual_material import (
-    VisualMaterialWriter,
-    VisualShapeColorWriter,
-    import_builder_visual_material_paths,
-)
+from isaaclab_newton.renderers.visual_material import VisualShapeColorWriter, import_builder_visual_material_paths
 from newton import ModelBuilder
 from newton.selection import ArticulationView
 
@@ -74,7 +72,9 @@ def test_material_writer_scatters_only_dirty_material_rows(monkeypatch) -> None:
     batch = VisualMaterialBatch(
         "color", ("/Looks/a", "/Looks/b"), ("/Looks/a/Shader", "/Looks/b/Shader"), ("color", "color"), values
     )
-    writer = VisualMaterialWriter(model, (batch,))
+    renderer = object.__new__(NewtonWarpRenderer)
+    renderer._newton = SimpleNamespace(model=model)
+    writer = renderer.visual_material_writer((batch,))
     before = wp.to_torch(model.shape_color).clone()
     launch = wp.launch
     launches = 0
@@ -138,8 +138,3 @@ def test_shape_writer_samples_each_body_and_selected_environment_independently()
     torch.testing.assert_close(actual[1], original.reshape(3, 3, 3)[1])
     torch.testing.assert_close(actual[2, :2], expected[1, 0].expand(2, 3))
     torch.testing.assert_close(actual[2, 2], expected[1, 1])
-
-
-def test_newton_renderer_exposes_shared_writer_factory() -> None:
-    renderer = object.__new__(NewtonWarpRenderer)
-    assert renderer.visual_material_writer.__func__.__name__ == "create_visual_material_writer"

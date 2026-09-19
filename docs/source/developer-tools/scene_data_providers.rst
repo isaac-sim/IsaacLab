@@ -23,6 +23,11 @@ tensor views, and the provider handles format conversion and re-mapping on top o
    # constructing one directly.
    provider = SimulationContext.instance().get_scene_data_provider()
 
+Custom physics integrations must implement ``SceneDataBackend.transform_publication`` with a
+``SceneDataPublication(native_format)``. Keep that object alive, update its native pointer when
+the solver swaps buffers, and set ``publication.dirty = True`` after state writes or steps.
+Render consumers must treat arrays returned by ``request_transforms`` as read-only.
+
 Architecture
 ------------
 
@@ -31,14 +36,15 @@ The system has three layers:
 1. :class:`~isaaclab.scene_data.SceneDataBackend`: a small interface implemented by each physics
    manager. It exposes the backend's transform array directly as one of the
    :class:`~isaaclab.scene_data.SceneDataFormat` Warp structs, plus the per-transform prim paths
-   and total count. There is no per-frame "update" call; the property accessors return live
-   views into the underlying tensor each time they're read.
+   and total count. Its transform publication pairs the native array with a dirty latch.
+   Physics marks it dirty after state writes, steps, and buffer swaps; SDP consumes the latch.
 
    - :attr:`SceneDataBackend.transforms`: current transforms as a Warp struct (one of
      :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
+   - :attr:`SceneDataBackend.transform_publication`: native data and its dirty latch.
    - :attr:`SceneDataBackend.points`: flattened deformable nodal positions as
      :class:`SceneDataFormat.Points` (optional; rigid-only backends return an empty buffer).
    - :attr:`SceneDataBackend.point_count`: total number of geometry points.
@@ -48,6 +54,10 @@ The system has three layers:
 2. :class:`~isaaclab.scene_data.SceneDataProvider`: wraps a backend and offers format conversion
    plus index re-mapping.
 
+   - :meth:`SceneDataProvider.request_transforms`: returns an SDP-owned conversion cached by
+     format, ordering, and dirty generation. A matching native format and ordering returns
+     the producer's array without copying. Remapping and format conversion use one kernel;
+     ``TransposedMatrix44d`` also applies static, output-indexed scales in that kernel.
    - :meth:`SceneDataProvider.get_transforms`: writes the backend's transforms into a
      consumer-provided :class:`SceneDataFormat` struct, optionally converting format
      (e.g. ``Vec3_Quat`` to ``Transform``) and applying an index mapping. When the backend
@@ -86,11 +96,16 @@ When PhysX is the active physics backend, the provider reads transforms directly
 The transforms are returned as :class:`SceneDataFormat.Transform` (Warp ``transformf`` array),
 so consumers that want this format get them zero-copy.
 
-Newton-native consumers (Newton visualizer, Rerun, Viser, Newton Warp renderer, OVRTX renderer)
-also need a Newton ``Model``/``State`` to render against. To provide that,
-:class:`~isaaclab_newton.physics.NewtonManager` builds a **shadow Newton model** from the USD
-stage on first access and updates its ``body_q`` from the PhysX backend each render frame.
-When the scene has PhysX or OVPhysX deformables, the shadow model also allocates
+Newton-native consumers (Newton visualizer, Rerun, Viser, Newton Warp renderer) also need a
+Newton ``Model``/``State``. Their registered ``NewtonReplicateContext`` builds this resource
+from the clone plan during replication, before renderer initialization. Its ``body_q``
+references the SDP result directly: native PhysX ordering can pass through, while a different
+body ordering requires one cached remap. Consumers resolving the same context share one model
+and state; reading them does not build another model or walk the completed stage.
+
+OVRTX consumes rigid transforms directly through SDP's ``TransposedMatrix44d`` format.
+Its mutable-geometry integration still requires the Newton resource. When the scene has
+PhysX or OVPhysX deformables, that resource also allocates
 ``particle_q`` render slots for soft/cloth meshes, syncs simulation nodal positions through
 :meth:`SceneDataProvider.get_points` with ``allow_passthrough=False`` into a separate
 sim-sized buffer, and remaps or copies those positions into the render-sized ``particle_q``
@@ -99,8 +114,8 @@ barycentric sim-to-visual remap so Newton Warp and OVRTX render the paired visua
 than tet simulation topology. The shadow deformable registry exposes render-slot offsets and
 ``particles_per_body`` counts for OVRTX point bindings.
 
-This is hidden behind :meth:`NewtonManager.get_model` / :meth:`NewtonManager.get_state`, so
-renderers don't need to know which physics backend is active.
+The existing point-data API and geometry remapping remain separate from cached rigid-transform
+publication. They are not zero-copy guarantees for deformables.
 
 Newton backend
 --------------
@@ -112,8 +127,8 @@ model and state, and the provider exposes that state as :class:`SceneDataFormat.
 Data requirements
 ------------------
 
-Visualizers and renderers declare what they need from the scene data path. This is resolved at
-simulation-context construction time and is what triggers the shadow-model build for PhysX:
+Visualizers and renderers register their requirements before clone dispatch. Native resources
+are built during cloning and consumers initialize after physics:
 
 .. list-table::
    :header-rows: 1

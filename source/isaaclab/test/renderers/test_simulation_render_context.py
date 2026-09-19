@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import re
+from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 import pytest
 
@@ -27,6 +29,18 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
+
+@pytest.fixture(autouse=True)
+def simulation(monkeypatch):
+    sim = SimpleNamespace(
+        requires_usd_stage=False,
+        requires_newton_model=False,
+        physics_manager=SimpleNamespace(pre_render=Mock()),
+        get_or_create_backend=Mock(),
+    )
+    monkeypatch.setattr(render_context.sim_utils.SimulationContext, "instance", lambda: sim)
+    return sim
 
 
 class _FakeBackend(BaseRenderer):
@@ -167,8 +181,8 @@ def test_ensure_prepare_stage_num_envs_mismatch():
         ctx.ensure_prepare_stage(None, 8)
 
 
-def test_update_scene_state_dedupes_per_physics_step():
-    """All backends' scene state hooks run once per physics step index."""
+def test_update_scene_state_reads_publications_without_advancing_physics(simulation):
+    """Same-step state writes reach SDP; renderer cadence cannot hide dirty publications."""
 
     ctx = RenderContext()
     transform_hits: list[int] = []
@@ -184,16 +198,17 @@ def test_update_scene_state_dedupes_per_physics_step():
 
     ctx.update_scene_state(1)
     ctx.update_scene_state(1)
-    assert len(transform_hits) == 1
-    assert len(geometry_hits) == 1
-
-    ctx.update_scene_state(2)
     assert len(transform_hits) == 2
     assert len(geometry_hits) == 2
+    assert simulation.physics_manager.pre_render.call_count == 2
+
+    ctx.update_scene_state(2)
+    assert len(transform_hits) == 3
+    assert len(geometry_hits) == 3
 
 
 def test_render_into_camera_calls_update_render_read_order():
-    """render_into_camera runs scene sync then render then read_output; dedupes sync per step."""
+    """render_into_camera publishes scene state before each render and output read."""
     ctx = RenderContext()
     events: list[str] = []
     cfg = IsaacRtxRendererCfg()
@@ -206,7 +221,7 @@ def test_render_into_camera_calls_update_render_read_order():
     assert events == ["ut", "geo", "render", "read"]
 
     ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
-    assert events == ["ut", "geo", "render", "read", "render", "read"]
+    assert events == ["ut", "geo", "render", "read"] * 2
 
 
 def test_render_into_camera_call_order_unaffected_by_render_profile_flag(monkeypatch):
@@ -256,23 +271,6 @@ def test_reset_stage_prepare_flag_allows_second_prepare_stage():
     ctx.reset_stage_prepare_flag()
     ctx.ensure_prepare_stage(None, 4)
     assert len(prepares) == 2
-
-
-def test_reset_scene_state_cadence_allows_repeat_update_scene_state_same_step():
-    """reset_scene_state_cadence clears step dedupe so the same physics_step_count can update again."""
-    ctx = RenderContext()
-    hits: list[int] = []
-    cfg = IsaacRtxRendererCfg()
-    _set_entries(ctx, (cfg, _FakeBackend(update_transforms_hits=hits)))
-
-    ctx.update_scene_state(1)
-    assert len(hits) == 1
-    ctx.update_scene_state(1)
-    assert len(hits) == 1
-
-    ctx.reset_scene_state_cadence()
-    ctx.update_scene_state(1)
-    assert len(hits) == 2
 
 
 def test_close_closes_every_backend_once_and_drops_them():

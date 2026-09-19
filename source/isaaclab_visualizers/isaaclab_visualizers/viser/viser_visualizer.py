@@ -18,8 +18,10 @@ from typing import TYPE_CHECKING, Any
 
 import newton
 import numpy as np
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from newton.viewer import ViewerViser
 
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -379,6 +381,8 @@ class ViserVisualizer(BaseVisualizer):
         """
         super().__init__(cfg)
         self.cfg: ViserVisualizerCfg = cfg
+        sim = SimulationContext.instance()
+        self._newton = sim.get_or_create_backend(NewtonReplicateContext, sim)
         self._viewer: NewtonViewerViser | None = None
         self._model: Any | None = None
         self._state = None
@@ -405,8 +409,6 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
@@ -415,8 +417,9 @@ class ViserVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        self._model = self._newton.model
+        self._newton.update_transforms()
+        self._state = self._newton.state_0
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
@@ -447,15 +450,14 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
         self._apply_pending_camera_pose()
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-        num_envs = NewtonManager.get_num_envs()
+        self._newton.update_transforms()
+        self._state = self._newton.state_0
+        num_envs = self._newton.model.world_count
 
         self._sim_time += dt
 

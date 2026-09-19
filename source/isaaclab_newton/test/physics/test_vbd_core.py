@@ -11,9 +11,18 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSoftContactCfg
 
 from isaaclab.physics import PhysicsManager
+
+
+@pytest.fixture(autouse=True)
+def native_resource(monkeypatch):
+    sim = SimpleNamespace(cfg=SimpleNamespace(physics=NewtonCfg()), device="cpu")
+    resource = NewtonReplicateContext(sim)
+    monkeypatch.setattr(NewtonManager, "_backend", resource)
+    return resource
 
 
 @pytest.mark.parametrize(
@@ -56,9 +65,11 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
             return model
 
     model = Model()
-    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(soft_contact_cfg=soft_contact_cfg), raising=False)
+    cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg)
+    monkeypatch.setattr(PhysicsManager, "_cfg", cfg, raising=False)
+    monkeypatch.setattr(NewtonManager._backend, "physics_cfg", cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu", raising=False)
-    monkeypatch.setattr(NewtonManager, "_builder", Builder(), raising=False)
+    monkeypatch.setattr(NewtonManager._backend, "builder", Builder(), raising=False)
     monkeypatch.setattr(NewtonManager, "_up_axis", "Z", raising=False)
     monkeypatch.setattr(NewtonManager, "_gravity_vector", (0.0, 0.0, -9.81), raising=False)
     monkeypatch.setattr(NewtonManager, "_num_envs", 0, raising=False)
@@ -66,10 +77,6 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     monkeypatch.setattr(NewtonManager, "_pending_extended_state_attributes", set(), raising=False)
     monkeypatch.setattr(NewtonManager, "_pending_extended_contact_attributes", set(), raising=False)
     for attr in (
-        "_model",
-        "_state_0",
-        "_state_1",
-        "_control",
         "_adapter",
         "_use_newton_actuators_active",
         "_world_reset_mask",
@@ -152,7 +159,9 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         classmethod(lambda cls, builder, source_builders: ({}, {}, {})),
     )
     monkeypatch.setattr(
-        physics.NewtonVBDManager, "set_builder", classmethod(lambda cls, builder: setattr(cls, "_builder", builder))
+        physics.NewtonVBDManager,
+        "set_builder",
+        classmethod(lambda cls, builder: setattr(cls._backend, "builder", builder)),
     )
 
     def hook(builder, world_idx, position, rotation):
@@ -164,7 +173,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         "_deformable_registry",
         [SimpleNamespace(sim_mesh_prim_path="/World/soft/sim", vis_mesh_prim_path="/World/soft/visual")],
     )
-    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", None)
+    monkeypatch.setattr(physics.NewtonVBDManager._backend, "builder", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
     monkeypatch.setattr(NewtonManager, "_world_xforms", [])
     monkeypatch.setattr(NewtonManager, "_num_envs", 0)
@@ -192,7 +201,7 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
         def color(self, *, balance_colors):
             events.append(("color", balance_colors))
 
-    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
+    monkeypatch.setattr(physics.NewtonVBDManager._backend, "builder", Builder())
     monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
     monkeypatch.setattr(deformable_module, "setup_registered_deformable_fabric_sync", lambda manager_cls: None)
 
@@ -233,9 +242,9 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
         events.append(("step", cls))
 
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(simulate_physics_only))
-    monkeypatch.setattr(physics.NewtonVBDManager, "_model", SimpleNamespace(particle_count=1))
+    monkeypatch.setattr(physics.NewtonVBDManager._backend, "model", SimpleNamespace(particle_count=1))
     monkeypatch.setattr(physics.NewtonVBDManager, "_solver", Solver())
-    monkeypatch.setattr(physics.NewtonVBDManager, "_state_0", state)
+    monkeypatch.setattr(physics.NewtonVBDManager._backend, "state_0", state)
 
     physics.NewtonVBDManager._simulate_physics_only()
 

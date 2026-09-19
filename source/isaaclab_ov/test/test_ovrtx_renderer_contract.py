@@ -9,11 +9,17 @@ import contextlib
 import importlib.util
 import sys
 import types
+from unittest.mock import Mock
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
 
+from pxr import Usd, UsdGeom
+
+from isaaclab.cloner import ClonePlan
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
@@ -95,12 +101,77 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
     monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
     monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: object())  # noqa: ARG005
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: False)
+    monkeypatch.setattr(
+        ovrtx_renderer_module.SimulationContext,
+        "instance",
+        lambda: types.SimpleNamespace(get_scene_data_provider=lambda: object()),
+    )
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
 
     assert renderer._renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_body_transforms_use_sdp_once_per_publication(monkeypatch, use_ovstage):
+    """Both transports write SDP's matrix pointer and skip an unchanged publication."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    matrices = object()
+    publication = types.SimpleNamespace(generation=0)
+
+    def request(*args, **kwargs):
+        renderer._sdp.transform_generation = publication.generation
+        return types.SimpleNamespace(matrices=matrices)
+
+    renderer._sdp = types.SimpleNamespace(transform_generation=0, request_transforms=Mock(side_effect=request))
+    renderer._object_scales = object()
+    renderer._transform_generation = -1
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=123))
+    renderer._use_ovstage = use_ovstage
+    renderer._object_xform_binding = Mock()
+    renderer._object_xform_query = object()
+    renderer._current_ordinal = 1
+    renderer._stage = Mock()
+    monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda array: array)
+
+    renderer.update_transforms()
+    renderer.update_transforms()
+    renderer._sdp.request_transforms.assert_called_with(
+        SceneDataFormat.TransposedMatrix44d, scales=renderer._object_scales
+    )
+    write = renderer._stage.write_attribute if use_ovstage else renderer._object_xform_binding.write
+    assert write.call_count == 1
+    assert write.call_args.kwargs["cuda_stream"] == 123
+    assert (write.call_args.kwargs["tensors"] if use_ovstage else write.call_args.args[0]) is matrices
+
+    publication.generation += 1
+    renderer._current_ordinal += 1
+    renderer.update_transforms()
+    assert write.call_count == 2
+    assert renderer._sdp.request_transforms.call_count == 3
+
+
+def test_ovrtx_body_scales_follow_plan_sources_and_globals():
+    """Scale collection supports custom env namespaces and ignores unplanned stage branches."""
+    stage = Usd.Stage.CreateInMemory()
+    for path in ("/Scenes/Origin0/Body", "/World/Ground", "/Unplanned/Body"):
+        UsdGeom.Xform.Define(stage, path).AddScaleOp().Set((2.0, 3.0, 4.0))
+    plan = ClonePlan(
+        sources=("/Scenes/Origin0",),
+        destinations=("/Scenes/Origin{}",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        global_paths=("/World/Ground",),
+    )
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._object_scales_by_path = {}
+    renderer._capture_object_scales(stage, plan)
+    assert renderer._object_scales_by_path == {
+        "/Scenes/Origin0/Body": (2.0, 3.0, 4.0),
+        "/Scenes/Origin1/Body": (2.0, 3.0, 4.0),
+        "/World/Ground": (2.0, 3.0, 4.0),
+    }
 
 
 def test_ovrtx_supported_output_types_key_set():
@@ -600,7 +671,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_paths_list = "particle"
     renderer._cable_points_query = "cable"
     renderer._cable_paths_list = "cable"
-    renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
@@ -631,7 +701,6 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
-    assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None
@@ -673,7 +742,6 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._particle_paths_list is None
     assert renderer._cable_points_query is None
     assert renderer._cable_paths_list is None
-    assert renderer._object_newton_indices is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
     assert renderer._stage is None

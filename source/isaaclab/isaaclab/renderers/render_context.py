@@ -14,7 +14,9 @@ from typing import Any
 import torch
 import warp as wp
 
+import isaaclab.sim as sim_utils
 from isaaclab.app.logging_utils import force_log_level
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sensors.camera.camera_data import CameraData
 
 from .base_renderer import BaseRenderer, VisualMaterialBatch
@@ -66,8 +68,7 @@ class RenderContext:
     maps to a different implementation (e.g. Isaac RTX vs Newton) produces another backend; each
     has :meth:`BaseRenderer.prepare_stage` run before use.
 
-    :meth:`update_scene_state` is invoked at most once per :meth:`get_physics_step_count` for the
-    context;
+    SDP owns transform freshness; updates made without advancing physics still reach the renderer.
     """
 
     __slots__ = (
@@ -75,7 +76,6 @@ class RenderContext:
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
-        "_last_scene_state_step",
         "_visual_materials",
         "_visual_material_batches",
         "_visual_material_batches_by_channel",
@@ -91,7 +91,6 @@ class RenderContext:
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
-        self._last_scene_state_step: int | None = None
         self._visual_materials: list[Any] = []
         self._visual_material_batches: tuple[VisualMaterialBatch, ...] = ()
         self._visual_material_batches_by_channel: dict[str, VisualMaterialBatch] = {}
@@ -138,6 +137,16 @@ class RenderContext:
                 return r
         if self._consumers_finalized and self._visual_material_batches:
             raise RuntimeError("Renderers must be registered before rendering consumers are finalized.")
+        if cfg.renderer_type in REQUIRES_STAGE_AND_MODEL:
+            sim = sim_utils.SimulationContext.instance()
+            requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.renderer_type]
+            sim.requires_usd_stage |= requires_stage
+            sim.requires_newton_model |= requires_model
+            if requires_model:
+                # Legacy geometry consumers still need Newton; keep its optional dependency at the composition root.
+                from isaaclab_newton.cloner.replicate import NewtonReplicateContext
+
+                sim.get_or_create_backend(NewtonReplicateContext, sim)
         new_renderer = cfg.class_type(cfg)
         self._renderer_entries.append((cfg, new_renderer))
         with force_log_level(logging.INFO):
@@ -333,7 +342,7 @@ class RenderContext:
             self._prepared_num_envs = num_envs
 
     def update_scene_state(self, physics_step_count: int) -> None:
-        """Update scene state on all backends (at most once per step).
+        """Publish physics state and update all backends using SDP's dirty generations.
 
         Invokes :meth:`BaseRenderer.update_transforms` and then
         :meth:`BaseRenderer.update_geometries` on each registered renderer.
@@ -341,14 +350,10 @@ class RenderContext:
         if not self._renderer_entries:
             return
 
-        if self._last_scene_state_step == physics_step_count:
-            return
-
+        sim_utils.SimulationContext.instance().physics_manager.pre_render()
         for _cfg, renderer in self._renderer_entries:
             renderer.update_transforms()
             renderer.update_geometries()
-
-        self._last_scene_state_step = physics_step_count
 
     def render_into_camera(
         self,
@@ -379,8 +384,8 @@ class RenderContext:
         self._prepared_num_envs = None
 
     def reset_scene_state_cadence(self) -> None:
-        """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
-        self._last_scene_state_step = None
+        """No-op: publication freshness no longer depends on the physics-step counter."""
+        pass
 
     def close(self) -> None:
         """Close every registered backend and drop it from this context.
@@ -410,7 +415,6 @@ class RenderContext:
         self._renderer_entries.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
-        self._last_scene_state_step = None
         self._physics_initialized = False
         self._visual_materials.clear()
         self._visual_material_batches = ()

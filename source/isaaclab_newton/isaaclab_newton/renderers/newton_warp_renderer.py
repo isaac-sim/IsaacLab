@@ -21,9 +21,10 @@ from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
-from ..physics.newton_manager import NewtonManager
+from ..cloner.replicate import NewtonReplicateContext
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
+from .visual_material import VisualMaterialWriter
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -393,13 +394,14 @@ class NewtonWarpRenderer(BaseRenderer):
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
         sim.requires_usd_stage |= requires_stage
         sim.requires_newton_model |= requires_model
+        self._newton = sim.get_or_create_backend(NewtonReplicateContext, sim)
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        self._newton_model = NewtonManager.get_model()
+        self._newton_model = self._newton.model
         if self._newton_model is None:
             raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but the Newton manager has no model. "
+                "NewtonWarpRenderer requires a model built by its registered Newton clone context. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
@@ -434,7 +436,7 @@ class NewtonWarpRenderer(BaseRenderer):
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
-        return NewtonManager.create_visual_material_writer
+        return lambda batches: VisualMaterialWriter(self._newton.model, batches)
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
@@ -528,9 +530,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        sim = SimulationContext.instance()
-        sim.physics_manager.forward()
-        NewtonManager.update_visualization_state()
+        self._newton.update_transforms()
 
     def update_geometries(self) -> None:
         """No-op for Newton Warp - geometry is read directly from Newton state during render.
@@ -556,12 +556,12 @@ class NewtonWarpRenderer(BaseRenderer):
             tri_indices = self._newton_model.tri_indices
             # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
             graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
-            NewtonManager._register_sensor_task(
+            self._newton._register_sensor_task(
                 render_data.sensor_task_name,
                 lambda: self._launch_render(render_data),
                 graph_capturable=graph_capturable,
             )
-        NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
+        self._newton._update_sensor_tasks(render_data.sensor_task_name)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
@@ -594,7 +594,7 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
         self.newton_sensor.update(
-            NewtonManager.get_state_0(),
+            self._newton.state_0,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -642,6 +642,6 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
             if render_data.sensor_task_name is not None:
-                NewtonManager._unregister_sensor_task(render_data.sensor_task_name)
+                self._newton._unregister_sensor_task(render_data.sensor_task_name)
                 render_data.sensor_task_name = None
             render_data.sensor = None

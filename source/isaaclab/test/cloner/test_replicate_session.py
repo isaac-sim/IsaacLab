@@ -104,17 +104,21 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
     class Early(_Context):
         replicate_priority = -1
 
+    class WholeScene(_Context):
+        replicates_scene = True
+
     plan = _plan(Late, Early)
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Late),
-        _backend_registry={Late: Late(calls), Early: Early(calls)},
+        _backend_registry={Late: Late(calls), Early: Early(calls), WholeScene: WholeScene(calls)},
         get_clone_plan=lambda: plan,
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     replicate_session.replicate(plan)
 
-    assert calls == [(Early, plan), (Late, plan)]
+    assert calls == [(Early, plan), (WholeScene, plan), (Late, plan)]
+    assert plan.context_rows == {Late: (0,), Early: (0,), WholeScene: (0,)}
 
 
 def test_replicate_physics_false_runs_only_usd(monkeypatch):

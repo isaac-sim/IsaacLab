@@ -20,8 +20,10 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from newton.viewer import ViewerRerun
 
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -318,6 +320,8 @@ class RerunVisualizer(BaseVisualizer):
         """
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg
+        sim = SimulationContext.instance()
+        self._newton = sim.get_or_create_backend(NewtonReplicateContext, sim)
         self._viewer: NewtonViewerRerun | None = None
         self._backend_display: str | None = None
         self._sim_time = 0.0
@@ -341,16 +345,15 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if self._is_initialized:
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        self._model = self._newton.model
+        self._newton.update_transforms()
+        self._state = self._newton.state_0
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -436,16 +439,15 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
         self._sim_time += dt
         self._step_counter += 1
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-        num_envs = NewtonManager.get_num_envs()
+        self._newton.update_transforms()
+        self._state = self._newton.state_0
+        num_envs = self._newton.model.world_count
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)

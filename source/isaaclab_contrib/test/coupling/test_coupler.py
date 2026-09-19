@@ -48,6 +48,11 @@ from isaaclab_contrib.coupling import (
 )
 
 
+@pytest.fixture(autouse=True)
+def native_resource(monkeypatch):
+    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(builder=None, model=None, state_0=None))
+
+
 @dataclass
 class _FakeArray:
     """Minimal mutable stand-in for a Warp array."""
@@ -634,12 +639,12 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     monkeypatch.setattr(newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
     monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
     monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
-    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager._backend, "builder", None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
 
     NewtonCouplerManager.instantiate_builder_from_stage()
-    builder = NewtonManager._builder
+    builder = NewtonManager._backend.builder
     model = builder.finalize(device="cpu")
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
@@ -676,9 +681,9 @@ def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, sh
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
-    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=1))
+    monkeypatch.setattr(coupler.NewtonManager._backend, "model", SimpleNamespace(world_count=1))
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
-    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state_0)
+    monkeypatch.setattr(coupler.NewtonManager._backend, "state_0", state_0)
 
     NewtonCouplerManager._reset_solver_internals(mask)
 
@@ -700,9 +705,9 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
     mask = _DeviceMask()
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
-    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=1))
+    monkeypatch.setattr(coupler.NewtonManager._backend, "model", SimpleNamespace(world_count=1))
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
-    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state)
+    monkeypatch.setattr(coupler.NewtonManager._backend, "state_0", state)
 
     NewtonCouplerManager._reset_solver_internals(mask)
 
@@ -720,9 +725,9 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
-    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=2))
+    monkeypatch.setattr(coupler.NewtonManager._backend, "model", SimpleNamespace(world_count=2))
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
-    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state)
+    monkeypatch.setattr(coupler.NewtonManager._backend, "state_0", state)
 
     NewtonCouplerManager._reset_solver_internals(mask)
 

@@ -17,6 +17,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.envs.utils.camera_colorizer import (
     SUPPORTED_GT_TYPES,
     CameraFrameColorizer,
@@ -35,6 +36,7 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -192,6 +194,10 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
+        sim = SimulationContext.instance()
+        self._clone_context = sim.get_or_create_backend(UsdReplicateContext, usd_stage)
+        self._clone_context._prepare_fabric(scene_data_provider, sim.device)
+
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -203,6 +209,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if not self._is_initialized:
             return
+        self._clone_context._update_fabric()
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
@@ -283,6 +290,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
+        self._clone_context._update_fabric()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 

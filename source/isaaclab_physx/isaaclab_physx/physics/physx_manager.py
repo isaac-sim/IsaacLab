@@ -34,7 +34,7 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataPublication
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
@@ -172,7 +172,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
         self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
-        self._scene_data = SceneDataFormat.Transform()
+        self._transform_publication = SceneDataPublication(SceneDataFormat.Transform(), dirty=True)
         self._points_data = SceneDataFormat.Points()
         self._geometry_paths: list[str] = []
         self._geometry_counts: list[int] = []
@@ -187,6 +187,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def simulation_view(self, simulation_view: omni.physics.tensors.SimulationView | None):
         self._simulation_view = simulation_view
         self._rigid_body_view = None
+        self._transform_publication.data.transforms = None
+        self._transform_publication.dirty = True
         self._volume_deformable_view = None
         self._surface_deformable_view = None
         self._geometry_discovered = False
@@ -351,9 +353,14 @@ class PhysxSceneDataBackend(SceneDataBackend):
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
-        if view := self.get_rigid_body_view():
-            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
-        return self._scene_data
+        return self.transform_publication.data
+
+    @property
+    def transform_publication(self) -> SceneDataPublication:
+        """Publish native rigid-body poses [m, xyzw] and their dirty latch."""
+        if self._transform_publication.dirty and (view := self.get_rigid_body_view()):
+            self._transform_publication.data.transforms = view.get_transforms().view(wp.transformf)
+        return self._transform_publication
 
     @property
     def transform_count(self) -> int:
@@ -489,6 +496,7 @@ class PhysxManager(PhysicsManager):
         if cls._view is not None:
             cls._view._backend.initialize_kinematic_bodies()
 
+        cls._scene_data_backend._transform_publication.dirty = True
         cls.raise_callback_exception_if_any()
 
     @classmethod
@@ -499,11 +507,18 @@ class PhysxManager(PhysicsManager):
             if cls._view is not None and sim is not None and sim.is_playing():
                 cls._view.update_articulations_kinematic()
             cls._update_fabric(0.0, 0.0)
+        cls._scene_data_backend._transform_publication.dirty = True
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
+
+    @classmethod
+    def pre_render(cls) -> None:
+        """Finish native kinematics before SDP publishes manually written joint poses."""
+        if cls._scene_data_backend._transform_publication.dirty and cls._view is not None:
+            cls._view.update_articulations_kinematic()
 
     @classmethod
     def video_capture_backend(cls) -> str:
@@ -525,6 +540,7 @@ class PhysxManager(PhysicsManager):
         physx_sim = omni.physx.get_physx_simulation_interface()
         physx_sim.simulate(sim.cfg.dt, 0.0)
         physx_sim.fetch_results()
+        cls._scene_data_backend._transform_publication.dirty = True
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)

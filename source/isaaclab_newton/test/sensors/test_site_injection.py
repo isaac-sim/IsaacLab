@@ -5,6 +5,8 @@
 
 """Unit tests for site injection, validation, and sensor index building."""
 
+from types import SimpleNamespace
+
 import pytest
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
@@ -82,7 +84,7 @@ class TestFallbackGlobalSite:
 
     def setup_method(self):
         NewtonManager.clear()
-        NewtonManager._builder = MockBuilder(["body0", "body1"])
+        NewtonManager._backend = SimpleNamespace(builder=MockBuilder(["body0", "body1"]))
 
     def test_global_site_entry_is_int_none_tuple(self):
         xform = wp.transform()
@@ -107,7 +109,7 @@ class TestFallbackLocalSingleBody:
 
     def setup_method(self):
         NewtonManager.clear()
-        NewtonManager._builder = MockBuilder(["Robot/base", "Robot/hand"])
+        NewtonManager._backend = SimpleNamespace(builder=MockBuilder(["Robot/base", "Robot/hand"]))
 
     def test_single_body_entry_shape(self):
         xform = wp.transform()
@@ -128,7 +130,9 @@ class TestFallbackLocalWildcard:
 
     def setup_method(self):
         NewtonManager.clear()
-        NewtonManager._builder = MockBuilder(["Robot/FL_foot", "Robot/FR_foot", "Robot/RL_foot", "Robot/RR_foot"])
+        NewtonManager._backend = SimpleNamespace(
+            builder=MockBuilder(["Robot/FL_foot", "Robot/FR_foot", "Robot/RL_foot", "Robot/RR_foot"])
+        )
 
     def test_wildcard_entry_shape(self):
         xform = wp.transform()
@@ -153,7 +157,7 @@ class TestWorldSite:
 
     def setup_method(self):
         NewtonManager.clear()
-        NewtonManager._builder = MockBuilder([])
+        NewtonManager._backend = SimpleNamespace(builder=MockBuilder([]))
 
     def test_world_site_reuses_label(self):
         xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())

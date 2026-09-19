@@ -131,7 +131,7 @@ def test_rays_hit_ground_plane(sim, global_world_only):
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
     assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
-    assert NewtonManager._builder.default_bvh_cfg.shape_flags == expected_bvh_flags
+    assert NewtonManager._backend.builder.default_bvh_cfg.shape_flags == expected_bvh_flags
     sim.reset()
     sensor = _step_and_read(sim, scene)
 

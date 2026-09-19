@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 from typing import Any, cast
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
@@ -29,6 +30,14 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
+
+@pytest.fixture
+def newton_resource(monkeypatch):
+    resource = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0={}, update_transforms=lambda: None)
+    simulation = SimpleNamespace(get_or_create_backend=lambda *args: resource)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+    return resource
 
 
 def test_web_visualizer_cfgs_do_not_open_browser_by_default():
@@ -263,6 +272,7 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     ctx = _make_context_with_settings(
         {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
     )
+    ctx._pending_visualizers = ctx._create_visualizers()
     ctx._prepare_newton_visualizer_for_capture()
     assert created == ["newton_gl", "newton_rtx"]
 
@@ -344,7 +354,7 @@ class _DummyViserViewer:
         return True
 
 
-def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypatch: pytest.MonkeyPatch):
+def test_viser_visualizer_initialize_and_step_uses_shared_native_state(monkeypatch, newton_resource):
     provider = _DummyViserSceneDataProvider()
     viewer = _DummyViserViewer()
 
@@ -357,23 +367,11 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
 
     state_calls: list[object] = []
 
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
+    def update_transforms():
+        state_calls.append(provider)
+        newton_resource.state_0 = {"state_call": len(state_calls)}
 
-        @staticmethod
-        def get_state(scene_data_provider=None):
-            state_calls.append(scene_data_provider)
-            return {"state_call": len(state_calls)}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 1
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
+    newton_resource.update_transforms = update_transforms
 
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider))
@@ -384,7 +382,7 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    # log_state passes NewtonManager.get_state(provider) through as-is; no env_ids merged in.
+    # log_state receives the registered resource state without an intermediate copy.
     assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
 
@@ -401,6 +399,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     monkeypatch: pytest.MonkeyPatch,
     cfg_max_visible_envs: int | None,
     expected_visible: list[int] | None,
+    newton_resource,
 ):
     captured = {}
 
@@ -475,6 +474,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     monkeypatch: pytest.MonkeyPatch,
     cfg_max_visible_envs: int | None,
     expected_visible: list[int] | None,
+    newton_resource,
 ):
     captured = {}
 
@@ -528,23 +528,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         def get_camera_transforms(self):
             return {}
 
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
-
-        @staticmethod
-        def get_state(scene_data_provider=None):
-            captured["state_provider"] = scene_data_provider
-            return {"ok": True}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 1
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
+    newton_resource.model = "dummy-model"
+    newton_resource.state_0 = {"ok": True}
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
@@ -748,7 +733,7 @@ class _FailingInitVisualizer(_FakeVisualizer):
         raise RuntimeError("init failed")
 
 
-def test_initialize_visualizer_constructs_class_type_with_its_config():
+def test_visualizer_constructs_before_initialization_with_its_config():
     seen = []
     cfg = _FakeVisualizerCfg("kit")
     cfg.class_type = lambda actual: seen.append(actual) or _FakeVisualizer(actual)
@@ -760,6 +745,9 @@ def test_initialize_visualizer_constructs_class_type_with_its_config():
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg])
 
+    ctx._pending_visualizers = ctx._create_visualizers()
+    assert seen == [cfg]
+    assert not ctx._visualizers
     ctx.initialize_visualizers()
 
     assert seen == [cfg]
@@ -799,7 +787,7 @@ def _make_context_with_settings(
     ctx._pending_camera_view = None
     ctx._render_generation = 0
     ctx._visualizers = []
-    ctx._pending_visualizer_cfgs = None
+    ctx._pending_visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False
@@ -963,6 +951,7 @@ def test_explicit_unknown_visualizer_type_raises():
     ctx = _make_context_with_settings(settings)
 
     with pytest.raises(RuntimeError, match="bogus_viz"):
+        ctx._pending_visualizers = ctx._create_visualizers()
         ctx.initialize_visualizers()
 
 
@@ -989,6 +978,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("builtins.__import__", _failing_import)
 
     with pytest.raises(RuntimeError, match="rerun"):
+        ctx._pending_visualizers = ctx._create_visualizers()
         ctx.initialize_visualizers()
 
 
@@ -1009,6 +999,7 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[_FakeVisualizerCfg("kit")])
     ctx.requires_newton_model = True
 
+    ctx._pending_visualizers = ctx._create_visualizers()
     ctx.initialize_visualizers()
 
     assert ctx.requires_newton_model
@@ -1027,6 +1018,7 @@ def test_explicit_visualizer_construction_failure_raises():
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
+        ctx._pending_visualizers = ctx._create_visualizers()
         ctx.initialize_visualizers()
 
 
@@ -1042,6 +1034,7 @@ def test_explicit_visualizer_init_failure_raises():
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
+        ctx._pending_visualizers = ctx._create_visualizers()
         ctx.initialize_visualizers()
 
 
@@ -1056,6 +1049,7 @@ def test_explicit_partial_valid_types_raises_for_invalid():
     ctx = _make_context_with_settings(settings)
 
     with pytest.raises(RuntimeError, match="bogus_viz"):
+        ctx._pending_visualizers = ctx._create_visualizers()
         ctx.initialize_visualizers()
 
 
@@ -1087,6 +1081,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
     ctx = _make_context_with_settings(settings)
 
     # Non-explicit: should not raise
+    ctx._pending_visualizers = ctx._create_visualizers()
     ctx.initialize_visualizers()
     assert ctx._visualizers == []
 
@@ -1103,9 +1098,10 @@ def test_non_explicit_construction_failure_silently_logged(caplog):
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     with caplog.at_level("ERROR"):
+        ctx._pending_visualizers = ctx._create_visualizers()
         ctx.initialize_visualizers()
     assert ctx._visualizers == []
-    assert any("Failed to initialize visualizer" in r.message for r in caplog.records)
+    assert any("Failed to construct visualizer" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

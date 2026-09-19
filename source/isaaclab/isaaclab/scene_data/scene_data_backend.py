@@ -16,6 +16,9 @@ orphaned from its parent's ``__dict__`` after restoration.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 import warp as wp
 
 # Under Sphinx ``autodoc_mock_imports``, ``wp.struct`` is a ``_MockObject``
@@ -70,6 +73,23 @@ class SceneDataFormat:
         """Per-transform 4x4 homogeneous transform matrices [m]."""
 
     @wp_struct
+    class TransposedMatrix44d:
+        """Double-precision row-vector transforms, as consumed by USD renderers."""
+
+        matrices: wp.array(dtype=wp.mat44d) = None
+        """World transforms [m], shape [transform_count]."""
+
+    @dataclass(slots=True)
+    class FabricMatrix44:
+        """Indexed Fabric world matrices and their native-to-output mapping."""
+
+        matrices: Any = None
+        """Transposed double-precision ``omni:fabric:worldMatrix`` values [m]."""
+
+        mapping: wp.array | None = None
+        """Native-to-output indices; solver-only bodies without rigid destinations map to -1."""
+
+    @wp_struct
     class Points:
         """Flat world-space nodal or particle positions."""
 
@@ -77,7 +97,24 @@ class SceneDataFormat:
         """World-space positions [m], shape [point_count]."""
 
 
+@dataclass(slots=True)
+class SceneDataPublication:
+    """A producer-owned native-format pointer and its dirty latch.
+
+    Producers mark the publication dirty after state writes or pointer swaps. SDP consumes the
+    latch and owns format conversions; consumers must not modify the published arrays.
+    """
+
+    data: Any
+    dirty: bool = True
+
+
 class SceneDataBackend:
+    @property
+    def transform_publication(self) -> SceneDataPublication:
+        """Return current native transforms and their dirty latch."""
+        raise NotImplementedError
+
     @property
     def transforms(
         self,

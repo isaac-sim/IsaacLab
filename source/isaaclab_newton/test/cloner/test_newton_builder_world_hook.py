@@ -89,9 +89,9 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
         "_sim",
         SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics_prim_path="/physicsScene")),
     )
-    monkeypatch.setattr(replicate_module.NewtonManager, "_deformable_registry", ())
-    monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
-    monkeypatch.setattr(replicate_module.NewtonManager, "_per_world_builder_hooks", ())
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", ())
+    monkeypatch.setattr(NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", ())
     monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
 
     builder, *_ = replicate_module._build_newton_builder_from_mapping(
