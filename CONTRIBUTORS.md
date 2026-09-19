@@ -184,6 +184,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ruben D'Sa
 * Ruben Grandia
+* Ruoyan Han
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
