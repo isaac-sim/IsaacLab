@@ -213,6 +213,7 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     assert data.output["depth"].shape == (2, 8, 16, 1)
     assert data.output["depth"].dtype == wp.float32
     assert data.output["rgb"].warp.ptr == data.output["rgba"].warp.ptr
+    assert data.rgb is data.output["rgb"]
     assert data.image_shape == (8, 16)
     assert data.info == {"rgba": None, "rgb": None, "depth": None}
 
@@ -241,6 +242,8 @@ def test_camera_data_no_arg_construction_yields_empty_container():
     assert data.output is None
     assert data.info is None
     assert data.image_shape is None
+    with pytest.raises(RuntimeError, match="Add 'rgb' to CameraCfg.data_types"):
+        _ = data.rgb
 
 
 def test_camera_data_segmentation_dtype_follows_supported_spec():

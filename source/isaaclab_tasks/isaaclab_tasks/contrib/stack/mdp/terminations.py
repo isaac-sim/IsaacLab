@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to activate certain terminations for the lift task.
+"""Common functions that can be used to activate terminations for the stack task.
 
 The functions can be passed to the :class:`isaaclab.managers.TerminationTermCfg` object to enable
 the termination introduced by the function.
@@ -11,6 +11,7 @@ the termination introduced by the function.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import torch
@@ -21,6 +22,24 @@ from isaaclab.managers import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def success_after_minimum_horizon(
+    env: ManagerBasedRLEnv,
+    context_term_name: str = "progress_context",
+    minimum_episode_length_s: float = 5.0,
+) -> torch.Tensor:
+    """Terminate successful episodes after a configurable minimum horizon.
+
+    The success context owns the physical stability hold. This separate gate
+    exists only to prevent success inherited directly from a reset state; it
+    should not keep a policy in an already solved scene.
+    """
+    if minimum_episode_length_s <= 0.0:
+        raise ValueError("minimum_episode_length_s must be positive.")
+    context = env.termination_manager.get_term_cfg(context_term_name).func
+    minimum_steps = math.ceil(minimum_episode_length_s / env.step_dt)
+    return context.ever_success & (env.episode_length_buf >= minimum_steps)
 
 
 def cubes_stacked(
@@ -94,3 +113,52 @@ def cubes_stacked(
             raise ValueError("No gripper_joint_names found in environment config")
 
     return stacked
+
+
+def nonfinite_robot_state(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Detect non-finite robot joint state."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    joint_position = robot.data.joint_pos.torch[:, robot_cfg.joint_ids]
+    joint_velocity = robot.data.joint_vel.torch[:, robot_cfg.joint_ids]
+    return ~torch.isfinite(joint_position).all(dim=1) | ~torch.isfinite(joint_velocity).all(dim=1)
+
+
+def nonfinite_cube_state(
+    env: ManagerBasedRLEnv,
+    cube_cfgs: tuple[SceneEntityCfg, ...] = (
+        SceneEntityCfg("cube_1"),
+        SceneEntityCfg("cube_2"),
+        SceneEntityCfg("cube_3"),
+    ),
+) -> torch.Tensor:
+    """Detect non-finite cube pose or velocity state."""
+    invalid = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    for cube_cfg in cube_cfgs:
+        cube: RigidObject = env.scene[cube_cfg.name]
+        invalid |= ~torch.isfinite(cube.data.root_pose_w.torch).all(dim=1)
+        invalid |= ~torch.isfinite(cube.data.root_vel_w.torch).all(dim=1)
+    return invalid
+
+
+def cube_out_of_workspace(
+    env: ManagerBasedRLEnv,
+    cube_cfgs: tuple[SceneEntityCfg, ...] = (
+        SceneEntityCfg("cube_1"),
+        SceneEntityCfg("cube_2"),
+        SceneEntityCfg("cube_3"),
+    ),
+    workspace_lower: tuple[float, float, float] = (-0.2, -0.7, -0.1),
+    workspace_upper: tuple[float, float, float] = (1.2, 0.7, 1.0),
+) -> torch.Tensor:
+    """Detect cubes outside the local task workspace [m]."""
+    lower = torch.tensor(workspace_lower, dtype=torch.float32, device=env.device)
+    upper = torch.tensor(workspace_upper, dtype=torch.float32, device=env.device)
+    invalid = torch.zeros(env.scene.env_origins.shape[0], dtype=torch.bool, device=env.device)
+    for cube_cfg in cube_cfgs:
+        cube: RigidObject = env.scene[cube_cfg.name]
+        position = cube.data.root_pos_w.torch - env.scene.env_origins
+        invalid |= ((position < lower) | (position > upper)).any(dim=1)
+    return invalid

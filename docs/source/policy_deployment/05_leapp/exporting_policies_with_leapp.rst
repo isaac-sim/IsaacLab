@@ -103,7 +103,25 @@ checkpoint (or at a custom path). The directory contains:
 The important outcome for Isaac deployment workflows is that the exported artifact preserves the
 same dataflow that was used during training and inference inside Isaac Lab. That means downstream
 consumers can run the policy without reconstructing observation ordering, command wiring, actuator
-targets, or policy feedback loops themselves.
+targets, or policy feedback loops themselves. The one explicit exception is behavior owned by the
+robot controller rather than the policy. Those responsibilities are recorded as required
+capabilities instead of being turned into model outputs.
+
+Controller-Owned Writes
+^^^^^^^^^^^^^^^^^^^^^^^
+
+An action term can declare an articulation write as controller-owned by mapping its method name to
+a stable capability name with
+:attr:`~isaaclab.managers.ActionTermCfg.controller_owned_write_methods`. The exporter still executes
+the write while tracing the simulation, but it does not create a policy output that a deployment
+runtime could accidentally command a second time. Instead, the generated YAML records the exact
+semantic kind, scene entity, joint names, source action term, and application cadence under
+``pipeline.configs.isaaclab.controller_owned_writes``.
+
+This metadata is part of the deployment contract. A declaration that is not observed during the
+export trace, overlaps a policy output, or conflicts with another controller owner makes export
+fail. Deployment also compares the task config to this metadata, so a legacy artifact missing a
+required controller-owned write is rejected with an instruction to re-export.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
 `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_.
@@ -234,6 +252,12 @@ backend-specific and AppLauncher arguments:
      - ``5``
      - Number of environment steps to run during the traced rollout. Set to ``0`` to skip
        validation.
+   * - ``--validation_rtol``
+     - ``1e-3``
+     - Relative tolerance used when LEAPP compares exported outputs with the traced policy.
+   * - ``--validation_atol``
+     - ``1e-5``
+     - Absolute tolerance used when LEAPP compares exported outputs with the traced policy.
    * - ``--disable_graph_visualization``
      - ``False``
      - Skip generating the pipeline graph PNG.
@@ -296,6 +320,16 @@ Verify an export in the following order:
 3. **Review the LEAPP log.** When validation fails or the artifacts look unexpected, the
    log is the best starting point for backend errors, missing metadata, and unsupported
    model patterns.
+
+LEAPP prefers ONNX Runtime's CUDA execution provider when it is installed and otherwise runs the
+exported ONNX model on the CPU. PyTorch and ONNX Runtime can select different kernels even on the
+same device, and a device or provider mismatch can increase the difference further. Prefer an ONNX
+Runtime installation that exposes the same execution provider as the PyTorch trace, and verify the
+provider that the session actually activates. If the deployment runtime uses another provider,
+also run a strict parity test on that target provider. Increase ``--validation_atol`` only after
+inspecting the reported maximum and mean error and independently confirming the exported model on
+the target runtime. Do not disable validation as a workaround. Always follow artifact parity with
+a bounded closed-loop deployment canary.
 
 Use the default ``onnx-dynamo`` backend unless your
 downstream runtime or workflow requires another format. Backend support can vary by model, so if

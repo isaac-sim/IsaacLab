@@ -221,6 +221,7 @@ def export_sb3_agent(
     env_cfg.log_dir = log_dir
 
     env = None
+    export_patcher = None
     leapp_started = False
     # SB3 constructs torch.distributions.Normal even for deterministic PPO
     # inference. Its eager argument validation reduces tensor predicates to
@@ -243,7 +244,7 @@ def export_sb3_agent(
 
         policy_node_name = ensure_env_spec_id(env)
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
-        patch_env_for_export(env, export_method=export_method, required_obs_groups={"policy"})
+        export_patcher = patch_env_for_export(env, export_method=export_method, required_obs_groups={"policy"})
 
         print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
         agent = _load_agent(checkpoint_path, device=env.unwrapped.device)
@@ -307,7 +308,12 @@ def export_sb3_agent(
         leapp.compile_graph(
             visualize=not args_cli.disable_graph_visualization,
             validate=validate,
-            graph_configs=create_graph_configs(env_cfg),
+            rtol=args_cli.validation_rtol,
+            atol=args_cli.validation_atol,
+            graph_configs=create_graph_configs(
+                env_cfg,
+                controller_owned_write_requirements=export_patcher.controller_owned_write_requirements,
+            ),
         )
     finally:
         torch.distributions.Distribution.set_default_validate_args(previous_validate_args)

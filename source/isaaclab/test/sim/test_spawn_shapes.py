@@ -14,6 +14,8 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
+from pxr import UsdGeom
+
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -101,6 +103,15 @@ def test_spawn_cuboid(sim):
     prim = sim.stage.GetPrimAtPath("/World/Cube/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Cube"
     assert prim.GetAttribute("size").Get() == min(cfg.size)
+
+
+def test_spawn_invisible_cuboid(sim):
+    """Test that a hidden procedural shape remains invisible to renderers."""
+    cfg = sim_utils.CuboidCfg(size=(1.0, 2.0, 3.0), visible=False)
+    cfg.func("/World/InvisibleCube", cfg)
+
+    prim = sim.stage.GetPrimAtPath("/World/InvisibleCube/geometry/mesh")
+    assert UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible
 
 
 def test_spawn_sphere(sim):

@@ -9,16 +9,18 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
+from leapp.utils.tensor_description import TensorSemantics
 
 pytest.importorskip("leapp")
 
 from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
+from isaaclab.sensors.camera import CameraData
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
-from isaaclab.utils.leapp.leapp_semantics import InputKindEnum
-from isaaclab.utils.leapp.proxy import _DataProxy, _EnvProxy
+from isaaclab.utils.leapp.leapp_semantics import InputKindEnum, OutputKindEnum, leapp_tensor_semantics
+from isaaclab.utils.leapp.proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -49,6 +51,25 @@ class _ArticulationData(_ArticulationDataSemantics):
     @property
     def projected_gravity_b(self) -> ProxyArray:
         return self._projected_gravity_b
+
+
+class _JointCommandDataSemantics:
+    """Production command semantics used by the minimal test data object."""
+
+    joint_pos_target = BaseArticulationData.joint_pos_target
+
+
+class _JointCommandData(_JointCommandDataSemantics):
+    """Minimal articulation command data required by LEAPP proxy tests."""
+
+    joint_names = ["joint_a", "joint_b"]
+
+    def __init__(self, joint_pos_target: ProxyArray):
+        self._joint_pos_target = joint_pos_target
+
+    @property
+    def joint_pos_target(self) -> ProxyArray:
+        return self._joint_pos_target
 
 
 def _make_articulation_data() -> tuple[_ArticulationData, torch.Tensor]:
@@ -100,6 +121,227 @@ def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: p
     assert semantics.name == "robot_projected_gravity_b"
     assert semantics.kind == InputKindEnum.VECTOR3D
     assert semantics.extra == {"isaaclab_connection": "state:robot:projected_gravity_b"}
+
+
+def test_camera_rgb_read_exports_float_nhwc_image_input(monkeypatch: pytest.MonkeyPatch):
+    """Camera RGB storage is exposed with the ROS converter's float NHWC contract."""
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    raw_image = torch.arange(2 * 4 * 5 * 3, dtype=torch.uint8).reshape(2, 4, 5, 3)
+    data = CameraData()
+    data._output = {"rgb": ProxyArray(wp.from_torch(raw_image))}
+    proxy = _DataProxy(
+        data,
+        entity_name="base_camera",
+        task_name="camera-task",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"base_camera_{property_name}",
+    )
+
+    traced_image = proxy.rgb.torch
+
+    assert traced_image.shape == raw_image.shape
+    assert traced_image.dtype == torch.float32
+    torch.testing.assert_close(traced_image, raw_image.float())
+    assert len(annotated_inputs) == 1
+    task_name, semantics = annotated_inputs[0]
+    assert task_name == "camera-task"
+    assert semantics.name == "base_camera_rgb"
+    assert semantics.kind == "state/camera/image"
+    assert semantics.extra == {"isaaclab_connection": "state:base_camera:rgb"}
+
+
+def test_joint_command_read_exports_joint_names(monkeypatch: pytest.MonkeyPatch):
+    """Command observations retain joint names for deployment-side reordering."""
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    target = torch.tensor([[0.25, -0.5]], dtype=torch.float32)
+    data = _JointCommandData(ProxyArray(wp.from_torch(target)))
+    proxy = _DataProxy(
+        data,
+        entity_name="robot",
+        task_name="command-task",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"robot_{property_name}",
+    )
+
+    torch.testing.assert_close(proxy.joint_pos_target.torch, target)
+
+    assert len(annotated_inputs) == 1
+    task_name, semantics = annotated_inputs[0]
+    assert task_name == "command-task"
+    assert semantics.name == "robot_joint_pos_target"
+    assert semantics.kind == InputKindEnum.COMMAND_JOINT_POSITION
+    assert semantics.element_names == [["joint_a", "joint_b"]]
+    assert semantics.extra == {"isaaclab_connection": "state:robot:joint_pos_target"}
+
+
+def test_controller_owned_articulation_write_executes_without_becoming_policy_output():
+    """Controller-owned feedforward remains active in simulation but outside the policy graph."""
+
+    class FakeArticulation:
+        joint_names = ["joint"]
+
+        def __init__(self):
+            self.writes = []
+
+        @leapp_tensor_semantics(kind="action/joint/position")
+        def set_joint_position_target_index(self, target, joint_ids=None):
+            self.writes.append(("position", target, joint_ids))
+
+        @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names=["joint"])
+        def set_joint_effort_target_index(self, target, joint_ids=None):
+            self.writes.append(("effort", target, joint_ids))
+
+    articulation = FakeArticulation()
+    outputs = []
+    captured_terms = set()
+    controller_requirements = []
+    proxy = _ArticulationWriteProxy(
+        real_asset=articulation,
+        entity_name="robot",
+        term_name="arm_action",
+        output_cache=outputs,
+        method_resolution_cache={},
+        captured_write_term_names=captured_terms,
+        controller_owned_write_requirements=controller_requirements,
+        data_proxy=SimpleNamespace(),
+        controller_owned_write_methods={"set_joint_effort_target_index": "gravity_compensation"},
+    )
+    position_target = torch.tensor([[0.25]])
+    effort_target = torch.tensor([[1.5]])
+
+    proxy.set_joint_position_target_index(target=position_target, joint_ids=[0])
+    proxy.set_joint_effort_target_index(target=effort_target, joint_ids=[0])
+
+    assert [(name, ids) for name, _, ids in articulation.writes] == [
+        ("position", [0]),
+        ("effort", [0]),
+    ]
+    assert torch.equal(articulation.writes[0][1], position_target)
+    assert torch.equal(articulation.writes[1][1], effort_target)
+    assert len(outputs) == 1
+    assert outputs[0].name == "arm_action"
+    assert outputs[0].kind == "action/joint/position"
+    assert torch.equal(outputs[0].ref, position_target)
+    assert outputs[0].extra == {"isaaclab_connection": "write:robot:set_joint_position_target_index"}
+    assert captured_terms == {"arm_action"}
+    assert controller_requirements == [
+        {
+            "capability": "gravity_compensation",
+            "source_term": "arm_action",
+            "kind": "target/joint/effort",
+            "element_names": [["joint"]],
+            "cadence": "action_apply",
+            "isaaclab_connection": "write:robot:set_joint_effort_target_index",
+        }
+    ]
+    proxy.set_joint_effort_target_index(target=effort_target, joint_ids=[0])
+    assert len(controller_requirements) == 1
+
+    controller_only_outputs = []
+    controller_only_captured_terms = set()
+    controller_only_requirements = []
+    controller_only_proxy = _ArticulationWriteProxy(
+        real_asset=articulation,
+        entity_name="robot",
+        term_name="gravity_feedforward",
+        output_cache=controller_only_outputs,
+        method_resolution_cache={},
+        captured_write_term_names=controller_only_captured_terms,
+        controller_owned_write_requirements=controller_only_requirements,
+        data_proxy=SimpleNamespace(),
+        controller_owned_write_methods={"set_joint_effort_target_index": "gravity_compensation"},
+    )
+
+    controller_only_proxy.set_joint_effort_target_index(target=effort_target, joint_ids=[0])
+
+    assert controller_only_outputs == []
+    assert controller_only_captured_terms == {"gravity_feedforward"}
+    assert controller_only_requirements[0]["capability"] == "gravity_compensation"
+
+
+def test_controller_owned_write_declaration_must_be_observed():
+    """Export should fail when a declared controller responsibility was not traced."""
+    patcher = ExportPatcher(export_method="onnx-dynamo")
+    patcher._declared_controller_owned_writes = {
+        ("arm_action", "write:robot:set_joint_effort_target_index"): "gravity_compensation"
+    }
+
+    with pytest.raises(RuntimeError, match="declared but not observed"):
+        _ = patcher.controller_owned_write_requirements
+
+
+def test_controller_owned_write_requirements_are_returned_by_value():
+    """Artifact metadata callers must not be able to mutate validated exporter state."""
+    requirement = {
+        "capability": "gravity_compensation",
+        "source_term": "arm_action",
+        "kind": "target/joint/effort",
+        "element_names": [["joint"]],
+        "cadence": "action_apply",
+        "isaaclab_connection": "write:robot:set_joint_effort_target_index",
+    }
+    patcher = ExportPatcher(export_method="onnx-dynamo")
+    patcher._declared_controller_owned_writes = {
+        ("arm_action", "write:robot:set_joint_effort_target_index"): "gravity_compensation"
+    }
+    patcher._controller_owned_write_requirements = [requirement]
+
+    returned = patcher.controller_owned_write_requirements
+    returned[0]["element_names"][0][0] = "mutated"
+
+    assert patcher._controller_owned_write_requirements[0]["element_names"] == [["joint"]]
+
+
+def test_controller_owned_write_requirements_reject_duplicate_source_connections():
+    """One action write connection must produce exactly one controller requirement."""
+    requirements = [
+        {
+            "capability": "gravity_compensation",
+            "source_term": "arm_action",
+            "kind": "target/joint/effort",
+            "element_names": [[joint_name]],
+            "cadence": "action_apply",
+            "isaaclab_connection": "write:robot:set_joint_effort_target_index",
+        }
+        for joint_name in ("joint_a", "joint_b")
+    ]
+    patcher = ExportPatcher(export_method="onnx-dynamo")
+    patcher._declared_controller_owned_writes = {
+        ("arm_action", "write:robot:set_joint_effort_target_index"): "gravity_compensation"
+    }
+    patcher._controller_owned_write_requirements = requirements
+
+    with pytest.raises(RuntimeError, match="unique source-term"):
+        _ = patcher.controller_owned_write_requirements
+
+
+def test_controller_owned_write_conflicts_with_equivalent_policy_output():
+    """Export should reject another writer for the same effort capability and joints."""
+    patcher = ExportPatcher(export_method="onnx-dynamo")
+    patcher._controller_owned_write_requirements = [
+        {
+            "capability": "gravity_compensation",
+            "source_term": "arm_action",
+            "kind": "target/joint/effort",
+            "element_names": [["joint"]],
+            "cadence": "action_apply",
+            "isaaclab_connection": "write:robot:set_joint_effort_target_index",
+        }
+    ]
+    patcher._action_output_cache = [
+        TensorSemantics(
+            name="policy_effort",
+            ref=torch.ones(1, 1),
+            kind=OutputKindEnum.JOINT_EFFORT,
+            element_names=["joint"],
+            extra={"isaaclab_connection": "write:robot:set_joint_effort_target_mask"},
+        )
+    ]
+
+    with pytest.raises(RuntimeError, match="overlaps controller-owned"):
+        patcher._validate_controller_owned_output_conflicts(patcher._action_output_cache)
 
 
 def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: pytest.MonkeyPatch):
