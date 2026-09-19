@@ -497,6 +497,53 @@ def test_cube_stack_contact_filtering(device, num_envs):
         assert contact_sensor.data.net_normal_forces_w.torch.sum().item() > 0.0
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_heterogeneous_clone_contact_report_order(device):
+    """Clone contact reporters retain numeric environment order and per-variant forces."""
+    with _ovphysx_sim_context(device=device, dt=0.01) as sim:
+        cfg = ContactSensorSceneCfg(num_envs=12, env_spacing=2.0, lazy_sensor_update=False)
+        cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Object")
+        cfg.shape.spawn = sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(size=(0.2, 0.2, 0.2), mass_props=sim_utils.MassPropertiesCfg(mass=1.0)),
+                sim_utils.SphereCfg(radius=0.1, mass_props=sim_utils.MassPropertiesCfg(mass=2.0)),
+            ],
+            rigid_props=sim_utils.RigidBodyBaseCfg(),
+            collision_props=sim_utils.CollisionBaseCfg(),
+            activate_contact_sensors=True,
+        )
+        cfg.shape.init_state.pos = (0.0, 0.0, 0.5)
+        cfg.shape_2 = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Support",
+            spawn=sim_utils.CuboidCfg(
+                size=(1.0, 1.0, 0.2),
+                rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
+                collision_props=sim_utils.CollisionBaseCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
+        )
+        cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            track_pose=True,
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Support", "/World/ground"],
+        )
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        sensor = scene["contact_sensor"]
+        assert sensor.contact_view.sensor_paths == [f"/World/envs/env_{i}/Object" for i in range(scene.num_envs)]
+        assert sensor.contact_view.filter_paths == [
+            [f"/World/envs/env_{i}/Support", "/World/ground"] for i in range(scene.num_envs)
+        ]
+        for _ in range(240):
+            _perform_sim_step(sim, scene, sim.get_physics_dt())
+        expected = torch.tensor([9.81, 19.62] * 6, device=device)
+        torch.testing.assert_close(sensor.data.net_normal_forces_w.torch[:, 0, 2], expected, atol=0.1, rtol=0.0)
+        torch.testing.assert_close(sensor.data.normal_force_matrix_w.torch[:, 0, 0, 2], expected, atol=0.1, rtol=0.0)
+        assert torch.count_nonzero(sensor.data.normal_force_matrix_w.torch[:, :, 1]) == 0
+        torch.testing.assert_close(sensor.data.pos_w.torch[:, 0, :2], scene.env_origins[:, :2], atol=0.01, rtol=0.0)
+
+
 def test_no_contact_reporting():
     """Test that OVPhysX contact sensor returns zero forces when no filter is configured.
 

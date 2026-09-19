@@ -98,7 +98,7 @@ def test_manager_full_stage_never_replays_runtime_clones():
     fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)], None)]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
         assert OvPhysxManager._pending_clones == []
     finally:
@@ -126,6 +126,7 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
                 [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)],
+                [1, 2],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -160,11 +161,13 @@ def test_manager_full_stage_materializes_nested_targets_parent_before_child():
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             ),
             (
                 "/World/envs/env_0/Groceries",
                 ["/World/envs/env_1/Groceries"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             ),
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -199,6 +202,7 @@ def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -234,7 +238,12 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])
+            (
+                "/World/envs/env_0/Robot",
+                ["/World/envs/env_1/Robot"],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
+            )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
@@ -296,6 +305,7 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1, 2],
             )
         ]
         with pytest.raises(RuntimeError, match="clone target parent is absent"):
@@ -314,8 +324,8 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
         def __init__(self):
             self.calls = []
 
-        def clone(self, source, targets, transforms):
-            self.calls.append(("clone", source, targets, transforms))
+        def clone(self, source, targets, transforms, *, env_ids):
+            self.calls.append(("clone", source, targets, transforms, env_ids))
             return 19
 
         def wait_op(self, operation):
@@ -324,10 +334,10 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
     fake = FakePhysX()
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], [7])]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
         assert fake.calls == [
-            ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+            ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], [7]),
             ("wait_op", 19),
         ]
         assert OvPhysxManager._pending_clones == []
@@ -441,7 +451,51 @@ def test_manager_serializes_env0_only_stage_in_memory(caplog):
     assert filtered.GetPrimAtPath("/World/Ground").IsValid()
     assert filtered.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
     assert not filtered.GetPrimAtPath("/World/envs/env_1").IsValid()
-    assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
+    assert "stripped 1 non-source env_<i> subtrees from in-memory USD" in caplog.text
+
+
+def test_manager_serializes_every_heterogeneous_source_environment():
+    """Runtime cloning keeps each authored variant source while stripping clone targets."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, variant in ((0, "cube"), (1, "sphere"), (2, "target"), (3, "target")):
+        stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        source = stage.DefinePrim(f"/World/envs/env_{env_id}/Object", "Xform")
+        source.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set(variant)
+
+    previous_pending = OvPhysxManager._pending_clones
+    previous_full_stage = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Object",
+                ["/World/envs/env_2/Object"],
+                [(2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [2],
+            ),
+            (
+                "/World/envs/env_1/Object",
+                ["/World/envs/env_3/Object"],
+                [(3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [3],
+            ),
+        ]
+        usda = OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._pending_clones = previous_pending
+        OvPhysxManager._requires_full_stage = previous_full_stage
+
+    layer = Sdf.Layer.CreateAnonymous("heterogeneous-sources.usda")
+    assert layer.ImportFromString(usda)
+    exported = Usd.Stage.Open(layer)
+    assert exported.GetPrimAtPath("/World/envs/env_0/Object").GetAttribute("test:variant").Get() == "cube"
+    assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("test:variant").Get() == "sphere"
+    assert not exported.GetPrimAtPath("/World/envs/env_2").IsValid()
+    assert not exported.GetPrimAtPath("/World/envs/env_3").IsValid()
 
 
 def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
