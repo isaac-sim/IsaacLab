@@ -1493,22 +1493,30 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # set all existing views to None to invalidate them
         self._root_view = None
 
-    def _on_prim_deletion(self, prim_path: str) -> None:
-        """Invalidates and deletes the callbacks when the prim is deleted.
+    def _on_prim_deletion(self, event) -> None:
+        """Invalidates and deletes the callbacks when a prim is deleted.
 
         Args:
-            prim_path: The path to the prim that is being deleted.
+            event: The prim deletion event. Its payload contains the deleted prim path.
 
         .. note::
-            This function is called when the prim is deleted.
+            This function is called when a prim is deleted.
         """
+        payload = getattr(event, "payload", event) if not isinstance(event, dict) else event
+        prim_path = payload.get("prim_path", "") if isinstance(payload, dict) else ""
         if prim_path == "/":
-            self._clear_callbacks()
+            matches_collection = True
+        else:
+            matches_collection = any(
+                sim_utils.matches_path_expr_prefix(obj.prim_path, prim_path)
+                for obj in self.cfg.rigid_objects.values()
+            )
+        if not matches_collection:
             return
-        for prim_path_expr in [obj.prim_path for obj in self.cfg.rigid_objects.values()]:
-            if sim_utils.matches_path_expr_prefix(prim_path_expr, prim_path):
-                self._clear_callbacks()
-                return
+        try:
+            self._invalidate_initialize_callback(event)
+        finally:
+            self._clear_callbacks()
 
     """
     Deprecated properties and methods.
