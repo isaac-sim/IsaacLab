@@ -906,6 +906,13 @@ class RigidObjectData(BaseRigidObjectData):
         # A full reset replaces simulation arrays.
         self._read_launch_cache.clear()
 
+        # Newton hard resets replace the model-owned gravity allocation. Rebind the live view
+        # here alongside the other simulation pointers so projected gravity does not retain the
+        # allocation from the pre-reset model.
+        model = SimulationManager.get_model()
+        self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
+        reset_timestamps([getattr(self, "_projected_gravity_b", None)])
+
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
         self._num_bodies = self._root_view.link_count

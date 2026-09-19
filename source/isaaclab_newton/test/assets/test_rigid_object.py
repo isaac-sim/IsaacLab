@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import sys
+from copy import copy
 from typing import Literal
 
 import pytest
@@ -996,6 +997,18 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
         cube_object.update(sim.cfg.dt)
         expected = torch.nn.functional.normalize(new_gravity, dim=-1)
         torch.testing.assert_close(cube_object.data.projected_gravity_b.torch, expected, atol=1e-5, rtol=1e-5)
+
+        # A hard reset replaces model-owned allocations. Rebinding must adopt the new gravity view
+        # and invalidate the lazily cached projection before the next read.
+        old_gravity_ptr = cube_object.data.GRAVITY_VEC_W.warp.ptr
+        old_model = SimulationManager.get_model()
+        new_model = copy(old_model)
+        new_model.gravity = wp.array(wp.to_torch(old_model.gravity).clone(), dtype=wp.vec3f, device=device)
+        SimulationManager._model = new_model
+        cube_object.data._create_simulation_bindings()
+        assert cube_object.data.GRAVITY_VEC_W.warp.ptr == new_model.gravity[: new_model.world_count].ptr
+        assert cube_object.data.GRAVITY_VEC_W.warp.ptr != old_gravity_ptr
+        assert cube_object.data._projected_gravity_b.timestamp == -1.0
 
 
 @pytest.mark.isaacsim_ci
