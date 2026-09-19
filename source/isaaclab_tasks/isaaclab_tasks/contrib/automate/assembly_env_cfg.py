@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -89,7 +91,7 @@ class AssemblySceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",
             activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
                 linear_damping=0.0,
@@ -101,12 +103,15 @@ class AssemblySceneCfg(InteractiveSceneCfg):
                 solver_velocity_iteration_count=1,
                 max_contact_impulse=1e32,
             ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
-                solver_position_iteration_count=192,
-                solver_velocity_iteration_count=1,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=192,
+                    solver_velocity_iteration_count=1,
+                ),
+                NewtonArticulationCfg(self_collision_enabled=False),
+            ],
+            collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={

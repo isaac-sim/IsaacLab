@@ -54,7 +54,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -102,7 +102,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
                 ),
             )
             setattr(self, f"forklift_{i}", forklift)
