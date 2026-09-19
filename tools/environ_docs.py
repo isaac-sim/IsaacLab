@@ -62,6 +62,12 @@ RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
+# Optional dependency groups required to launch specific tasks from a source checkout.
+TASK_REQUIRED_EXTRAS: dict[str, tuple[str, ...]] = {
+    "Isaac-Lift-Soft-Franka": ("tetrahedralization",),
+    "Isaac-Lift-Soft-Franka-Camera": ("tetrahedralization",),
+}
+
 # Legacy markers retained for the table-formatting helpers. The public
 # documentation now uses the generated environment browser instead.
 COMPREHENSIVE_LIST_START_MARKER = ".. START-AUTO-GENERATED: comprehensive-environment-list"
@@ -126,6 +132,7 @@ class EnvironmentDocRow:
     presets: dict[PresetTarget, list[str]] | None
     supports_warp_frontend: bool = False
     pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    required_extras: tuple[str, ...] = ()
 
 
 def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
@@ -642,6 +649,7 @@ def collect_environment_doc_rows(
                 presets=preset_map,
                 supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
+                required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
             )
         )
 
@@ -732,8 +740,9 @@ def render_environment_browser_task_rows(
             row.supports_warp_frontend,
             row.pretrained_checkpoint_preset_compatibility,
             default_algorithms,
+            ",".join(row.required_extras),
         ]
-        optional_defaults = ["", False, {}, {}]
+        optional_defaults = ["", False, {}, {}, ""]
         last_value = next(
             (
                 index
