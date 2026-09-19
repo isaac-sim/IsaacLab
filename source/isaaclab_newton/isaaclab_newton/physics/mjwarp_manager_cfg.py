@@ -98,7 +98,20 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """
 
     enable_multiccd: bool = False
-    """Whether to generate multiple contacts for each colliding geometry pair."""
+    """Whether to enable multiple-contact convex collision detection. Defaults to False.
+
+    With :attr:`use_mujoco_contacts` enabled, supported convex geometry pairs can generate
+    a contact manifold (several points across a touching surface) instead of a single point.
+    This can improve stability for flat mesh contacts in stacking and grasping. It does not
+    enable continuous collision detection or prevent tunneling between simulation steps.
+
+    MuJoCo Warp's supported pairs and contact-margin restrictions differ from MuJoCo CPU.
+    Primitive colliders can already produce multiple contacts with this option disabled.
+    Additional contacts can increase solver work and the required :attr:`nconmax` and
+    :attr:`njmax` capacities. This option does not configure Newton's collision pipeline
+    when :attr:`use_mujoco_contacts` is False. See :ref:`mjwarp-multiple-contacts` for
+    supported geometry pairs, configuration, and tuning guidance.
+    """
 
     ls_parallel: bool = False
     """Deprecated parallel line search option.

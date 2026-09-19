@@ -130,6 +130,84 @@ matters only for this pipeline and when more than one solver substep is used;
 refresh contacts more often for fast-changing contacts before reducing work for
 performance.
 
+.. _mjwarp-multiple-contacts:
+
+Generate multiple contacts for flat surfaces
+--------------------------------------------
+
+:attr:`~isaaclab_newton.physics.MJWarpSolverCfg.enable_multiccd` enables
+multiple-contact **convex collision detection** in MuJoCo's collision pipeline.
+It defaults to ``False`` in Isaac Lab. It does not enable continuous collision
+detection: no swept trajectory or time of impact is computed between simulation
+steps. For fast objects passing through thin geometry, investigate the timestep,
+substeps, and collision geometry instead.
+
+A general convex collider based on GJK/EPA normally returns one contact point
+for a colliding pair. One point can poorly represent two flat surfaces touching,
+such as a mesh object resting on another mesh or held between flat gripper pads.
+Multi-CCD recovers several points across the contact patch, called a contact
+manifold. Their separated force application points can better resist rocking
+and rotation, improving stacking or grasp stability. This changes the contact
+representation; it does not change friction coefficients or solver-iteration
+limits.
+
+Enable the option when constructing the solver configuration:
+
+.. code-block:: python
+
+    from isaaclab.sim import SimulationCfg
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+    solver_cfg = MJWarpSolverCfg(use_mujoco_contacts=True, enable_multiccd=True)
+    sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=solver_cfg))
+
+With ``use_mujoco_contacts=False``, Newton generates the contacts and this flag
+does not change their generation. Configure that path through
+``NewtonCfg.collision_cfg`` instead.
+
+The supported geometry pairs matter. In MuJoCo Warp 3.12, the native manifold
+routine clips contacting faces and returns up to four representative contacts:
+
+.. list-table:: MuJoCo Warp 3.12 contact behavior
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Geometry pair
+     - Effect of ``enable_multiccd``
+   * - Box--mesh or mesh--mesh
+     - Enables a manifold for supported convex mesh contacts. The actual point
+       count depends on the contacting features and available mesh polygon data.
+   * - Box--box
+     - Already uses multiple contacts on the default native collision path,
+       even with the flag disabled.
+   * - Box--plane or capsule--plane
+     - Specialized primitive colliders already generate multiple contacts
+       without this flag.
+   * - Cylinder--box and other unsupported convex pairs
+     - Enabling the flag does not add manifold support; these pairs can still
+       produce only one point. MuJoCo CPU has different support.
+
+The MuJoCo Warp manifold path requires zero MuJoCo contact margins for its
+box/mesh pairs. Newton 1.6's ``SolverMuJoCo`` applies a `margin-zeroing workaround
+<https://github.com/newton-physics/newton/blob/v1.6.0/newton/_src/solvers/mujoco/solver_mujoco.py>`__
+when it uses MuJoCo contacts and the model contains boxes or multi-CCD meshes.
+Inspect the generated MuJoCo model when diagnosing margin-dependent behavior;
+do not assume authored Newton margins remain active on this path.
+
+Compare the same reset and action sequence with the flag off and on. Inspect
+contact locations, rocking, slip, and task success, then measure runtime and
+peak contact/constraint counts. More contacts can increase constraint-solver
+work and memory requirements, so recheck ``nconmax`` and ``njmax`` across the
+task's reset and randomization distribution. The cost is scene-dependent;
+neither a fixed slowdown nor a stability improvement is guaranteed.
+
+For the algorithms, see MuJoCo's `multiple-contact explanation
+<https://mujoco.readthedocs.io/en/stable/computation/index.html#multiple-contacts>`__.
+For the GPU-specific scope, see the `MuJoCo Warp 3.12 convex collision implementation
+<https://github.com/google-deepmind/mujoco_warp/blob/v3.12.0/mujoco_warp/_src/collision_convex.py>`__
+and `contact-margin validation
+<https://github.com/google-deepmind/mujoco_warp/blob/v3.12.0/mujoco_warp/_src/io.py>`__.
+
 Optimize only after validation
 ------------------------------
 
