@@ -700,7 +700,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if not self.root_view.is_floating_base and (solver := SimulationManager._solver) is not None:
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -749,7 +749,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if not self.root_view.is_floating_base and (solver := SimulationManager._solver) is not None:
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -804,7 +804,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if not self.root_view.is_floating_base and (solver := SimulationManager._solver) is not None:
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -856,7 +856,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if not self.root_view.is_floating_base and (solver := SimulationManager._solver) is not None:
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
