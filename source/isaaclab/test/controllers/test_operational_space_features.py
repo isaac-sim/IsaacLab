@@ -12,11 +12,13 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("partial_inertial_decoupling", [False, True])
-def test_inertial_decoupling_handles_singular_task_inertia(partial_inertial_decoupling: bool):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_inertial_decoupling_handles_singular_task_inertia(partial_inertial_decoupling: bool, use_newton: bool):
     """Inertial decoupling produces finite efforts for rank-deficient Jacobians in a mixed batch."""
     num_envs = 3
     num_joints = 7
     cfg = OperationalSpaceControllerCfg(
+        use_newton=use_newton,
         target_types=["pose_abs"],
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=partial_inertial_decoupling,

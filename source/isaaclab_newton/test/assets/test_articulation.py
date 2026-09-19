@@ -4734,7 +4734,8 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 @pytest.mark.parametrize("articulation_type", ["panda_fine"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.isaacsim_ci
-def test_franka_osc_gravity_compensation_precision(sim, device, articulation_type, gravity_enabled):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_osc_gravity_compensation_precision(sim, device, articulation_type, gravity_enabled, use_newton: bool):
     """Two-phase EE hold: gravity sag without compensation, tight hold with it.
 
     Same OSC pose-hold loop as :func:`test_franka_osc_tracking_accuracy`, but
@@ -4771,6 +4772,7 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
 
     osc = OperationalSpaceController(
         OperationalSpaceControllerCfg(
+            use_newton=use_newton,
             target_types=["pose_abs"],
             impedance_mode="fixed",
             inertial_dynamics_decoupling=True,

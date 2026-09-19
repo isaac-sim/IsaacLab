@@ -39,8 +39,10 @@ def _make_controller(
     joint_limit_avoidance_gain: float = 0.0,
     joint_limit_avoidance_margin: float = 0.3,
     num_envs: int = 1,
+    use_newton: bool = False,
 ) -> DifferentialIKController:
     cfg = DifferentialIKControllerCfg(
+        use_newton=use_newton,
         command_type=command_type,
         use_relative_mode=False,
         ik_method=ik_method,
@@ -155,32 +157,59 @@ def test_orientation_weight_per_axis_scales_rows_and_error():
     torch.testing.assert_close(ep[:, 5], torch.zeros_like(eb[:, 5]))
 
 
-def test_compute_pose_task_quat_convention_xyzw():
+def test_integer_command_and_limits_preserve_legacy_coercion():
+    """Integer command and limit tensors retain the public API's historical float coercion."""
+    c = _make_controller()
+    command = torch.tensor([[1, 2, 3, 0, 0, 0, 1]], dtype=torch.int64)
+    c.set_command(command)
+    torch.testing.assert_close(c.ee_pos_des, torch.tensor([[1.0, 2.0, 3.0]]))
+    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]))
+
+    c.set_joint_pos_limits(
+        torch.full((_NUM_JOINTS,), -1, dtype=torch.int64),
+        torch.full((_NUM_JOINTS,), 1, dtype=torch.int64),
+    )
+
+    output = c.compute(
+        torch.zeros(1, 3),
+        torch.tensor([_ID_QUAT]),
+        torch.zeros(1, 6, _NUM_JOINTS),
+        torch.zeros(1, _NUM_JOINTS, dtype=torch.int64),
+    )
+    assert output.dtype == torch.float32
+
+
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_compute_quat_convention_xyzw(use_newton: bool):
     """Discriminating regression for the xyzw quaternion convention: commanding the EE's current
     orientation yields zero orientation error. A wxyz mis-read would corrupt this."""
     rot = pytest.importorskip("scipy.spatial.transform").Rotation.from_euler("x", 30.0, degrees=True)
     q_xyzw = rot.as_quat()  # [x, y, z, w]
     ee_quat = torch.tensor(q_xyzw, dtype=torch.float32).unsqueeze(0)
     ee_pos = torch.tensor([[0.3, 0.0, 0.2]])
-    c = _make_controller(orientation_weight=1.0)
+    c = _make_controller(use_newton=use_newton, orientation_weight=1.0)
     cmd = torch.cat([torch.tensor([0.3, 0.0, 0.2]), torch.tensor(q_xyzw, dtype=torch.float32)]).unsqueeze(0)
     c.set_command(cmd)
-    _, err = c._compute_pose_task(ee_pos, ee_quat, torch.zeros(1, 6, _NUM_JOINTS))
-    assert torch.linalg.norm(err[0, 3:6]).item() == pytest.approx(0.0, abs=1e-6)
+    joint_pos = torch.zeros(1, _NUM_JOINTS)
+    result = c.compute(ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos)
+    torch.testing.assert_close(result, joint_pos, atol=1e-6, rtol=0.0)
 
 
-def test_adaptive_dls_damps_singularity():
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_adaptive_dls_damps_singularity(use_newton: bool):
     """Near a task-Jacobian singularity, the adaptive ramp produces a smaller (more damped) and
     finite step than a fixed ``lambda_min`` solve would."""
-    c = _make_controller(ik_params={"lambda_min": 0.01, "lambda_max": 0.5, "sigma_thresh": 0.1})
+    c = _make_controller(use_newton=use_newton, ik_params={"lambda_min": 0.01, "lambda_max": 0.5, "sigma_thresh": 0.1})
     j_task = torch.zeros(1, 6, _NUM_JOINTS)
     j_task[0, 0, 0] = j_task[0, 1, 1] = j_task[0, 2, 2] = 1.0  # well-conditioned position block
     eps = 1e-3
     j_task[0, 3, 3] = j_task[0, 4, 4] = eps  # near-singular orientation block
-    err = torch.zeros(1, 6)
-    err[0, 3] = err[0, 4] = 1.0
-
-    dq = c._compute_delta_joint_pos(delta_pose=err, jacobian=j_task)
+    ee_pos = torch.zeros(1, 3)
+    ee_quat = torch.tensor([_ID_QUAT])
+    command = torch.tensor([[0.0, 0.0, 0.0] + _quat_xyzw([1.0, 1.0, 0.0], math.sqrt(2.0))])
+    c.set_command(command)
+    err = torch.tensor([[0.0, 0.0, 0.0, 1.0, 1.0, 0.0]])
+    dq = c.compute(ee_pos, ee_quat, j_task, torch.zeros(1, _NUM_JOINTS))
     # reference: fixed lambda_min damped least squares
     jt = j_task.transpose(1, 2)
     a_min = torch.bmm(j_task, jt) + (0.01**2) * torch.eye(6)
@@ -189,36 +218,53 @@ def test_adaptive_dls_damps_singularity():
     assert dq.norm().item() < dq_min.norm().item()
 
 
-def test_joint_limit_avoidance_zero_when_disabled():
-    """JLA returns zeros when joint_limit_avoidance_gain == 0 (default) or before limits are provided."""
-    c = _make_controller(joint_limit_avoidance_gain=0.0)
-    out = c._joint_limit_avoidance(torch.zeros(1, _NUM_JOINTS), torch.ones(1, 6, _NUM_JOINTS))
-    torch.testing.assert_close(out, torch.zeros(1, _NUM_JOINTS))
-    # enabled but limits not set yet -> still zeros
-    c2 = _make_controller(joint_limit_avoidance_gain=1.0)
-    out2 = c2._joint_limit_avoidance(torch.zeros(1, _NUM_JOINTS), torch.ones(1, 6, _NUM_JOINTS))
-    torch.testing.assert_close(out2, torch.zeros(1, _NUM_JOINTS))
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_joint_limit_avoidance_zero_when_disabled(use_newton: bool):
+    """Disabled avoidance is a no-op; only Newton requires limits when enabled."""
+    ee_pos = torch.zeros(1, 3)
+    ee_quat = torch.tensor([_ID_QUAT])
+    command = torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT])
+    jacobian = torch.ones(1, 6, _NUM_JOINTS)
+    joint_pos = torch.linspace(-0.5, 0.5, _NUM_JOINTS).unsqueeze(0)
+    c = _make_controller(use_newton=use_newton, joint_limit_avoidance_gain=0.0)
+    c.set_command(command)
+    out = c.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    torch.testing.assert_close(out, joint_pos)
+    # Lab permits missing limits; Newton requires them before initialization.
+    c2 = _make_controller(use_newton=use_newton, joint_limit_avoidance_gain=1.0)
+    c2.set_command(command)
+    if use_newton:
+        with pytest.raises(ValueError, match="Set joint position limits before computing"):
+            c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    else:
+        out2 = c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
+        torch.testing.assert_close(out2, joint_pos)
 
 
-def test_joint_limit_avoidance_stays_in_position_nullspace():
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_joint_limit_avoidance_stays_in_position_nullspace(use_newton: bool):
     """When enabled, the JLA correction lies in the null space of the position rows, so it does not
     perturb the commanded end-effector position (``J_pos @ correction ~= 0``)."""
-    c = _make_controller(joint_limit_avoidance_gain=2.0, joint_limit_avoidance_margin=0.3)
+    c = _make_controller(use_newton=use_newton, joint_limit_avoidance_gain=2.0, joint_limit_avoidance_margin=0.3)
     c.set_joint_pos_limits(torch.full((_NUM_JOINTS,), -1.0), torch.full((_NUM_JOINTS,), 1.0))
     # a generic well-conditioned task Jacobian
     torch.manual_seed(0)
     j_task = torch.randn(1, 6, _NUM_JOINTS)
     # joints near their limits -> non-zero center-seeking bias
     joint_pos = torch.tensor([[0.95, -0.9, 0.0, 0.8, -0.85]])
-    correction = c._joint_limit_avoidance(joint_pos, j_task)
+    ee_pos = torch.zeros(1, 3)
+    ee_quat = torch.tensor([_ID_QUAT])
+    c.set_command(torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT]))
+    correction = c.compute(ee_pos, ee_quat, j_task, joint_pos) - joint_pos
     assert correction.norm().item() > 0.0  # bias is active
     residual = torch.bmm(j_task[:, :3, :], correction.unsqueeze(-1)).squeeze(-1)
     torch.testing.assert_close(residual, torch.zeros_like(residual), atol=1e-5, rtol=0.0)
 
 
-def test_compute_returns_joint_targets_shape():
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_compute_returns_joint_targets_shape(use_newton: bool):
     """compute returns one target per joint (joint_pos + delta)."""
-    c = _make_controller(orientation_weight=(0.5, 0.5, 0.0), joint_limit_avoidance_gain=0.5)
+    c = _make_controller(use_newton=use_newton, orientation_weight=(0.5, 0.5, 0.0), joint_limit_avoidance_gain=0.5)
     c.set_joint_pos_limits(torch.full((_NUM_JOINTS,), -1.0), torch.full((_NUM_JOINTS,), 1.0))
     ee_pos = torch.tensor([[0.3, 0.0, 0.2]])
     ee_quat = torch.tensor([_ID_QUAT])

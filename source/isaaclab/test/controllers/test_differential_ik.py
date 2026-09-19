@@ -79,7 +79,8 @@ def sim():
     sim.clear_instance()
 
 
-def test_franka_ik_pose_abs(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_franka_ik_pose_abs(sim, use_newton: bool):
     """Test IK controller for Franka arm with Franka hand."""
     sim_context, num_envs, ee_pose_b_des_set = sim
 
@@ -88,7 +89,9 @@ def test_franka_ik_pose_abs(sim):
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
-    diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+    diff_ik_cfg = DifferentialIKControllerCfg(
+        use_newton=use_newton, command_type="pose", use_relative_mode=False, ik_method="dls"
+    )
     diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
 
     # Run the controller and check that it converges to the goal
@@ -97,7 +100,8 @@ def test_franka_ik_pose_abs(sim):
     )
 
 
-def test_ur10_ik_pose_abs(sim):
+@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
+def test_ur10_ik_pose_abs(sim, use_newton: bool):
     """Test IK controller for UR10 arm."""
     sim_context, num_envs, ee_pose_b_des_set = sim
 
@@ -107,7 +111,9 @@ def test_ur10_ik_pose_abs(sim):
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
-    diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+    diff_ik_cfg = DifferentialIKControllerCfg(
+        use_newton=use_newton, command_type="pose", use_relative_mode=False, ik_method="dls"
+    )
     diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
 
     # Run the controller and check that it converges to the goal

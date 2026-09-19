@@ -15,6 +15,42 @@
     pink_ik.PinkIKControllerCfg
     pink_ik.NullSpacePostureTask
 
+Newton controller integration
+-----------------------------
+
+``DifferentialIKController``, ``JointImpedanceController``, and ``OperationalSpaceController``
+retain their original Torch implementations by default. Set ``use_newton=True`` in the controller
+configuration to select Newton's model-free solver. Both choices use the same constructor,
+command and compute APIs and return independent result tensors. The controller choice is independent
+of the physics backend: a Newton controller can also run with PhysX simulation.
+
+Newton allocates persistent float32 workspace on the first ``compute()`` call, or when DiffIK
+receives joint limits with avoidance enabled. DiffIK and OSC infer the number of controlled joints
+from the input tensors and rebuild the workspace if it changes; callers do not specify a joint count.
+With Newton DiffIK and a positive ``joint_limit_avoidance_gain``, call ``set_joint_pos_limits()``
+before the first ``compute()``; the setter initializes Newton from the limit count. Later limit
+updates retain the existing backend. The default Lab path still permits computing before supplying
+limits. For CUDA capture, supply commands and limits and warm up ``compute()`` before capture.
+Recapture after changing the joint count or captured control flow. Gravity compensation can still
+be enabled or disabled between compute calls.
+
+Newton 1.6.0 is required for the opt-in path. Float64 inputs do not provide float64 Newton solver
+precision; leave ``use_newton=False`` when double-precision control laws are required.
+
+Operational-space migration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``use_newton=True``, motion-axis selection precedes inertia decoupling. Hybrid force/motion
+tasks that select only some axes must revalidate tracking and contact-force gains. The default
+Torch path retains its original post-inertia selection. Newton inertia decoupling requires at least
+six controlled joints; disable ``inertial_dynamics_decoupling`` for under-actuated arms. Newton
+mass-weights null-space posture efforts only when inertia decoupling is enabled, unlike the
+original implementation when a mass matrix is supplied without decoupling. Existing gains and
+checkpoints therefore remain on the default path until separately validated with Newton.
+
+SO-101 retains its original wrist-only orientation mask on the default path. With Newton selected,
+it applies the mask to a copy of the Jacobian before the Newton solve.
+
 Differential Inverse Kinematics
 -------------------------------
 

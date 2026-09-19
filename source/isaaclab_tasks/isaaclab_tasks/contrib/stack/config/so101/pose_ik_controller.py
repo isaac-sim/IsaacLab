@@ -100,3 +100,19 @@ class SO101PoseIKController(DifferentialIKController):
             task_jacobian = task_jacobian.clone()
             task_jacobian[:, 3:6, :] = task_jacobian[:, 3:6, :] * self._ori_joint_mask.view(1, 1, -1)
         return task_jacobian, task_error
+
+    def compute(
+        self,
+        ee_pos: torch.Tensor,
+        ee_quat: torch.Tensor,
+        jacobian: torch.Tensor,
+        joint_pos: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute joint targets with orientation restricted to the configured wrist joints.
+
+        See :meth:`DifferentialIKController.compute` for input units, shapes, and output ownership.
+        """
+        if self.cfg.use_newton and self._ori_joint_mask is not None:
+            jacobian = jacobian.clone()
+            jacobian[:, 3:6, :] *= self._ori_joint_mask.view(1, 1, -1)
+        return super().compute(ee_pos, ee_quat, jacobian, joint_pos)

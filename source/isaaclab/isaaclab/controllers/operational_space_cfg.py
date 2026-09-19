@@ -22,6 +22,13 @@ class OperationalSpaceControllerCfg:
     class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
     """The associated controller class."""
 
+    use_newton: bool = False
+    """Use Newton's model-free solver instead of the original Torch implementation.
+
+    This choice is independent of the simulation physics backend. Newton allocates its
+    float32 workspace on the first compute call; warm up before capturing CUDA graphs.
+    """
+
     target_types: Sequence[str] = MISSING
     """Type of task-space targets.
 
@@ -31,13 +38,20 @@ class OperationalSpaceControllerCfg:
     """
 
     motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
-    """Motion direction to control in task reference frame. Mark as ``0/1`` for each axis."""
+    """Motion direction to control in task reference frame. Mark as ``0/1`` for each axis.
+
+    The original Torch solver selects motion after inertia decoupling. With ``use_newton=True``,
+    selection is applied to the commanded task acceleration before inertia decoupling.
+    """
 
     contact_wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
     """Contact wrench direction to control in task reference frame. Mark as 0/1 for each axis."""
 
     inertial_dynamics_decoupling: bool = False
-    """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics)."""
+    """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics).
+
+    With ``use_newton=True``, requires at least six controlled joints; disable for under-actuated arms.
+    """
 
     partial_inertial_dynamics_decoupling: bool = False
     """Whether to ignore the inertial coupling between the translational & rotational motions."""

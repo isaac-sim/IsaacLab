@@ -19,6 +19,8 @@ import math
 import pytest
 import torch
 
+from isaaclab.controllers.differential_ik import DifferentialIKController
+
 from isaaclab_tasks.contrib.stack.config.so101.pose_ik_controller import (
     SO101PoseIKController,
     SO101PoseIKControllerCfg,
@@ -38,12 +40,14 @@ def _quat_xyzw(axis: list[float], angle: float) -> list[float]:
 
 def _make_controller(
     num_envs: int = 1,
+    use_newton: bool = False,
     orientation_weight=1.0,
     joint_limit_avoidance_gain: float = 0.0,
     joint_limit_avoidance_margin: float = 0.3,
 ):
     cfg = SO101PoseIKControllerCfg(
         command_type="pose",
+        use_newton=use_newton,
         use_relative_mode=False,
         ik_method="adaptive_dls",
         ik_params={"lambda_min": 0.05, "lambda_max": 0.2, "sigma_thresh": 0.02},
@@ -54,7 +58,8 @@ def _make_controller(
     return SO101PoseIKController(cfg=cfg, num_envs=num_envs, device="cpu")
 
 
-def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
+@pytest.mark.parametrize("use_newton", [False, True])
+def test_orientation_joint_mask_zeros_unmasked_orientation_columns(use_newton):
     """The SO-101 orientation joint mask zeros the orientation-row columns of the masked-out joints
     (so they serve position only), while the position rows and the task error are unchanged.
 
@@ -68,39 +73,40 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
     cmd = torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([0.3, 0.5, 0.8], 0.7)])
 
     # weight 1.0 isolates the mask effect (no per-axis scaling on top)
-    c = _make_controller(orientation_weight=1.0)
+    c = _make_controller(use_newton=use_newton, orientation_weight=1.0)
     c.set_orientation_joint_mask(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0]))  # wrist joints only
     c.set_command(cmd)
-    task_jac, err = c._compute_pose_task(ee_pos, ee_quat, jac)
+    original_jac = jac.clone()
+    task_jac = jac.clone()
+    task_jac[:, 3:, :3] = 0.0
 
-    # position rows keep every joint (unchanged from the raw Jacobian linear block)
-    torch.testing.assert_close(task_jac[:, :3, :], jac[:, 0:3, :])
-    # orientation rows: masked-out joints (cols 0..2) zeroed; allowed wrist joints (cols 3,4) kept
-    torch.testing.assert_close(task_jac[:, 3:6, 0:3], torch.zeros(1, 3, 3))
-    torch.testing.assert_close(task_jac[:, 3:6, 3:5], jac[:, 3:6, 3:5])
-
-    # the mask limits which joints reduce the orientation error; it does not alter the error
-    base = _make_controller(orientation_weight=1.0)
+    # Reference: the base solver receives a Jacobian with only wrist orientation columns.
+    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
     base.set_command(cmd)
-    _, eb = base._compute_pose_task(ee_pos, ee_quat, jac)
-    torch.testing.assert_close(err, eb)
+    joint_pos = torch.zeros(1, _NUM_JOINTS)
+    result = c.compute(ee_pos, ee_quat, jac, joint_pos)
+    torch.testing.assert_close(result, base.compute(ee_pos, ee_quat, task_jac, joint_pos))
+    torch.testing.assert_close(jac, original_jac)
 
 
-def test_mask_none_leaves_orientation_unmasked():
-    """Without a mask, the SO-101 pose task matches the (orientation-weighted) core task."""
-    ee_pos = torch.tensor([[0.3, 0.0, 0.2]])
-    ee_quat = torch.tensor([_ID_QUAT])
+@pytest.mark.parametrize("use_newton", [False, True])
+def test_mask_none_leaves_orientation_unmasked(use_newton):
+    """Without a mask, the SO-101 controller matches the base solver."""
     jac = torch.arange(6 * _NUM_JOINTS, dtype=torch.float32).reshape(1, 6, _NUM_JOINTS)
-    c = _make_controller(orientation_weight=1.0)
-    c.set_command(torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([1.0, 0.0, 0.0], 0.5)]))
-    task_jac, _ = c._compute_pose_task(ee_pos, ee_quat, jac)
-    torch.testing.assert_close(task_jac, jac)
+    c = _make_controller(use_newton=use_newton, orientation_weight=1.0)
+    base = DifferentialIKController(c.cfg, num_envs=1, device="cpu")
+    command = torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([1.0, 0.0, 0.0], 0.5)])
+    c.set_command(command)
+    base.set_command(command)
+    inputs = (torch.zeros(1, 3), torch.tensor([_ID_QUAT]), jac, torch.zeros(1, _NUM_JOINTS))
+    torch.testing.assert_close(c.compute(*inputs), base.compute(*inputs))
 
 
-def test_compute_returns_joint_targets_shape():
+@pytest.mark.parametrize("use_newton", [False, True])
+def test_compute_returns_joint_targets_shape(use_newton):
     """End-to-end compute (adaptive DLS + orientation weight + mask + JLA) returns one target per
     joint."""
-    c = _make_controller(orientation_weight=0.5, joint_limit_avoidance_gain=0.5)
+    c = _make_controller(use_newton=use_newton, orientation_weight=0.5, joint_limit_avoidance_gain=0.5)
     c.set_orientation_joint_mask(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0]))
     c.set_joint_pos_limits(torch.full((_NUM_JOINTS,), -1.0), torch.full((_NUM_JOINTS,), 1.0))
     ee_pos = torch.tensor([[0.3, 0.0, 0.2]])
