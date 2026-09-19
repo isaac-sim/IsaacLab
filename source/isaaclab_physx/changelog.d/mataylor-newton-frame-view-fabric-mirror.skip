@@ -1,0 +1,1 @@
+Internal refactor: FabricFrameView now shares its Fabric selection machinery with the Newton mirror.
