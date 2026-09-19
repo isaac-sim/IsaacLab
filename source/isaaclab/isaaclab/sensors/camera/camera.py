@@ -321,6 +321,7 @@ class Camera(SensorBase):
 
         Raises:
             TypeError: If ``matrices`` is not a :class:`torch.Tensor` or a Warp array.
+            ValueError: If the number of intrinsic matrices does not match the number of selected cameras.
         """
         if isinstance(matrices, torch.Tensor):
             if not matrices.is_contiguous():
@@ -339,6 +340,11 @@ class Camera(SensorBase):
         matrices = matrices.numpy().astype(float, copy=False)
         if matrices.ndim == 2:
             matrices = matrices[None, ...]
+        if matrices.shape[0] != len(env_ids_np):
+            raise ValueError(
+                "The number of intrinsic matrices must match the number of selected cameras: "
+                f"got {matrices.shape[0]} matrices for {len(env_ids_np)} cameras."
+            )
         # iterate over env_ids
         height, width = self.image_shape
         skipped_distortion = False
