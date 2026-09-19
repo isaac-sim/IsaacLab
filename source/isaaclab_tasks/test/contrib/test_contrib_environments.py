@@ -19,9 +19,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import math
+
 import pytest
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # Local imports should be imported last
 from env_test_utils import _run_environments, setup_environment  # isort: skip
@@ -32,11 +35,6 @@ _SKIPPED_TASKS = {
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
 }
 _SKIPPED_TASK_SUBSTRINGS = {
-    # Under random actions the Kamino P-ADMM solver intermittently diverges and the whole robot state
-    # (root pose, joint state) turns NaN mid-episode, so the run fails nondeterministically (about 1 in 12
-    # seeds locally; the sibling HoldPose task stays finite). The termination terms cannot catch a NaN state.
-    # Re-enable once the solver instability is resolved upstream.
-    "DrLegs-Walk": "Kamino solver intermittently produces NaN robot state under random actions.",
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
@@ -68,6 +66,24 @@ def _contrib_environment_params() -> list:
             marks = (*marks, pytest.mark.skip(reason=skip_reason))
         params.append(pytest.param(task_name, id=task_name, marks=marks))
     return params
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_effort_limit"),
+    [
+        ((), math.inf),
+        (("physics=newton_kamino",), math.inf),
+        (("physics=isaacsim_physx",), 3.1),
+        (("physics=physx",), 3.1),
+    ],
+)
+def test_dr_legs_driven_joint_effort_limit_matches_physics_backend(
+    overrides: tuple[str, ...], expected_effort_limit: float
+):
+    """Disable the unstable effort constraint only for the Kamino backend."""
+    env_cfg = parse_env_cfg("IsaacContrib-DrLegs-Walk", overrides=overrides)
+    actual_effort_limit = env_cfg.scene.robot.actuators["driven_joints"].joint_effort_limit
+    assert actual_effort_limit == expected_effort_limit
 
 
 @pytest.mark.parametrize("task_name", _contrib_environment_params())
