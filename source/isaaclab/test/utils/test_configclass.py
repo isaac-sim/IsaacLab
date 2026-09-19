@@ -12,7 +12,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import pytest
 import torch
@@ -740,6 +740,114 @@ def test_invalid_update_key():
     cfg_dict = {"env": {"num_envs": 22, "viewer": {"pos": (2.0, 2.0, 2.0)}}}
     with pytest.raises(KeyError):
         update_class_from_dict(cfg, cfg_dict)
+
+
+def test_config_update_dict_union_annotated_none():
+    """A union-annotated field holding None accepts a value of the other member type.
+
+    Regression test for isaac-sim/IsaacLab#3236: the type check compared against the
+    stored value's runtime type, so ``int | None`` defaulting to ``None`` rejected
+    every int override (e.g. overriding ``seed`` on an environment config).
+    """
+
+    @configclass
+    class UnionDemoCfg:
+        param: int | None = None
+        name: str | None = None
+
+    cfg = UnionDemoCfg()
+    update_class_from_dict(cfg, {"param": 42, "name": "test"})
+    assert cfg.param == 42
+    assert cfg.name == "test"
+
+    # the internal from_dict path from the original report
+    cfg = UnionDemoCfg()
+    cfg.from_dict({"param": 7})
+    assert cfg.param == 7
+
+
+def test_config_update_dict_union_rejects_non_member_type():
+    """A union-annotated field still rejects values outside the union."""
+
+    @configclass
+    class UnionDemoCfg:
+        param: int | None = None
+
+    cfg = UnionDemoCfg()
+    with pytest.raises(ValueError):
+        update_class_from_dict(cfg, {"param": "not-an-int"})
+
+
+def test_config_update_dict_type_mismatch_without_annotation():
+    """An unannotated attribute keeps the stored-value type check."""
+
+    class PlainHolder:
+        def __init__(self):
+            self.value = None
+
+    obj = PlainHolder()
+    with pytest.raises(ValueError):
+        update_class_from_dict(obj, {"value": 42})
+
+
+def test_config_update_dict_literal_union():
+    """A Literal member of a union is checked by value, not isinstance.
+
+    ``isinstance(value, typing.Literal)`` raises TypeError, so Literal members need
+    a value-based check: valid literals are accepted and invalid values raise the
+    documented ValueError instead of leaking a TypeError.
+    """
+
+    @configclass
+    class LiteralDemoCfg:
+        mode: Literal["force", "acceleration"] | None = None
+
+    cfg = LiteralDemoCfg()
+    update_class_from_dict(cfg, {"mode": "force"})
+    assert cfg.mode == "force"
+
+    cfg = LiteralDemoCfg()
+    with pytest.raises(ValueError):
+        update_class_from_dict(cfg, {"mode": "bogus"})
+
+
+def test_config_update_dict_union_with_unresolvable_sibling_field():
+    """One unresolvable annotation must not disable the union fix for other fields.
+
+    ``typing.get_type_hints`` resolves every annotation on the class at once, so a
+    name imported only under TYPE_CHECKING on one field would block overrides on all
+    the class's other union-annotated fields.
+    """
+
+    @configclass
+    class PartiallyResolvableCfg:
+        broken: OnlyImportedForTypeChecking | None = None  # noqa: F821
+        seed: int | None = None
+
+    cfg = PartiallyResolvableCfg()
+    update_class_from_dict(cfg, {"seed": 123})
+    assert cfg.seed == 123
+
+
+def test_config_update_dict_union_with_unresolvable_member():
+    """Resolvable members of a partially unresolvable union still admit values.
+
+    Mirrors fields like ``class_type: type[BaseVisualizer] | str | None`` where the
+    class is imported only under TYPE_CHECKING: a string override must be accepted
+    through the ``str`` member even though the first member cannot resolve.
+    """
+
+    @configclass
+    class PartialUnionCfg:
+        class_type: type[OnlyImportedForTypeChecking] | str | None = None  # noqa: F821
+
+    cfg = PartialUnionCfg()
+    update_class_from_dict(cfg, {"class_type": "my_module:MyClass"})
+    assert cfg.class_type == "my_module:MyClass"
+
+    cfg = PartialUnionCfg()
+    with pytest.raises(ValueError):
+        update_class_from_dict(cfg, {"class_type": 42})
 
 
 def test_multiple_instances():
