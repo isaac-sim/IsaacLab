@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from .disassembly_tasks_cfg import ASSET_DIR, Extraction
 
@@ -71,65 +71,19 @@ class CtrlCfg:
 
 
 @configclass
-class DisassemblyEnvCfg(DirectRLEnvCfg):
-    decimation = 8
-    action_space = 6
-    # num_*: will be overwritten to correspond to obs_order, state_order.
-    observation_space = 24
-    state_space = 44
-    obs_order: list = [
-        "joint_pos",
-        "fingertip_pos",
-        "fingertip_quat",
-        "fingertip_goal_pos",
-        "fingertip_goal_quat",
-        "delta_pos",
-    ]
-    state_order: list = [
-        "joint_pos",
-        "joint_vel",
-        "fingertip_pos",
-        "fingertip_quat",
-        "ee_linvel",
-        "ee_angvel",
-        "fingertip_goal_pos",
-        "fingertip_goal_quat",
-        "held_pos",
-        "held_quat",
-        "delta_pos",
-    ]
+class DisassemblySceneCfg(InteractiveSceneCfg):
+    """AutoMate disassembly assets constructed and cloned through one scene plan."""
 
-    task_name: str = "extraction"  # peg_insertion, gear_meshing, nut_threading
-    tasks: dict = {"extraction": Extraction()}
-    obs_rand: ObsRandCfg = ObsRandCfg()
-    ctrl: CtrlCfg = CtrlCfg()
-
-    # episode_length_s = 10.0  # Probably need to override.
-    episode_length_s = 5.0
-    sim: SimulationCfg = SimulationCfg(
-        device="cuda:0",
-        dt=1 / 120,
-        gravity=(0.0, 0.0, -9.81),
-        physics=PhysxCfg(
-            solver_type=1,
-            max_position_iteration_count=192,  # Important to avoid interpenetration.
-            max_velocity_iteration_count=1,
-            bounce_threshold_velocity=0.2,
-            friction_offset_threshold=0.01,
-            friction_correlation_distance=0.00625,
-            gpu_max_rigid_contact_count=2**23,
-            gpu_max_rigid_patch_count=2**23,
-            gpu_collision_stack_size=2**27,
-            gpu_max_num_partitions=1,  # Important for stable simulation.
-        ),
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.4)),
     )
-
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
-
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.0, 0.0, 0.70711, 0.70711)),
+    )
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
@@ -198,3 +152,69 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
             ),
         },
     )
+    fixed_asset: ArticulationCfg | None = None
+    held_asset: RigidObjectCfg | None = None
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
+class DisassemblyEnvCfg(DirectRLEnvCfg):
+    decimation = 8
+    action_space = 6
+    # num_*: will be overwritten to correspond to obs_order, state_order.
+    observation_space = 24
+    state_space = 44
+    obs_order: list = [
+        "joint_pos",
+        "fingertip_pos",
+        "fingertip_quat",
+        "fingertip_goal_pos",
+        "fingertip_goal_quat",
+        "delta_pos",
+    ]
+    state_order: list = [
+        "joint_pos",
+        "joint_vel",
+        "fingertip_pos",
+        "fingertip_quat",
+        "ee_linvel",
+        "ee_angvel",
+        "fingertip_goal_pos",
+        "fingertip_goal_quat",
+        "held_pos",
+        "held_quat",
+        "delta_pos",
+    ]
+
+    task_name: str = "extraction"
+    tasks: dict = {"extraction": Extraction()}
+    obs_rand: ObsRandCfg = ObsRandCfg()
+    ctrl: CtrlCfg = CtrlCfg()
+
+    # episode_length_s = 10.0  # Probably need to override.
+    episode_length_s = 5.0
+    sim: SimulationCfg = SimulationCfg(
+        device="cuda:0",
+        dt=1 / 120,
+        gravity=(0.0, 0.0, -9.81),
+        physics=PhysxCfg(
+            solver_type=1,
+            max_position_iteration_count=192,  # Important to avoid interpenetration.
+            max_velocity_iteration_count=1,
+            bounce_threshold_velocity=0.2,
+            friction_offset_threshold=0.01,
+            friction_correlation_distance=0.00625,
+            gpu_max_rigid_contact_count=2**23,
+            gpu_max_rigid_patch_count=2**23,
+            gpu_collision_stack_size=2**27,
+            gpu_max_num_partitions=1,  # Important for stable simulation.
+        ),
+        physics_material=RigidBodyMaterialCfg(
+            static_friction=1.0,
+            dynamic_friction=1.0,
+        ),
+    )
+
+    scene: DisassemblySceneCfg = DisassemblySceneCfg(num_envs=128, env_spacing=2.0)

@@ -279,7 +279,10 @@ def replicate_builder_mapping(
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
-    local_site_map: dict[str, list[list[int]]] = {}
+    local_site_map = {
+        label: [indices.copy() for _ in range(num_worlds)]
+        for label, indices in source_site_indices.get(id(builder), {}).items()
+    }
     positions = positions.astype(np.float32, copy=False)
     quaternions = quaternions.astype(np.float32, copy=False)
     xforms_np = np.concatenate((positions, quaternions), axis=1)
