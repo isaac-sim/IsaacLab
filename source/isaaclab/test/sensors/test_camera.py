@@ -396,6 +396,50 @@ def test_intrinsic_matrix(setup_sim_camera):
         assert np.isclose(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2].item())
 
 
+@pytest.mark.parametrize("num_matrices", [1, 3])
+def test_intrinsic_matrix_batch_mismatch_is_rejected(setup_sim_camera, num_matrices):
+    """Reject cardinality mismatches before any camera prim is modified."""
+    sim, camera_cfg, _ = setup_sim_camera
+    for i in range(2):
+        sim_utils.create_prim(f"/World/IntrinsicBatchOrigin_{i}", "Xform")
+
+    camera_cfg.prim_path = "/World/IntrinsicBatchOrigin_[^/]*/Camera"
+    camera = Camera(camera_cfg)
+    sim.reset()
+    focal_lengths_before = [prim.GetFocalLengthAttr().Get() for prim in camera._sensor_prims]
+    matrices = torch.eye(3, device=camera.device).repeat(num_matrices, 1, 1)
+
+    with pytest.raises(ValueError, match="number of intrinsic matrices"):
+        camera.set_intrinsic_matrices(matrices)
+
+    focal_lengths_after = [prim.GetFocalLengthAttr().Get() for prim in camera._sensor_prims]
+    assert focal_lengths_after == focal_lengths_before
+
+
+def test_intrinsic_matrix_batch_updates_all_selected_cameras(setup_sim_camera):
+    """A correctly sized batch updates every selected camera."""
+    sim, camera_cfg, _ = setup_sim_camera
+    for i in range(2):
+        sim_utils.create_prim(f"/World/IntrinsicBatchOrigin_{i}", "Xform")
+
+    camera_cfg.prim_path = "/World/IntrinsicBatchOrigin_[^/]*/Camera"
+    camera = Camera(camera_cfg)
+    sim.reset()
+    matrices = torch.tensor(
+        [
+            [[200.0, 0.0, 160.0], [0.0, 200.0, 120.0], [0.0, 0.0, 1.0]],
+            [[300.0, 0.0, 160.0], [0.0, 300.0, 120.0], [0.0, 0.0, 1.0]],
+        ],
+        dtype=torch.float32,
+        device=camera.device,
+    )
+
+    camera.set_intrinsic_matrices(matrices)
+
+    for i, expected in enumerate((200.0, 300.0)):
+        assert np.isclose(camera.data.intrinsic_matrices.torch[i, 0, 0].item(), expected)
+
+
 def test_depth_clipping(setup_sim_camera):
     """Test depth clipping.
 
