@@ -292,6 +292,13 @@ def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility()
     }
 
 
+@pytest.mark.parametrize("task_name", ["Isaac-Lift-Soft-Franka", "Isaac-Lift-Soft-Franka-Camera"])
+def test_collect_environment_doc_rows_includes_required_extras(task_name: str):
+    row = collect_environment_doc_rows([gym.spec(task_name)])[0]
+
+    assert row.required_extras == ("tetrahedralization",)
+
+
 def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
     specs = [
         EnvSpec(
@@ -474,6 +481,22 @@ def test_environment_browser_rows_include_mappo_as_the_skrl_default():
     rendered = render_environment_browser_task_rows(rows)
 
     assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", "", false, {}, {"skrl": "MAPPO"}]' in rendered
+
+
+def test_environment_browser_rows_include_required_extras():
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Lift-Soft-Franka",
+            workflow="Manager Based",
+            rl_libraries={"rsl_rl": ["PPO"]},
+            presets=None,
+            required_extras=("tetrahedralization",),
+        )
+    ]
+
+    rendered = render_environment_browser_task_rows(rows)
+
+    assert rendered.count('"tetrahedralization"') == 1
 
 
 def test_collect_environment_browser_preview_images_preserves_generated_assignments():

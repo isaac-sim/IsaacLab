@@ -13,14 +13,14 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -89,6 +89,77 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
 
 
 @configclass
+class RenderBenchmarkSceneCfg(InteractiveSceneCfg):
+    """Franka, cabinet, ground, camera, and lighting for renderer benchmarking."""
+
+    # Use a simulation mesh that both renderers see, sized to tile the default environments without overlap.
+    ground: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Ground",
+        spawn=sim_utils.CuboidCfg(
+            size=(3.0, 3.0, 0.1),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.5, 0.5), metallic=0.0),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, kinematic_enabled=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+    )
+    robot: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
+            pos=(1.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 1.0, 0.0),
+        ),
+    )
+    cabinet: ArticulationCfg = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Cabinet",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
+            activate_contact_sensors=False,
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.4),
+            joint_pos={
+                "door_left_joint": 0.0,
+                "door_right_joint": 0.0,
+                "drawer_bottom_joint": 0.0,
+                "drawer_top_joint": 0.0,
+            },
+        ),
+        actuators={
+            "drawers": ImplicitActuatorCfg(
+                joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
+                joint_effort_limit=87.0,
+                stiffness=10.0,
+                damping=1.0,
+            ),
+            "doors": ImplicitActuatorCfg(
+                joint_names_expr=["door_left_joint", "door_right_joint"],
+                joint_effort_limit=87.0,
+                stiffness=10.0,
+                damping=2.5,
+            ),
+        },
+    )
+    tiled_camera: RenderBenchmarkTiledCameraCfg = RenderBenchmarkTiledCameraCfg()
+    dome_light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
+    )
+    directional_light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/LightDirectional",
+        spawn=sim_utils.DistantLightCfg(
+            intensity=200.0,
+            exposure=0.0,
+            angle=0.0,
+            color=(1.0, 1.0, 1.0),
+            normalize=True,
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.3251, 0.3251, 0.0, 0.8881)),
+    )
+
+
+@configclass
 class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     """Franka Panda and Sektion cabinet, animated for renderer benchmarking.
 
@@ -96,11 +167,6 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     Franka's seven, and a sinusoidal animation drives all of them so every rendered frame has
     moving articulated geometry rather than a static scene. There is no policy: actions are
     ignored, rewards are zero, and the episode only ends on time-out.
-
-    A mirrored layout of the canonical ``Isaac-Franka-Cabinet-Direct-v0`` task, which places the
-    Franka at the origin facing its default ``+X``: here the Franka sits at ``(1.0, 0, 0)`` rotated
-    180 deg about Z (facing ``-X``, toward the cabinet), and the cabinet sits at the origin in its
-    default USD orientation.
     """
 
     decimation: int = 2
@@ -112,93 +178,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=2, physics=RenderBenchmarkPhysicsCfg())
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
-
-    tiled_camera: RenderBenchmarkTiledCameraCfg = RenderBenchmarkTiledCameraCfg()
-
-    articulations: dict[str, ArticulationCfg] = {
-        # High-PD variant so the joints track the sinusoidal targets smoothly.
-        "robot": FRANKA_PANDA_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
-                pos=(1.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 1.0, 0.0),  # 180 deg about Z, xyzw
-            ),
-        ),
-        # Loaded as an ArticulationCfg rather than a static USD reference so its four joints
-        # animate and it clones to every env through the standard Isaac Lab path.
-        "cabinet": ArticulationCfg(
-            prim_path="{ENV_REGEX_NS}/Cabinet",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
-                activate_contact_sensors=False,
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.4),
-                rot=(0.0, 0.0, 0.0, 1.0),  # identity: cabinet's default USD orientation
-                joint_pos={
-                    "door_left_joint": 0.0,
-                    "door_right_joint": 0.0,
-                    "drawer_bottom_joint": 0.0,
-                    "drawer_top_joint": 0.0,
-                },
-            ),
-            actuators={
-                "drawers": ImplicitActuatorCfg(
-                    joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                    joint_effort_limit=87.0,
-                    stiffness=10.0,
-                    damping=1.0,
-                ),
-                "doors": ImplicitActuatorCfg(
-                    joint_names_expr=["door_left_joint", "door_right_joint"],
-                    joint_effort_limit=87.0,
-                    stiffness=10.0,
-                    damping=2.5,
-                ),
-            },
-        ),
-    }
-    """Articulations spawned into every environment, keyed by scene name."""
-
-    ground_top_z: float = 0.0
-    """Height of the ground's top surface [m]."""
-
-    ground_size: tuple[float, float] = (50.0, 50.0)
-    """Requested extent of the per-environment ground cuboid in XY [m].
-
-    Clamped to :attr:`scene.env_spacing` when the cuboid is built, so neighboring environments'
-    ground tiles meet at the boundary instead of overlapping.
-    """
-
-    ground_thickness: float = 0.1
-    """Thickness of the ground cuboid along Z [m]."""
-
-    ground_color: tuple[float, float, float] = (0.5, 0.5, 0.5)
-    """Diffuse color of the ground, as linear RGB in ``[0, 1]``."""
-
-    dome_light_intensity: float = 2000.0
-    """Intensity of the ambient dome light.
-
-    Newton's renderer has no tone mapping or ambient defaults of its own, so without this
-    unlit surfaces render pure black.
-    """
-
-    light_cfg: sim_utils.LightCfg | None = sim_utils.DistantLightCfg(
-        intensity=200.0,
-        exposure=0.0,
-        angle=0.0,
-        color=(1.0, 1.0, 1.0),
-        normalize=True,
-    )
-    """Directional light spawned on top of the ambient dome light, or ``None`` for dome only."""
-
-    light_orientation: tuple[float, float, float, float] = (0.3251, 0.3251, 0.0, 0.8881)
-    """Orientation of :attr:`light_cfg` as ``(qx, qy, qz, qw)``.
-
-    Rotates a USD ``DistantLight``'s default ``-Z`` onto ``(-0.57735, 0.57735, -0.57735)``, the
-    direction Warp's renderer hard-codes, so both renderers light the scene identically.
-    """
+    scene: RenderBenchmarkSceneCfg = RenderBenchmarkSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
 
     joint_animation_amplitude: float = 0.4
     """Peak sinusoidal offset from each joint's default position [m or rad, depending on joint type].
