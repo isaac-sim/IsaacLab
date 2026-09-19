@@ -134,7 +134,7 @@ def _run_cartpole_camera(env_cfg) -> None:
     sim_utils.create_new_stage()
     env = CartpoleCameraEnv(env_cfg)
     try:
-        assert env.cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
+        assert env.cfg.scene.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
         env.reset()
         # Nonzero action: guarantees clip motion instead of relying on passive pole fall.
         actions = torch.ones(env.num_envs, *env.action_space.shape[1:], device=env.device)

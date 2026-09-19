@@ -295,6 +295,7 @@ def _capture(args: argparse.Namespace) -> None:
 
     import isaaclab.sim as sim_utils
     from isaaclab import cloner
+    from isaaclab.assets import AssetBaseCfg
     from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer
     from isaaclab.sensors import Camera, CameraCfg
 
@@ -313,13 +314,12 @@ def _capture(args: argparse.Namespace) -> None:
     data_types = capture_data_types(args.renderer_backend, args.capture_group)
     sim = sim_utils.SimulationContext(sim_cfg)
     scene_path, camera_path = gallery_stage_paths()
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/envs/env_0", "Xform")
-    scene_cfg = sim_utils.UsdFileCfg(usd_path=str(args.scene))
-    scene_cfg.func(scene_path, scene_cfg)
-    env_positions = torch.zeros((1, 3), device=args.device)
-    clone_plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 1, args.device, env_positions)
-    cloner.replicate(clone_plan, stage=stage)
+    scene_cfg = AssetBaseCfg(prim_path=scene_path, spawn=sim_utils.UsdFileCfg(usd_path=str(args.scene)))
+    clone_plan = cloner.clone_plan_from_env_0(
+        cloner.CloneCfg(), (scene_cfg,), 1, 0.0, positions=np.zeros((1, 3), dtype=np.float32)
+    )
+    scene_cfg.class_type(scene_cfg)
+    cloner.replicate(clone_plan)
     camera = _create_camera_and_reset(
         args.renderer_backend,
         lambda: Camera(

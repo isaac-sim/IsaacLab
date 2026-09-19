@@ -25,18 +25,33 @@ gym.register(
 # [end-init-register]
 
 # [start-h1_env-import]
+from isaaclab.assets import ArticulationCfg
+from isaaclab.utils import configclass
 from isaaclab_assets import H1_CFG
+
+from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env import HumanoidEnv
+from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidDirectSceneCfg, HumanoidEnvCfg
 # [end-h1_env-import]
 
-# [start-h1_env-spaces]
-action_space = 19
-observation_space = 69
-# [end-h1_env-spaces]
-
 # [start-h1_env-robot]
-robot: ArticulationCfg = H1_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-# the gears are keyed by joint name expression, so they are independent of the joint ordering
-joint_gears: dict[str, float] = {".*": 50.0}
+@configclass
+class H1SceneCfg(HumanoidDirectSceneCfg):
+    robot: ArticulationCfg = H1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 # [end-h1_env-robot]
+
+
+# [start-h1_env-spaces]
+@configclass
+class H1EnvCfg(HumanoidEnvCfg):
+    action_space = 19
+    observation_space = 69
+    scene: H1SceneCfg = H1SceneCfg(num_envs=4096, env_spacing=5.0, replicate_physics=True, clone_in_fabric=True)
+    # the gears are keyed by joint name expression, so they are independent of the joint ordering
+    joint_gears: dict[str, float] = {".*": 50.0}
+
+
+class H1Env(HumanoidEnv):
+    cfg: H1EnvCfg
+# [end-h1_env-spaces]
 
 # fmt: on

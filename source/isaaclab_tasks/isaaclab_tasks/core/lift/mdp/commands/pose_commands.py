@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import Asset, AssetBase
 from isaaclab.managers import CommandTerm
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
@@ -70,13 +70,13 @@ class ObjectUniformPoseCommand(CommandTerm):
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.object: RigidObject = env.scene[cfg.object_name]
-        self.success_vis_asset: RigidObject | AssetBaseCfg | None
+        self.success_vis_asset: RigidObject | Asset | None
         if cfg.success_vis_asset_name in env.scene.keys():
             self.success_vis_asset = env.scene[cfg.success_vis_asset_name]
         else:
             self.success_vis_asset = None
-        if isinstance(self.success_vis_asset, AssetBaseCfg):
-            offset = torch.tensor(self.success_vis_asset.init_state.pos, device=self.device)
+        if isinstance(self.success_vis_asset, Asset) and not isinstance(self.success_vis_asset, AssetBase):
+            offset = torch.tensor(self.success_vis_asset.cfg.init_state.pos, device=self.device)
             self._static_success_vis_pos_w = env.scene.env_origins + offset
         else:
             self._static_success_vis_pos_w = None

@@ -9,12 +9,8 @@ import torch
 import carb
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import math as torch_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import factory_control, factory_utils
 from .factory_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, FactoryEnvCfg
@@ -30,9 +26,19 @@ class FactoryEnv(DirectRLEnv):
         cfg.observation_space += cfg.action_space
         cfg.state_space += cfg.action_space
         self.cfg_task = cfg.task
+        cfg.scene.fixed_asset = self.cfg_task.fixed_asset
+        cfg.scene.held_asset = self.cfg_task.held_asset
+        if self.cfg_task.name == "gear_mesh":
+            cfg.scene.small_gear = self.cfg_task.small_gear_cfg
+            cfg.scene.large_gear = self.cfg_task.large_gear_cfg
 
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._robot, self._fixed_asset, self._held_asset = [
+            self.scene[name] for name in ("robot", "fixed_asset", "held_asset")
+        ]
+        if self.cfg_task.name == "gear_mesh":
+            self._small_gear_asset, self._large_gear_asset = [self.scene[name] for name in ("small_gear", "large_gear")]
         factory_utils.set_body_inertias(self._robot)
         self._init_tensors()
         self._set_default_dynamics_parameters()
@@ -81,43 +87,6 @@ class FactoryEnv(DirectRLEnv):
 
         self.ep_succeeded = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
         self.ep_success_times = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
-
-    def _setup_scene(self):
-        """Initialize simulation scene."""
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -1.05))
-
-        # spawn a usd file of a table into the scene
-        cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
-        cfg.func(
-            "/World/envs/env_[^/]+/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
-        )
-
-        self._robot = Articulation(self.cfg.robot)
-        self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
-        self._held_asset = Articulation(self.cfg_task.held_asset)
-        if self.cfg_task.name == "gear_mesh":
-            self._small_gear_asset = Articulation(self.cfg_task.small_gear_cfg)
-            self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
-
-        self.scene.articulations["robot"] = self._robot
-        self.scene.articulations["fixed_asset"] = self._fixed_asset
-        self.scene.articulations["held_asset"] = self._held_asset
-        if self.cfg_task.name == "gear_mesh":
-            self.scene.articulations["small_gear"] = self._small_gear_asset
-            self.scene.articulations["large_gear"] = self._large_gear_asset
-
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""
