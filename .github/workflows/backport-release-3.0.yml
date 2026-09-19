@@ -43,9 +43,12 @@ jobs:
 
     steps:
       - name: Check out trusted automation
+        # Keep this as the default self-checkout. For pull_request_target,
+        # checkout treats GitHub's event ref as trusted; passing workflow_sha
+        # explicitly can match a merged fork PR's merge_commit_sha and trip
+        # the unsafe-checkout guard.
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
         with:
-          ref: ${{ github.workflow_sha }}
           path: automation
           persist-credentials: false
 

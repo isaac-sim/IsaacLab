@@ -35,9 +35,9 @@ def main() -> None:
         # Spawn one ball per env at /World/env_<i>/ball.
         spawn_cfg = sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         )
         # /World/env_<i> Xforms are siblings under /World — no envs container needed

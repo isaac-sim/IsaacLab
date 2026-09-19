@@ -1,6 +1,61 @@
 Changelog
 ---------
 
+24.2.4 (2026-09-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed operational-space controller velocity feedback to use the same link origins as the end-effector pose and
+  Jacobian in the action term and integration tests.
+
+
+24.2.3 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the pinned Newton version from ``1.6.0rc1`` to the final ``1.6.0`` release. No user
+  action is required; new environments now resolve the stable release instead of the release candidate.
+
+Fixed
+^^^^^
+
+* Updated Starlette to 1.3.1 or newer to address current security advisories and aligned aiohttp with the
+  Isaac Sim 6.1 dependency selection. No migration is required.
+* Pinned the PyTorch stack in the published package dependencies so downstream projects no
+  longer selected newer, untested builds when installing the Isaac Lab wheel.
+
+
+24.2.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Transformers to 5.10.4 and preserved Theia feature-model loading under Transformers 5.
+* Removed the RL-Games extra and the Robomimic dependency from the published Isaac Lab wheel
+  metadata because their pinned versions do not provide package-index wheels. Install Isaac Lab
+  from a source checkout to use the ``rl-games`` or ``mimic`` source extras for these integrations.
+* Restricted Newton actuator metadata authoring to TorchScript network archives. Convert legacy pickled actuator
+  checkpoints to TorchScript before using them with ``ActuatorNetMLPCfg`` or ``ActuatorNetLSTMCfg``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``isaaclab.sh``. It will be removed in Isaac Lab 3.1; use ``uv run isaaclab`` instead.
+
+Fixed
+^^^^^
+
+* Updated the GitPython, Pillow and PyArrow dependency selections and the
+  container Git LFS executable to address security findings.
+* Fixed ``--video`` training continuously updating PhysX Fabric and the capture-only Kit visualizer
+  between recording windows. Physics transforms are now synchronized on demand before each captured frame.
+
+
 24.2.1 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~~
 
