@@ -110,7 +110,6 @@ def create_sim_cfg():
                 grid_type=GRID_TYPE,
                 grid_padding=GRID_PADDING,
                 max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
-                project_outside_colliders=True,
             ),
             num_substeps=args_cli.substeps,
         ),

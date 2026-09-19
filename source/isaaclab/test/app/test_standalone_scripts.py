@@ -99,6 +99,32 @@ assert [type(cfg).__name__ for cfg in configs] == ['NewtonGLVisualizerCfg', 'New
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize(
+    "script_path",
+    ["newton_mpm_granular.py", "tuning/material_parameters.py", "tuning/surface_reconstruction.py"],
+)
+def test_mpm_demos_use_solver_contact_response(script_path):
+    """Physical-response examples must not opt into post-step particle projection."""
+    pytest.importorskip("isaaclab_newton")
+    script = script_cases.ROOT / "scripts" / "demos" / "mpm" / script_path
+    code = """
+import runpy
+import sys
+
+script = sys.argv[1]
+sys.argv = [script, '--visualizer', 'none']
+if script.endswith('surface_reconstruction.py'):
+    sys.argv.extend(['--fluid_render_mode', 'particles'])
+namespace = runpy.run_path(script)
+config = namespace['create_sim_cfg']()
+assert config.physics.solver_cfg.project_outside_colliders is False
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_every_standalone_script_has_a_readiness_contract_or_exemption():
     """Every executable demo/tutorial must be runnable or explicitly exempted."""
     missing = [spec.relative_path for spec in SPECS if spec.readiness_pattern is None and spec.skip_reason is None]

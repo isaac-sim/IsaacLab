@@ -276,7 +276,6 @@ def create_sim_cfg():
                 transfer_scheme="apic",
                 integration_scheme="pic",
                 air_drag=1.0e-3,
-                project_outside_colliders=True,
             ),
             use_cuda_graph=not args_cli.disable_cuda_graph,
         ),

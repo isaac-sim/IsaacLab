@@ -345,7 +345,6 @@ def create_sim_cfg():
                 velocity_basis="Q1",
                 collider_basis="S2",
                 air_drag=1.0e-3,
-                project_outside_colliders=True,
             ),
             use_cuda_graph=not args_cli.disable_cuda_graph,
         ),
