@@ -24,8 +24,8 @@ def test_new_runs_template_generator_directly():
     run_python_command.assert_called_once_with(cli_script, ["--help"])
 
 
-def test_build_docs_runs_sphinx_with_the_uv_test_extra():
-    """The docs command must build through UV instead of an unpinned pip install."""
+def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
+    """The docs command must use the UV extra that provides Sphinx."""
     docs_dir = misc.ISAACLAB_ROOT / "docs"
     output_dir = docs_dir / "_build" / "current"
 
@@ -41,7 +41,7 @@ def test_build_docs_runs_sphinx_with_the_uv_test_extra():
             "run",
             "--isolated",
             "--extra",
-            "test",
+            "dev",
             "--",
             "python",
             "-m",

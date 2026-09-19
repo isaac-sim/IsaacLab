@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+20.3.2 (2026-09-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour task selecting the primitive robot collider variant,
+  which omitted the arm collision meshes required by the task.
+* Fixed Franka Lift and Reorient reset sampling with updated Franka assets by explicitly selecting the convex-hull
+  arm colliders used by the tasks' clearance criteria.
+
+
 20.3.1 (2026-09-17)
 ~~~~~~~~~~~~~~~~~~~
 
