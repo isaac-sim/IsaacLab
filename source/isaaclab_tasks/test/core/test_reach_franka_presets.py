@@ -21,11 +21,27 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
-from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets import FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
+_RIGID_FRANKA_TASKS = (
+    _TASK,
+    _OSC_TASK,
+    "Isaac-Open-Drawer-Franka",
+    "Isaac-Open-Drawer-Franka-Direct",
+    "Isaac-Lift-Franka",
+    "Isaac-Reorient-Franka",
+)
+_SOFT_FRANKA_TASKS = (
+    "Isaac-Lift-Soft-Franka",
+    "Isaac-Lift-Cloth-Franka",
+    "Isaac-Lift-Cable-Franka",
+    "Isaac-Lift-Soft-Franka-Camera",
+    "Isaac-Lift-Cloth-Franka-Camera",
+    "Isaac-Lift-Cable-Franka-Camera",
+)
 
 
 def _load_env_cfg(*presets: str):
@@ -45,6 +61,28 @@ def _without_controller_dependent_cfg(cfg):
         rigid_props.pop("disable_gravity", None)
         rigid_props.pop("gravcomp", None)
     return cfg_dict
+
+
+@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS + _SOFT_FRANKA_TASKS)
+def test_core_franka_tasks_select_the_canonical_asset_and_backend_payload(task):
+    default_cfg = _load_reach_env_cfg(task)
+    physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
+
+    for cfg, physics_variant in ((default_cfg, "mujoco"), (physx_cfg, "physx")):
+        assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
+        assert cfg.scene.robot.spawn.variants == {
+            "Physics": physics_variant,
+            "Colliders": "gripper_only",
+        }
+
+
+@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS)
+def test_rigid_franka_arm_collisions_are_an_independent_domain_preset(task):
+    newton_cfg = _load_reach_env_cfg(task, "arm_collisions")
+    physx_cfg = _load_reach_env_cfg(task, "arm_collisions", "isaacsim_physx")
+
+    assert newton_cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "primitives"}
+    assert physx_cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "primitives"}
 
 
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
@@ -138,7 +176,25 @@ def test_reach_diffik_physx_configures_teleop_physics():
     assert physx_props.max_depenetration_velocity == pytest.approx(5.0)
     assert not cfg.scene.robot.spawn.make_uninstanceable
     assert cfg.scene.robot.spawn.collision_props is None
-    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/Legacy/panda_instanceable.usd")
+    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "gripper_only"}
+
+
+@pytest.mark.parametrize("physics_preset", ["isaacsim_physx", "newton_mjwarp", "ovphysx"])
+def test_reach_diffik_abs_normalizes_position_actions_to_command_workspace(physics_preset):
+    cfg = _load_env_cfg("diffik_abs", physics_preset)
+    action = cfg.actions.arm_action
+    ranges = cfg.commands.ee_pose.ranges
+
+    position_scale = torch.tensor(action.scale[:3])
+    position_offset = torch.tensor(action.offset[:3])
+    expected_lower = torch.tensor([ranges.pos_x[0], ranges.pos_y[0], ranges.pos_z[0]])
+    expected_upper = torch.tensor([ranges.pos_x[1], ranges.pos_y[1], ranges.pos_z[1]])
+
+    torch.testing.assert_close(position_offset - position_scale, expected_lower)
+    torch.testing.assert_close(position_offset + position_scale, expected_upper)
+    assert action.scale[3:] == (1.0, 1.0, 1.0, 1.0)
+    assert action.offset[3:] == (0.0, 0.0, 0.0, 0.0)
 
 
 def test_reach_newton_ik_configures_gravity_compensation():
@@ -148,6 +204,7 @@ def test_reach_newton_ik_configures_gravity_compensation():
     mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "gripper_only"}
 
 
 def test_reach_newton_ik_uses_native_se3_command_convention():
@@ -168,17 +225,17 @@ def test_reach_default_preset_does_not_configure_se3_teleop_devices():
     assert cfg.teleop_devices.devices == {}
 
 
-def test_reach_success_requires_position_and_orientation():
+def test_reach_tracks_success_without_terminating():
     cfg = _load_env_cfg()
-    success = cfg.terminations.success
 
     assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
     assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-    assert success.func is mdp.pose_command_success
-    assert success.params == {"command_name": "ee_pose"}
-    assert cfg.rewards.success.func.__name__ == "is_terminated_term"
-    assert cfg.rewards.success.weight == pytest.approx(10.0)
-    assert cfg.rewards.success.params == {"term_keys": ["success"]}
+    assert not hasattr(cfg.terminations, "success")
+    assert cfg.terminations.time_out.func is mdp.time_out
+    assert not hasattr(cfg.rewards, "success")
+    assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
+    assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
+    assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
 
     angles = torch.tensor([0.19, 0.19, 0.21])
     body_quaternions = torch.zeros(3, 1, 4)
@@ -202,32 +259,32 @@ def test_reach_success_requires_position_and_orientation():
     command._track_success = True
     command._succeeded = torch.zeros(3, dtype=torch.bool)
 
-    class CommandManager:
-        def get_term(self, name):
-            assert name == "ee_pose"
-            return command
-
-    env = SimpleNamespace(command_manager=CommandManager())
-    succeeded = mdp.pose_command_success(env, **success.params)
+    succeeded = command.compute_success()
 
     assert torch.equal(succeeded, torch.tensor([True, False, False]))
     assert torch.equal(command._succeeded, succeeded)
 
     command.cfg = command.cfg.replace(orientation_success_threshold=None)
     command._succeeded.zero_()
-    position_only_succeeded = mdp.pose_command_success(env, **success.params)
+    position_only_succeeded = command.compute_success()
 
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
 
-def test_reach_osc_effort_actuator_keeps_menagerie_velocity_limit():
-    """The zero-gain effort actuator must keep the asset's solver velocity limit; the USD authors none."""
+def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
+    """Replacing the arm actuator with a zero-gain effort model must preserve its solver properties."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
     arm_actuator = cfg.scene.robot.actuators["panda_arm"]
+    source_actuator = FRANKA_PANDA_CFG.actuators["panda_arm"]
 
     assert isinstance(arm_actuator, IdealPDActuatorCfg)
     assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0
-    assert arm_actuator.joint_velocity_limit == FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"].joint_velocity_limit
+    assert arm_actuator.joint_effort_limit == source_actuator.joint_effort_limit
+    assert arm_actuator.joint_velocity_limit == source_actuator.joint_velocity_limit
+    assert arm_actuator.armature == source_actuator.armature
+    assert arm_actuator.friction == source_actuator.friction
+    assert arm_actuator.dynamic_friction == source_actuator.dynamic_friction
+    assert arm_actuator.viscous_friction == source_actuator.viscous_friction
 
 
 def test_reach_osc_resolves_controller_preset_values_to_defaults():
@@ -245,7 +302,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert physx_props.disable_gravity is True
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.teleop_devices.devices == {}
-    assert domain_presets == {"diffik_abs"}
+    assert domain_presets == {"arm_collisions", "diffik_abs"}
 
 
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():

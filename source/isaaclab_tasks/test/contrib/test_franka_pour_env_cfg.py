@@ -111,7 +111,7 @@ def test_reset_dataset_contract_stores_root_relative_robot_asset_path():
     robot_asset = _reset_dataset_task_contract(cfg)["robot_asset"]
     assert robot_asset == "Robots/FrankaEmika/franka_panda.usda"
     assert f"{ISAACLAB_NUCLEUS_DIR}/{robot_asset}" == FRANKA_POUR_ROBOT_ASSET_ID
-    assert cfg.scene.robot.spawn.variants == {"Colliders": "convex_hulls"}
+    assert cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "convex_hulls"}
 
 
 def test_capacity_resolution_only_updates_world_dependent_solver_limits():

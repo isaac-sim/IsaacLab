@@ -59,7 +59,7 @@ from ... import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 
 
 ##
@@ -200,12 +200,12 @@ class PhysicsCfg(PresetCfg):
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot.spawn.variants = preset(
-        default={"Physics": "mujoco"},
-        isaacsim_physx={"Physics": "physx"},
-        physx={"Physics": "physx"},
-    )
+    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # Deformable contact is restricted to the hand and fingertips for throughput.
+    robot.spawn.variants = {
+        "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
+        "Colliders": "gripper_only",
+    }
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
@@ -269,6 +269,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
                     "panda_joint6": 25.0,
                     "panda_joint7": 15.0,
                 },
+                viscous_friction=0.0,
                 armature={
                     "panda_joint[1-2]": 0.6057,
                     "panda_joint[3-4]": 0.4625,
@@ -282,6 +283,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
                 joint_velocity_limit=2.0,
                 stiffness=350.0,
                 damping=175.0,
+                viscous_friction=0.0,
                 armature=0.1,
             ),
             "panda_finger2_passive": ImplicitActuatorCfg(
@@ -291,6 +293,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
                 joint_velocity_limit=2.0,
                 stiffness=0.0,
                 damping=0.0,
+                viscous_friction=0.0,
                 armature=0.1,
             ),
         }

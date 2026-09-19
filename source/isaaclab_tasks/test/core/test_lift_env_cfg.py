@@ -10,10 +10,10 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from pxr import Usd
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.managers import CommandTerm
-from isaaclab.sim import select_usd_variants
+from isaaclab.sim import select_usd_variants, use_stage
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
@@ -23,6 +23,7 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -59,19 +60,20 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     """The Franka USD physics payload must match the selected simulation backend."""
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
-    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "gripper_only"}
 
 
 @pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
-def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
-    """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
-    cfg = cfg_type()
+def test_franka_rigid_tasks_select_gripper_only_colliders(cfg_type) -> None:
+    """Rigid tasks avoid the arm colliders that intersect the ground during reset sampling."""
+    cfg = resolve_presets(cfg_type(), selected=())
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")
     for selection, prim_path, prim_type in (
         ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
         ("primitives", "/Robot/link1_capsule", "Capsule"),
+        ("gripper_only", "/Robot/gripper_capsule", "Capsule"),
     ):
         colliders.AddVariant(selection)
         colliders.SetVariantSelection(selection)
@@ -81,8 +83,26 @@ def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type
 
     select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
 
-    assert stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
+    assert stage.GetPrimAtPath("/Robot/gripper_capsule").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+
+
+def test_reset_clearance_ignores_disabled_collision_geometry() -> None:
+    """Disabled colliders and visual-only geometry must not reject reset candidates."""
+    stage = Usd.Stage.CreateInMemory()
+    root = stage.DefinePrim("/Object", "Xform")
+    for name, enabled in (("default_enabled", None), ("explicit_enabled", True), ("disabled", False)):
+        prim = UsdGeom.Cube.Define(stage, f"/Object/{name}").GetPrim()
+        collision = UsdPhysics.CollisionAPI.Apply(prim)
+        if enabled is not None:
+            collision.CreateCollisionEnabledAttr(enabled)
+    UsdGeom.Cube.Define(stage, "/Object/visual_only")
+
+    with use_stage(stage):
+        meshes = collect_collision_meshes(root, lambda prim: (prim.GetName(), root))
+
+    assert set(meshes) == {"default_enabled", "explicit_enabled"}
 
 
 def test_camera_normalization_is_stationary() -> None:

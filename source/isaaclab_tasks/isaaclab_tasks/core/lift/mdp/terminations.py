@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 class out_of_bound(ManagerTermBase):
-    """Termination condition for when the object falls out of bound.
+    """Terminate when the rigid object state is non-finite or its position leaves the workspace bounds.
 
     The world-space bounds are cached and rebuilt per axis only when the corresponding
     ``in_bound_range`` entry changes. This keeps the hot path free of host-to-device
@@ -61,7 +61,12 @@ class out_of_bound(ManagerTermBase):
                 self._cached_axis[i] = bounds
 
         pos_w = self._object.data.root_pos_w.torch
-        return ((pos_w < self._lower) | (pos_w > self._upper)).any(dim=1)
+        quat_w = self._object.data.root_quat_w.torch
+        vel_w = self._object.data.root_vel_w.torch
+        invalid = (
+            ~torch.isfinite(pos_w).all(dim=1) | ~torch.isfinite(quat_w).all(dim=1) | ~torch.isfinite(vel_w).all(dim=1)
+        )
+        return invalid | ((pos_w < self._lower) | (pos_w > self._upper)).any(dim=1)
 
 
 def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
