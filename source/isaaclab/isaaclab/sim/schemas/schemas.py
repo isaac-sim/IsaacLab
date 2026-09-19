@@ -7,8 +7,11 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import logging
 import math
+import threading
+import warnings
 from collections.abc import Callable, Iterable
 
 import numpy as np
@@ -34,6 +37,61 @@ from ._backend_hooks import _skip_joint_drive
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# Nesting depth of the legacy ``define_*`` / ``modify_*`` writers. Several ``define_*`` writers
+# delegate to their ``modify_*`` counterpart, so only the outermost call warns and the caller
+# sees exactly one deprecation naming the entry point they used. The depth is thread-local --
+# matching the thread-local stage context in :mod:`isaaclab.sim.utils.stage` -- so a writer call
+# on one thread never suppresses the deprecation another thread is entitled to.
+_legacy_writer_state = threading.local()
+
+
+def _legacy_writer_depth() -> int:
+    """Return the legacy-writer nesting depth for the calling thread."""
+    return getattr(_legacy_writer_state, "depth", 0)
+
+
+def _deprecated_schema_writer(replacement: str):
+    """Mark a legacy ``define_*`` / ``modify_*`` schema writer as deprecated.
+
+    Returns a decorator that emits a ``DeprecationWarning`` naming :paramref:`replacement` when
+    the writer is called. Nested legacy writers do not re-warn, so one user call produces one
+    warning.
+
+    Apply it *above* :func:`~isaaclab.sim.utils.apply_nested` so it wraps the traversal rather
+    than each visited prim; otherwise one call would warn once per prim.
+
+    Args:
+        replacement: Name of the fragment-based writer that replaces the decorated function.
+
+    Returns:
+        A decorator that installs the warning.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            depth = _legacy_writer_depth()
+            if depth == 0:
+                warnings.warn(
+                    f"{func.__name__} is deprecated. Use {replacement} with schema fragments"
+                    f" instead; {func.__name__} will be removed in 3.2.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            _legacy_writer_state.depth = depth + 1
+            try:
+                return func(*args, **kwargs)
+            finally:
+                _legacy_writer_state.depth = depth
+
+        # ``functools.wraps`` would point ``__wrapped__`` at this decorator's input. Keep it on the
+        # undecorated writer instead, so ``writer.__wrapped__`` still yields the bool-returning
+        # function that bypasses the ``apply_nested`` traversal, as callers already rely on.
+        wrapper.__wrapped__ = getattr(func, "__wrapped__", func)
+        return wrapper
+
+    return decorator
 
 
 """
@@ -380,6 +438,7 @@ def apply_articulation_root_properties(
     return success
 
 
+@_deprecated_schema_writer("apply_articulation_root_properties")
 def define_articulation_root_properties(
     prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
 ):
@@ -396,6 +455,10 @@ def define_articulation_root_properties(
     Raises:
         ValueError: When the prim path is not valid.
         TypeError: When the prim already has conflicting API schemas.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_articulation_root_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -464,6 +527,7 @@ def create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> N
     joint.CreateBreakTorqueAttr().Set(max_break)
 
 
+@_deprecated_schema_writer("apply_articulation_root_properties")
 @apply_nested
 def modify_articulation_root_properties(
     prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
@@ -506,6 +570,10 @@ def modify_articulation_root_properties(
 
     Raises:
         NotImplementedError: When the root prim is not a rigid body and a fixed joint is to be created.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_articulation_root_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -833,6 +901,7 @@ def apply_mesh_collision_properties(
     return success
 
 
+@_deprecated_schema_writer("apply_rigid_body_properties")
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):
     """Apply the rigid body schema on the input prim and set its properties.
 
@@ -847,6 +916,10 @@ def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseC
     Raises:
         ValueError: When the prim path is not valid.
         TypeError: When the prim already has conflicting API schemas.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_rigid_body_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -866,6 +939,7 @@ def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseC
 
 # rigid bodies nest when child links are authored under their parent link prim (URDF importer
 # in Isaac Sim 6.0+), so keep descending after a success to reach every link
+@_deprecated_schema_writer("apply_rigid_body_properties")
 @apply_nested(stop_on_success=False)
 def modify_rigid_body_properties(
     prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None
@@ -898,6 +972,10 @@ def modify_rigid_body_properties(
 
     Returns:
         True if the properties were successfully set, False otherwise.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_rigid_body_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -981,6 +1059,7 @@ def apply_collision_properties(
     return success
 
 
+@_deprecated_schema_writer("apply_collision_properties")
 def define_collision_properties(
     prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage | None = None
 ):
@@ -996,6 +1075,10 @@ def define_collision_properties(
 
     Raises:
         ValueError: When the prim path is not valid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_collision_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -1013,6 +1096,7 @@ def define_collision_properties(
     modify_collision_properties(prim_path, cfg, stage)
 
 
+@_deprecated_schema_writer("apply_collision_properties")
 @apply_nested
 def modify_collision_properties(
     prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage | None = None
@@ -1041,6 +1125,10 @@ def modify_collision_properties(
 
     Returns:
         True if the properties were successfully set, False otherwise.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_collision_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -1130,6 +1218,7 @@ def apply_mass_properties(
     return success
 
 
+@_deprecated_schema_writer("apply_mass_properties")
 def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
     """Apply the mass schema on the input prim and set its properties.
 
@@ -1143,6 +1232,10 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
 
     Raises:
         ValueError: When the prim path is not valid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_mass_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -1162,6 +1255,7 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
 
 # mass is authored on the same link prims as the rigid-body schema, which may nest (see
 # modify_rigid_body_properties above), so keep descending after a success
+@_deprecated_schema_writer("apply_mass_properties")
 @apply_nested(stop_on_success=False)
 def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None) -> bool:
     """Set properties for the mass of a rigid body prim.
@@ -1191,6 +1285,10 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
 
     Returns:
         True if the properties were successfully set, False otherwise.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_mass_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -1514,6 +1612,7 @@ def _ensure_drive_exists(drive_cfg, prim) -> None:
         safe_set_attribute_on_usd_schema(usd_drive_api, "stiffness", stiffness, camel_case=True)
 
 
+@_deprecated_schema_writer("apply_joint_drive_properties")
 @apply_nested
 def modify_joint_drive_properties(
     prim_path: str, cfg: schemas_cfg.JointDriveBaseCfg, stage: Usd.Stage | None = None
@@ -1550,6 +1649,10 @@ def modify_joint_drive_properties(
 
     Raises:
         ValueError: If the input prim path is not valid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_joint_drive_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -1709,6 +1812,7 @@ def apply_fixed_tendon_properties(
     return _apply_tendon_fragments(prim_path_expr, fragments, _FIXED_TENDON_SCHEMAS, ("MjcTendon",), "fixed", stage)
 
 
+@_deprecated_schema_writer("apply_fixed_tendon_properties")
 @apply_nested
 def modify_fixed_tendon_properties(
     prim_path: str, cfg: schemas_cfg.PhysxFixedTendonPropertiesCfg, stage: Usd.Stage | None = None
@@ -1739,6 +1843,10 @@ def modify_fixed_tendon_properties(
 
     Raises:
         ValueError: If the input prim path is not valid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_fixed_tendon_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # Retained for backward compatibility with callers passing PhysxFixedTendonPropertiesCfg
     # directly. Will be removed in a future release once callers adopt the fragment-based
@@ -1795,6 +1903,7 @@ def apply_spatial_tendon_properties(
     return _apply_tendon_fragments(prim_path_expr, fragments, _SPATIAL_TENDON_SCHEMAS, (), "spatial", stage)
 
 
+@_deprecated_schema_writer("apply_spatial_tendon_properties")
 @apply_nested
 def modify_spatial_tendon_properties(
     prim_path: str, cfg: schemas_cfg.PhysxSpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
@@ -1825,6 +1934,10 @@ def modify_spatial_tendon_properties(
 
     Raises:
         ValueError: If the input prim path is not valid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_spatial_tendon_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # Retained for backward compatibility with callers passing PhysxSpatialTendonPropertiesCfg
     # directly. Will be removed in a future release once callers adopt the fragment-based
@@ -1841,6 +1954,7 @@ Collision mesh properties.
 """
 
 
+@_deprecated_schema_writer("apply_mesh_collision_properties")
 def define_mesh_collision_properties(
     prim_path: str, cfg: schemas_cfg.MeshCollisionBaseCfg, stage: Usd.Stage | None = None
 ):
@@ -1856,6 +1970,10 @@ def define_mesh_collision_properties(
 
     Raises:
         ValueError: When the prim path is not valid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_mesh_collision_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # obtain stage
     if stage is None:
@@ -1875,6 +1993,7 @@ def define_mesh_collision_properties(
     modify_mesh_collision_properties(prim_path=prim_path, cfg=cfg, stage=stage)
 
 
+@_deprecated_schema_writer("apply_mesh_collision_properties")
 @apply_nested
 def modify_mesh_collision_properties(
     prim_path: str, cfg: schemas_cfg.MeshCollisionBaseCfg, stage: Usd.Stage | None = None
@@ -1905,6 +2024,10 @@ def modify_mesh_collision_properties(
 
     Raises:
         ValueError: When the mesh approximation name is invalid.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_mesh_collision_properties` with schema fragments instead. This function will be removed
+        in 3.2.
     """
     # obtain stage
     if stage is None:
