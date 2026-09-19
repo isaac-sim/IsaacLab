@@ -44,6 +44,14 @@ parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD
 parser.add_argument("input", type=str, help="The path to the input URDF file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
 parser.add_argument(
+    "--ros_package_path",
+    nargs=2,
+    action="append",
+    default=[],
+    metavar=("NAME", "PATH"),
+    help="Map a ROS package name to its directory for package:// mesh paths. May be repeated.",
+)
+parser.add_argument(
     "--merge_joints",
     "--merge-joints",
     action="store_true",
@@ -157,6 +165,7 @@ def main():
         fix_base=args_cli.fix_base,
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,
+        ros_package_paths=[{"name": name, "path": os.path.abspath(path)} for name, path in args_cli.ros_package_path],
         joint_drive=UrdfConverterCfg.JointDriveCfg(
             gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
                 stiffness=args_cli.joint_stiffness,

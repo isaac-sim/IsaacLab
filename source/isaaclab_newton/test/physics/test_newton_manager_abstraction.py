@@ -17,6 +17,7 @@ Covers:
   rejects the ``MJWarp + use_mujoco_contacts=True + collision_cfg`` combination.
 * Manager name dispatch (used by :class:`InteractiveScene` and the various
   factory dispatchers) still starts with ``"newton"``.
+* Fixed-root pose writes refresh MuJoCo's solver-owned root transform.
 * End-to-end: spinning up a simulation with each solver builds the correct
   solver, sets the right ``_use_single_state`` / ``_needs_collision_pipeline``
   flags, and lands canonical state on :class:`NewtonManager` so that external
@@ -39,6 +40,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
+from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoDVICfg,
@@ -64,6 +66,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -1238,6 +1241,55 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 # ---------------------------------------------------------------------------
 # Manager state-refresh boundaries (no SimulationContext required)
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("asset_class", [articulation_module.Articulation, rigid_object_module.RigidObject])
+@pytest.mark.parametrize(
+    "writer, selector",
+    [
+        ("write_root_link_pose_to_sim_index", "env_ids"),
+        ("write_root_link_pose_to_sim_mask", "env_mask"),
+        ("write_root_com_pose_to_sim_index", "env_ids"),
+        ("write_root_com_pose_to_sim_mask", "env_mask"),
+    ],
+)
+def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, selector):
+    """A model-backed root write immediately refreshes MuJoCo's root transform."""
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    initial_pose = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat_identity())
+    root = builder.add_link(xform=initial_pose, mass=1.0, inertia=wp.mat33(np.eye(3)))
+    root_joint = builder.add_joint_fixed(-1, root, parent_xform=initial_pose)
+    builder.add_articulation([root_joint], label="robot")
+    builder.end_world()
+    model = builder.finalize(device="cpu")
+    view = ArticulationView(model, "robot", verbose=False)
+    body_com = view.get_attribute("body_com", model)[:, 0]
+    data = SimpleNamespace(
+        root_link_pose_w=view.get_root_transforms(model)[:, 0],
+        root_com_pose_w=wp.empty(1, dtype=wp.transform, device="cpu"),
+        _sim_bind_body_com_pos_b=body_com,
+        body_com_pos_b=body_com,
+    )
+    asset = SimpleNamespace(
+        root_view=view,
+        data=data,
+        device="cpu",
+        _ALL_ENV_MASK=wp.array([True], dtype=wp.bool, device="cpu"),
+        _resolve_env_ids=lambda ids: ids,
+        _resolve_mask=lambda mask, default: default if mask is None else mask,
+        assert_shape_and_dtype=lambda *args: None,
+        assert_shape_and_dtype_mask=lambda *args: None,
+    )
+    solver = SolverMuJoCo(model)
+    monkeypatch.setattr(NewtonManager, "_solver", solver)
+    target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
+    selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
+
+    getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+
+    np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
 
 
 def test_forward_consumes_existing_reset_masks(monkeypatch):
