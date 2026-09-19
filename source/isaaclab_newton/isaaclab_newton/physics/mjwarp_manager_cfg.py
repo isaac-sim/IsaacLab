@@ -108,8 +108,8 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     MuJoCo Warp's supported pairs and contact-margin restrictions differ from MuJoCo CPU.
     Primitive colliders can already produce multiple contacts with this option disabled.
     Additional contacts can increase solver work and the required :attr:`nconmax` and
-    :attr:`njmax` capacities. This option does not configure Newton's collision pipeline
-    when :attr:`use_mujoco_contacts` is False.
+    :attr:`njmax` capacities. See MuJoCo's `multiple-contact documentation
+    <https://mujoco.readthedocs.io/en/stable/computation/index.html#multiple-contacts>`__.
     """
 
     ls_parallel: bool = False
