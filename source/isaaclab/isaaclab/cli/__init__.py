@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import importlib.metadata
 import sys
 from pathlib import Path
 
@@ -18,11 +19,11 @@ from .commands.install import (
 from .commands.misc import (
     command_build_docs,
     command_build_isaacsim,
+    command_editor,
     command_new,
     command_run_docker,
     command_run_isaacsim,
     command_test,
-    command_vscode_settings,
 )
 from .utils import (
     ISAACLAB_ROOT,
@@ -30,42 +31,79 @@ from .utils import (
     run_python_command,
 )
 
+_TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
+
+
+def _exit_on_error(status: int) -> None:
+    """Raise ``SystemExit`` when an in-process command reports a failure."""
+    if status != 0:
+        raise SystemExit(status)
+
+
+def _load_external_tasks() -> None:
+    """Import task packages registered by installed downstream projects."""
+    for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
+        entry_point.load()
+
 
 def train(args: list[str] | None = None) -> None:
-    """Run the unified reinforcement learning training script."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py", args, check=True)
+    """Run unified reinforcement learning training."""
+    from isaaclab_rl.entrypoints import run_train_cli
+
+    _exit_on_error(run_train_cli(args))
 
 
 def train_multigpu(args: list[str] | None = None) -> None:
-    """Run the unified multi-GPU reinforcement learning training script."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(
-        ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train_multigpu.py", args, check=True
-    )
+    """Run unified multi-GPU reinforcement learning training."""
+    from isaaclab_rl.entrypoints import run_train_multigpu_cli
+
+    _exit_on_error(run_train_multigpu_cli(args))
 
 
 def play(args: list[str] | None = None) -> None:
-    """Run the unified reinforcement learning play script."""
+    """Run unified reinforcement learning playback."""
+    from isaaclab_rl.entrypoints import run_play_cli
+
+    _exit_on_error(run_play_cli(args))
+
+
+def leapp(args: list[str] | None = None) -> None:
+    """Export or deploy a policy with LEAPP."""
+    parser = argparse.ArgumentParser(
+        description="Export or deploy policies with LEAPP.",
+        prog=f"{Path(sys.argv[0]).name} leapp",
+    )
+    parser.add_argument("command", choices=("export", "deploy"), help="LEAPP workflow to run.")
     if args is None:
         args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py", args, check=True)
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    command_args = args[1:]
+
+    if parsed_args.command == "export":
+        from isaaclab_rl.entrypoints import run_export_cli
+
+        _exit_on_error(run_export_cli(command_args))
+    else:
+        from isaaclab.cli.commands.deploy import command_deploy_leapp
+
+        _exit_on_error(command_deploy_leapp(command_args))
 
 
 def zero_agent(args: list[str] | None = None) -> None:
     """Run an environment with a zero-action agent."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "zero_agent.py", args, check=True)
+    from isaaclab_rl.entrypoints import run_zero_agent_cli
+
+    _exit_on_error(run_zero_agent_cli(args))
 
 
 def random_agent(args: list[str] | None = None) -> None:
     """Run an environment with a random-action agent."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
+    from isaaclab_rl.entrypoints import run_random_agent_cli
+
+    _exit_on_error(run_random_agent_cli(args))
+
 
 def teleop(args: list[str] | None = None) -> None:
     """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
@@ -96,24 +134,21 @@ def benchmark(args: list[str] | None = None) -> None:
     """
     from isaaclab.benchmark import run_benchmark_cli
 
-    status = run_benchmark_cli(args)
-    if status != 0:
-        raise SystemExit(status)
+    _exit_on_error(run_benchmark_cli(args))
 
 
 def microbenchmark(args: list[str] | None = None) -> None:
     """Run a component micro-benchmark with an exact physics variant."""
     from isaaclab.benchmark import run_microbenchmark_cli
 
-    status = run_microbenchmark_cli(args)
-    if status != 0:
-        raise SystemExit(status)
+    _exit_on_error(run_microbenchmark_cli(args))
 
 
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
         "benchmark": benchmark,
+        "leapp": leapp,
         "microbenchmark": microbenchmark,
         "train": train,
         "train_multigpu": train_multigpu,
@@ -122,6 +157,7 @@ def cli() -> None:
         "random_agent": random_agent,
     }
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
+        _load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":
@@ -137,13 +173,14 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
-            "                  (append -multigpu to a workflow to run it across GPUs)\n"
+            "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
-            "  train           Run scripts/reinforcement_learning/train.py\n"
-            "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
-            "  play            Run scripts/reinforcement_learning/play.py\n"
-            "  zero_agent      Run scripts/environments/zero_agent.py\n"
-            "  random_agent    Run scripts/environments/random_agent.py\n"
+            "  leapp           Export or deploy a policy with LEAPP\n"
+            "  train           Train an RL policy\n"
+            "  train_multigpu  Train an RL policy across multiple GPUs\n"
+            "  play            Play a trained RL policy\n"
+            "  zero_agent      Run an environment with zero actions\n"
+            "  random_agent    Run an environment with random actions\n"
             "  teleop          Run a live teleoperation, demo recording, or demo replay workflow"
         ),
     )
@@ -232,10 +269,9 @@ def cli() -> None:
         help="Run the docker container helper script (docker/container.sh).",
     )
     parser.add_argument(
-        "-v",
-        "--vscode",
-        action="store_true",
-        help="Generate the VSCode settings file from template.",
+        "--editor",
+        nargs=argparse.REMAINDER,
+        help="Generate editor settings and import paths for the current workspace.",
     )
     parser.add_argument(
         "-d",
@@ -254,14 +290,20 @@ def cli() -> None:
         "--conda",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "-u",
         "--uv",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "--isaacsim_source",
@@ -289,8 +331,8 @@ def cli() -> None:
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)
 
-    elif args.vscode:
-        command_vscode_settings()
+    elif args.editor is not None:
+        command_editor(args.editor)
 
     elif args.docs:
         command_build_docs()

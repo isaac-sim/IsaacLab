@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import warp as wp
 
 from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
@@ -20,6 +21,7 @@ class _PointsBackend(SceneDataBackend):
         points: np.ndarray | None = None,
         geometry_paths: list[str] | None = None,
         geometry_counts: list[int] | None = None,
+        device: str | None = None,
     ):
         if points is None:
             points = np.array(
@@ -32,7 +34,7 @@ class _PointsBackend(SceneDataBackend):
                 ],
                 dtype=np.float32,
             )
-        self._points = wp.array(points, dtype=wp.vec3f)
+        self._points = wp.array(points, dtype=wp.vec3f, device=device)
         self._geometry_paths = geometry_paths or ["/World/envs/env_0/A", "/World/envs/env_1/A"]
         self._geometry_counts = geometry_counts or [2, 3]
         self._scene_data = SceneDataFormat.Points()
@@ -86,6 +88,31 @@ def test_create_geometry_mapping_remaps_out_of_order_entities():
     )
     assert mapping is not None
     assert mapping.numpy().tolist() == [3, 0]
+
+
+@pytest.mark.skipif(wp.get_cuda_device_count() == 0, reason="requires CUDA")
+def test_create_geometry_mapping_uses_points_device_with_empty_transforms():
+    """Geometry mapping follows its point publication, independently of transforms."""
+    with wp.ScopedDevice("cpu"):
+        provider = SceneDataProvider(_PointsBackend(device="cuda:0"))
+        mapping = provider.create_geometry_mapping(
+            ["/World/envs/env_1/A", "/World/envs/env_0/A"],
+            [0, 3],
+        )
+
+    assert mapping is not None
+    assert mapping.device == wp.get_device("cuda:0")
+
+
+def test_create_geometry_mapping_rejects_empty_points_publication():
+    backend = _PointsBackend()
+    backend._scene_data.points = None
+
+    with pytest.raises(ValueError, match="Points contains no published arrays"):
+        SceneDataProvider(backend).create_geometry_mapping(
+            ["/World/envs/env_1/A", "/World/envs/env_0/A"],
+            [0, 3],
+        )
 
 
 def test_get_points_copies_unpadded_entity_slices():

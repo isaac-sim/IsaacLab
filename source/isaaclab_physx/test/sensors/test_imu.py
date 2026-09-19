@@ -18,7 +18,9 @@ import pathlib
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -27,7 +29,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -61,9 +63,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -73,9 +75,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -94,9 +96,12 @@ class MySceneCfg(InteractiveSceneCfg):
             merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
             ),
@@ -116,9 +121,12 @@ class MySceneCfg(InteractiveSceneCfg):
             merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
             ),
@@ -181,9 +189,12 @@ class MySceneCfg(InteractiveSceneCfg):
 
         # change asset
         self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
-        # change iterations
-        self.robot.spawn.articulation_props.solver_position_iteration_count = 32
-        self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
+        # change iterations -- the solver counts live on the PhysX articulation fragment
+        physx_articulation = next(
+            frag for frag in self.robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+        )
+        physx_articulation.solver_position_iteration_count = 32
+        physx_articulation.solver_velocity_iteration_count = 32
 
 
 @pytest.fixture
@@ -273,16 +284,17 @@ def test_constant_velocity(setup_sim):
 
 @pytest.mark.isaacsim_ci
 def test_constant_acceleration(setup_sim):
-    """Test the Imu sensor with a constant acceleration."""
+    """A constant applied force yields the solver acceleration F/m plus the gravity bias."""
     sim, scene = setup_sim
-    for idx in range(100):
-        # set acceleration
-        scene.rigid_objects["balls"].write_root_velocity_to_sim(
-            torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
-        )
+    balls = scene.rigid_objects["balls"]
+    force = 0.25  # [N] on a 0.5 kg ball -> 0.5 m/s^2
+    expected_acc = force / 0.5
+    forces = torch.zeros((scene.num_envs, 1, 3), dtype=torch.float32, device=scene.device)
+    forces[..., 0] = force
+    # keep the window short so the ball stays airborne: in free fall the accelerometer
+    # correctly reads zero along gravity (the solver's -g cancels the +g bias)
+    for idx in range(10):
+        balls.set_external_force_and_torque(forces, torch.zeros_like(forces))
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -290,7 +302,7 @@ def test_constant_acceleration(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
@@ -299,9 +311,9 @@ def test_constant_acceleration(setup_sim):
             scene.sensors["imu_ball"].data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 scene.rigid_objects["balls"].data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
-                / sim.get_physics_dt()
-                + torch.tensor([[0.0, 0.0, 9.81]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1),
+                torch.tensor([[expected_acc, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -501,9 +513,9 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
     )
     imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
@@ -556,8 +568,13 @@ def test_sensor_print(setup_sim):
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))
-def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
-    """Acceleration uses the elapsed time between sensor samples."""
+def test_velocity_writes_do_not_produce_spurious_acceleration(setup_sim, access_mode):
+    """Directly written (teleported) velocities do not show up as fake accelerations.
+
+    The IMU reports the solver acceleration, so a velocity write — which involves no force —
+    must not spike the accelerometer. This was a known artifact of the previous
+    finite-difference implementation (e.g. on environment resets).
+    """
     sim, scene = setup_sim
     dt = sim.get_physics_dt()
     body = scene.rigid_objects["balls"]
@@ -583,5 +600,6 @@ def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
         if access_mode == "update_period":
             _ = sensor.data
 
-    expected = torch.full((scene.num_envs,), 0.1 / dt, device=scene.device)
-    torch.testing.assert_close(sensor.data.lin_acc_b.torch[:, 0], expected)
+    # only the gravity bias remains along x after rotation into the (identity-oriented) ball frame
+    expected = torch.zeros((scene.num_envs,), device=scene.device)
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch[:, 0], expected, rtol=0.0, atol=1e-3)

@@ -19,7 +19,6 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.logging_utils import force_log_level
-from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -160,24 +159,25 @@ class Camera(SensorBase):
         # Resolve the camera prim path and spawn it, redirecting to a child if prim_path is a physics body.
         spawn = self.cfg.spawn
         if spawn is not None:
-            probe_path = (spawn.spawn_path or self.cfg.prim_path) if spawn is not None else self.cfg.prim_path
+            probe_path = spawn.spawn_path or self.cfg.prim_path
             probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path, raise_if_no_matches=False)
             source_prim, _source_destination_expr = probe_matches[0] if probe_matches else (None, None)
-            if source_prim is not None and source_prim.IsValid():
-                if source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                    logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
-                    self.cfg.prim_path = spawn.spawn_path = f"{self.cfg.prim_path}/camera"
+            if source_prim is not None and (
+                source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ):
+                logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
+                self.cfg.prim_path = f"{self.cfg.prim_path}/camera"
+                spawn.spawn_path = f"{probe_path}/camera"
 
             spawn_target = spawn.spawn_path or self.cfg.prim_path
             if sim_utils.find_first_matching_prim(spawn_target) is None:
                 spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
-        queue_replication(self._source_cfg)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
-        # when the run is otherwise headless. This has to happen before the replication queue is
-        # drained, which is why it is here rather than in ``_initialize_impl``.
+        # when the run is otherwise headless. This must happen before plan dispatch, which is why
+        # it is here rather than in ``_initialize_impl``.
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()
@@ -198,6 +198,7 @@ class Camera(SensorBase):
 
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
+            settings.set_bool("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
                 settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
@@ -427,6 +428,9 @@ class Camera(SensorBase):
         idx_wp = self._resolve_env_ids_wp(env_ids)
         with self._view.xform_world_space_writer() as writer:
             writer.set_poses(pos_wp, ori_wp, idx_wp)
+        # write through to the data buffers so explicitly set poses are never stale,
+        # regardless of :attr:`CameraCfg.update_latest_camera_pose`
+        self._update_poses(env_ids=idx_wp, frame_op=0)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -490,6 +494,9 @@ class Camera(SensorBase):
                 wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
                 idx_wp,
             )
+        # write through to the data buffers so explicitly set poses are never stale,
+        # regardless of :attr:`CameraCfg.update_latest_camera_pose`
+        self._update_poses(env_ids=idx_wp, frame_op=0)
 
     """
     Operations

@@ -243,7 +243,7 @@ def test_franka_factory_marks_only_unsupported_instance_segmentation() -> None:
     for variant in ("legacy", "ovstage"):
         for physics_backend in ("newton", "ovphysx"):
             motion_id = f"{variant}-{physics_backend}-ovrtx-motion_vectors"
-            assert "xfail" not in [mark.name for mark in params[motion_id].marks]
+            assert [mark.name for mark in params[motion_id].marks] == ["flaky"]
 
             instance_id = f"{variant}-{physics_backend}-ovrtx-instance_segmentation"
             assert [mark.name for mark in params[instance_id].marks] == ["skip"]

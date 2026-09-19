@@ -16,7 +16,6 @@ import scipy.interpolate as interpolate
 pytestmark = [pytest.mark.unit, pytest.mark.arm_ci]
 
 
-@pytest.mark.isaacsim_ci
 def test_interpolation():
     """Test scipy interpolation 2D method."""
     # parameters

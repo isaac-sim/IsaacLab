@@ -1,0 +1,2 @@
+Test-only change: assert Newton's token-authored applied schema through the helper the file already
+provides, matching the sibling SDF collision test.

@@ -47,20 +47,25 @@ def main() -> int:
         warp = re.search(r'^version = "(.*)"$', packages["warp-lang"], flags=re.MULTILINE).group(1)
         mjwarp = re.search(r'^version = "(.*)"$', packages["mujoco-warp"], flags=re.MULTILINE).group(1)
         newton = packages["newton"]
+        newton_version = re.search(r'^version = "(.*)"$', newton, flags=re.MULTILINE).group(1)
     except (AttributeError, KeyError) as exc:
         print(f"::error::{LOCKFILE} has no version entry for {exc}", file=sys.stderr)
         return 1
 
-    # Newton is a git dependency, so its resolved version is a placeholder like
-    # 1.5.0.dev0 that does not move between revisions. Use the pinned revision.
+    # Git builds can share a placeholder version across revisions, so identify
+    # them by commit. Registry releases are immutable and use their version.
     source = re.search(r"^source = (.*)$", newton, flags=re.MULTILINE)
     source = source.group(1) if source else ""
     match = re.search(r"(?:rev=|#)([0-9a-f]{7,40})", source)
-    if not match:
-        print(f"::error::Could not read the pinned newton revision from {source!r}", file=sys.stderr)
+    if match:
+        newton_id = match.group(1)[:8]
+    elif "registry" in source:
+        newton_id = newton_version
+    else:
+        print(f"::error::Could not identify the newton package from {source!r}", file=sys.stderr)
         return 1
 
-    print(f"wp{warp}-newton{match.group(1)[:8]}-mjwarp{mjwarp}")
+    print(f"wp{warp}-newton{newton_id}-mjwarp{mjwarp}")
     return 0
 
 

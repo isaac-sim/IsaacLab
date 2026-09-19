@@ -15,20 +15,31 @@ Two test suites are provided:
    :class:`ShadowHandTiledCameraCfg` and
    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` resolves to the expected
    concrete config class and data types, using the real config classes.
+
+3. **Checkpoint tests** — verify that published policies resolve to their matching
+   feature-extractor checkpoints.
 """
 
 import types
+from pathlib import Path
 
 import pytest
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+from isaaclab_tasks.core.reorient.config.shadow_hand import feature_extractor as feature_extractor_module
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, FeatureExtractorCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_env_cfg import (
+    ShadowHandCameraManagerEnvCfg,
+)
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -41,9 +52,12 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     The mock reuses the real validation logic from :class:`ShadowHandCameraEnvCfg`.
     """
     cfg = types.SimpleNamespace()
-    cfg.tiled_camera = types.SimpleNamespace(
-        renderer_cfg=types.SimpleNamespace(renderer_type=renderer_type),
-        data_types=data_types,
+    cfg.scene = types.SimpleNamespace(
+        tiled_camera=CameraCfg(
+            prim_path="/Camera",
+            renderer_cfg=RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None,
+            data_types=data_types,
+        )
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
     cfg.validate_config = lambda: ShadowHandCameraEnvCfg.validate_config(cfg)
@@ -170,7 +184,7 @@ _CAMERA_DATA_TYPE_PRESETS = [
 @pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
 def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets, preset_name, expected_data_types):
     """Camera presets must be discoverable, request data, and have valid dimensions."""
-    camera_presets = shadow_hand_camera_presets["tiled_camera"]
+    camera_presets = shadow_hand_camera_presets["scene.tiled_camera"]
     assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
     resolved = camera_presets[preset_name]
     assert resolved.data_types == expected_data_types, (
@@ -198,7 +212,7 @@ _RENDERER_PRESETS = [
 @pytest.mark.parametrize("preset_name,expected_class", _RENDERER_PRESETS)
 def test_renderer_presets_resolve_to_expected_configs(shadow_hand_camera_presets, preset_name, expected_class):
     """Renderer presets must resolve to the expected configuration and renderer type."""
-    renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
+    renderer_presets = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]
     assert preset_name in renderer_presets, f"Preset '{preset_name}' not found in renderer presets"
     resolved = renderer_presets[preset_name]
     assert isinstance(resolved, expected_class), (
@@ -232,8 +246,8 @@ _WARP_CAMERA_PRESETS = [
 @pytest.mark.parametrize("camera_preset,raises", _WARP_CAMERA_PRESETS)
 def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_preset, raises):
     """Warp support must match the camera preset's requested data types."""
-    camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
+    camera_cfg = shadow_hand_camera_presets["scene.tiled_camera"][camera_preset]
+    warp_cfg = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]["newton_renderer"]
     enabled = camera_cfg.data_types != ["depth"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
     if raises:
@@ -241,3 +255,133 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
             cfg.validate_config()
     else:
         cfg.validate_config()
+
+
+@pytest.mark.parametrize(
+    "env_cfg_type,presets,checkpoint_filename",
+    [
+        (
+            ShadowHandCameraManagerEnvCfg,
+            ("newton_mjwarp", "newton_renderer"),
+            "Isaac-Reorient-Cube-Shadow-Camera_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraManagerEnvCfg,
+            ("isaacsim_physx", "isaacsim_rtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraManagerEnvCfg,
+            ("ovphysx", "ovrtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("newton_mjwarp", "newton_renderer"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("isaacsim_physx", "isaacsim_rtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("ovphysx", "ovrtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+    ],
+)
+def test_task_presets_select_published_feature_extractor_checkpoint(
+    env_cfg_type: type,
+    presets: tuple[str, str],
+    checkpoint_filename: str,
+) -> None:
+    """Each task/backend combination must select its published feature-extractor checkpoint."""
+    env_cfg = resolve_presets(env_cfg_type(), presets)
+
+    expected_path = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"
+    assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
+
+
+@pytest.fixture
+def mocked_feature_extractor_loading(monkeypatch: pytest.MonkeyPatch) -> tuple[list[str], list[str]]:
+    """Replace the CNN and checkpoint deserializer with lightweight recording doubles."""
+    loaded_paths: list[str] = []
+    loaded_checkpoints: list[str] = []
+
+    class _FeatureExtractorNetwork:
+        def to(self, device: str) -> None:
+            pass
+
+        def load_state_dict(self, checkpoint) -> None:
+            loaded_checkpoints.append(checkpoint)
+
+        def eval(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        feature_extractor_module, "FeatureExtractorNetwork", lambda **kwargs: _FeatureExtractorNetwork()
+    )
+    monkeypatch.setattr(
+        feature_extractor_module.torch,
+        "load",
+        lambda path, weights_only: loaded_paths.append(path) or "feature extractor weights",
+    )
+    return loaded_paths, loaded_checkpoints
+
+
+def test_feature_extractor_fetches_task_configured_pretrained_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mocked_feature_extractor_loading: tuple[list[str], list[str]],
+) -> None:
+    """The feature extractor must retrieve its own configured checkpoint."""
+    retrieved_paths: list[str] = []
+    checkpoint_path = tmp_path / "feature_extractor.pth"
+    checkpoint_path.touch()
+
+    def _retrieve_file_path(path: str) -> str:
+        retrieved_paths.append(path)
+        return str(checkpoint_path)
+
+    monkeypatch.setattr(feature_extractor_module, "retrieve_file_path", _retrieve_file_path)
+    published_checkpoint = "omniverse://IsaacLab/feature_extractor.pth"
+    cfg = FeatureExtractorCfg(
+        train=False,
+        load_checkpoint=True,
+        pretrained_checkpoint=published_checkpoint,
+    )
+
+    FeatureExtractor(cfg, "cpu", ["rgb"], str(tmp_path / "logs"))
+
+    loaded_paths, loaded_checkpoints = mocked_feature_extractor_loading
+    assert retrieved_paths == [published_checkpoint]
+    assert loaded_paths == [str(checkpoint_path)]
+    assert loaded_checkpoints == ["feature extractor weights"]
+
+
+def test_feature_extractor_prefers_local_training_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mocked_feature_extractor_loading: tuple[list[str], list[str]],
+) -> None:
+    """Local playback must keep loading the CNN checkpoint saved with the training run."""
+    local_checkpoint = tmp_path / "cnn_100_loss.pth"
+    local_checkpoint.touch()
+    monkeypatch.setattr(
+        feature_extractor_module,
+        "retrieve_file_path",
+        lambda path: pytest.fail("The pretrained checkpoint must not be fetched when a local CNN checkpoint exists."),
+    )
+    cfg = FeatureExtractorCfg(
+        train=False,
+        load_checkpoint=True,
+        pretrained_checkpoint="omniverse://IsaacLab/feature_extractor.pth",
+    )
+
+    FeatureExtractor(cfg, "cpu", ["rgb"], str(tmp_path))
+
+    loaded_paths, loaded_checkpoints = mocked_feature_extractor_loading
+    assert loaded_paths == [str(local_checkpoint)]
+    assert loaded_checkpoints == ["feature extractor weights"]

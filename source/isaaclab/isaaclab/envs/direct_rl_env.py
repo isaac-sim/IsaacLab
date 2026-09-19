@@ -20,10 +20,8 @@ import numpy as np
 import torch
 
 from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -87,9 +85,6 @@ class DirectRLEnv(gym.Env):
 
         # check that the config is valid
         cfg.validate()
-        # Resolve any preset-wrapper fields to their default variant so that downstream
-        # scene/physics setup receives concrete cfg objects rather than multi-backend selectors.
-        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -152,7 +147,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = self.cfg.scene.class_type(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -271,7 +266,8 @@ class DirectRLEnv(gym.Env):
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
+        # ``_is_closed`` is missing if ``__init__`` raised before assigning it.
+        if not getattr(self, "_is_closed", True) and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """
@@ -753,14 +749,10 @@ class DirectRLEnv(gym.Env):
     """
 
     def _setup_scene(self):
-        """Setup the scene for the environment.
+        """Perform optional task-specific setup after the configured scene is constructed.
 
-        This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
-        directly creating the scene objects and registering them with the scene manager.
-
-        We leave the implementation of this function to the derived classes. If the environment does not require
-        any explicit scene setup, the function can be left empty.
+        Normal workflows declare assets and sensors on :attr:`DirectRLEnvCfg.scene`. Override this
+        hook only for setup that cannot be represented by the scene configuration.
         """
         pass
 

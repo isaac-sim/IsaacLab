@@ -16,8 +16,6 @@ from rendering_test_utils import (  # noqa: E402
     rendering_test_shadow_hand_yellow_bg,
 )
 
-pytestmark = [pytest.mark.isaacsim_ci]
-
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 

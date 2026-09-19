@@ -53,7 +53,7 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
     from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 SIM_DT = 1.0 / 60.0
@@ -87,9 +87,9 @@ if not _MISSING_MODULES:
             prim_path="{ENV_REGEX_NS}/Anchor",
             spawn=sim_utils.CuboidCfg(
                 size=(0.01, 0.01, 0.01),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=0.001),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 physics_material=sim_utils.RigidBodyMaterialCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
             ),
@@ -158,7 +158,6 @@ def _render_grid(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarr
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 def test_opencv_distortion_changes_ovrtx_render(device):
     """OVRTX must render the distorted and zero-coefficient cameras meaningfully differently."""
@@ -175,7 +174,6 @@ def test_opencv_distortion_changes_ovrtx_render(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
     """The OVRTX camera reports intrinsics matching the authored, non-square, off-center calibration."""
@@ -191,7 +189,6 @@ def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 def test_opencv_fisheye_distortion_renders_through_ovrtx(device):
     """OVRTX honors the OpenCV fisheye schema: its render differs meaningfully from the pinhole projection.

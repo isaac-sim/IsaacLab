@@ -9,8 +9,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
@@ -57,9 +57,12 @@ class ArticulationRigidObjectSceneCfg(CartpoleTestSceneCfg):
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
+            # ``disable_gravity`` has no core fragment: its only USD home is
+            # ``physxRigidBody:disableGravity``, so it stays on the backend-neutral base cfg to
+            # keep this module importable without a physics backend extension.
             rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
     )

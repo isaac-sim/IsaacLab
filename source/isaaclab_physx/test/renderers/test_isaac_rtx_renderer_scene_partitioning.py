@@ -38,6 +38,7 @@ import torch
 import warp as wp
 from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacRtxRendererCfg
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -45,7 +46,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
@@ -109,7 +110,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     @configclass
     class _Scene(InteractiveSceneCfg):
-        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
         )
@@ -118,9 +119,9 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             spawn=sim_utils.CuboidCfg(
                 size=(0.25, 0.25, 0.25),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.2)),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                mass_props=sim_utils.MassCfg(mass=0.2),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
         )
@@ -213,7 +214,10 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             (
                 (green > 1.5 * red) & (green > 1.5 * blue) & (green > 80.0),
                 (blue > 1.5 * red) & (blue > 1.5 * green) & (blue > 80.0),
-                (red > 80.0) & (green > 80.0) & (blue < 0.6 * torch.minimum(red, green)),
+                (red > 80.0)
+                & (green > 80.0)
+                & (blue < 0.6 * torch.minimum(red, green))
+                & (torch.minimum(red, green) > 0.95 * torch.maximum(red, green)),
                 (red > 80.0) & (blue > 80.0) & (green < 0.6 * torch.minimum(red, blue)),
             ),
             dim=1,

@@ -12,6 +12,11 @@ Observations
 Actions
 -------
 
+.. important::
+
+    ``PinkInverseKinematicsAction`` is supported only on Linux. Tasks configured with this action cannot run on
+    Windows because Pink IK and its dependencies are not available there.
+
 .. automodule:: isaaclab.envs.mdp.actions
 
 .. automodule:: isaaclab.envs.mdp.actions.actions_cfg
@@ -72,6 +77,7 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    BinaryJointPositionAction
    BinaryJointVelocityAction
    EMAJointPositionToLimitsAction
+   FixedTendonPositionAction
    InitialStateRecorder
    InitialStateRecorderCfg
    JointAction
@@ -113,6 +119,9 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    :show-inheritance:
 
 .. autoclass:: EMAJointPositionToLimitsAction
+   :show-inheritance:
+
+.. autoclass:: FixedTendonPositionAction
    :show-inheritance:
 
 .. autoclass:: InitialStateRecorder

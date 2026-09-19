@@ -14,7 +14,7 @@ import numpy
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
 from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot

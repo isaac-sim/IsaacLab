@@ -153,8 +153,11 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         try:
+            from isaaclab.sim.simulation_context import SimulationContext
             from isaaclab.utils.backend_utils import FactoryBase
 
+            if SimulationContext.instance() is None:
+                return None
             return FactoryBase._get_backend()
         except Exception:
             return None

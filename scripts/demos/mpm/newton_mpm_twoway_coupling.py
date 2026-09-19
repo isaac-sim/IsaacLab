@@ -41,7 +41,9 @@ args_cli = parser.parse_args()
 
 FPS = 100.0
 GRAVITY = (0.0, 0.0, -9.81)
-PARTICLES_PER_CELL = 2.0
+PARTICLES_PER_VOXEL_AXIS = 2.0
+PARTICLE_SPACING = args_cli.voxel_size / PARTICLES_PER_VOXEL_AXIS
+COLLIDER_MARGIN = 0.5 * args_cli.voxel_size
 PARTICLE_COLOR = (0.7, 0.6, 0.4)
 SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
@@ -159,7 +161,7 @@ def create_scene_cfg():
 
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,
@@ -177,7 +179,7 @@ def create_scene_cfg():
                     else sim_utils.spawn_cuboid
                 ),
                 size=size,
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=0.04),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=COLLIDER_MARGIN),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
@@ -228,7 +230,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
         )
         dome_light = AssetBaseCfg(
@@ -272,8 +274,9 @@ def create_scene_cfg():
                 lower=SAND_LOWER,
                 upper=SAND_UPPER,
                 voxel_size=args_cli.voxel_size,
-                particles_per_cell=PARTICLES_PER_CELL,
-                jitter=args_cli.voxel_size / PARTICLES_PER_CELL,
+                particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
+                particle_placement="cell_center",
+                jitter=PARTICLE_SPACING,
                 material=MPMParticleMaterialCfg(density=2500.0, friction=0.5, yield_pressure=1.0e5),
                 visual_color=PARTICLE_COLOR,
             ),

@@ -12,7 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -36,6 +36,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
@@ -217,6 +218,9 @@ class Articulation(BaseArticulation):
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
+        # solver has no tendon transmission. ``_process_tendons`` asks the manager for it.
+        self._fixed_tendon_control = None
 
     def _register_callbacks(self) -> None:
         """Register Newton lifecycle callbacks required before model finalization."""
@@ -435,6 +439,12 @@ class Articulation(BaseArticulation):
         # submit them to the backend through the collection's control adapter.
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
+        # outside the articulation view, so the manager owns how a buffered target reaches the solver.
+        if self._fixed_tendon_target_dirty:
+            self._fixed_tendon_control.write_data_to_sim(SimulationManager.get_control())
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -690,6 +700,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -737,6 +750,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -790,6 +805,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -840,6 +857,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -1191,6 +1210,14 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                self._env_ids_to_mask(env_ids),
+            )
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1257,6 +1284,14 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                env_mask,
+            )
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -1310,6 +1345,14 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_joint_pos,
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                self._env_ids_to_mask(env_ids),
+            )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1360,6 +1403,14 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_joint_pos,
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                env_mask,
+            )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -2240,14 +2291,24 @@ class Articulation(BaseArticulation):
 
     @staticmethod
     @wp.kernel(enable_backward=False)
-    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
+    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=Any)):
         i = wp.tid()
-        mask[indices[i]] = True
+        mask[wp.int32(indices[i])] = True
 
-    def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
-        """Convert warp env_ids to a boolean Warp mask."""
+    def _env_ids_to_mask(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+        """Convert env_ids to a boolean Warp mask.
+
+        Args:
+            env_ids: Environment indices as returned by :meth:`_resolve_env_ids`, which may be a
+                warp array or a torch tensor of any integer width.
+
+        Returns:
+            A per-environment boolean mask.
+        """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
+        if isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids)
         mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
         wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
         return mask
@@ -2910,6 +2971,40 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the tendon's length through MuJoCo's native tendon actuator.
+
+        MuJoCo's tendon spring has a fixed setpoint, so the command goes to the actuator whose
+        transmission is the tendon rather than to the tendon itself.
+
+        This function does not apply the target to the simulation. It only fills the buffer with
+        the desired value, which reaches ``mujoco.ctrl`` from :meth:`write_data_to_sim`.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        if self._fixed_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._fixed_tendon_control.set_position_target_index(
+            target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        )
+        self._fixed_tendon_target_dirty = True
+
     def set_fixed_tendon_offset_index(
         self,
         *,
@@ -2936,6 +3031,37 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons using masks.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+            env_mask: Environment mask. If None, then all the instances are commanded.
+        """
+        if self._fixed_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._fixed_tendon_control.set_position_target_mask(
+            target=target, fixed_tendon_mask=fixed_tendon_mask, env_mask=env_mask
+        )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -3370,13 +3496,16 @@ class Articulation(BaseArticulation):
         )
         # Republish the Tier-1 backend->user state shadows inside the stepped
         # (and captured) region after the last solver substep. Registering only
-        # when ordering is non-identity keeps identity-ordering scenes at zero
+        # when ordering is non-identity or a ball joint needs the coordinate
+        # gather keeps a plain identity-ordering, non-ball-joint scene at zero
         # overhead (empty callback list). The reorders are then recorded into
         # every captured graph, so passthrough state getters never replay stale.
         # The stored handle is the exact bound method ``_clear_callbacks`` later
         # deregisters.
+        # A ball-jointed articulation also needs the slot: its DOF-space joint_pos is derived, not
+        # sim-bound, so it has to be republished after every step just like the ordering shadows.
         self._post_step_callback = None
-        if self.data.has_joint_ordering or self.data.has_body_ordering:
+        if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
             self._post_step_callback = self._data._refresh_user_order_state
             SimulationManager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
@@ -3469,6 +3598,12 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
+            # ``SimulationManager`` is bound to the base class, so ask the *active* solver's
+            # manager -- only it knows whether this solver transmits to tendons.
+            from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+            manager = SimulationContext.instance().physics_manager
+            self._fixed_tendon_control = manager.create_fixed_tendon_control(self)
 
     """
     Internal helpers -- Debugging.

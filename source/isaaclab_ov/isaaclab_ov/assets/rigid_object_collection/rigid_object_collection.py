@@ -18,7 +18,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
-from isaaclab.cloner import queue_replication
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -77,11 +76,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
+        for rigid_body_cfg in self.cfg.rigid_objects.values():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
+                spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
                 rigid_body_cfg.spawn.func(
-                    rigid_body_cfg.prim_path,
+                    spawn_path,
                     rigid_body_cfg.spawn,
                     translation=rigid_body_cfg.init_state.pos,
                     orientation=rigid_body_cfg.init_state.rot,
@@ -90,7 +90,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            queue_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list: list[str] = []
         # binding manager over the fused multi-prim bindings; created in _initialize_impl
@@ -843,6 +842,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_MASS,
             self.data._cpu_body_mass,
@@ -888,6 +888,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(TT.BODY_MASS, self.data._cpu_body_mass, env_ids=env_ids, device="cpu")
 
     def set_coms_index(
@@ -926,6 +927,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -973,6 +975,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -1018,6 +1021,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
@@ -1066,6 +1070,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
@@ -1176,6 +1181,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._sim_view_ids_views: dict[int, wp.array] = {}
         self._cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_all_view_ids, self._ALL_VIEW_INDICES)
+        wp.synchronize_stream(self._device)
         self._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
         self._cpu_view_ids_views: dict[int, wp.array] = {}
 

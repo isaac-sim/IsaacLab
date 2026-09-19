@@ -9,6 +9,8 @@ Covers KitVisualizer (RTX viewport) and NewtonVisualizer (OpenGL) in both
 viewport and tiled-camera capture modes for the cartpole, shadow hand, and
 AnymalD environments.  Golden images are stored under
 ``golden_images/{scene}/{physics_backend}-{visualizer_type}-{mode}.png``.
+The Kit perspective-camera coverage also includes one four-environment cartpole
+view to guard the all-partitions spectator path.
 
 On the first run for a new combination the current frame is saved as the
 golden; the test fails so the file can be reviewed before committing.
@@ -87,6 +89,17 @@ SCENE_VISUALIZER_MODE_COMBINATIONS = [
     pytest.param("shadow_hand", "kit", "viewport", id="physx-shadow_hand-kit-viewport", marks=_golden.FLAKY_MARK),
     pytest.param("shadow_hand", "newton", "viewport", id="physx-shadow_hand-newton-viewport", marks=_golden.FLAKY_MARK),
 ]
+
+
+def test_kit_perspective_all_envs_golden() -> None:
+    """The Kit perspective camera renders all four scene-partitioned environments."""
+    _golden.run_visualizer_golden_cartpole(
+        _PHYSICS_BACKEND,
+        "kit",
+        "viewport",
+        _COMPARISON_SCORES,
+        all_envs_perspective=True,
+    )
 
 
 @pytest.mark.parametrize("scene,visualizer_type,mode", SCENE_VISUALIZER_MODE_COMBINATIONS)

@@ -58,11 +58,8 @@ class SensorBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
-        # expand the namespace macro for sensors built outside the scene, which has already
-        # expanded it for the ones it collects
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
-        self._source_cfg = cfg
         self.cfg = cfg.copy()
         # flag for whether the sensor is initialized
         self._is_initialized = False
@@ -250,7 +247,7 @@ class SensorBase(ABC):
         elif clone_plan is not None:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = int(clone_plan.env_ids.numel())
+            self._num_envs = int(clone_plan.env_ids.size)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)

@@ -6,7 +6,9 @@
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -21,8 +23,8 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
@@ -33,8 +35,8 @@ from .adr_curriculum import CurriculumCfg
 
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.8, 1.5, 0.04),
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-    collision_props=sim_utils.CollisionPropertiesCfg(),
+    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     # trick: we let visualizer's color to show the table with success coloring
     visible=False,
 )
@@ -42,7 +44,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 
 OBJECT_PHYSICS = {
     "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
-    "collision_props": sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
+    "collision_props": [PhysxCollisionCfg(contact_offset=0.002)],
 }
 
 
@@ -67,26 +69,23 @@ class ObjectCfg(PresetCfg):
             MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
             MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=0,
-            disable_gravity=False,
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
-        ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
+        mass_props=sim_utils.MassCfg(mass=0.2),
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
         physics_material=RigidBodyMaterialCfg(static_friction=0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=0,
-            disable_gravity=False,
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
     ovphysx = cube
@@ -138,7 +137,7 @@ class CommandsCfg:
     object_pose = mdp.ObjectUniformPoseCommandCfg(
         asset_name="robot",
         object_name="object",
-        resampling_time_range=(3.0, 5.0),
+        resampling_time_range=(4.0, 6.0),
         debug_vis=False,
         ranges=mdp.ObjectUniformPoseCommandCfg.Ranges(
             pos_x=(-0.7, -0.3),
@@ -490,6 +489,10 @@ class PhysicsCfg(PresetCfg):
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
     )
+    ovphysx = OvPhysxCfg(
+        gpu_max_rigid_patch_count=4 * 5 * 2**15,
+        gpu_found_lost_pairs_capacity=2**26,
+    )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
@@ -509,7 +512,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 
@@ -561,9 +564,8 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 30 Hz
 
         # *single-goal setup
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.position_only = False
-        self.episode_length_s = 6.0
+        self.episode_length_s = 12.0
         self.is_finite_horizon = False
 
         # simulation settings

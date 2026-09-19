@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -35,10 +35,14 @@ class VisualizerCfg:
     """Base configuration for all visualizer backends.
 
     Note:
-        This is an abstract base class and should not be instantiated directly.
-        Use specific configs from isaaclab_visualizers: KitVisualizerCfg, NewtonGLVisualizerCfg,
-        RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
+        This configuration can be used directly as
+        :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg` to provide shared defaults.
+        To create a visualizer, use a concrete config from ``isaaclab_visualizers``, such as
+        ``KitVisualizerCfg`` or ``NewtonGLVisualizerCfg``.
     """
+
+    class_type: type[BaseVisualizer] | str | None = None
+    """Visualizer implementation class. Concrete configs must set this field."""
 
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
@@ -49,6 +53,13 @@ class VisualizerCfg:
 
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
+
+    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
+    """Solid background color as normalized RGB values in ``[0, 1]``.
+
+    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
+    backend's native background. Scene lighting remains independent of the visible background.
+    """
 
     # ── Streaming view ────────────────────────────────────────────────────────
     # Captures pixels from a camera sensor (existing or auto-created), tiles them
@@ -72,7 +83,7 @@ class VisualizerCfg:
     :attr:`streaming_sensor_prim_path` is set).
 
     When ``None`` (the default), the visualizer adopts the first scene camera
-    sensor it discovers dynamically at initialisation time.  If no scene camera
+    sensor it discovers dynamically at initialization time.  If no scene camera
     exists the streaming panel remains empty.  Set this explicitly (e.g.
     ``"/World/envs/*/Robot"``) only when you need an auto-created follow-camera
     and no suitable scene camera is present.
@@ -101,9 +112,9 @@ class VisualizerCfg:
     streaming_gt_types: tuple[str, ...] = ("rgb",)
     """GT data types displayed left-to-right per environment row.
 
-    Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``.
+    Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
     Validated against :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES`
-    at initialisation time (only when :attr:`streaming_view` is ``True``).
+    at initialization time (only when :attr:`streaming_view` is ``True``).
     """
 
     streaming_depth_min: float = 0.1
@@ -176,6 +187,11 @@ class VisualizerCfg:
     def __post_init__(self) -> None:
         import warnings
 
+        if self.background_color is not None:
+            if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
+                raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
+            self.background_color = tuple(float(value) for value in self.background_color)
+
         _simple = [
             ("tiled_cam_view", "streaming_view"),
             ("tiled_cam_prim_path", "streaming_sensor_prim_path"),
@@ -210,39 +226,3 @@ class VisualizerCfg:
                 )
                 self.streaming_envs = num
                 self.tiled_cam_num = None
-
-    def get_visualizer_type(self) -> str | None:
-        """Get the visualizer type identifier.
-
-        Returns:
-            The visualizer type string, or None if not set (base class).
-        """
-        return self.visualizer_type
-
-    def create_visualizer(self) -> BaseVisualizer:
-        """Create visualizer instance from this config using factory pattern.
-
-        Loads the matching backend from isaaclab_visualizers (e.g. isaaclab_visualizers.rerun).
-
-        Raises:
-            ValueError: If visualizer_type is None (base class used directly) or not registered.
-            ImportError: If isaaclab_visualizers or the requested backend extra is not installed.
-        """
-        from .visualizer import Visualizer
-
-        if self.visualizer_type is None:
-            raise ValueError(
-                "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific config from isaaclab_visualizers "
-                "(e.g. KitVisualizerCfg, NewtonGLVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg)."
-            )
-
-        try:
-            return Visualizer(self)
-        except (ValueError, ImportError, ModuleNotFoundError) as exc:
-            if self.visualizer_type in ("newton_gl", "newton_rtx", "rerun", "viser", "kit"):
-                raise ImportError(
-                    f"Could not import visualizer '{self.visualizer_type}' from isaaclab_visualizers. "
-                    f"{_get_visualizer_install_hint(self.visualizer_type)}\nOriginal error: {exc}"
-                ) from exc
-            raise

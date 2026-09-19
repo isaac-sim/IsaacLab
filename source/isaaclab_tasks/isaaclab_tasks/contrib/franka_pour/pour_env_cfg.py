@@ -17,8 +17,9 @@ from typing import Any, Literal
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.sim.schemas import MujocoJointCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -34,8 +35,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -49,16 +50,19 @@ from .geometry import (
     SOURCE_CUP_GEOMETRY,
     TARGET_CUP_GEOMETRY,
 )
-from .media import build_media_object_cfg, media_particle_count
+from .media import build_media_object_cfg, configure_media_object_fill, media_particle_count
 from .reset_sampler import ResetDatasetSamplerCfg
 
 RIGID_ENTRY = "arm"
 MPM_ENTRY = "media"
 
-FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_POUR_ROBOT_ASSET_PATH = "Robots/FrankaEmika/franka_panda.usda"
+FRANKA_POUR_CUPS_ASSET_PATH = "Contrib/MPM/Pour/franka_pour_cups.usda"
+FRANKA_POUR_RESET_DATASET_ASSET_PATH = "Contrib/MPM/Pour/reset_dataset.pt"
+FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_ROBOT_ASSET_PATH}"
 FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "0dc38454f02ea14d9ddd2437995fdc7c4a65634443cacdcc2a04e3de25655e00"
-FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/franka_pour_cups.usda"
-FRANKA_POUR_RESET_DATASET_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/reset_dataset.pt"
+FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_CUPS_ASSET_PATH}"
+FRANKA_POUR_RESET_DATASET_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_RESET_DATASET_ASSET_PATH}"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
 FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
     {
@@ -91,8 +95,10 @@ _TARGET_CUP_POSITION = (0.5, -0.18, 0.0)
 _SOURCE_CUP_MASS = 0.05
 _SOURCE_CUP_GRASP_FRICTION = 2.0
 _TARGET_CUP_FRICTION = 0.8
-_MEDIA_FILL_FRACTION = 0.17181818181818181
-_MEDIA_PARTICLE_SPACING = 0.005
+_MEDIA_FILL_LEVEL = 0.70
+_MEDIA_FILL_RESOLUTION = 0.005
+_MPM_VOXEL_SIZE = 0.015
+_MPM_PARTICLES_PER_CELL = 3.0
 
 
 def _source_cup_asset_cfg() -> RigidObjectCfg:
@@ -139,8 +145,10 @@ def _media_asset_cfg() -> MPMObjectCfg:
         source_inner_depth=SOURCE_CUP_GEOMETRY.inner_depth,
         source_cavity_depth=SOURCE_CUP_GEOMETRY.cavity_depth,
         source_bottom_thickness=SOURCE_CUP_GEOMETRY.bottom_thickness,
-        fill_fraction=_MEDIA_FILL_FRACTION,
-        particle_spacing=_MEDIA_PARTICLE_SPACING,
+        fill_level=_MEDIA_FILL_LEVEL,
+        fill_resolution=_MEDIA_FILL_RESOLUTION,
+        voxel_size=_MPM_VOXEL_SIZE,
+        particles_per_cell=_MPM_PARTICLES_PER_CELL,
         collider_margin=MPM_COLLIDER_MARGIN,
         material=MPMParticleMaterialCfg(
             density=1500.0,
@@ -287,12 +295,26 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
 
 def _configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
     """Resolve world-count-dependent MPM capacities after command-line overrides."""
+    _configure_media_fill(cfg)
     solver_cfg = _mpm_solver_cfg(cfg)
     solver_cfg.max_active_cell_count = _resolve_mpm_cell_cap(cfg)
-    if solver_cfg.grid_type == "sparse":
-        world_count = int(cfg.scene.num_envs)
-        solver_cfg.max_lower_node_count = max(32, 32 * world_count)
-        solver_cfg.max_upper_node_count = max(32, (world_count + 1) // 2)
+    # Leave sparse hierarchy caps automatic: spilled particles can require one leaf per active cell.
+
+
+def _configure_media_fill(cfg: FrankaPourResetDatasetEnvCfg) -> None:
+    """Resolve fill-level-dependent media bounds after command-line overrides."""
+    cfg.scene.media.init_state.pos = tuple(cfg.scene.source_cup.init_state.pos)
+    cfg.scene.media.init_state.rot = tuple(cfg.scene.source_cup.init_state.rot)
+    configure_media_object_fill(
+        cfg.scene.media,
+        source_inner_width=SOURCE_CUP_GEOMETRY.inner_width,
+        source_inner_depth=SOURCE_CUP_GEOMETRY.inner_depth,
+        source_cavity_depth=SOURCE_CUP_GEOMETRY.cavity_depth,
+        source_bottom_thickness=SOURCE_CUP_GEOMETRY.bottom_thickness,
+        fill_level=cfg.source_fill_level,
+        fill_resolution=_MEDIA_FILL_RESOLUTION,
+        collider_margin=MPM_COLLIDER_MARGIN,
+    )
 
 
 @configclass
@@ -318,8 +340,16 @@ class PourSceneCfg(InteractiveSceneCfg):
     )
     robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
+    robot.spawn.variants = {"Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions
-    robot.spawn.articulation_props.enabled_self_collisions = True
+    # The pouring asset relies on arm self-collision; author it in both namespaces so whichever
+    # backend resolves the articulation sees the flag.
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+    ).enabled_self_collisions = True
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, NewtonArticulationCfg)
+    ).self_collision_enabled = True
     robot.actuators = {
         name: actuator_cfg.replace(
             effort_limit_sim=None,
@@ -340,7 +370,7 @@ class PourSceneCfg(InteractiveSceneCfg):
         "panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_STIFFNESS["panda_joint[5-7]"]
     }
     robot.actuators["panda_forearm"].damping = {"panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_DAMPING["panda_joint[5-7]"]}
-    robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
+    robot.spawn.joint_drive_props = MujocoJointCfg(actuatorgravcomp=True)
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 
@@ -532,7 +562,12 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     grasp_contact_kf: float = 1.0e3
     collider_margin: float = 0.002
 
+    source_fill_level: float = _MEDIA_FILL_LEVEL
+    """Initial source-cup fill height as a fraction of the usable cavity height."""
+
     pour_target_frac: float = 0.70
+    """Fraction of the initial particles that must reach the receiver for success."""
+
     particle_count_margin: float = 0.003
     spill_table_height: float = 0.0
     max_spill_fraction: float = 0.10
@@ -605,7 +640,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerEntryCfg(
                         name=MPM_ENTRY,
                         solver_cfg=MPMSolverCfg(
-                            voxel_size=0.01,
+                            voxel_size=_MPM_VOXEL_SIZE,
                             grid_type="sparse",
                             grid_padding=0,
                             max_active_cell_count=-1,
@@ -613,7 +648,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             transfer_scheme="apic",
                             max_iterations=24,
                             tolerance=1.0e-4,
-                            warmstart_mode="none",
+                            warmstart_mode="auto",
                             velocity_basis="Q1",
                             collider_basis="pic27",
                             collider_velocity_mode="forward",
@@ -624,7 +659,8 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         bodies=[SPILL_FLOOR_LABEL_PATTERN],
                         include_static_shapes=False,
                         include_child_joints=False,
-                        substeps=1,
+                        # The tall source payload needs a smaller MPM step than the coupled rigid solve.
+                        substeps=2,
                         in_place=True,
                     ),
                 ],
@@ -633,7 +669,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
                         bodies=[r"/World/envs/env_.*/SourceCup", r"/World/envs/env_.*/TargetCup"],
-                        mass_scale=100.0,
+                        # Represent the supported or grasp-constrained 50 g cup as 50 kg only in
+                        # MPM's proxy view so the roughly 140 g payload cannot create unphysical recoil.
+                        mass_scale=1000.0,
                         # Synchronize MPM colliders from the rigid solver's end pose so particle
                         # reactions do not lag behind a cup resting on the table.
                         mode="staggered",
@@ -650,11 +688,23 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     def validate_config(self) -> None:
         """Validate runtime values that otherwise fail with opaque errors."""
         self._validate_runtime_values()
+        _configure_media_fill(self)
         self._validate_mdp_term_values()
         self._validate_reset_dataset_values()
 
     def _validate_runtime_values(self) -> None:
         """Validate allocation and observation bounds consumed directly at runtime."""
+        for name, value in (
+            ("source_fill_level", self.source_fill_level),
+            ("pour_target_frac", self.pour_target_frac),
+        ):
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or not 0.0 < float(value) <= 1.0
+            ):
+                raise ValueError(f"{name} must lie in (0, 1].")
         if (
             isinstance(self.mpm_cell_capacity_alignment, bool)
             or not isinstance(self.mpm_cell_capacity_alignment, int)
@@ -802,11 +852,10 @@ def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str,
     source_half = tuple(_float32(value) for value in SOURCE_CUP_GEOMETRY.outer_half_extents)
     target_half = tuple(_float32(value) for value in TARGET_CUP_GEOMETRY.outer_half_extents)
     gripper_action = cfg.actions.gripper_action
-    particle_spacing = float(cfg.scene.media.spawn.voxel_size)
     gripper_open_pos = cfg.scene.robot.init_state.joint_pos["panda_finger_joint.*"]
 
     return {
-        "robot_asset": FRANKA_POUR_ROBOT_ASSET_ID,
+        "robot_asset": FRANKA_POUR_ROBOT_ASSET_PATH,
         "robot_physics_payload_sha256": FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256,
         "source_box_half": source_half,
         "source_mouth_height": SOURCE_CUP_GEOMETRY.rim_height,
@@ -822,8 +871,6 @@ def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str,
         "gripper_contact_min_deflection": float(gripper_action.contact_min_deflection),
         "collider_margin": float(cfg.collider_margin),
         "mpm_collider_margin": MPM_COLLIDER_MARGIN,
-        "particle_count": media_particle_count(cfg.scene.media),
-        "particle_spacing": particle_spacing,
     }
 
 

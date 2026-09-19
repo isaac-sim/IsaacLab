@@ -1045,6 +1045,78 @@ class _RandomizeRigidBodyColliderOffsetsPhysx:
             self.asset.root_view.set_contact_offsets(wp.from_torch(contact_offset), wp_env_ids)
 
 
+class _RandomizeRigidBodyColliderOffsetsOvPhysx:
+    """OVPhysX backend implementation for collider offset randomization.
+
+    OVPhysX runs the PhysX solver, so rest and contact offsets are written directly, per collision
+    shape, through the asset's :class:`~isaaclab_ov.sim.views.OvPhysxView`. Articulations use the
+    articulation offset bindings and rigid objects the rigid-body ones; both are CPU-resident
+    ``[N, S]`` buffers, so the full tensor is read-modify-written on the host with the selected
+    environments as write indices.
+    """
+
+    def __init__(self, asset: RigidObject | Articulation):
+        import isaaclab_ov.tensor_types as ovphysx_tt  # noqa: PLC0415
+
+        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
+
+        self.asset = asset
+        if isinstance(asset, BaseArticulation):
+            self._rest_offset_type = ovphysx_tt.REST_OFFSET
+            self._contact_offset_type = ovphysx_tt.CONTACT_OFFSET
+        else:
+            self._rest_offset_type = ovphysx_tt.RIGID_BODY_REST_OFFSET
+            self._contact_offset_type = ovphysx_tt.RIGID_BODY_CONTACT_OFFSET
+        self.default_rest_offsets = wp.to_torch(asset.root_view.get_attribute(self._rest_offset_type)).clone()
+        self.default_contact_offsets = wp.to_torch(asset.root_view.get_attribute(self._contact_offset_type)).clone()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        rest_offset_distribution_params: tuple[float, float] | None = None,
+        contact_offset_distribution_params: tuple[float, float] | None = None,
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    ):
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
+        else:
+            env_ids = env_ids.to(device="cpu", dtype=torch.int32)
+        wp_env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+
+        if rest_offset_distribution_params is not None:
+            rest_offset = self.default_rest_offsets.clone()
+            rest_offset = _randomize_prop_by_op(
+                rest_offset,
+                rest_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            # the wheel requires a full-shaped source buffer even for indexed writes
+            self.asset.root_view.set_attribute(
+                self._rest_offset_type, wp.from_torch(rest_offset.contiguous(), dtype=wp.float32), indices=wp_env_ids
+            )
+
+        if contact_offset_distribution_params is not None:
+            contact_offset = self.default_contact_offsets.clone()
+            contact_offset = _randomize_prop_by_op(
+                contact_offset,
+                contact_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            self.asset.root_view.set_attribute(
+                self._contact_offset_type,
+                wp.from_torch(contact_offset.contiguous(), dtype=wp.float32),
+                indices=wp_env_ids,
+            )
+
+
 class _RandomizeRigidBodyColliderOffsetsNewton:
     """Newton backend implementation for collider offset randomization.
 
@@ -1129,11 +1201,13 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.
     These correspond to the physics engine collider properties that affect collision checking.
 
-    Automatically detects the active physics backend (PhysX or Newton) and delegates to
+    Automatically detects the active physics backend (PhysX, OVPhysX or Newton) and delegates to
     the appropriate backend-specific implementation:
 
     - **PhysX**: Uses rest offset and contact offset directly via the PhysX tensor API
       (``root_view.set_rest_offsets`` / ``root_view.set_contact_offsets``).
+    - **OVPhysX**: Uses rest offset and contact offset directly, written per collision shape
+      through the asset's :class:`~isaaclab_ov.sim.views.OvPhysxView`.
     - **Newton**: Maps PhysX concepts to Newton's geometry properties. PhysX ``rest_offset``
       maps to Newton ``shape_margin``, and PhysX ``contact_offset`` is converted to Newton
       ``shape_gap`` via ``gap = contact_offset - margin``.
@@ -1143,7 +1217,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     provided for a particular property, the function does not modify it.
 
     .. tip::
-        This function uses CPU tensors (PhysX) or GPU tensors (Newton) to assign the collision
+        This function uses CPU tensors (PhysX, OVPhysX) or GPU tensors (Newton) to assign the collision
         properties. It is recommended to use this function only during the initialization of
         the environment.
     """
@@ -1171,12 +1245,19 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
                 f" '{self.asset_cfg.name}' with type: '{type(self.asset)}'."
             )
 
-        # detect physics backend and instantiate the appropriate implementation
+        # detect physics backend and instantiate the appropriate implementation.
+        # Check ``ovphysxmanager`` first: it contains the substring ``physx`` so would otherwise
+        # be routed to the PhysX impl, whose ``root_view`` offset accessors do not exist on
+        # OVPhysX's ``OvPhysxView`` (see ``randomize_rigid_body_material``).
         manager_name = env.sim.physics_manager.__name__.lower()
-        if "newton" in manager_name:
+        if manager_name == "ovphysxmanager":
+            self._impl = _RandomizeRigidBodyColliderOffsetsOvPhysx(self.asset)
+        elif "newton" in manager_name:
             self._impl = _RandomizeRigidBodyColliderOffsetsNewton(self.asset)
-        else:
+        elif "physx" in manager_name:
             self._impl = _RandomizeRigidBodyColliderOffsetsPhysx(self.asset)
+        else:
+            raise ValueError(f"Unsupported physics manager for randomize_rigid_body_collider_offsets: {manager_name!r}")
 
     def __call__(
         self,
@@ -1234,6 +1315,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             self._init_physx(env)
 
         distribution = cfg.params.get("distribution", "uniform")
+        self._distribution = distribution
         if distribution == "uniform":
             self._dist_fn = math_utils.sample_uniform
         elif distribution == "log_uniform":
@@ -1352,7 +1434,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             None,
             slice(None),
             operation=operation,
-            distribution="uniform",
+            distribution=self._distribution,
         )
         gravity = gravity[0].tolist()
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
@@ -1370,7 +1452,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             None,
             slice(None),
             operation=operation,
-            distribution="uniform",
+            distribution=self._distribution,
         )
         self._ovphysx_manager.set_gravity(tuple(gravity[0].tolist()))
 

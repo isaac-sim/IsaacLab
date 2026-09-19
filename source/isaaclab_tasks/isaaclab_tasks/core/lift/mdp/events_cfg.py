@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 
 from isaaclab.managers import ManagerTermBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg as SuccessMonitorCfg
 
