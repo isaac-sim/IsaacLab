@@ -207,6 +207,30 @@ def test_raw_replicate_rejects_incompatible_articulation_dof_structure():
         )
 
 
+@pytest.mark.parametrize("changed_axis", ["rotX", "rotY", "transX"])
+def test_raw_replicate_rejects_d6_axis_layout_mismatch(changed_axis):
+    """Equal joint counts must not hide different enabled D6 axes."""
+    stage = Usd.Stage.CreateInMemory()
+    sources = [f"/World/envs/env_{i}/Robot" for i in range(2)]
+    for source, unlocked in zip(sources, ["rotZ", changed_axis]):
+        robot = UsdGeom.Xform.Define(stage, source).GetPrim()
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        joint = UsdPhysics.Joint.Define(stage, source + "/Joint").GetPrim()
+        for axis in ("rotX", "rotY", "rotZ", "transX", "transY", "transZ"):
+            if axis != unlocked:
+                limit = UsdPhysics.LimitAPI.Apply(joint, axis)
+                limit.CreateLowAttr(1.0)
+                limit.CreateHighAttr(-1.0)
+    with pytest.raises(ValueError, match="incompatible rigid-body or joint topology"):
+        ovphysx_replicate(
+            stage,
+            sources=sources,
+            destinations=["/World/envs/env_{}/Robot"] * 2,
+            env_ids=np.arange(4),
+            mapping=np.array([[True, False, True, False], [False, True, False, True]]),
+        )
+
+
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
     monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])

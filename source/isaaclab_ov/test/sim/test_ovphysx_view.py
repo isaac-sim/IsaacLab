@@ -199,6 +199,27 @@ def _make_view(n: int = 3, unavailable: set | None = None, device: str = "cpu") 
     return OvPhysxView(_FakePhysX(n=n, unavailable=unavailable), pattern="/World/env_*/body", device=device)
 
 
+def test_variant_bindings_preserve_environment_and_collection_order():
+    """Numeric environment order is restored within each requested collection body."""
+    paths = [f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 4, 3, 10, 5)]
+
+    class VariantPhysX(_FakePhysX):
+        def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
+            binding = super().create_tensor_binding(tensor_type=tensor_type, pattern=pattern, prim_paths=prim_paths)
+            binding.prim_paths = list(prim_paths) if prim_paths and "*" not in prim_paths[0] else paths
+            return binding
+
+    physx = VariantPhysX(n=len(paths))
+    view = OvPhysxView(physx, prim_paths=["/World/env_*/sphere", "/World/env_*/cube"])
+    try:
+        view.binding_for(TensorType.RIGID_BODY_POSE)
+        assert view.prim_paths == [
+            f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 3, 4, 5, 10)
+        ]
+    finally:
+        view.close()
+
+
 @pytest.fixture(autouse=True)
 def _close_live_views():
     existing_views = set(OvPhysxView._live_views)

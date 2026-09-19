@@ -41,27 +41,52 @@ def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
     )
 
 
-def _physics_topology_counts(source_prim: Usd.Prim) -> tuple[int, tuple[tuple[str, int], ...]]:
-    """Count rigid bodies and joint types below a clone source, ignoring geometry."""
-    rigid_body_count = 0
-    joint_type_counts: dict[str, int] = {}
-    for prim in Usd.PrimRange(source_prim):
+def _physics_topology(source_prim: Usd.Prim) -> tuple[tuple, ...]:
+    """Describe body/joint identities, connectivity and DOF axes, ignoring geometry."""
+    source_path = source_prim.GetPath()
+    topology = []
+    for prim in Usd.PrimRange(source_prim, Usd.TraverseInstanceProxies()):
+        relative_path = str(prim.GetPath().MakeRelativePath(source_path))
         if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            rigid_body_count += 1
+            topology.append(("body", relative_path, UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get()))
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+            topology.append(("articulation", relative_path))
         if prim.IsA(UsdPhysics.Joint):
-            joint_type = prim.GetTypeName()
-            joint_type_counts[joint_type] = joint_type_counts.get(joint_type, 0) + 1
-    return rigid_body_count, tuple(sorted(joint_type_counts.items()))
+            joint = UsdPhysics.Joint(prim)
+            axes = ()
+            if prim.GetTypeName() == "PhysicsJoint":
+                # A D6 axis is locked iff its applied limit has low > high.
+                axes = tuple(
+                    axis
+                    for axis in ("transX", "transY", "transZ", "rotX", "rotY", "rotZ")
+                    if not prim.HasAPI(UsdPhysics.LimitAPI, axis)
+                    or UsdPhysics.LimitAPI(prim, axis).GetLowAttr().Get()
+                    <= UsdPhysics.LimitAPI(prim, axis).GetHighAttr().Get()
+                )
+            topology.append(
+                (
+                    "joint",
+                    relative_path,
+                    prim.GetTypeName(),
+                    tuple(str(path.MakeRelativePath(source_path)) for path in joint.GetBody0Rel().GetTargets()),
+                    tuple(str(path.MakeRelativePath(source_path)) for path in joint.GetBody1Rel().GetTargets()),
+                    joint.GetJointEnabledAttr().Get(),
+                    joint.GetExcludeFromArticulationAttr().Get(),
+                    prim.GetAttribute("physics:axis").Get(),
+                    axes,
+                )
+            )
+    return tuple(sorted(topology))
 
 
 def _validate_variant_topology(stage: Usd.Stage, sources: Sequence[str], destinations: Sequence[str]) -> None:
-    """Reject variant sources whose body or joint counts differ for one destination."""
-    reference_by_destination: dict[str, tuple[str, tuple[int, tuple[tuple[str, int], ...]]]] = {}
+    """Reject variant sources whose body/joint topology or DOF layout differs."""
+    reference_by_destination: dict[str, tuple[str, tuple[tuple, ...]]] = {}
     for source, destination in zip(sources, destinations):
         source_prim = stage.GetPrimAtPath(source)
         if not source_prim.IsValid():
             raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
-        topology = _physics_topology_counts(source_prim)
+        topology = _physics_topology(source_prim)
         reference = reference_by_destination.setdefault(destination, (source, topology))
         if topology != reference[1]:
             raise ValueError(
@@ -169,7 +194,9 @@ class OvPhysxReplicateContext:
             plan: Replication layout shared by every clone backend.
 
         Raises:
-            ValueError: If positions are malformed or an active source or source anchor prim is invalid.
+            ValueError: If environment IDs are missing, source/destination lengths or mapping/position
+                shapes are inconsistent, an active source or anchor is invalid, or variants for one
+                destination differ in body/joint topology or effective DOF axes.
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
@@ -209,7 +236,9 @@ def ovphysx_replicate(
 
     Raises:
         RuntimeError: If no simulation context is active.
-        ValueError: If transforms are malformed or a source or source anchor is invalid.
+        ValueError: If source/destination lengths or mapping/transform shapes are inconsistent,
+            an active source or source anchor is invalid, or variants for one destination differ
+            in body/joint topology or effective DOF axes.
     """
     recipes = _clone_recipes(
         stage=stage,

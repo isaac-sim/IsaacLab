@@ -21,6 +21,7 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ov.tensor_types as TT
+from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
@@ -246,6 +247,19 @@ class ContactSensor(BaseContactSensor):
             filters_per_sensor=filters_per_sensor,
             max_contact_data_count=max_count,
         )
+        # Contact discovery is lexical; keep the same body-major, numeric env order as asset views.
+        paths = list(getattr(self._contact_binding, "sensor_paths", []))
+        ordered_paths = ordered_clone_paths(paths, sensor_patterns)
+        if ordered_paths != paths:
+            filters_by_path = dict(zip(paths, self._contact_binding.filter_paths))
+            filters_per_sensor = self._contact_binding.filter_count
+            self._contact_binding.destroy()
+            self._contact_binding = physx_instance.create_contact_binding(
+                sensor_patterns=ordered_paths,
+                filter_patterns=[f for path in ordered_paths for f in filters_by_path[path]] or None,
+                filters_per_sensor=filters_per_sensor,
+                max_contact_data_count=max_count,
+            )
 
         # Validate: sensor_count must be a non-zero multiple of num_sensors.
         if self._contact_binding.sensor_count == 0 or self._contact_binding.sensor_count % self._num_sensors != 0:

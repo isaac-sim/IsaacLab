@@ -64,12 +64,35 @@ validated at the time of writing. The following pieces are available on
 * :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
   surface-deformable support on CUDA simulation devices.
 * Fast-path cloning of heterogeneous rigid-body and articulation geometry
-  variants whose rigid-body counts and joint type/DOF structure match.
+  variants with matching body/joint names, connectivity and effective DOF axes,
+  including the enabled axes of D6 joints.
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
 until their implementations land on ``develop`` and pass the backend smoke
 tests.
+
+Heterogeneous cloning
+---------------------
+
+OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Isaac Lab retains
+each active geometry source and dispatches its destinations in a separate clone
+call with matching environment IDs. Tensor bindings use numeric environment
+order so indexed resets, actions and observations address the correct variant.
+Older runtimes retain the legacy homogeneous clone call signature.
+
+In OvPhysX 0.6.3, authored sources all receive runtime environment ID zero;
+explicit clone IDs apply only to destinations. When sources occupy different
+environments, Isaac Lab therefore uses USD collision groups for isolation on
+both CPU and CUDA and disables the runtime environment-ID filter for that scene.
+Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
+isolate overlapping environments. Disabling it allows cross-environment contacts.
+
+The serialized physics stage contains lightweight transform placeholders for
+destination bodies and colliders so their collision-group membership and poses
+remain resolvable. Their geometry and physics objects still come from runtime
+cloning. This adds stage-authoring work proportional to the destination collider
+hierarchies. The homogeneous fast path keeps its existing environment-ID filtering.
 
 Deformable limitations
 ----------------------
@@ -96,7 +119,9 @@ the repository root with:
     uv sync --inexact --extra ovphysx
 
 The ``--inexact`` flag preserves packages installed through other extras.
-Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The legacy
+Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
+extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
+with this runtime combination. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.
 

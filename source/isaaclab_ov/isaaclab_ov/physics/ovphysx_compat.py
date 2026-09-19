@@ -23,8 +23,11 @@ import importlib.metadata
 import logging
 from collections.abc import Mapping
 from types import MappingProxyType
+from typing import Any
 
 from packaging.version import InvalidVersion, Version
+
+from isaaclab_ov._clone import CloneTransform
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,35 @@ def requires_legacy_joint_sign_correction(version: Version | None) -> bool:
         development builds, already returns tensors in the public joint basis.
     """
     return version is None or version.release[:2] < (0, 6)
+
+
+def supports_clone_env_ids(version: Version | None) -> bool:
+    """Return whether a release supports caller-supplied clone environment IDs."""
+    return version is not None and version >= Version("0.6.3")
+
+
+def clone_physics(
+    physx: Any,
+    source: str,
+    targets: list[str],
+    transforms: list[CloneTransform] | None,
+    env_ids: list[int] | None,
+) -> int:
+    """Dispatch cloning through the installed runtime's supported call signature.
+
+    Args:
+        physx: Live OvPhysX runtime.
+        source: Source prim path.
+        targets: Destination prim paths.
+        transforms: Target poses (position [m], xyzw quaternion), or None.
+        env_ids: Logical environment IDs corresponding to the destinations, or None.
+
+    Returns:
+        Runtime operation index.
+    """
+    if supports_clone_env_ids(OVPHYSX_VERSION):
+        return physx.clone(source, targets, transforms, env_ids=env_ids)
+    return physx.clone(source, targets, transforms)
 
 
 def build_lifecycle_entry_points(version: Version | None) -> Mapping[str, str]:

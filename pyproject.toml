@@ -172,9 +172,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
-ov = ["ovphysx==0.6.3", "ovrtx==0.4.1.364340", "ovstage==0.2.0.377349"]
+ov = ["ovphysx==0.6.3", "ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
 ovphysx = ["ovphysx==0.6.3", "ovstage==0.2.0.377349"]
-ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.2.0.377349"]
+ovrtx = ["ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
 
 mimic = [
     "isaaclab-mimic",
@@ -222,7 +222,7 @@ torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.6.3"
-ovrtx = "0.4.1.364340"
+ovrtx = "0.5.0.377615"
 ovstage = "0.2.0.377349"
 warp = "1.17.0"
 
