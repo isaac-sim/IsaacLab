@@ -323,9 +323,9 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # Spawn a geom sphere with rigid body properties
         sphere_cfg = sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )
@@ -334,9 +334,9 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # Spawn a mesh sphere with rigid body properties
         mesh_sphere_cfg = sim_utils.MeshSphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )

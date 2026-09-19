@@ -323,7 +323,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
         Use :attr:`max_force` instead. The cfg field is renamed so its snake_case name maps
         identity-style to the USD camelCase attribute (``maxForce`` on ``UsdPhysics.DriveAPI``).
         The alias is forwarded to :attr:`max_force` in :meth:`__post_init__` and will be removed
-        in 4.0.
+        in 3.1.
     """
 
     stiffness: float | None = None
@@ -722,7 +722,7 @@ class JointDriveBaseCfg:
         Use :attr:`max_force` instead. The cfg field is renamed so its
         snake_case name maps identity-style to the USD camelCase attribute
         (``maxForce`` on ``UsdPhysics.DriveAPI``). The alias is forwarded to
-        :attr:`max_force` in :meth:`__post_init__` and will be removed in 4.0.
+        :attr:`max_force` in :meth:`__post_init__` and will be removed in 3.1.
     """
 
     stiffness: float | None = None
@@ -776,7 +776,7 @@ class JointDriveBaseCfg:
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its
         snake_case name maps identity-style to the USD camelCase attribute
         (``physxJoint:maxJointVelocity``). The alias is forwarded to
-        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 4.0.
+        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 3.1.
     """
 
 
@@ -820,7 +820,7 @@ class MeshCollisionBaseCfg:
         """
         if name == "usd_api":
             warnings.warn(
-                "'usd_api' attribute is deprecated and will be removed in 4.0. Use class-level"
+                "'usd_api' attribute is deprecated and will be removed in 3.1. Use class-level"
                 " metadata via getattr(cfg, '_usd_applied_schema').",
                 DeprecationWarning,
                 stacklevel=2,
@@ -831,7 +831,7 @@ class MeshCollisionBaseCfg:
             return "MeshCollisionAPI" if schema is not None else None
         if name == "physx_api":
             warnings.warn(
-                "'physx_api' attribute is deprecated and will be removed in 4.0. Use class-level"
+                "'physx_api' attribute is deprecated and will be removed in 3.1. Use class-level"
                 " metadata via getattr(cfg, '_usd_applied_schema').",
                 DeprecationWarning,
                 stacklevel=2,
