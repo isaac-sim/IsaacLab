@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+3.0.1 (2026-09-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reverted the release-only legacy OVRTX instance-cloning changes because the corresponding change has not merged into ``develop``.
+
+
 3.0.0 (2026-09-18)
 ~~~~~~~~~~~~~~~~~~
 
