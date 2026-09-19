@@ -12,21 +12,24 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-from dataclasses import replace
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import ArticulationCfg, Asset, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
+from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -50,14 +53,38 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/RigidObj",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                collision_enabled=True,
-            ),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
     )
+
+
+@configclass
+class StaticSceneCfg(InteractiveSceneCfg):
+    """Scene with one authoring-only asset."""
+
+    light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg())
+
+
+@configclass
+class MarkerSceneCfg(InteractiveSceneCfg):
+    """Scene with one global visualization marker."""
+
+    goal = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Goal")
+
+
+@configclass
+class DeferredMarkerAssetCfg(AssetBaseCfg):
+    """Authoring-only asset whose optional visualization starts disabled."""
+
+    visualizer_cfg = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Deferred")
+
+
+@configclass
+class DeferredMarkerSceneCfg(InteractiveSceneCfg):
+    """Scene that owns a marker even before its visualization is enabled."""
+
+    prop = DeferredMarkerAssetCfg(prim_path="/World/Prop", spawn=sim_utils.DistantLightCfg(), debug_vis=False)
 
 
 @pytest.fixture
@@ -183,35 +210,84 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     assert_state_equal(prev_state, scene.get_state())
 
 
-def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene forwards its plan and tracks the latest published layout.
-
-    Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
-    lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
-    need any cleanup hook here.
-    """
+def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
+    """A cfg-driven scene publishes the exact plan it forwards to replication."""
     import isaaclab.cloner.replicate_session as replicate_session_module
 
     captured: list = []
 
     def fake_replicate(plan, *, replicate_physics=True):
-        captured.append((plan, replicate_physics))
+        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
-        replacement = replace(captured[0][0], positions=captured[0][0].positions + 1.0)
-        sim.set_clone_plan(replacement)
-        torch.testing.assert_close(scene.env_origins, torch.from_numpy(replacement.positions))
+        InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, replicate_physics = captured[0]
+    plan, replicate_physics, published = captured[0]
+    assert published is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
     assert replicate_physics is True
+
+
+def test_scene_constructs_authoring_only_assets():
+    """Bare AssetBaseCfg entries follow the same class_type construction contract as runtime assets."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False):
+        scene = InteractiveScene(StaticSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert isinstance(scene["light"], Asset)
+        assert scene["light"].cfg.prim_path == "/World/Light"
+        assert scene["light"].prim == scene.stage.GetPrimAtPath("/World/Light")
+
+
+def test_scene_constructs_plan_owned_markers():
+    """Scene markers are constructed while their global root belongs to the clone plan."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        scene = InteractiveScene(MarkerSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert isinstance(scene["goal"], VisualizationMarkers)
+        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal",)
+
+
+def test_scene_plans_markers_before_debug_visualization_is_enabled():
+    """A marker declared on a disabled debug owner still belongs to the immutable plan."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        InteractiveScene(DeferredMarkerSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert sim.get_clone_plan().global_paths == ("/World/Prop", "/Visuals/Deferred")
+
+
+def test_empty_scene_leaves_clone_lifecycle_to_caller():
+    """An empty scene authors one prototype and leaves its replication to the direct task."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=1.0))
+
+        assert sim.get_clone_plan() is None
+        env_template = scene.cfg.clone_cfg.clone_template
+        grid_positions = cloner.grid_transforms(4, 1.0)[0]
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
+        env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
+        np.testing.assert_allclose(sim_utils.resolve_prim_pose(env_0)[0], grid_positions[0])
+        assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
+
+        cube_cfg = RigidObjectCfg(
+            prim_path=f"{env_template.format('[^/]+')}/Cube",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+            cloning_contexts=(cloner.UsdReplicateContext,),
+        )
+        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
+        plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, (cube_cfg,), 4, 1.0, positions=positions)
+        cube_cfg.class_type(cube_cfg)
+        cloner.replicate(plan)
+
+        assert sim.get_clone_plan() is plan
+        assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -285,7 +361,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_asset_cfgs()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
     assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
@@ -293,7 +369,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
 
 
 def test_collect_asset_cfgs_excludes_entities_without_spawners():
-    """Only configs that can author clone sources reach make_clone_plan."""
+    """Sensors without spawners add no clone rows but still declare their debug-marker roots."""
 
     scene = object.__new__(InteractiveScene)
     sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
@@ -301,10 +377,10 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_asset_cfgs()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     assert cfgs == []
-    assert global_paths == ()
+    assert global_paths == (sensor.visualizer_cfg.prim_path,)
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

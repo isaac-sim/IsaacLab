@@ -102,6 +102,22 @@ def _assert_observation_buffer(env: Any) -> None:
         torch.testing.assert_close(observations[key], value)
 
 
+def test_rsl_rl_wrapper_reports_invalid_unwrapped_type() -> None:
+    """Validation errors identify the unsupported unwrapped environment."""
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+    class UnsupportedEnv:
+        pass
+
+    class OuterEnv:
+        unwrapped = UnsupportedEnv()
+
+    with pytest.raises(ValueError, match="UnsupportedEnv") as exc_info:
+        RslRlVecEnvWrapper(OuterEnv())
+
+    assert "OuterEnv" not in str(exc_info.value)
+
+
 def _assert_finite(data: Any) -> None:
     if isinstance(data, torch.Tensor):
         assert torch.isfinite(data).all()

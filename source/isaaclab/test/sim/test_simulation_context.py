@@ -17,6 +17,7 @@ import weakref
 
 import numpy as np
 import pytest
+import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 
@@ -49,10 +50,17 @@ Basic Configuration Tests
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", test_devices())
-def test_init(device):
+def test_init(device, monkeypatch):
     """Test the simulation context initialization."""
     from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
+    original_initialize = PhysxManager.initialize.__func__
+
+    def initialize(cls, sim_context):
+        assert wp.get_device() == wp.get_device(device)
+        return original_initialize(cls, sim_context)
+
+    monkeypatch.setattr(PhysxManager, "initialize", classmethod(initialize))
     cfg = SimulationCfg(
         device=device,
         physics_prim_path="/Physics/PhysX",
@@ -673,6 +681,10 @@ def test_timeline_callbacks_with_weakref():
 
         # trigger events again - callbacks should handle the deleted object gracefully
         sim.play()
+        # regression check: a second play() after stop() with no reset() in between used to
+        # SIGSEGV inside PhysX's tensor view registry (see PhysxManager._on_stop); it must also
+        # still warm up and recreate the simulation view, not just avoid crashing
+        assert PhysxManager._view is not None
         # disable app control again
         sim._disable_app_control_on_stop_handle = True  # type: ignore
         sim.stop()

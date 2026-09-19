@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import warp as wp
 from newton import ModelBuilder
-from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
@@ -110,8 +109,8 @@ def _build_newton_builder_from_mapping(
         quaternions = np.zeros((mapping.shape[1], 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     manager_cls = PhysicsManager._sim.physics_manager
+    schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
 
     builder = manager_cls.create_builder(up_axis=up_axis)
     import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
@@ -173,7 +172,6 @@ def _build_newton_builder_from_mapping(
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
     )
-
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     return builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings

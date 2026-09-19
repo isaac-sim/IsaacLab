@@ -22,6 +22,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import standalone_script_cases as script_cases
@@ -114,24 +115,19 @@ def test_script_scope_rejects_empty_selection():
         select_script_scope(SPECS, "missing")
 
 
-def test_showroom_documents_options_for_each_mentioned_demo():
-    """Every demo showcased in the showroom must list its supported launch options."""
-
-    def documented_values(entry: str, label: str) -> set[str]:
-        match = re.search(rf"(?ms)^   \*\*{label}:\*\*[ \t]*(.+?)(?=\n\n|\Z)", entry)
-        assert match is not None, f"showroom entry does not list {label.lower()} options"
-        return set(re.findall(r"``([^`]+)``", match.group(1)))
-
-    showroom = (script_cases.ROOT / "docs/source/overview/showroom.rst").read_text(encoding="utf-8")
-    entries = re.findall(r"(?ms)^-  .*?(?=^-  |\Z)", showroom)
+def test_demo_browser_documents_options_for_each_demo():
+    """Every demo card must expose its supported launch options to the command builder."""
+    docs_source = script_cases.ROOT / "docs/source"
+    demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
+    cards = re.findall(r'(?s)<button[^>]+data-demo-path="[^"]+"[^>]*>', demos_page)
     documented_entries = {}
-    for entry in entries:
-        paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", entry))
-        assert len(paths) <= 1, f"showroom entry references multiple demos: {paths}"
-        if paths:
-            documented_entries[paths.pop()] = entry
+    for card in cards:
+        attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))
+        path = attributes.pop("path")
+        assert path not in documented_entries, f"demo browser contains a duplicate card for {path}"
+        documented_entries[path] = attributes
 
-    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", showroom))
+    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", demos_page))
     assert documented_entries.keys() == referenced_paths
 
     demo_specs = {
@@ -140,22 +136,18 @@ def test_showroom_documents_options_for_each_mentioned_demo():
         if spec.relative_path.startswith("scripts/demos/") and spec.relative_path in referenced_paths
     }
     assert demo_specs.keys() == referenced_paths
+    image_paths = re.findall(r'<img src="../../([^"]+)"', demos_page)
+    assert image_paths
+    missing_images = [path for path in image_paths if not (docs_source / path).is_file()]
+    assert not missing_images, f"demo browser references missing images: {missing_images}"
     for path, spec in demo_specs.items():
         entry = documented_entries[path]
         expected_physics = {backend for _, backend in spec.physics_backends}
         expected_visualizers = set(spec.visualizers)
-        assert documented_values(entry, "Physics") == expected_physics, f"{path} documents incorrect physics options"
-        assert documented_values(entry, "Visualizer") == expected_visualizers, (
+        assert set(entry["physics"].split(",")) == expected_physics, f"{path} documents incorrect physics options"
+        assert set(entry["visualizers"].split(",")) == expected_visualizers, (
             f"{path} documents incorrect visualizer options"
         )
-
-        selectable_renderers = {backend for option, backend in spec.rendering_backends if option is not None}
-        if selectable_renderers:
-            assert documented_values(entry, "Renderer") == selectable_renderers, (
-                f"{path} documents incorrect renderer options"
-            )
-        else:
-            assert "**Renderer:**" not in entry, f"{path} advertises a renderer option that it does not expose"
 
 
 def test_commands_respect_script_launcher_capabilities():
@@ -252,7 +244,7 @@ def test_hands_demo_uses_asset_owned_shadow_hand_configs():
 
     assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
     assert {
-        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_CFG"),
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_PHYSX_CFG"),
         ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
     } <= imports
 
@@ -378,6 +370,37 @@ def test_subprocess_supervisor_soaks_then_stops_process_group():
     assert result.ready
     assert result.stopped_after_soak
     assert result.elapsed < 2.0
+
+
+def test_subprocess_supervisor_completes_soak_after_startup_deadline(monkeypatch):
+    """Readiness just before the startup deadline must still receive the full soak."""
+    process = mock.Mock(returncode=None)
+    process.poll.side_effect = lambda: process.returncode
+    process.communicate.return_value = (b"", None)
+    selector = mock.Mock()
+    now = 0.0
+    poll_times = iter((299.0, 300.0, 304.0))
+
+    def select(timeout):
+        nonlocal now
+        if timeout == 0.0:
+            return []
+        now = next(poll_times)
+        if now == 299.0:
+            return [(mock.Mock(fileobj=process.stdout), script_cases.selectors.EVENT_READ)]
+        return []
+
+    selector.select.side_effect = select
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", lambda: selector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(script_cases.time, "monotonic", lambda: now)
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=300.0, soak_time=5.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert result.elapsed == 304.0
 
 
 def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(monkeypatch):

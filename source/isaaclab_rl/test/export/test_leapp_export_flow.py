@@ -16,7 +16,6 @@ from leapp_direct_env import DIRECT_TASK
 from leapp_initialized_checkpoints import resolved_path_file, task_checkpoint_dir
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_LEAPP_ROOT = _REPO_ROOT / "scripts/reinforcement_learning/leapp"
 _CHECKPOINT_SCRIPT = Path(__file__).with_name("leapp_initialized_checkpoints.py")
 _OUTPUT_TAIL_SIZE = 5000
 
@@ -88,22 +87,23 @@ def _run_checked(command: list[str], timeout: int = 600) -> str:
 
 
 def _run_export(backend: str, task: str, checkpoint: str, tmp_path: Path, preset: str | None) -> None:
-    script = (
-        Path(__file__).with_name("leapp_direct_env.py") if task == DIRECT_TASK else _LEAPP_ROOT / backend / "export.py"
+    if task == DIRECT_TASK:
+        command = [sys.executable, str(Path(__file__).with_name("leapp_direct_env.py"))]
+    else:
+        command = [sys.executable, "-m", f"isaaclab_rl.entrypoints.backends.export_{backend}"]
+    command.extend(
+        [
+            "--task",
+            task,
+            "--checkpoint",
+            checkpoint,
+            "--export_save_path",
+            str(tmp_path / "export"),
+            "--disable_graph_visualization",
+            "--limit_cpu_threads",
+            "1",
+        ]
     )
-    command = [
-        sys.executable,
-        str(script),
-        "--task",
-        task,
-        "--checkpoint",
-        checkpoint,
-        "--export_save_path",
-        str(tmp_path / "export"),
-        "--disable_graph_visualization",
-        "--limit_cpu_threads",
-        "1",
-    ]
     if preset:
         command.append(f"presets={preset}")
     output = _run_checked(command)

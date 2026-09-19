@@ -86,7 +86,7 @@ class ImplicitActuator(ActuatorBase):
         if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
-                "effort_limit will be removed in 4.0.",
+                "effort_limit will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=2,
             )

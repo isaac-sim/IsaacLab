@@ -20,7 +20,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -126,7 +126,7 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
                 stretch_stiffness=1.0e6,
                 bend_stiffness=1.0e5,
             ),
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
     )

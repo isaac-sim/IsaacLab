@@ -17,7 +17,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -28,7 +28,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -108,9 +108,9 @@ class PhysicsCfg(PresetCfg):
 
 SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.1, 0.02, 0.15),
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
-    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    collision_props=sim_utils.CollisionPropertiesCfg(),
+    rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True), PhysxRigidBodyCfg(disable_gravity=True)],
+    mass_props=sim_utils.MassCfg(mass=1.0),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
 )
@@ -147,7 +147,7 @@ class DeformableCfg(PresetCfg):
             size=(0.2, 0.2),
             edge_refinement=8,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
+            collision_props=PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
                 density=1000.0,

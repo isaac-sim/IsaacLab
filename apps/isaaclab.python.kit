@@ -169,7 +169,9 @@ defaultCamPos.x = 5
 defaultCamPos.y = 5
 defaultCamPos.z = 5
 defaults.fillViewport = false # default to not fill viewport
-grid.enabled = true
+defaults.guide.axis.visible = false
+defaults.guide.grid.visible = false
+grid.enabled = false # keep legacy viewports consistent
 outline.enabled = true
 boundingBoxes.enabled = false
 show.camera=false
@@ -273,6 +275,6 @@ fabricUseGPUInterop = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"

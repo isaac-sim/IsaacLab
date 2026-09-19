@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 from isaaclab_newton.physics import (
@@ -24,6 +25,7 @@ from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
+    NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonVBDManager,
     VBDSolverCfg,
@@ -32,6 +34,8 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
@@ -594,6 +598,52 @@ def test_nested_solvers_register_their_builder_attributes(monkeypatch):
 
     assert builder.has_custom_attribute("mujoco:condim")
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+@pytest.mark.parametrize(
+    ("entry_solver_cfg", "expected_friction", "expected_damping"),
+    [
+        pytest.param(MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
+        pytest.param(XPBDSolverCfg(), 0.0, 0.0, id="xpbd"),
+    ],
+)
+def test_nested_solver_scopes_mujoco_joint_properties(
+    monkeypatch, entry_solver_cfg, expected_friction, expected_damping
+):
+    """A coupler imports MuJoCo properties only when a nested solver consumes them."""
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=entry_solver_cfg)])
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    root_path = "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+
+    monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
+    monkeypatch.setattr(newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
+    monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
+    monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
+    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
+
+    NewtonCouplerManager.instantiate_builder_from_stage()
+    builder = NewtonManager._builder
+    model = builder.finalize(device="cpu")
+
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
 
 
 def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):

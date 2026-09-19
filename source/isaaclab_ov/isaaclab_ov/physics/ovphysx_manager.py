@@ -42,6 +42,7 @@ from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.stage import create_ovstage
 
+from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
@@ -488,12 +489,12 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _ensure_physx_schemas_registered(cls) -> None:
-        """Register the codeless USD plugins published by the OVPhysX wheel.
+        """Register the codeless USD schemas published by the OVPhysX wheel.
 
-        The wheel's public paths include both ``PhysxSchema`` and
-        ``OmniUsdPhysicsDeformableSchema``. A host may already provide one of
-        those plugins from a compiled library, so only missing plugin names are
-        registered from the wheel's codeless resource paths.
+        OVStage maintains its own USD schema registry, so register the wheel's
+        schema root there even when the host USD runtime already provides the
+        same plugins. For the host USD registry, only register providers that
+        are not already available from a compiled plugin.
         """
         if cls._physx_schemas_registered:
             return
@@ -503,6 +504,15 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
+        try:
+            import ovstage  # noqa: PLC0415
+        except ImportError:
+            pass  # Host USD schemas can still be registered without OVStage.
+        else:
+            schema_root = getattr(ovphysx, "codeless_schema_root", None)
+            register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
+            if callable(schema_root) and callable(register_ovstage_schemas):
+                register_ovstage_schemas(str(schema_root()))
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
@@ -592,6 +602,24 @@ class OvPhysxManager(PhysicsManager):
         operation = physx.reset_stage()
         physx.wait_op(operation)
 
+    @staticmethod
+    def _warmup_physx(physx: Any) -> None:
+        """Warm a runtime through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"]
+        warmup = getattr(physx, entry_point, None)
+        if warmup is None:
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
+        warmup()
+
+    @staticmethod
+    def _destroy_physx(physx: Any) -> None:
+        """Tear a runtime down through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        destroy = getattr(physx, entry_point, None)
+        if destroy is None:
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
+        destroy()
+
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
@@ -624,18 +652,44 @@ class OvPhysxManager(PhysicsManager):
         GPU-first processes.
         """
         physx = cls._physx
-        cls._physx = None
+        if physx is None:
+            cls._destroy_ovstage()
+            return
+
+        # Preserve the legacy 0.5.11 behavior: release both owners even when
+        # cleanup raises. Only OVPhysX 0.6 destroy failures can remain retryable.
+        destroy_entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        release_owners = destroy_entry_point == "release"
         try:
-            if physx is not None:
+            try:
+                cls._close_physx_views(physx)
+            finally:
                 try:
-                    cls._close_physx_views(physx)
+                    cls._reset_physx_stage(physx)
                 finally:
                     try:
-                        cls._reset_physx_stage(physx)
-                    finally:
-                        physx.release()
+                        cls._destroy_physx(physx)
+                    except Exception:
+                        if destroy_entry_point == "destroy":
+                            # OVPhysX 0.6 keeps ``handle`` valid when destroy raises
+                            # before native teardown. Preserve both owners so a later
+                            # close can retry. A RuntimeError from ``handle`` means
+                            # destruction reached its terminal state.
+                            try:
+                                physx.handle
+                            except RuntimeError:
+                                release_owners = True
+                            except Exception:
+                                # An unfamiliar handle probe must not replace the
+                                # original destroy error or release either owner.
+                                release_owners = False
+                        raise
+                    else:
+                        release_owners = True
         finally:
-            cls._destroy_ovstage()
+            if release_owners:
+                cls._physx = None
+                cls._destroy_ovstage()
 
     @classmethod
     def _attach_ovstage(cls, stage_usda: str) -> None:
@@ -926,8 +980,8 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs ``warmup_gpu`` so the new stage's
-        bodies are resident.
+        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set, or if a device
@@ -1003,7 +1057,7 @@ class OvPhysxManager(PhysicsManager):
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
-            cls._physx.warmup_gpu()
+            cls._warmup_physx(cls._physx)
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
         # the OVStage is attached. The central

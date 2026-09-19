@@ -45,7 +45,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.math import (
     combine_frame_transforms,
     matrix_from_quat,
@@ -147,9 +147,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # Define targets for the arm (x,y,z,qx,qy,qz,qw)
     ee_goal_pose_set_tilted_b = torch.tensor(
         [
-            [0.6, 0.15, 0.3, 0.0, 0.38268343, 0.0, 0.92387953],
-            [0.6, -0.3, 0.3, 0.0, 0.38268343, 0.0, 0.92387953],
-            [0.8, 0.0, 0.5, 0.0, 0.38268343, 0.0, 0.92387953],
+            [0.6, 0.15, 0.3, 0.92387953, 0.0, 0.38268343, 0.0],
+            [0.6, -0.3, 0.3, 0.92387953, 0.0, 0.38268343, 0.0],
+            [0.8, 0.0, 0.5, 0.92387953, 0.0, 0.38268343, 0.0],
         ],
         device=sim.device,
     )

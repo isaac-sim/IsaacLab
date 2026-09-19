@@ -27,6 +27,7 @@ Or, equivalently, by directly calling the skrl library API as follows:
 # needed to import for type hinting: Agent | list[Agent]
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -35,6 +36,31 @@ if TYPE_CHECKING:
         DirectRLEnv,
         ManagerBasedRLEnv,
     )
+
+
+def resolve_skrl_agent_cfg_entry_point(agent: str | None, algorithm: str | None) -> str:
+    """Return the explicit agent recipe, an algorithm recipe, or the canonical recipe."""
+    if agent is not None:
+        return agent
+    if algorithm is None or algorithm.lower() == "ppo":
+        return "skrl_cfg_entry_point"
+    return f"skrl_{algorithm.lower()}_cfg_entry_point"
+
+
+def resolve_skrl_algorithm(agent_cfg: Mapping[str, object], requested_algorithm: str | None = None) -> str:
+    """Return ``agent.class``, rejecting malformed configs and explicit-selector mismatches."""
+    agent = agent_cfg.get("agent")
+    agent_class = agent.get("class") if isinstance(agent, Mapping) else None
+    if not isinstance(agent_class, str) or not agent_class.strip():
+        raise ValueError("The resolved SKRL configuration must define a non-empty 'agent.class' string.")
+
+    algorithm = agent_class.lower()
+    if requested_algorithm is not None and requested_algorithm.lower() != algorithm:
+        raise ValueError(
+            f"Requested SKRL algorithm {requested_algorithm!r} does not match the resolved agent.class {agent_class!r}."
+        )
+    return algorithm
+
 
 """
 Vectorized environment wrapper.
@@ -85,7 +111,7 @@ def SkrlVecEnvWrapper(
     if not isinstance(env.unwrapped, allowed_types):
         raise ValueError(
             "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv,"
-            f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env)}"
+            f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env.unwrapped)}"
         )
 
     # import statements according to the ML framework

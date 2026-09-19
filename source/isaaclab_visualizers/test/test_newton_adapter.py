@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -123,6 +123,71 @@ def test_newton_visualizer_cfg_exposes_viewer_options():
     assert cfg.enable_picking is False
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
+
+
+def test_newton_visualizer_log_mesh_stages_for_next_frame():
+    viewer = Mock()
+    visualizer = _make_newton_visualizer(None)
+    visualizer._viewer = viewer
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+    normals = wp.zeros(3, dtype=wp.vec3)
+
+    visualizer.log_mesh(
+        "/surface",
+        points,
+        indices,
+        normals=normals,
+        color=(0.1, 0.2, 0.3),
+        roughness=0.2,
+        dynamic=True,
+        opacity=0.35,
+    )
+
+    viewer.log_mesh.assert_not_called()
+    visualizer._log_pending_meshes()
+
+    viewer.log_mesh.assert_called_once_with(
+        "/surface",
+        points,
+        indices,
+        normals=normals,
+        uvs=None,
+        texture=None,
+        hidden=False,
+        backface_culling=True,
+        color=(0.1, 0.2, 0.3),
+        roughness=0.2,
+        metallic=None,
+        dynamic=True,
+        opacity=0.35,
+    )
+    assert visualizer._pending_mesh_submissions == {}
+
+
+def test_newton_visualizer_log_mesh_keeps_latest_submission_per_name():
+    viewer = Mock()
+    visualizer = _make_newton_visualizer(None)
+    visualizer._viewer = viewer
+    points_0 = wp.zeros(3, dtype=wp.vec3)
+    points_1 = wp.zeros(6, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    visualizer.log_mesh("/surface", points_0, indices, dynamic=True)
+    visualizer.log_mesh("/surface", points_1, indices, dynamic=True)
+    visualizer._log_pending_meshes()
+
+    viewer.log_mesh.assert_called_once()
+    assert viewer.log_mesh.call_args.args[:3] == ("/surface", points_1, indices)
+
+
+def test_newton_visualizer_log_mesh_requires_initialized_viewer():
+    visualizer = _make_newton_visualizer(None)
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    with pytest.raises(RuntimeError, match="must be initialized"):
+        visualizer.log_mesh("/surface", points, indices)
 
 
 def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
@@ -421,6 +486,36 @@ def test_newton_viewer_particle_color_override_leaves_other_points_unchanged(mon
     assert colors is custom_colors
 
 
+def test_newton_rtx_viewer_particle_color_override(monkeypatch):
+    from newton.viewer import ViewerRTX
+
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    points = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, points, radii, colors, hidden))
+
+    monkeypatch.setattr(ViewerRTX, "log_points", _log_points)
+
+    viewer.log_points("/model/particles", points, colors=None)
+
+    name, _, _, colors, hidden = calls[-1]
+    assert name == "/model/particles"
+    assert hidden is False
+    assert colors == (0.1, 0.2, 0.3)
+
+
+def test_newton_rtx_visualizer_applies_particle_color():
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(particle_color=(0.1, 0.2, 0.3)))
+    visualizer._viewer = SimpleNamespace(particle_color=None)
+
+    visualizer._apply_viewer_post_init()
+
+    assert visualizer._viewer.particle_color == (0.1, 0.2, 0.3)
+
+
 def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):
     import newton as nt
 
@@ -484,21 +579,30 @@ class _Viewer:
     def __init__(self):
         self.device = "cpu"
         self.show_contacts = False
+        self.paused = False
         self.logged_state = None
         self.logged_contacts = None
         self.logged_arrows = None
+        self.logged_mesh = None
+        self.events = []
+        self.closed = False
 
     def is_paused(self):
-        return False
+        return self.paused
 
     def is_running(self):
         return True
 
     def begin_frame(self, _time):
-        pass
+        self.events.append("begin_frame")
 
     def log_state(self, state):
+        self.events.append("log_state")
         self.logged_state = state
+
+    def log_mesh(self, name, points, indices, **kwargs):
+        self.events.append("log_mesh")
+        self.logged_mesh = (name, points, indices, kwargs)
 
     def log_contacts(self, contacts, state):
         self.logged_contacts = (contacts, state)
@@ -507,7 +611,11 @@ class _Viewer:
         self.logged_arrows = (name, starts, ends, colors)
 
     def end_frame(self):
-        pass
+        self.events.append("end_frame")
+
+    def close(self):
+        # Mirrors ViewerBase.close(), which every real viewer inherits.
+        self.closed = True
 
     def get_frame(self):
         return SimpleNamespace(numpy=lambda: np.zeros((4, 6, 3), dtype=np.uint8))
@@ -632,6 +740,79 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
 
     assert viewer.logged_state is state
     assert viewer.logged_contacts == (contacts, state)
+
+
+def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    state = SimpleNamespace(body_q=_BodyQ())
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer)
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
+    monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+
+    visualizer.log_mesh("/surface", points, indices, dynamic=True)
+    visualizer.step(0.1)
+
+    assert viewer.events == ["begin_frame", "log_state", "log_mesh", "end_frame"]
+    assert viewer.logged_mesh == (
+        "/surface",
+        points,
+        indices,
+        {
+            "normals": None,
+            "uvs": None,
+            "texture": None,
+            "hidden": False,
+            "backface_culling": True,
+            "color": None,
+            "roughness": None,
+            "metallic": None,
+            "dynamic": True,
+            "opacity": None,
+        },
+    )
+
+
+def test_newton_visualizer_logs_staged_mesh_for_bodyless_state(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    state = SimpleNamespace(body_q=SimpleNamespace(shape=(0,)))
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer)
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+
+    visualizer.log_mesh("/surface", points, indices, dynamic=True)
+    visualizer.step(0.1)
+
+    assert viewer.events == ["begin_frame", "log_mesh", "end_frame"]
+    assert viewer.logged_state is None
+
+
+def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    viewer = _Viewer()
+    viewer.paused = True
+    visualizer = _make_newton_visualizer(viewer)
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+
+    visualizer.log_mesh("/surface", points, indices, dynamic=True)
+    visualizer.step(0.1)
+
+    assert viewer.events == ["begin_frame", "log_mesh", "end_frame"]
+    assert viewer.logged_state is None
 
 
 def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
@@ -759,6 +940,8 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
     log_calls = []
 
     class _LoggingViewer:
+        device = "cpu"
+
         def log_mesh(self, name, vertices, indices, normals=None, uvs=None, texture=None, hidden=True):
             log_calls.append({"normals": normals, "uvs": uvs})
 
@@ -783,6 +966,44 @@ def test_newton_visualizer_cfg_distinct_types():
     # shared fields present on both
     assert NewtonGLVisualizerCfg().show_particles is False
     assert NewtonRTXVisualizerCfg().show_particles is False
+    assert NewtonGLVisualizerCfg().background_color == (0.3, 0.55, 0.82)
+    assert NewtonRTXVisualizerCfg().background_color == (0.3, 0.55, 0.82)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
+
+
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_gl_background_color(color: tuple[float, float, float] | None) -> None:
+    cfg = NewtonGLVisualizerCfg(background_color=color)
+    visualizer = NewtonGLVisualizer(cfg)
+    visualizer._viewer = SimpleNamespace(
+        renderer=SimpleNamespace(),
+        _coerce_color3=lambda value: tuple(value),
+    )
+
+    visualizer._apply_viewer_post_init()
+
+    assert visualizer._viewer.renderer.draw_sky == (color is None)
+    expected_upper = cfg.sky_upper_color if color is None else color
+    expected_lower = cfg.sky_lower_color if color is None else color
+    assert visualizer._viewer.renderer.sky_upper == expected_upper
+    assert visualizer._viewer.renderer.sky_lower == expected_lower
+
+
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_rtx_receives_background_color(
+    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
+) -> None:
+    kwargs = {}
+    monkeypatch.setattr(
+        newton_visualizer_module,
+        "NewtonViewerRTX",
+        lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
+    )
+
+    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
+
+    assert kwargs["background_color"] == color
 
 
 def test_eye_lookat_to_pitch_yaw_horizontal():
@@ -944,6 +1165,37 @@ def test_newton_rtx_visualizer_streaming_view_enabled():
 
     visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
     assert visualizer_off._uses_streaming_view() is False
+
+
+@pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
+def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend):
+    """OVRTX is kitless and must fail fast instead of crashing the render thread on first step().
+
+    "physx" is what FactoryBase._get_backend() reports at runtime (covers both an explicit
+    ``physics=isaacsim_physx`` and the ``physics=physx`` auto selector once resolved to Kit);
+    "isaacsim_physx" is checked too in case a future/alternate backend-name source reports the
+    explicit selector string instead.
+    """
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="Newton RTX"):
+        visualizer.initialize(Mock())
+
+
+def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
+    """ovphysx is itself kitless, so it must not trip the Kit-only guard (unlike physx)."""
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "ovphysx"))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    # No RuntimeError from the guard; falls through to the next line, which needs a real
+    # SimulationContext and fails differently -- proving the guard did not fire for ovphysx.
+    with pytest.raises(AttributeError):
+        visualizer.initialize(Mock())
 
 
 def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):

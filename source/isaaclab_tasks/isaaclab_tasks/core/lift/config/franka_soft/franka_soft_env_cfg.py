@@ -40,8 +40,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import (
@@ -50,7 +50,7 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
 )
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import mdp
@@ -75,7 +75,7 @@ POISSONS_RATIO = 0.3
 # visualizer draws it instead, tinted by whether the goal is reached.
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(1.3, 0.9, 1.05),
-    collision_props=sim_utils.CollisionPropertiesCfg(),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     visible=False,
 )
 
@@ -123,7 +123,7 @@ class DeformableCfg(PresetCfg):
             size=(0.3, 0.04, 0.04),
             edge_refinement=8.0,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
+            collision_props=PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=PhysxDeformableBodyMaterialCfg(
                 density=1000.0,
@@ -201,6 +201,11 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
     robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants = preset(
+        default={"Physics": "mujoco"},
+        isaacsim_physx={"Physics": "physx"},
+        physx={"Physics": "physx"},
+    )
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(

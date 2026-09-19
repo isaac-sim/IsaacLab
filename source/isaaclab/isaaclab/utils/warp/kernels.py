@@ -344,8 +344,14 @@ def reshape_tiled_image(
     is assumed to be tiled in the x and y directions. The output image is a batch of images with the
     specified height, width, and number of channels.
 
+    The tiled buffer is indexed as a 3D array rather than flattened to 1D so that the number of
+    cameras and the camera resolution are bounded per dimension instead of by their product. A
+    flattened view of a large tiled buffer can exceed the maximum size of a single Warp array
+    dimension, see https://nvidia.github.io/warp/stable/user_guide/limitations.html#arrays.
+
     Args:
-        tiled_image_buffer: The input image buffer. Shape is (height * width * num_channels * num_cameras,).
+        tiled_image_buffer: The input image buffer. Shape is
+            (num_tiles_y * image_height, num_tiles_x * image_width, num_channels).
         batched_image: The output image. Shape is (num_cameras, height, width, num_channels).
         image_width: The width of the image.
         image_height: The height of the image.
@@ -358,32 +364,29 @@ def reshape_tiled_image(
     # resolve the tile indices
     tile_x_id = camera_id % num_tiles_x
     tile_y_id = camera_id // num_tiles_x
-    # compute the start index of the pixel in the tiled image buffer
-    pixel_start = (
-        num_channels * num_tiles_x * image_width * (image_height * tile_y_id + height_id)
-        + num_channels * tile_x_id * image_width
-        + num_channels * width_id
-    )
+    # resolve the pixel position within the tiled image buffer
+    row = image_height * tile_y_id + height_id
+    col = image_width * tile_x_id + width_id
 
     # copy the pixel values into the batched image
     for i in range(num_channels):
-        batched_image[camera_id, height_id, width_id, i] = batched_image.dtype(tiled_image_buffer[pixel_start + i])
+        batched_image[camera_id, height_id, width_id, i] = batched_image.dtype(tiled_image_buffer[row, col, i])
 
 
 # uint32 -> int32 conversion is required for non-colored segmentation annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.uint32), "batched_image": wp.array(dtype=wp.uint32, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.uint32, ndim=3), "batched_image": wp.array(dtype=wp.uint32, ndim=4)},
 )
 # uint8 is used for 4 channel annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.uint8), "batched_image": wp.array(dtype=wp.uint8, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.uint8, ndim=3), "batched_image": wp.array(dtype=wp.uint8, ndim=4)},
 )
 # float32 is used for single channel annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.float32), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.float32, ndim=3), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
 )
 
 ##
@@ -811,3 +814,48 @@ def reset_wrench_composer_mask(
         local_torque_b[tid_env, tid_body] = z
         out_force_b[tid_env, tid_body] = z
         out_torque_b[tid_env, tid_body] = z
+
+
+##
+# Element-wise arithmetic.
+##
+
+
+@wp.kernel
+def subtract_2d(
+    a: wp.array2d(dtype=wp.float32),
+    b: wp.array2d(dtype=wp.float32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Compute ``out = a - b`` element-wise over a 2D array."""
+    i, j = wp.tid()
+    out[i, j] = a[i, j] - b[i, j]
+
+
+@wp.kernel
+def gather_subtract_2d(
+    a: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    item_ids: wp.array(dtype=Any),
+    b: wp.array2d(dtype=wp.float32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Compute ``out[i, j] = a[env_ids[i], item_ids[j]] - b[i, j]``.
+
+    Args:
+        a: Full array. Shape is (num_envs, num_items).
+        env_ids: Environment indices selecting rows of ``a``. Shape is (num_selected_envs,).
+        item_ids: Item indices selecting columns of ``a``. Shape is (num_selected_items,).
+        b: Partial array. Shape is (num_selected_envs, num_selected_items).
+        out: Output array. Shape is (num_selected_envs, num_selected_items).
+    """
+    i, j = wp.tid()
+    out[i, j] = a[wp.int32(env_ids[i]), wp.int32(item_ids[j])] - b[i, j]
+
+
+_GATHER_SUBTRACT_2D_DISPATCHER = IndexKernelDispatcher(gather_subtract_2d, ("env_ids", "item_ids"))
+
+
+def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.array | torch.Tensor") -> wp.Kernel:
+    """Select the gather-subtract worker for the selector dtypes."""
+    return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)

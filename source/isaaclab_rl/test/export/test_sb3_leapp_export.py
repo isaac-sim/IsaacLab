@@ -5,8 +5,7 @@
 
 """Unit tests for SB3-specific LEAPP export helpers."""
 
-import importlib.util
-import sys
+import importlib
 from pathlib import Path
 from types import ModuleType
 
@@ -16,31 +15,34 @@ import pytest
 
 torch = pytest.importorskip("torch")
 stable_baselines3 = pytest.importorskip("stable_baselines3")
-from stable_baselines3.common.save_util import load_from_zip_file
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "sb3" / "export.py"
-_EXPORT_MODULE_NAME = "_isaaclab_sb3_leapp_export"
+sb3_contrib = pytest.importorskip("sb3_contrib")
 
 
 def _load_export_module() -> ModuleType:
-    """Load SB3 export.py without importing Isaac Sim runtime modules."""
-    sys.modules.pop(_EXPORT_MODULE_NAME, None)
-    spec = importlib.util.spec_from_file_location(_EXPORT_MODULE_NAME, _EXPORT_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load SB3 export module from {_EXPORT_SCRIPT}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_EXPORT_MODULE_NAME] = module
-    spec.loader.exec_module(module)
-    module.torch = torch
+    """Load the installed SB3 exporter."""
+    from isaaclab_rl.entrypoints.backends import export_sb3 as module
+
     return module
 
 
-def test_sb3_export_args_use_common_defaults():
+def test_sb3_export_args_use_common_defaults(monkeypatch):
     """Use the shared export flags and omit training-only arguments."""
     export_module = _load_export_module()
+    export_common = importlib.import_module("isaaclab_rl.entrypoints.backends.export_common")
 
+    class _AppLauncher:
+        @staticmethod
+        def add_app_launcher_args(parser):
+            return None
+
+    monkeypatch.setattr(export_common, "AppLauncher", _AppLauncher)
+    monkeypatch.setattr(
+        export_common,
+        "setup_preset_cli",
+        lambda parser, argv=None, **kwargs: parser.parse_known_args(argv),
+    )
     args, _ = export_module.parse_export_args(["--task", "Isaac-Cartpole"])
 
     assert args.agent == "sb3_cfg_entry_point"
@@ -116,9 +118,6 @@ def test_sb3_recurrent_checkpoint_and_state_round_trip(tmp_path: Path) -> None:
     finally:
         agent.env.close()
 
-    export_module.PPO = stable_baselines3.PPO
-    export_module.RecurrentPPO = sb3_contrib.RecurrentPPO
-    export_module.load_from_zip_file = load_from_zip_file
     loaded_agent = export_module._load_agent(str(checkpoint_path), device="cpu")
     assert isinstance(loaded_agent, sb3_contrib.RecurrentPPO)
     policy = loaded_agent.policy

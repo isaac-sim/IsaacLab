@@ -215,7 +215,7 @@ class TestBelow4:
 # ===================================================================
 class TestV4:
     # PPO tests
-    def test_infers_mlp_actor_critic(self):
+    def test_infers_mlp_actor_critic(self, capsys):
         p = RslRlPpoActorCriticCfg(
             actor_hidden_dims=[512],
             critic_hidden_dims=[64],
@@ -240,6 +240,7 @@ class TestV4:
         assert isinstance(cfg.critic, RslRlMLPModelCfg) and not isinstance(cfg.critic, RslRlRNNModelCfg)
         assert cfg.critic.hidden_dims == [64]
         assert cfg.critic.stochastic is False
+        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_infers_rnn_actor_critic(self):
         p = RslRlPpoActorCriticRecurrentCfg(
@@ -366,7 +367,7 @@ class TestV4:
 # ===================================================================
 class TestV5:
     # Distribution tests
-    def test_gaussian_from_stochastic(self):
+    def test_gaussian_from_stochastic(self, capsys):
         a = _mlp_model()
         a.init_noise_std = 0.5
         a.noise_std_type = "log"
@@ -380,6 +381,7 @@ class TestV5:
         assert d.std_type == "log"
         for name in ("stochastic", "init_noise_std", "noise_std_type", "state_dependent_std"):
             assert not hasattr(cfg.actor, name)
+        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_heteroscedastic_from_stochastic(self):
         a = _mlp_model()

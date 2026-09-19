@@ -178,7 +178,9 @@ def test_newton_mesh_collision_fragment_writes_namespace():
     UsdPhysics.MeshCollisionAPI.Apply(prim)
     apply_namespaced(NewtonMeshCollisionCfg(max_hull_vertices=24), "/World/M6", stage)
     assert prim.GetAttribute("newton:maxHullVertices").Get() == 24
-    assert "NewtonMeshCollisionAPI" in prim.GetAppliedSchemas()
+    # ``NewtonMeshCollisionAPI`` is authored into the ``apiSchemas`` listOp but is not a registered
+    # schema in this Newton build, so it is absent from the composed ``GetAppliedSchemas()``.
+    assert _has_authored_api_schema(prim, "NewtonMeshCollisionAPI")
 
 
 def test_newton_sdf_collision_fragment_writes_namespace():

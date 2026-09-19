@@ -13,23 +13,24 @@ scales and thresholds live inline in the workflow configuration files.
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_CFG,
     SHADOW_HAND_NEWTON_CFG,
+    SHADOW_HAND_PHYSX_CFG,
 )
 
 
@@ -154,36 +155,24 @@ class ShadowHandManagerEventPresetCfg(PresetCfg):
 
 @configclass
 class ShadowHandRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        ),
-    )
-    isaacsim_physx = physx
-    # Newton robot lives in the asset (see isaaclab_assets.robots.shadow_hand); reorient
-    # uses its default gains. The handover task consumes the same asset cfg and overrides
-    # only the finger gains.
+    """The same hand on every engine; only the asset's physics variant differs.
+
+    The variant is a property of the asset -- its MuJoCo and PhysX payloads are mutually exclusive
+    -- so selecting it per engine is unavoidable. Nothing else may differ here: a spawn pose or gain
+    that needs a per-engine value is a defect to fix in the asset, not a preset to add.
+    """
+
+    # `spawn_path` authors only the prototype env; the scene clone plan replicates the rest (#7036).
     newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
-    ovphysx = SHADOW_HAND_CFG.replace(
+    isaacsim_physx = SHADOW_HAND_PHYSX_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
-        spawn=SHADOW_HAND_CFG.spawn.replace(
-            spawn_path="/World/envs/env_0/Robot",
-            fixed_tendons_props=None,
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        ),
+        spawn=SHADOW_HAND_PHYSX_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
+    physx = isaacsim_physx
+    ovphysx = isaacsim_physx
     default = newton_mjwarp
 
 
@@ -192,21 +181,30 @@ CUBE_CFG = RigidObjectCfg(
     spawn=sim_utils.UsdFileCfg(
         spawn_path="/World/envs/env_0/object",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            kinematic_enabled=False,
-            disable_gravity=False,
-            enable_gyroscopic_forces=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0025,
-            max_depenetration_velocity=1000.0,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_depenetration_velocity=1000.0,
+            ),
+        ],
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
         semantic_tags=[("class", "cube")],
     ),
+    # Above the palm of the hand, which lies horizontal reaching along -Y. This is the position the
+    # previous Newton asset used, and it applies unchanged because the two assets are the same hand
+    # in the same frame (Kabsch residual 0.00 mm between their USDs).
+    #
+    # Values tuned against a vertically-standing hand do NOT belong here: that pose was itself a
+    # mistake, and a cube placed for it sits 0.37 m from this palm.
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
 )
 """In-hand cube for the Shadow Hand reorientation tasks."""

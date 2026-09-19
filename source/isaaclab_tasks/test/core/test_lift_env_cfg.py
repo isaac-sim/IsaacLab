@@ -10,14 +10,20 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from pxr import Usd
+
 from isaaclab.managers import CommandTerm
+from isaaclab.sim import select_usd_variants
 
 from isaaclab_tasks.core.lift import mdp
+from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.utils.hydra import resolve_presets
 
 
 class _MarkerSpy:
@@ -36,6 +42,47 @@ class _FakeScene(dict):
         super().__init__(assets)
         self._ALL_INDICES = environment_ids
         self.env_origins = torch.zeros((len(environment_ids), 3))
+
+
+@pytest.mark.parametrize(
+    ("selected_presets", "expected_physics"),
+    [
+        ((), "mujoco"),
+        (("newton_mjwarp_vbd_proxy",), "mujoco"),
+        (("isaacsim_physx",), "physx"),
+        (("physx",), "physx"),
+    ],
+)
+def test_franka_soft_robot_physics_variant_matches_backend(
+    selected_presets: tuple[str, ...], expected_physics: str
+) -> None:
+    """The Franka USD physics payload must match the selected simulation backend."""
+    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
+
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
+
+
+@pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
+def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
+    """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
+    cfg = cfg_type()
+    stage = Usd.Stage.CreateInMemory()
+    robot = stage.DefinePrim("/Robot", "Xform")
+    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
+    for selection, prim_path, prim_type in (
+        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
+        ("primitives", "/Robot/link1_capsule", "Capsule"),
+    ):
+        colliders.AddVariant(selection)
+        colliders.SetVariantSelection(selection)
+        with colliders.GetVariantEditContext():
+            stage.DefinePrim(prim_path, prim_type)
+    colliders.SetVariantSelection("primitives")
+
+    select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
+
+    assert stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
 def test_camera_normalization_is_stationary() -> None:

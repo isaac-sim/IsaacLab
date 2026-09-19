@@ -37,7 +37,7 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -55,8 +55,8 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/SensorBody",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, SENSOR_HEIGHT)),
     )
@@ -65,9 +65,9 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Box",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(3.0, 0.0, 0.5)),
     )
@@ -172,9 +172,9 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     """Tracked target registration remains valid when discovery returns concrete owner paths."""
     obstacle_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionBaseCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     obstacle_cfg.func("/World/Origin_00/Obstacle", obstacle_cfg)
 

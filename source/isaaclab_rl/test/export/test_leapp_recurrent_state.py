@@ -7,9 +7,7 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
-from pathlib import Path
+import importlib
 from types import ModuleType
 from typing import Any, Literal
 
@@ -18,66 +16,58 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-_LEAPP_ROOT = Path(__file__).resolve().parents[4] / "scripts" / "reinforcement_learning" / "leapp"
-_EXPORT_UTILS_SCRIPT = _LEAPP_ROOT / "export_utils.py"
-_EXPORT_UTILS_MODULE_NAME = "_isaaclab_leapp_export_utils"
 
-
-def _load_export_utils_module() -> ModuleType:
-    """Load shared LEAPP export helpers from the scripts tree."""
-    sys.modules.pop(_EXPORT_UTILS_MODULE_NAME, None)
-    spec = importlib.util.spec_from_file_location(_EXPORT_UTILS_MODULE_NAME, _EXPORT_UTILS_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create module spec for {_EXPORT_UTILS_SCRIPT}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_EXPORT_UTILS_MODULE_NAME] = module
-    spec.loader.exec_module(module)
-    return module
+def _load_export_common_module() -> ModuleType:
+    """Load shared LEAPP export helpers from the installed package."""
+    return importlib.import_module("isaaclab_rl.entrypoints.backends.export_common")
 
 
 def _load_backend_export_module(backend: str) -> ModuleType:
-    """Load a backend export script without importing Isaac Sim runtime modules."""
-    export_script = _LEAPP_ROOT / backend / "export.py"
-    module_name = f"_isaaclab_{backend}_leapp_export"
-    sys.modules.pop(module_name, None)
-    spec = importlib.util.spec_from_file_location(module_name, export_script)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create module spec for {export_script}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-
-    if backend in ("rl_games", "skrl"):
-        setattr(module, "is_two_tensor_lstm_state", _load_export_utils_module().is_two_tensor_lstm_state)
-    elif backend == "rsl_rl":
-        setattr(module, "torch", torch)
-    return module
+    """Load an exporter when its optional backend package is installed."""
+    pytest.importorskip(backend)
+    return importlib.import_module(f"isaaclab_rl.entrypoints.backends.export_{backend}")
 
 
 class TestSharedRecurrentState:
     """Tests for recurrent-state helpers shared by the export backends."""
 
+    def test_checkpoint_path_naturally_sorts_numbered_files(self, tmp_path):
+        """Select the latest numbered checkpoint without importing the task package."""
+        export_common = _load_export_common_module()
+        checkpoint_dir = tmp_path / "run" / "checkpoints"
+        checkpoint_dir.mkdir(parents=True)
+        (checkpoint_dir / "model_9.pt").touch()
+        expected = checkpoint_dir / "model_10.pt"
+        expected.touch()
+
+        resolved = export_common.get_checkpoint_path(
+            str(tmp_path),
+            run_dir="run",
+            checkpoint=r"model_.*\.pt",
+            other_dirs=["checkpoints"],
+        )
+
+        assert resolved == str(expected)
+
     def test_lstm_state_detection_requires_two_tensors(self):
         """Only two-tensor recurrent state is treated as LSTM feedback."""
-        export_utils = _load_export_utils_module()
+        export_common = _load_export_common_module()
         hidden_state = torch.zeros(1, 1, 4)
         cell_state = torch.zeros(1, 1, 4)
 
-        assert export_utils.is_two_tensor_lstm_state([hidden_state, cell_state])
-        assert export_utils.is_two_tensor_lstm_state((hidden_state, cell_state))
-        assert not export_utils.is_two_tensor_lstm_state([hidden_state])
-        assert not export_utils.is_two_tensor_lstm_state([hidden_state, cell_state, cell_state])
-        assert not export_utils.is_two_tensor_lstm_state([hidden_state, object()])
+        assert export_common.is_two_tensor_lstm_state([hidden_state, cell_state])
+        assert export_common.is_two_tensor_lstm_state((hidden_state, cell_state))
+        assert not export_common.is_two_tensor_lstm_state([hidden_state])
+        assert not export_common.is_two_tensor_lstm_state([hidden_state, cell_state, cell_state])
+        assert not export_common.is_two_tensor_lstm_state([hidden_state, object()])
 
     def test_state_sequence_round_trip_from_dict(self):
         """Named LEAPP state maps back to framework state order."""
-        export_utils = _load_export_utils_module()
+        export_common = _load_export_common_module()
         states = [torch.zeros(1, 1, 4), torch.ones(1, 1, 4)]
-        state_dict = export_utils.state_dict_from_sequence(states)
+        state_dict = export_common.state_dict_from_sequence(states)
 
-        restored = export_utils.state_sequence_from_registered(state_dict, list(state_dict.keys()), states)
+        restored = export_common.state_sequence_from_registered(state_dict, list(state_dict.keys()), states)
 
         assert list(state_dict.keys()) == ["actor_state_0", "actor_state_1"]
         assert restored == states

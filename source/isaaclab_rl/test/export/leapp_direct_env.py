@@ -6,7 +6,6 @@
 """LEAPP export entrypoint for the direct-environment tutorial."""
 
 import importlib.util
-import runpy
 import sys
 from pathlib import Path
 
@@ -37,10 +36,9 @@ def _main() -> None:
         disable_env_checker=original.disable_env_checker,
         kwargs=dict(original.kwargs),
     )
-    script = _REPO_ROOT / "scripts/reinforcement_learning/leapp/rsl_rl/export.py"
-    sys.argv[0] = str(script)
-    sys.path.insert(0, str(script.parent))
-    runpy.run_path(str(script), run_name="__main__")
+    from isaaclab_rl.entrypoints.backends.export_rsl_rl import run
+
+    raise SystemExit(run(sys.argv[1:]))
 
 
 if __name__ == "__main__":

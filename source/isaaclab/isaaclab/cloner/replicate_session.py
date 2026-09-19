@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-construction clone-plan dispatch and :class:`ReplicateSession` sugar."""
+"""Clone-plan publication and dispatch."""
 
 from __future__ import annotations
 
@@ -23,40 +23,23 @@ if TYPE_CHECKING:
     from .clone_plan import ClonePlan
 
 
-REPLICATION_QUEUE: list[Any] = []
-"""Constructed cfgs consumed by post-construction :func:`clone_plan_from_env_0` workflows.
-
-Cfg-first :class:`ReplicateSession` planning does not read the queue. Dispatch clears it
-without deriving any backend mapping from it.
-"""
-
-
-def queue_replication(cfg: Any) -> None:
-    """Register a constructed cfg for post-construction clone planning.
-
-    Args:
-        cfg: Asset cfg with resolved ``prim_path``.
-    """
-    REPLICATION_QUEUE.append(cfg)
-
-
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
-    """Dispatch a fully routed clone plan and publish it after replication.
+    """Dispatch the active fully routed clone plan.
 
     Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
     Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
-    only ``plan``. The queue is cleared up front, so a backend failure cannot leak stale entries
-    into the next lifecycle.
+    only ``plan``.
 
     Args:
         plan: Replication layout to dispatch.
         replicate_physics: Whether physics replication clones each environment. If False,
             cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
     """
-    REPLICATION_QUEUE.clear()
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
+    if sim.get_clone_plan() is not plan:
+        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
     context_types = tuple(
         context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
     )
@@ -68,14 +51,13 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     contexts = [sim._backend_registry[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
-    sim.set_clone_plan(plan)
 
 
 class ReplicateSession:
     """Folds :func:`make_clone_plan` and :func:`replicate` into a ``with`` block.
 
-    ``__enter__`` builds the complete plan and mutates each cfg's ``spawn_path``;
-    ``__exit__`` clears constructor registrations and dispatches that same plan.
+    ``__enter__`` builds and publishes the complete plan while assigning each cfg's
+    ``spawn_path``; ``__exit__`` dispatches that same plan.
 
     Example:
 
@@ -125,16 +107,19 @@ class ReplicateSession:
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
+        if (sim := SimulationContext.instance()) is None:
+            raise RuntimeError("Clone planning requires an active SimulationContext.")
+        if sim.get_clone_plan() is not None:
+            raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
         self._plan = make_clone_plan(self._cfgs, **self._kwargs)
+        sim.set_clone_plan(self._plan)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
-            assert self._plan is not None
-            replicate(self._plan, replicate_physics=self._replicate_physics)
-        else:
-            # Drop cfgs registered before the failure so the next session is clean.
-            REPLICATION_QUEUE.clear()
+            replicate(self.plan, replicate_physics=self._replicate_physics)
+        elif (sim := SimulationContext.instance()) is not None and sim.get_clone_plan() is self._plan:
+            sim.set_clone_plan(None)
 
     @property
     def plan(self) -> ClonePlan:

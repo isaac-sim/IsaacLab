@@ -1,3 +1,5 @@
+:orphan:
+
 .. _cloning-environments:
 
 Cloning Environments
@@ -207,29 +209,18 @@ need every variant behind a template. Note that environment ids are not mask col
 column ``j`` stands for ``env_ids[j]``, and the queries speak ids throughout.
 
 A plan is the *what*. Putting one together and handing it to the backends is
-the *how*, and Isaac Lab exposes three idiomatic ways to do that. All three end
-in the same ``cloner.replicate(plan)`` call, so the choice between
-them is purely about ergonomics:
-
-* The first wraps both phases in a context manager and is what
-  :class:`~isaaclab.scene.InteractiveScene` runs under the hood. Reach for it
-  when you want the lifecycle hidden and you are authoring assets through a
-  scene config.
-* The second spells the same flow out as plain function calls, leaving a moment
-  between the build and the drain where you can inspect or mutate the plan.
-  Reach for it when you are assembling a scene outside
-  :class:`~isaaclab.scene.InteractiveScene` or want fine control over timing.
-* The third is a one-shot shortcut for the case where every env is just a copy
-  of env_0. Reach for it in :class:`~isaaclab.envs.DirectRLEnv` and standalone
-  scripts that hand-build the env-0 prototype prim by prim.
+the *how*. Both Manager-based and Direct environments normally declare their
+assets on :class:`~isaaclab.scene.InteractiveSceneCfg`; the scene owns the one
+clone lifecycle. The lower-level APIs remain available to standalone tools and
+tests that deliberately do not depend on :class:`~isaaclab.scene.InteractiveScene`.
 
 ``ReplicateSession``
 ~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab.cloner.ReplicateSession` is a context manager that brackets the
-whole cloning lifecycle. Entering the block builds the plan, the body is where
-you construct your assets (each one registers itself as part of its constructor),
-and exiting the block clears those constructor registrations and dispatches the plan:
+:class:`~isaaclab.cloner.ReplicateSession` is the context manager used by
+:class:`~isaaclab.scene.InteractiveScene` to bracket the whole cloning lifecycle.
+Entering the block builds and publishes the plan, the body constructs assets at
+their planned source paths, and exiting dispatches that same plan:
 
 .. code-block:: python
 
@@ -257,48 +248,25 @@ When envs need to differ across the population, use
 :class:`~isaaclab.sim.spawners.wrappers.MultiUsdFileCfg`; see
 :doc:`multi_asset_spawning`.
 
-``make_clone_plan`` + ``replicate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The same two phases as the session, written as separate function calls. The plan
-is built first, asset construction happens in between, and the drain runs
-explicitly at the end. The gap between the build and the drain is the point —
-that is where you can read the plan back, mutate it, log it, or otherwise
-intervene before replication actually happens:
-
-.. code-block:: python
-
-    plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0)
-    for cfg in cfgs:
-        cfg.class_type(cfg)
-    cloner.replicate(plan)
-
 ``clone_plan_from_env_0`` + ``replicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Shortcut for the case where every env is just a copy of env_0.
-:func:`~isaaclab.cloner.clone_plan_from_env_0` builds the single-source plan in
-one line by pointing at the prototype, and :func:`~isaaclab.cloner.replicate`
-finishes the setup. This is the pattern most :class:`~isaaclab.envs.DirectRLEnv`
-subclasses use — they author the env-0 prototype prim by prim in
-``_setup_scene`` and end the method with this sequence:
+For a standalone homogeneous workflow where every env is one copy of env_0,
+pass a :class:`~isaaclab.cloner.CloneCfg` and a flat tuple of asset and sensor
+cfgs. :func:`~isaaclab.cloner.clone_plan_from_env_0` publishes the plan and
+assigns prototype spawn paths before construction:
 
 .. code-block:: python
 
-    def _setup_scene(self):
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # ... any other assets ...
+    asset_cfgs = (robot_cfg, ground_cfg, light_cfg)
+    plan = cloner.clone_plan_from_env_0(clone_cfg, asset_cfgs, num_envs=128, env_spacing=2.0)
+    robot, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
+    cloner.replicate(plan, replicate_physics=clone_cfg.replicate_physics)
 
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-
-Every env receives the same prototype. When envs need to differ, use one of the
-other two. Hand-built scenes must pass every shared asset root in ``global_paths``;
-use ``()`` when there are none.
+Every env receives the same prototype. The tuple is deliberately flat: the
+cloner does not inspect a task or scene cfg tree. Prefer
+:class:`~isaaclab.scene.InteractiveSceneCfg` for environment implementations and
+heterogeneous scenes.
 
 
 Under the Hood
@@ -323,18 +291,19 @@ execution contract:
 
 :func:`~isaaclab.cloner.replicate` resolves these types through the
 :class:`~isaaclab.sim.SimulationContext` backend registry, orders them by
-``replicate_priority``, and passes the same plan to each one:
+``replicate_priority``, and passes the published plan to each one:
 
 .. code-block:: python
 
-    def replicate(plan):
-        for context_type in plan.context_rows:
-            simulation_backends[context_type].replicate(plan)
-        publish(plan)
+    plan = published_clone_plan
+    for context_type in plan.context_rows:
+        simulation_backends[context_type].replicate(plan)
+
+Every maintained lifecycle publishes its plan before asset construction. The
+simulation accepts one plan and each backend receives that exact object.
 
 USD runs before native physics contexts so the destination topology exists when
-they consume it. No fallback context is constructed during dispatch. The plan is
-then published to the simulation context for downstream consumers.
+they consume it. No fallback context is constructed during dispatch.
 
 Collision Filtering
 -------------------
