@@ -37,7 +37,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 .. dropdown:: Code for add_sensors_on_robot.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+   .. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
       :emphasize-lines: 72-95, 143-153, 167-168
       :linenos:
@@ -85,7 +85,7 @@ set to ``{ENV_REGEX_NS}/Robot/base/front_cam`` where the ``{ENV_REGEX_NS}`` is t
 ``"Robot"`` is the name of the robot, ``"base"`` is the name of the prim to which the camera is attached,
 and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 
-.. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+.. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
    :start-at: camera = CameraCfg(
    :end-before: height_scanner = RayCasterCfg(
@@ -111,7 +111,7 @@ by setting the :attr:`~sensors.SensorBaseCfg.debug_vis` attribute to true.
 
 The entire configuration of the height-scanner is as follows:
 
-.. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+.. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
    :start-at: height_scanner = RayCasterCfg(
    :end-before: contact_forces = ContactSensorCfg(
@@ -140,7 +140,7 @@ simulation steps is stored.
 
 The entire configuration of the contact sensor is as follows:
 
-.. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+.. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
    :start-at: contact_forces = ContactSensorCfg(
    :lines: 1-3
@@ -151,7 +151,7 @@ Running the simulation loop
 Similar to when using assets, the buffers and physics handles for the sensors are initialized only
 when the simulation is played, i.e., it is important to call ``sim.reset()`` after creating the scene.
 
-.. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+.. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
    :start-at: # Play the simulator
    :end-at: sim.reset()
@@ -163,7 +163,7 @@ periods.
 The data from the sensors can be accessed through their ``data`` attribute. As an example, we show how
 to access the data for the different sensors created in this tutorial:
 
-.. literalinclude:: ../../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+.. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
    :start-at: # print information from the sensors
    :end-at: print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_normal_forces_w).item())
@@ -197,7 +197,7 @@ Additionally, you can switch the viewport to the camera view to see the RGB imag
 camera sensor. Please check `here <https://youtu.be/htPbcKkNMPs?feature=shared>`_ for more information
 on how to switch the viewport to the camera view.
 
-.. figure:: ../../_static/tutorials/tutorial_add_sensors.jpg
+.. figure:: ../_static/tutorials/tutorial_add_sensors.jpg
     :align: center
     :figwidth: 100%
     :alt: result of add_sensors_on_robot.py

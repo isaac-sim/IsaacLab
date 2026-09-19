@@ -8,6 +8,10 @@ Interacting with a rigid object
 
 .. currentmodule:: isaaclab
 
+This is the first runtime example in :ref:`asset-authoring`: spawn a rigid body, reset its
+state, step the simulation, and read the updated state. Use the authoring guides for
+configuration details and :ref:`tutorial-interact-articulation` for bodies connected by joints.
+
 In the previous tutorials, we learned the essential workings of the standalone script and how to
 spawn different objects (or *prims*) into the simulation. This tutorial shows how to create and interact
 with a rigid object. For this, we will use the :class:`assets.RigidObject` class provided in Isaac Lab.
@@ -20,7 +24,7 @@ The tutorial corresponds to the ``run_rigid_object.py`` script in the ``scripts/
 .. dropdown:: Code for run_rigid_object.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_rigid_object.py
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
       :language: python
       :emphasize-lines: 55-74, 76-78, 98-108, 111-112, 118-119, 132-134, 139-140
       :linenos:
@@ -63,7 +67,7 @@ each of the ``/World/Origin{i}`` locations. For instance, if ``/World/Origin1`` 
 present in the scene, the rigid object prims are spawned at the locations ``/World/Origin1/Cone`` and
 ``/World/Origin2/Cone`` respectively.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_rigid_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
    :language: python
    :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
    :end-at: cone_object = RigidObject(cfg=cone_cfg)
@@ -72,7 +76,7 @@ Since we want to interact with the rigid object, we pass this entity back to the
 is then used to interact with the rigid object in the simulation loop. In later tutorials, we will see a more
 convenient way to handle multiple scene entities using the :class:`scene.InteractiveScene` class.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_rigid_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
    :language: python
    :start-at: # return the scene information
    :end-at: return scene_entities, origins
@@ -101,7 +105,7 @@ attribute, which we left as identity in this tutorial. We then randomize the tra
 set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_pose_to_sim` and :meth:`assets.RigidObject.write_root_velocity_to_sim` methods.
 As the name suggests, this method writes the root state of the rigid object prim into the simulation buffer.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_rigid_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
    :language: python
    :start-at: # reset root state
    :end-at: cone_object.reset()
@@ -113,7 +117,7 @@ Before stepping the simulation, we perform the :meth:`assets.RigidObject.write_d
 writes other data, such as external forces, into the simulation buffer. In this tutorial, we do not apply any
 external forces to the rigid object, so this method is not necessary. However, it is included for completeness.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_rigid_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
    :language: python
    :start-at: # apply sim data
    :end-at: cone_object.write_data_to_sim()
@@ -124,7 +128,7 @@ Updating the state
 After stepping the simulation, we update the internal buffers of the rigid object prims to reflect their new state
 inside the :class:`assets.RigidObject.data` attribute. This is done using the :meth:`assets.RigidObject.update` method.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_rigid_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
    :language: python
    :start-at: # update buffers
    :end-at: cone_object.update(sim_dt)
@@ -133,7 +137,8 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-Now that we have gone through the code, let's run the script and see the result:
+This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
+the Isaac Sim viewport shown below:
 
 .. tab-set::
 
@@ -141,21 +146,20 @@ Now that we have gone through the code, let's run the script and see the result:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_rigid_object.py
+         uv run isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
 
 
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from
-a random height and settling on to the ground. To stop the simulation, you can either close the window, or press
-the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal
+a random height and settling on to the ground. Press ``Ctrl+C`` in the terminal to stop the simulation.
 
-.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.jpg
+.. figure:: ../_static/tutorials/tutorial_run_rigid_object.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_rigid_object.py

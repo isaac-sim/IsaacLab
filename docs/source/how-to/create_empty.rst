@@ -21,7 +21,7 @@ The tutorial corresponds to the ``create_empty.py`` script in the ``scripts/tuto
 .. dropdown:: Code for create_empty.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
+   .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
       :language: python
       :emphasize-lines: 18-30,34,40-44,46-47,51-54,60-61
       :linenos:
@@ -47,7 +47,7 @@ For this tutorial, we mainly look at adding the command-line options to a user-d
 to it. These include launching the app headless, configuring different Livestream options,
 and enabling off-screen rendering.
 
-.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: import argparse
    :end-at: simulation_app = app_launcher.app
@@ -60,7 +60,7 @@ Isaac Sim and other libraries. Here we import the following module:
 
 * :mod:`isaaclab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
 
-.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: from isaaclab.sim import SimulationCfg, SimulationContext
    :end-at: from isaaclab.sim import SimulationCfg, SimulationContext
@@ -82,7 +82,7 @@ For this tutorial, we set the physics and rendering time step to 0.01 seconds. T
 by passing these quantities to the :class:`sim.SimulationCfg`, which is then used to create an
 instance of the simulation context.
 
-.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: # Initialize the simulation context
    :end-at: sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
@@ -117,7 +117,7 @@ while the simulation app is running. The method :meth:`sim.SimulationContext.ste
 which dictates whether the step includes updating the rendering-related events or not. By default, this flag is
 set to True.
 
-.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: # Play the simulator
    :end-at: sim.step()
@@ -128,7 +128,7 @@ Exiting the simulation
 Lastly, the simulation application is stopped and its window is closed by calling
 :meth:`isaacsim.SimulationApp.close` method.
 
-.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: # close sim app
    :end-at: simulation_app.close()
@@ -147,7 +147,7 @@ Now that we have gone through the code, let's run the script and see the result:
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
 you can either close the window, or press ``Ctrl+C`` in the terminal.
 
-.. figure:: ../../_static/tutorials/tutorial_create_empty.jpg
+.. figure:: ../_static/tutorials/tutorial_create_empty.jpg
     :align: center
     :figwidth: 100%
     :alt: result of create_empty.py

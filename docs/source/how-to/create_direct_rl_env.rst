@@ -3,7 +3,7 @@
 .. seealso::
 
    This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
-   (`skills/user/domain-randomization-events/ <../../../../skills/user/domain-randomization-events/SKILL.md>`__).
+   (:isaaclab-source:`skills/user/domain-randomization-events/ <skills/user/domain-randomization-events/SKILL.md>`).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
@@ -36,7 +36,7 @@ For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.c
 .. dropdown:: Code for cartpole_direct_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+   .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
       :language: python
       :linenos:
 
@@ -97,7 +97,7 @@ Scene Creation
 Direct and manager-based environments use the same declarative scene lifecycle. Define the
 assets and sensors on an :class:`~isaaclab.scene.InteractiveSceneCfg` subclass:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py
    :language: python
    :pyobject: CartpoleSceneCfg
 
@@ -165,7 +165,7 @@ a dictionary should be returned that contains ``policy`` as the key, and the ful
 observation buffer as the value. For asymmetric policies, the dictionary should also
 include the key ``critic`` and the states buffer as the value.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
    :language: python
    :pyobject: CartpoleEnv._get_observations
 
@@ -177,7 +177,7 @@ This method is free to implement logic that computes which environments would ne
 and which environments have reached the episode length limit. Both results should be
 returned by the ``_get_dones(self)`` function, in the form of a tuple of boolean tensors.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
    :language: python
    :pyobject: CartpoleEnv._get_dones
 
@@ -185,7 +185,7 @@ Once the indices for environments requiring reset have been computed, the ``_res
 function performs the reset operations on those environments. Within this function, new states
 for the environments requiring reset should be set directly into simulation.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
    :language: python
    :pyobject: CartpoleEnv._reset_idx
 
@@ -196,7 +196,7 @@ There are two APIs that are designed for working with actions. The ``_pre_physic
 from the policy as an argument and is called once per RL step, prior to taking any physics steps. This function can
 be used to process the actions buffer from the policy and cache the data in a class variable for the environment.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
    :language: python
    :pyobject: CartpoleEnv._pre_physics_step
 
@@ -204,7 +204,7 @@ The ``_apply_action(self)`` API is called ``decimation`` number of times for eac
 each physics step. This provides more flexibility for environments where actions should be applied
 for each physics step.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
    :language: python
    :pyobject: CartpoleEnv._apply_action
 
@@ -228,7 +228,7 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 
          ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
 
-.. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.jpg
+.. figure:: ../_static/tutorials/tutorial_create_direct_workflow.jpg
     :align: center
     :figwidth: 100%
     :alt: result of train.py

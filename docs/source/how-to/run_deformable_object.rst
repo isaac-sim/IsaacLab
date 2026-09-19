@@ -50,7 +50,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 .. dropdown:: Code for run_deformable_object.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
       :emphasize-lines: 71-117, 146-151, 153-162, 167-175, 177-178, 184-189
       :linenos:
@@ -84,7 +84,7 @@ when the simulation is played.
 As seen in the rigid body tutorial, we can spawn the deformable object into the scene in a similar fashion by creating
 an instance of the :class:`assets.DeformableObject` class by passing the configuration object to its constructor.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # Create separate groups called "env_0", "env_1", ...
    :end-at: cube_object = DeformableObject(cfg=cfg)
@@ -113,7 +113,7 @@ attribute, which we left as identity in this tutorial.
 
 We apply transformations to the nodal positions to randomize the initial state of the deformable object.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # reset the nodal state of the object
    :end-at: nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
@@ -126,7 +126,7 @@ kinematic targets in the next section.
 
 Finally, we call the :meth:`assets.DeformableObject.reset` method to reset any internal buffers and caches.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # write nodal state to simulation
    :end-at: cube_object.reset()
@@ -146,7 +146,7 @@ we set the flag to indicate that the target is a kinematic target for that node 
 These are set into the simulation buffer by calling the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim`
 method.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update the kinematic target for cubes at index 0 and 3
    :end-at: cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
@@ -155,7 +155,7 @@ Similar to the rigid object and articulation, we perform the :meth:`assets.Defor
 before stepping the simulation. For deformable objects, this method does not apply any external forces to the object.
 However, we keep this method for completeness and future extensions.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # write internal data to simulation
    :end-at: cube_object.write_data_to_sim()
@@ -170,7 +170,7 @@ At a fixed interval, we print the root position of the deformable object to the 
 earlier, there is no concept of a root state for deformable objects. However, we compute the root position as
 the average position of all the nodes in the mesh.
 
-.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update buffers
    :end-at: cube_object.data.root_pos_w
@@ -218,7 +218,7 @@ from a height and settling on to the ground. Meanwhile the other two cubes must 
 should see a marker showing the kinematic target position for the nodes at the bottom-left corner of the cubes.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 
-.. figure:: ../../_static/tutorials/tutorial_run_deformable_object.jpg
+.. figure:: ../_static/tutorials/tutorial_run_deformable_object.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_deformable_object.py

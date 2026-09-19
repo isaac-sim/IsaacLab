@@ -14,7 +14,7 @@ class.
 .. dropdown:: Environment creation in the previous tutorial
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
+   .. literalinclude:: ../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
       :start-at: # create environment configuration
       :end-at: env = ManagerBasedRLEnv(cfg=env_cfg)
@@ -28,7 +28,7 @@ the :meth:`gymnasium.make` function.
 .. dropdown:: Environment creation in this tutorial
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
+   .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
       :start-at: # parse configuration via Hydra
       :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
@@ -44,7 +44,7 @@ implementation lives.
 .. dropdown:: Code for simple_agents.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
+   .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
       :emphasize-lines: 24, 64-75
       :linenos:
@@ -81,7 +81,7 @@ Manager-Based Environments
 For manager-based environments, the following shows the registration
 call for the cartpole environment in the ``isaaclab_tasks.core.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
    :lines: 14-16,61-75
    :emphasize-lines: 5, 6, 9
@@ -116,7 +116,7 @@ manager-based environments.
 As an example, the following shows the registration call for the cartpole environment in the
 ``isaaclab_tasks.core.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
    :lines: 14-16,32-43
    :emphasize-lines: 5, 6, 9
@@ -129,7 +129,7 @@ To inform the ``gym`` registry with all the environments provided by the ``isaac
 extension, we must import the module at the start of the script. This will execute the ``__init__.py``
 file which iterates over all the sub-packages and registers their respective environments.
 
-.. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
+.. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: import isaaclab_tasks  # noqa: F401
    :end-at: import isaaclab_tasks  # noqa: F401
@@ -139,7 +139,7 @@ the default configuration as well as to create the environment instance. In addi
 parsed command line arguments such as the number of environments, the simulation device,
 and whether to render, are used to override the default configuration.
 
-.. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
+.. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: # parse configuration via Hydra
    :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
@@ -172,7 +172,7 @@ This should open a stage with everything similar to the :ref:`tutorial-create-ma
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 
 
-.. figure:: ../../_static/tutorials/tutorial_register_environment.jpg
+.. figure:: ../_static/tutorials/tutorial_register_environment.jpg
     :align: center
     :figwidth: 100%
     :alt: result of random_agent.py
