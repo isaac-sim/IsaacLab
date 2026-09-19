@@ -29,6 +29,9 @@ def test_inertial_decoupling_damps_near_singular_directions(device, partial_iner
         nullspace_stiffness=1.0,
     )
     controller = OperationalSpaceController(cfg, num_envs=4, device=device)
+    # Solve for forces each step; do not reintroduce cached inverse matrices or duplicate inertia state.
+    assert not hasattr(controller, "_mass_matrix_inv")
+    assert not hasattr(controller, "_os_mass_matrix_b")
     pose = torch.zeros(4, 7, device=device)
     pose[:, -1] = 1.0
     controller.set_command(pose)
@@ -66,6 +69,13 @@ def test_inertial_decoupling_damps_near_singular_directions(device, partial_iner
     expected[:, :6] = masses[:6].sqrt() * (acceleration @ basis) * gains
     expected = expected @ joint_basis.mT
     torch.testing.assert_close(efforts, expected, atol=2e-4, rtol=2e-4)
+
+    # Batch composition must not change the result when only some environments need damping.
+    for env_id in range(4):
+        single_controller = OperationalSpaceController(cfg, num_envs=1, device=device)
+        single_controller.set_command(pose[env_id : env_id + 1])
+        single_efforts = single_controller.compute(**{key: value[env_id : env_id + 1] for key, value in inputs.items()})
+        torch.testing.assert_close(single_efforts[0], efforts[env_id], atol=2e-4, rtol=2e-4)
 
     # Full inertia decoupling must isolate every retained task direction from posture torques.
     if not partial_inertial_decoupling:
