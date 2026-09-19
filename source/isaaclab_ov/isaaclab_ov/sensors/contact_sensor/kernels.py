@@ -42,49 +42,59 @@ def split_flat_pose_to_pos_quat(
 
 @wp.kernel
 def unpack_contact_buffer_data(
-    contact_data: wp.array(dtype=wp.vec3f),
-    buffer_count: wp.array2d(dtype=wp.uint32),
-    buffer_start_indices: wp.array2d(dtype=wp.uint32),
+    contact_positions: wp.array(dtype=wp.vec3f),
+    contact_counts: wp.array2d(dtype=wp.uint32),
+    contact_starts: wp.array2d(dtype=wp.uint32),
+    friction_forces: wp.array(dtype=wp.vec3f),
+    friction_counts: wp.array2d(dtype=wp.uint32),
+    friction_starts: wp.array2d(dtype=wp.uint32),
     mask: wp.array(dtype=wp.bool),
-    num_bodies: wp.int32,
-    avg: bool,
-    default_val: wp.float32,
-    dst: wp.array3d(dtype=wp.vec3f),
+    num_envs: wp.int32,
+    contact_pos_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
 ):
-    """Unpack and aggregate contact buffer data for each (env, body, filter) group.
+    """Average contact positions and sum friction forces in one launch.
 
-    Each thread handles one (body, filter) pair for one environment. It reads
-    `count` contact entries starting at `start_index` and either averages or
-    sums them.
+    Each thread handles one (env, body, filter) group in pattern-major input
+    order. Contact points and friction anchors have independent counts and start
+    indices. Disabled outputs and their corresponding inputs may be None.
 
     Args:
-        contact_data: Flat buffer of contact data. Shape is (total_contacts,) vec3f.
-        buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M) uint32.
-        buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M) uint32.
+        contact_positions: Flat contact positions [m] in the world frame. Shape is (C,) vec3f.
+        contact_counts: Contact-point counts per (body*env, filter). Shape is (B*N, M).
+        contact_starts: Contact-point start indices per (body*env, filter). Shape is (B*N, M).
+        friction_forces: Flat friction forces [N] in the world frame. Shape is (C,) vec3f.
+        friction_counts: Friction-anchor counts per (body*env, filter). Shape is (B*N, M).
+        friction_starts: Friction-anchor start indices per (body*env, filter). Shape is (B*N, M).
         mask: Boolean mask for which environments to update. Shape is (N,).
-        num_bodies: Number of bodies per environment.
-        avg: If True, average the data; if False, sum it.
-        default_val: Default value for groups with zero contacts (e.g. NaN or 0.0).
-        dst: Destination buffer. Shape is (N, B, M).
+        num_envs: Number of environments.
+        contact_pos_w: Mean contact positions [m], or NaN without contacts. Shape is (N, B, M) vec3f.
+        friction_force_matrix_w: Summed friction forces [N], or zero without anchors. Shape is (N, B, M) vec3f.
     """
     env, sensor, contact = wp.tid()
     if mask:
         if not mask[env]:
             return
 
-    flat_idx = env * num_bodies + sensor
-    count = wp.int32(buffer_count[flat_idx, contact])
-    start = wp.int32(buffer_start_indices[flat_idx, contact])
+    flat_idx = sensor * num_envs + env
+    if contact_pos_w:
+        count = wp.int32(contact_counts[flat_idx, contact])
+        start = wp.int32(contact_starts[flat_idx, contact])
+        position = wp.vec3f(wp.nan)
+        if count > 0:
+            position = wp.vec3f(0.0)
+            for c in range(count):
+                position = position + contact_positions[start + c]
+            position = position / wp.float32(count)
+        contact_pos_w[env, sensor, contact] = position
 
-    if count > 0:
-        accum = wp.vec3f(0.0, 0.0, 0.0)
+    if friction_force_matrix_w:
+        count = wp.int32(friction_counts[flat_idx, contact])
+        start = wp.int32(friction_starts[flat_idx, contact])
+        force = wp.vec3f(0.0)
         for c in range(count):
-            accum = accum + contact_data[start + c]
-        if avg:
-            accum = accum / wp.float32(count)
-        dst[env, sensor, contact] = accum
-    else:
-        dst[env, sensor, contact] = wp.vec3f(default_val, default_val, default_val)
+            force = force + friction_forces[start + c]
+        friction_force_matrix_w[env, sensor, contact] = force
 
 
 @wp.kernel
@@ -169,7 +179,31 @@ def reset_contact_sensor_kernel(
 
     if contact_pos_w:
         for f in range(num_filter_objects):
-            contact_pos_w[env, sensor, f] = wp.vec3f(0.0)
+            contact_pos_w[env, sensor, f] = wp.vec3f(wp.nan)
+
+
+@wp.kernel
+def update_filtered_force_history_kernel(
+    mask: wp.array(dtype=wp.bool),
+    history_length: int,
+    forces: wp.array3d(dtype=wp.vec3f),
+    history: wp.array4d(dtype=wp.vec3f),
+):
+    """Record filtered forces [N] for selected environments, with the newest sample at index zero.
+
+    Args:
+        mask: Environment selection, shape (N,).
+        history_length: Number of history slots.
+        forces: Filtered forces [N], shape (N, B, F).
+        history: Force history [N], shape (N, H, B, F).
+    """
+    env, sensor, partner = wp.tid()
+    if mask:
+        if not mask[env]:
+            return
+    for i in range(history_length - 1, 0, -1):
+        history[env, i, sensor, partner] = history[env, i - 1, sensor, partner]
+    history[env, 0, sensor, partner] = forces[env, sensor, partner]
 
 
 @wp.kernel
