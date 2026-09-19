@@ -132,6 +132,6 @@ class SimulationCfg:
 
     This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
     Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
-    :attr:`~isaaclab.visualizers.VisualizerCfg.background_mode` are forwarded to each resolved
+    :attr:`~isaaclab.visualizers.VisualizerCfg.background_color` are forwarded to each resolved
     visualizer unless that visualizer already has an explicitly customised value.
     """

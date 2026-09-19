@@ -31,8 +31,6 @@ from isaaclab_visualizers.newton_adapter import (
     resolve_visible_env_indices,
 )
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-
 
 def test_expand_infinite_plane_scale_expands_non_positive_extents():
     assert expand_infinite_plane_scale((0.0, 0.0, 1.0, 0.0)) == (
@@ -968,49 +966,78 @@ def test_newton_visualizer_cfg_distinct_types():
     # shared fields present on both
     assert NewtonGLVisualizerCfg().show_particles is False
     assert NewtonRTXVisualizerCfg().show_particles is False
-    assert NewtonGLVisualizerCfg().background_mode == "solid"
-    assert NewtonGLVisualizerCfg().background_color == (0.3, 0.55, 0.82)
-    assert NewtonRTXVisualizerCfg().background_color == (0.3, 0.55, 0.82)
-    assert NewtonRTXVisualizerCfg().dome_texture_file == (
-        f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr"
-    )
-    assert NewtonRTXVisualizerCfg().dome_intensity == 500.0
-    assert NewtonRTXVisualizerCfg().dome_rotation == (0.0, 0.0, 90.0)
+    assert NewtonGLVisualizerCfg().background_color is None
+    assert NewtonRTXVisualizerCfg().background_color is None
+    assert not hasattr(NewtonRTXVisualizerCfg(), "dome_texture_file")
     with pytest.raises(ValueError, match="three normalized RGB values"):
         NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
 
 
-def test_newton_rtx_default_environment_uses_only_dome_light(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("background_color", [None, (0.1, 0.2, 0.3)])
+def test_newton_rtx_default_environment_copies_scene_dome(
+    monkeypatch: pytest.MonkeyPatch, background_color: tuple[float, float, float] | None
 ) -> None:
-    from pxr import Gf, Usd, UsdGeom, UsdLux
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 
+    from isaaclab.utils.backend_utils import FactoryBase
+
+    source_stage = Usd.Stage.CreateInMemory()
+    parent = UsdGeom.Xform.Define(source_stage, "/World/Lighting")
+    parent.AddRotateZOp().Set(35.0)
+    dome = UsdLux.DomeLight.Define(source_stage, "/World/Lighting/skyLight")
+    dome.GetColorAttr().Set(Gf.Vec3f(0.8, 0.9, 1.0))
+    dome.GetExposureAttr().Set(1.5)
+    dome.GetIntensityAttr().Set(750.0)
+    dome.GetTextureFileAttr().Set(Sdf.AssetPath("sky.hdr"))
+    dome.GetTextureFormatAttr().Set("latlong")
+    dome.GetPrim().CreateAttribute("visibleInPrimaryRay", Sdf.ValueTypeNames.Bool).Set(False)
+    UsdGeom.Xformable(dome).AddRotateXYZOp().Set(Gf.Vec3f(90.0, 0.0, 0.0))
+    source_transform = UsdGeom.XformCache().GetLocalToWorldTransform(dome.GetPrim())
     monkeypatch.setattr("isaaclab.utils.assets.retrieve_file_path", lambda path: f"/cache/{path}")
+    monkeypatch.setattr(FactoryBase, "_get_backend", classmethod(lambda _cls: "newton"))
 
+    viewer = NewtonViewerRTX(scene_stage=source_stage, background_color=background_color, headless=True)
+    try:
+        viewer._add_camera_lights_and_render_product()
+
+        copied = UsdLux.DomeLight.Get(viewer.stage, "/root/_IsaacLabDomeLights/dome_0")
+        assert copied
+        assert copied.GetColorAttr().Get() == Gf.Vec3f(0.8, 0.9, 1.0)
+        assert copied.GetExposureAttr().Get() == 1.5
+        assert copied.GetIntensityAttr().Get() == 750.0
+        assert copied.GetTextureFileAttr().Get().path == "/cache/sky.hdr"
+        assert copied.GetTextureFormatAttr().Get() == "latlong"
+        assert copied.GetPrim().GetAttribute("visibleInPrimaryRay").Get() is False
+        assert UsdGeom.XformCache().GetLocalToWorldTransform(copied.GetPrim()) == source_transform
+        assert not viewer.stage.GetPrimAtPath("/root/_RTXDistantLight").IsValid()
+
+        render_product = viewer.stage.GetPrimAtPath(viewer._render_product_path)
+        background_type = render_product.GetAttribute("omni:rtx:background:source:type").Get()
+        background_value = render_product.GetAttribute("omni:rtx:background:source:color").Get()
+        assert background_type == ("domeLight" if background_color is None else "color")
+        if background_color is not None:
+            assert tuple(background_value) == pytest.approx(background_color)
+    finally:
+        viewer.close()
+
+
+def test_newton_rtx_default_environment_falls_back_without_scene_dome(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pxr import Usd
+
+    calls = []
+    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_add_default_lights", lambda _self: calls.append(True))
     viewer = object.__new__(NewtonViewerRTX)
     viewer.stage = Usd.Stage.CreateInMemory()
-    viewer._dome_texture_file = "sky.hdr"
-    viewer._dome_intensity = 500.0
-    viewer._dome_rotation = (0.0, 0.0, 90.0)
+    viewer._scene_stage = Usd.Stage.CreateInMemory()
 
     viewer._add_default_lights()
 
-    dome = UsdLux.DomeLight.Get(viewer.stage, "/root/_RTXDomeLight")
-    assert dome
-    assert dome.GetIntensityAttr().Get() == 500.0
-    assert dome.GetTextureFileAttr().Get().path == "/cache/sky.hdr"
-    assert UsdGeom.Xformable(dome).GetOrderedXformOps()[0].Get() == Gf.Vec3f(0.0, 0.0, 90.0)
-    assert not viewer.stage.GetPrimAtPath("/root/_RTXDistantLight").IsValid()
+    assert calls == [True]
 
 
-@pytest.mark.parametrize(
-    ("mode", "clear_color", "draw_sky"),
-    [("solid", False, False), ("sky", False, True), ("solid", True, True)],
-)
-def test_newton_gl_background_mode_selects_native_sky(mode: str, clear_color: bool, draw_sky: bool) -> None:
-    cfg = NewtonGLVisualizerCfg(background_mode=mode)
-    if clear_color:
-        cfg.background_color = None
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_gl_background_color(color: tuple[float, float, float] | None) -> None:
+    cfg = NewtonGLVisualizerCfg(background_color=color)
     visualizer = NewtonGLVisualizer(cfg)
     visualizer._viewer = SimpleNamespace(
         renderer=SimpleNamespace(),
@@ -1019,23 +1046,19 @@ def test_newton_gl_background_mode_selects_native_sky(mode: str, clear_color: bo
 
     visualizer._apply_viewer_post_init()
 
-    assert visualizer._viewer.renderer.draw_sky is draw_sky
-    expected_upper = cfg.sky_upper_color if draw_sky else cfg.background_color
-    expected_lower = cfg.sky_lower_color if draw_sky else cfg.background_color
+    assert visualizer._viewer.renderer.draw_sky == (color is None)
+    expected_upper = cfg.sky_upper_color if color is None else color
+    expected_lower = cfg.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize(
-    ("mode", "clear_color", "expected_color"),
-    [("solid", False, (0.3, 0.55, 0.82)), ("sky", False, None), ("solid", True, None)],
-)
-def test_newton_rtx_background_mode_selects_solid_override(
-    monkeypatch: pytest.MonkeyPatch,
-    mode: str,
-    clear_color: bool,
-    expected_color: tuple[float, float, float] | None,
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_rtx_receives_scene_stage_and_background_color(
+    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
 ) -> None:
+    from pxr import Usd
+
     kwargs = {}
     monkeypatch.setattr(
         newton_visualizer_module,
@@ -1043,15 +1066,13 @@ def test_newton_rtx_background_mode_selects_solid_override(
         lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
     )
 
-    cfg = NewtonRTXVisualizerCfg(background_mode=mode)
-    if clear_color:
-        cfg.background_color = None
-    NewtonRTXVisualizer(cfg)._create_viewer(False, {})
+    source_stage = Usd.Stage.CreateInMemory()
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))
+    visualizer._scene_data_provider = SimpleNamespace(get_usd_stage=lambda: source_stage)
+    visualizer._create_viewer(False, {})
 
-    assert kwargs["background_color"] == expected_color
-    assert kwargs["dome_texture_file"] == cfg.dome_texture_file
-    assert kwargs["dome_intensity"] == cfg.dome_intensity
-    assert kwargs["dome_rotation"] == cfg.dome_rotation
+    assert kwargs["scene_stage"] is source_stage
+    assert kwargs["background_color"] == color
 
 
 def test_eye_lookat_to_pitch_yaw_horizontal():

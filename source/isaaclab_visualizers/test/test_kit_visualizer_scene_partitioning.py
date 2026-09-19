@@ -14,39 +14,36 @@ from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationM
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
-@pytest.mark.parametrize(
-    ("mode", "clear_color", "source_type"),
-    [("solid", False, "color"), ("sky", False, "domeLight"), ("solid", True, "domeLight")],
-)
-def test_background_mode_applies_to_render_product_session_layer(
-    mode: str,
-    clear_color: bool,
-    source_type: str,
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_background_color_preserves_scene_dome(
+    color: tuple[float, float, float] | None,
 ) -> None:
     stage = Usd.Stage.CreateInMemory()
     render_product = stage.DefinePrim("/Render/Viewport", "RenderProduct")
-    color = (0.1, 0.2, 0.3)
-    cfg = KitVisualizerCfg(background_mode=mode, background_color=color)
-    if clear_color:
-        cfg.background_color = None
-    visualizer = KitVisualizer(cfg)
+    dome = UsdLux.DomeLight.Define(stage, "/World/skyLight")
+    dome.GetIntensityAttr().Set(750.0)
+    dome.GetTextureFileAttr().Set(Sdf.AssetPath("sky.hdr"))
+    visualizer = KitVisualizer(KitVisualizerCfg(background_color=color))
 
     visualizer._apply_render_product_background(stage, render_product.GetPath())
 
     source_type_attr = render_product.GetAttribute("omni:rtx:background:source:type")
     source_color = render_product.GetAttribute("omni:rtx:background:source:color")
-    assert source_type_attr.Get() == source_type
-    if source_type == "domeLight":
+    if color is None:
+        assert not source_type_attr.IsValid()
         assert not source_color.IsValid()
     else:
+        assert source_type_attr.Get() == "color"
         assert tuple(source_color.Get()) == pytest.approx(color)
-    assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:type") is None
-    assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:color") is None
+        assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:type") is None
+        assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:color") is None
+    assert dome.GetIntensityAttr().Get() == 750.0
+    assert dome.GetTextureFileAttr().Get().path == "sky.hdr"
 
 
 @pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])

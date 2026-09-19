@@ -181,7 +181,6 @@ class KitVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
-                ("background_mode", self.cfg.background_mode),
                 ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
@@ -580,7 +579,9 @@ class KitVisualizer(BaseVisualizer):
             pass
 
     def _apply_render_product_background(self, stage: Usd.Stage, render_product_path: str | Sdf.Path) -> None:
-        """Apply the configured background to an Isaac RTX render product."""
+        """Apply the configured solid background to an Isaac RTX render product."""
+        if self.cfg.background_color is None:
+            return
         render_product = stage.GetPrimAtPath(render_product_path)
         if not render_product.IsValid():
             logger.warning(
@@ -590,14 +591,10 @@ class KitVisualizer(BaseVisualizer):
             return
 
         with Usd.EditContext(stage, stage.GetSessionLayer()), Sdf.ChangeBlock():
-            background_color = self.cfg.background_color
-            use_sky_background = self.cfg.background_mode == "sky" or background_color is None
-            source_type = "domeLight" if use_sky_background else "color"
-            render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set(source_type)
-            if not use_sky_background:
-                render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
-                    Gf.Vec3f(*background_color)
-                )
+            render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                Gf.Vec3f(*self.cfg.background_color)
+            )
 
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""

@@ -797,38 +797,27 @@ For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit, Newton GL, and Newton RTX use a solid sky-blue background by default. The background remains
-independent of scene lighting, so dome lights continue to illuminate objects and contribute
-reflections. Set one shared default to show the native sky for whichever visualizer is selected:
+Kit and Newton RTX show the scene's authored dome light by default. Configure the HDR environment
+once through the scene's :class:`~isaaclab.sim.spawners.lights.DomeLightCfg`; both visualizers then
+use its texture, intensity, color, and transform:
+
+.. code-block:: python
+
+    env_cfg.scene.sky_light.spawn.texture_file = "/path/to/evening.hdr"
+    env_cfg.scene.sky_light.spawn.intensity = 1000.0
+
+Newton RTX mirrors the composed dome into its private rendering stage. No renderer-specific HDR
+configuration is required. Newton GL cannot display HDR environment textures and uses its
+procedural ``sky_upper_color`` / ``sky_lower_color`` gradient instead.
+
+To replace only the visible background with a solid color while retaining the scene lighting and
+reflections, set one shared visualizer default:
 
 .. code-block:: python
 
     from isaaclab.visualizers import VisualizerCfg
 
-    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_mode="sky")
-
-Kit shows the scene's dome light, Newton RTX shows its private HDR dome, and Newton GL shows its
-procedural ``sky_upper_color`` / ``sky_lower_color`` gradient because it does not support HDR
-environment textures. Setting ``background_color=None`` remains a backwards-compatible shortcut
-for ``background_mode="sky"``.
-
-Newton RTX uses the hosted ``blue_sky.hdr`` preset by default. The same versioned asset directory
-also contains ``epic_sky.hdr`` and ``workshop_shifted_up.hdr``. Select another HDR for a concrete
-Newton RTX visualizer by changing one field:
-
-.. code-block:: python
-
-    from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
-    sky_dir = f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1"
-    env_cfg.sim.visualizer_cfgs = [
-        NewtonRTXVisualizerCfg(background_mode="sky", dome_texture_file=f"{sky_dir}/epic_sky.hdr")
-    ]
-
-For Kit, set ``texture_file`` on the scene's
-:class:`~isaaclab.sim.spawners.lights.DomeLightCfg` to the same asset path. This keeps background
-selection separate from scene ownership and avoids adding a second light.
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_color=(0.1, 0.2, 0.3))
 
 
 Performance
