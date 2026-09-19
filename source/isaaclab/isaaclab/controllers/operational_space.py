@@ -21,13 +21,26 @@ if TYPE_CHECKING:
     from .operational_space_cfg import OperationalSpaceControllerCfg
 
 
-def _compute_task_space_mass_matrix(inverse_task_space_mass_matrix: torch.Tensor) -> torch.Tensor:
-    """Invert a task-space mass matrix, falling back to a pseudoinverse for singular batch elements."""
-    task_space_mass_matrix, info = torch.linalg.inv_ex(inverse_task_space_mass_matrix)
-    singular_mask = info != 0
-    if torch.any(singular_mask):
-        task_space_mass_matrix[singular_mask] = torch.linalg.pinv(inverse_task_space_mass_matrix[singular_mask])
-    return task_space_mass_matrix
+def _compute_task_space_mass_matrix(
+    jacobian: torch.Tensor, mass_matrix_inv: torch.Tensor, conditioning_thresholds: tuple[float, float]
+) -> torch.Tensor:
+    """Selectively damp poorly conditioned directions of the symmetric inverse task inertia."""
+    jacobian = jacobian.to(mass_matrix_inv.dtype)
+    inverse_task_space_mass_matrix = jacobian @ mass_matrix_inv @ jacobian.mT
+    eigenvalues, eigenvectors = torch.linalg.eigh(
+        0.5 * (inverse_task_space_mass_matrix + inverse_task_space_mass_matrix.mT)
+    )
+    lower, upper = conditioning_thresholds
+    tiny = torch.finfo(eigenvalues.dtype).tiny
+    eigenvalues = eigenvalues.clamp_min(0.0)
+    scale = eigenvalues[:, -1:].clamp_min(tiny)
+    relative_eigenvalues = eigenvalues / scale
+    weights = ((relative_eigenvalues - lower) / (upper - lower)).clamp(0.0, 1.0)
+    weights = weights.square() * (3.0 - 2.0 * weights)
+    damping = lower * scale * (1.0 - weights)
+    inverse_eigenvalues = (eigenvalues + damping).clamp_min(tiny).reciprocal()
+    inverse_eigenvalues = torch.where(eigenvalues[:, -1:] > 0.0, inverse_eigenvalues, 0.0)
+    return (eigenvectors * inverse_eigenvalues.unsqueeze(-2)) @ eigenvectors.mT
 
 
 class OperationalSpaceController:
@@ -50,12 +63,16 @@ class OperationalSpaceController:
             device: The device to use for computations.
 
         Raises:
-            ValueError: When invalid control command is provided.
+            ValueError: When an invalid control command or inertia conditioning thresholds are provided.
         """
         # store inputs
         self.cfg = cfg
         self.num_envs = num_envs
         self._device = device
+
+        lower, upper = self.cfg.inertia_conditioning_thresholds
+        if not 0.0 < lower < upper <= 1.0:
+            raise ValueError("Inertia conditioning thresholds must satisfy 0 < lower < upper <= 1.")
 
         # resolve tasks-pace target dimensions
         self.target_list = list()
@@ -93,7 +110,7 @@ class OperationalSpaceController:
         self.desired_ee_wrench_task = None
         self.desired_ee_wrench_b = None
         # -- buffer for operational space mass matrix
-        self._os_mass_matrix_b = torch.zeros(self.num_envs, 6, 6, device=self._device)
+        self._os_mass_matrix_b = torch.zeros(self.num_envs, 6, 6, device=self._device, dtype=torch.float64)
         # -- Placeholder for the inverse of joint space mass matrix
         self._mass_matrix_inv = None
         # -- motion control gains
@@ -457,23 +474,24 @@ class OperationalSpaceController:
                 if mass_matrix is None:
                     raise ValueError("Mass matrix is required for inertial decoupling.")
                 # Compute operational space mass matrix
-                self._mass_matrix_inv = torch.inverse(mass_matrix)
+                # Keep inertia products and their cancellation in double precision near weak task directions.
+                self._mass_matrix_inv = torch.inverse(mass_matrix.double())
                 if self.cfg.partial_inertial_dynamics_decoupling:
                     # Fill in the translational and rotational parts of the inertia separately, ignoring their coupling
                     self._os_mass_matrix_b[:, 0:3, 0:3] = _compute_task_space_mass_matrix(
-                        jacobian_b[:, 0:3] @ self._mass_matrix_inv @ jacobian_b[:, 0:3].mT
+                        jacobian_b[:, 0:3], self._mass_matrix_inv, self.cfg.inertia_conditioning_thresholds
                     )
                     self._os_mass_matrix_b[:, 3:6, 3:6] = _compute_task_space_mass_matrix(
-                        jacobian_b[:, 3:6] @ self._mass_matrix_inv @ jacobian_b[:, 3:6].mT
+                        jacobian_b[:, 3:6], self._mass_matrix_inv, self.cfg.inertia_conditioning_thresholds
                     )
                 else:
                     # Calculate the operational space mass matrix fully accounting for the couplings
                     self._os_mass_matrix_b[:] = _compute_task_space_mass_matrix(
-                        jacobian_b @ self._mass_matrix_inv @ jacobian_b.mT
+                        jacobian_b, self._mass_matrix_inv, self.cfg.inertia_conditioning_thresholds
                     )
                 # (Generalized) operational space command forces
-                # F = (J M^(-1) J^T)^+ * \ddot(x_des) = M_task * \ddot(x_des)
-                os_command_forces_b = self._os_mass_matrix_b @ des_ee_acc_b
+                # F = filtered_inverse(J M^(-1) J^T) * \ddot(x_des)
+                os_command_forces_b = self._os_mass_matrix_b @ des_ee_acc_b.double()
             else:
                 # Task-space impedance control: command forces = \ddot(x_des).
                 # Please note that the definition of task-space impedance control varies in literature.
@@ -481,7 +499,9 @@ class OperationalSpaceController:
                 # use inertial_dynamics_decoupling=True.
                 os_command_forces_b = des_ee_acc_b
             # -- joint-space commands
-            joint_efforts += (jacobian_b.mT @ self._selection_matrix_motion_b @ os_command_forces_b).squeeze(-1)
+            joint_efforts += (
+                (jacobian_b.mT @ self._selection_matrix_motion_b).to(os_command_forces_b.dtype) @ os_command_forces_b
+            ).squeeze(-1)
 
         # compute joint efforts for contact wrench/force control
         if self.desired_ee_wrench_b is not None:
@@ -526,17 +546,19 @@ class OperationalSpaceController:
 
             # Calculate the pseudo-inverse of the Jacobian
             if self.cfg.inertial_dynamics_decoupling and not self.cfg.partial_inertial_dynamics_decoupling:
-                # Dynamically consistent pseudo-inverse allows decoupling of null space and task space
+                # Reuse task damping: undamped modes remain dynamically decoupled, while weak modes
+                # are gradually released to posture control. Decoupling is approximate in damped directions.
                 if self._mass_matrix_inv is None or mass_matrix is None:
                     raise ValueError("Mass matrix inverse is required for dynamically consistent pseudo-inverse")
-                jacobian_pinv_transpose = self._os_mass_matrix_b @ jacobian_b @ self._mass_matrix_inv
+                jacobian_pinv_transpose = self._os_mass_matrix_b @ jacobian_b.double() @ self._mass_matrix_inv
             else:
                 # Moore-Penrose pseudo-inverse if full inertia matrix is not available (e.g., no/partial decoupling)
                 jacobian_pinv_transpose = torch.pinverse(jacobian_b).mT
 
             # Calculate the null-space projector
             nullspace_jacobian_transpose = (
-                torch.eye(n=num_DoF, device=self._device) - jacobian_b.mT @ jacobian_pinv_transpose
+                torch.eye(n=num_DoF, device=self._device)
+                - jacobian_b.mT.to(jacobian_pinv_transpose.dtype) @ jacobian_pinv_transpose
             )
 
             # Null space position control
@@ -566,7 +588,10 @@ class OperationalSpaceController:
 
                 # Calculate the projected torques in null-space
                 if mass_matrix is not None:
-                    tau_null = (nullspace_jacobian_transpose @ mass_matrix @ joint_acc_nullspace).squeeze(-1)
+                    tau_null = (
+                        nullspace_jacobian_transpose
+                        @ (mass_matrix @ joint_acc_nullspace).to(nullspace_jacobian_transpose.dtype)
+                    ).squeeze(-1)
                 else:
                     tau_null = nullspace_jacobian_transpose @ joint_acc_nullspace
 
