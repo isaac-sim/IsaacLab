@@ -548,7 +548,8 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         material_view.set_attribute(
             TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS,
             wp.from_torch(updated_youngs),
-            indices=wp.array([1], dtype=wp.int32),
+            # Deformable material bindings and their selectors are CPU-resident.
+            indices=wp.array([1], dtype=wp.int32, device="cpu"),
         )
         torch.testing.assert_close(
             wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)), updated_youngs.cpu()
@@ -649,7 +650,8 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         material_view.set_attribute(
             TT.DEFORMABLE_MATERIAL_BENDING_DAMPING,
             wp.from_torch(updated_bending_damping),
-            indices=wp.array([0], dtype=wp.int32),
+            # Deformable material bindings and their selectors are CPU-resident.
+            indices=wp.array([0], dtype=wp.int32, device="cpu"),
         )
         torch.testing.assert_close(
             wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_BENDING_DAMPING)),

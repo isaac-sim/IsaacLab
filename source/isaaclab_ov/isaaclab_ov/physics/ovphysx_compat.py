@@ -11,10 +11,8 @@ with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and
 the entry-point names are resolved once at import and published as
 :data:`OVPHYSX_LIFECYCLE_ENTRY_POINTS`.
 
-The public extras stay pinned to ``ovphysx==0.5.11``; a missing or unparsable
-install keeps the 0.5.11 entry points and reversed-joint sign correction.
-OvPhysX 0.6 fixes the dynamics tensor signs in the runtime, so that correction
-must be disabled on the new release line.
+The optional dependency is pinned to ``ovphysx==0.6.3``. Missing or invalid
+version metadata selects the 0.5 lifecycle API and reversed-joint correction.
 """
 
 from __future__ import annotations

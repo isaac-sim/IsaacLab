@@ -19,8 +19,8 @@ The published name is resolved against :class:`ovstage.HierarchyComputationModel
 caller, which keeps this module free of an ``ovstage`` import and therefore importable
 wherever the version policy needs to be inspected or tested.
 
-The public extras stay pinned to ``ovstage==0.1.1.355824``; a missing or unparsable
-install keeps the OVStage 0.1 host model.
+The optional dependency is pinned to ``ovstage==0.2.0.377349``. Missing or invalid
+version metadata selects ``CPU_INCREMENTAL``.
 """
 
 from __future__ import annotations
