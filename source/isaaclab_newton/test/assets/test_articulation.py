@@ -42,6 +42,7 @@ from isaaclab_newton.assets.articulation.articulation import _configure_builder_
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.solvers import SolverMuJoCo
 
@@ -248,7 +249,7 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -271,7 +272,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -2014,7 +2015,7 @@ def test_initialization_floating_base_made_fixed_base(
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
     # Fix root link by making it kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = True
+    articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -2068,7 +2069,7 @@ def test_initialization_fixed_base_made_floating_base(
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
     # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = False
+    articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -2826,7 +2827,9 @@ def test_setting_velocity_limit_implicit(
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        sim_limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         sim_limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(newton_vel_limit, sim_limit)
@@ -2889,7 +2892,9 @@ def test_setting_velocity_limit_explicit(
     if joint_velocity_limit is not None:
         limit = joint_velocity_limit
     else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     # check physx is set to expected value
     expected_vel_limit = torch.full_like(newton_vel_limit, limit)
     torch.testing.assert_close(newton_vel_limit, expected_vel_limit)
@@ -2931,7 +2936,9 @@ def test_setting_effort_limit_implicit(sim, articulation_type, num_articulations
 
     # decide the limit based on what is set
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
 

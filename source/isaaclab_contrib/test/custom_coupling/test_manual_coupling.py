@@ -134,9 +134,9 @@ def generate_lateral_rigid_and_deformable_cubes(
             prim_path="/World/env_[^/]+/rigid_cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=0.05),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.8)),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=rigid_cube_pos),
