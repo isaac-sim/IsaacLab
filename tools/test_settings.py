@@ -76,6 +76,18 @@ Note: Any tests not listed here will use the default timeout.
 GIT_ASSET_STARTUP_TIMEOUT = 1000
 """Startup timeout for tests that may populate the external Git asset cache."""
 
+PER_TEST_PROGRESS_TIMEOUTS = {
+    "test_environments_isaacsim_physx.py": 1200,
+    "test_environments_newton.py": 1200,
+    "test_environments_ovphysx.py": 1200,
+}
+"""Seconds without a pytest journal update before dumping and killing an environment suite.
+
+Each suite retains its overall runtime budget; collection and individual test
+phases must make progress within 20 minutes. Console noise cannot extend this
+deadline. The first camera-enabled file receives the usual cold-cache buffer.
+"""
+
 PER_TEST_STARTUP_TIMEOUTS = {
     "test_environments_isaacsim_physx.py": GIT_ASSET_STARTUP_TIMEOUT,
     "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,

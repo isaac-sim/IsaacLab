@@ -267,7 +267,10 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
     Args:
         cmd: Command to execute.
         timeout: Maximum wall-clock seconds before the process is killed.
-        env: Environment variables for the subprocess.
+        env: Environment variables for the subprocess. When
+            ``ISAACLAB_TEST_PROGRESS_TIMEOUT`` is positive and a crash journal
+            is configured, a stalled journal triggers the same diagnostic and
+            process-group cleanup as the hard timeout.
         startup_deadline: If > 0, the process is killed early when neither
             ``AppLauncher initialization complete`` (stderr) nor ``collected``
             (stdout) appears within this many seconds.
@@ -312,31 +315,53 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         except ImportError:
             pass
 
-        start_time = time.time()
+        start_time = time.monotonic()
         startup_done = startup_deadline <= 0
         shutdown_deadline = 0.0
+        progress_timeout = float(env.get("ISAACLAB_TEST_PROGRESS_TIMEOUT", "0"))
+        journal_file = env.get(JOURNAL_ENV_VAR, "")
+        last_progress = start_time
+        journal_size = 0
 
         while process.poll() is None:
-            elapsed = time.time() - start_time
+            now = time.monotonic()
+            elapsed = now - start_time
+
+            if progress_timeout > 0 and journal_file:
+                with contextlib.suppress(OSError):
+                    size = os.path.getsize(journal_file)
+                    if size != journal_size:
+                        last_progress = now
+                        journal_size = size
 
             if not startup_done:
                 if b"AppLauncher initialization complete" in stderr_data or b"collected " in stdout_data:
                     startup_done = True
 
             if report_file and not shutdown_deadline and os.path.exists(report_file):
-                shutdown_deadline = time.time() + SHUTDOWN_GRACE_PERIOD
+                shutdown_deadline = now + SHUTDOWN_GRACE_PERIOD
 
             kill_reason = None
             if not startup_done and elapsed > startup_deadline:
                 kill_reason = "startup_hang"
-            elif shutdown_deadline and time.time() > shutdown_deadline:
+            elif shutdown_deadline and now > shutdown_deadline:
                 kill_reason = "shutdown_hang"
             elif elapsed > timeout:
                 kill_reason = "timeout"
+            elif progress_timeout > 0 and journal_file and now - last_progress > progress_timeout:
+                kill_reason = "timeout"
+                logger.warning(
+                    f"No pytest journal progress for {progress_timeout:g}s; capturing hung process diagnostics"
+                )
 
             if kill_reason:
                 # Diagnostics first: they record the process tree while the hung process is still in it.
                 pre_kill_diag = _capture_system_diagnostics()
+                if progress_timeout > 0 and journal_file and now - last_progress > progress_timeout:
+                    pre_kill_diag = (
+                        f"No pytest journal progress for {progress_timeout:g}s (file budget {timeout}s).\n"
+                        + pre_kill_diag
+                    )
 
                 # Ask the process where it is stuck before killing it -- SIGKILL below cannot be caught,
                 # so this is the only chance to get a stack out of it.
@@ -358,7 +383,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                     stderr_data += remaining_stderr
                 except subprocess.TimeoutExpired:
                     pass
-                wall_time = time.time() - start_time
+                wall_time = time.monotonic() - start_time
                 return -1, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag
 
             stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
@@ -380,7 +405,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         except (ProcessLookupError, PermissionError, OSError):
             pass
 
-        wall_time = time.time() - start_time
+        wall_time = time.monotonic() - start_time
         return process.returncode, stdout_data, stderr_data, "", wall_time, ""
 
     except Exception as e:
@@ -1088,11 +1113,11 @@ def _run_one_pass(
 
     if kill_reason == "timeout" and not has_report:
         diag = _get_diagnostics(pre_kill_diag)
-        logger.warning(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
+        logger.warning(f"Test {ctx.test_file}{suffix} timed out after {wall_time:.1f} seconds...")
         logger.info(diag)
         ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
-        msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
+        msg = f"Timeout after {wall_time:.1f} seconds (file budget {ctx.timeout}s; retried {timeout_attempts} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
         if stdout_data:
             details += "=== STDOUT (last 5000 chars) ===\n"
@@ -1343,6 +1368,11 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
 
         startup_deadline = _resolve_startup_deadline(file_name, timeout, is_cold_cache_test)
+        progress_timeout = test_settings.PER_TEST_PROGRESS_TIMEOUTS.get(file_name, 0)
+        if progress_timeout:
+            env["ISAACLAB_TEST_PROGRESS_TIMEOUT"] = str(
+                progress_timeout + (COLD_CACHE_BUFFER if is_cold_cache_test else 0)
+            )
 
         pytest_targets = test_node_ids_by_file.get(os.path.normpath(test_file), [str(test_file)])
 
