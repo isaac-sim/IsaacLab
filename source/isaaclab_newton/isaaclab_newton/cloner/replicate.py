@@ -172,7 +172,6 @@ def _build_newton_builder_from_mapping(
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
     )
-
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     return builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings

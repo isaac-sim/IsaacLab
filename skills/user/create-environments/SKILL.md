@@ -50,7 +50,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, the environment tutorials under `docs/source/tutorials/03_envs/`, and maintained task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If workflow documentation is missing or stale, update the docs or examples first and keep this skill focused on choosing the right path.
+Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, the environment tutorials under `docs/source/how-to/`, and maintained task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If workflow documentation is missing or stale, update the docs or examples first and keep this skill focused on choosing the right path.
 
 ## References
 
@@ -58,9 +58,9 @@ Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, the
 - [Examples](examples.md)
 - [Manipulation planning skill](../plan-manipulation-tasks/SKILL.md)
 - [Task workflows](../../../docs/source/concepts/task_workflows.rst)
-- [Create manager-based base environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_base_env.rst)
-- [Create manager-based RL environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)
-- [Register Gym environment tutorial](../../../docs/source/tutorials/03_envs/register_rl_env_gym.rst)
+- [Create manager-based base environment tutorial](../../../docs/source/how-to/create_manager_base_env.rst)
+- [Create manager-based RL environment tutorial](../../../docs/source/how-to/create_manager_rl_env.rst)
+- [Register Gym environment tutorial](../../../docs/source/how-to/register_rl_env_gym.rst)
 - [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
-- [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
-- [Modify direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/modify_direct_rl_env.rst)
+- [Create direct workflow environment tutorial](../../../docs/source/how-to/create_direct_rl_env.rst)
+- [Modify direct workflow environment tutorial](../../../docs/source/how-to/modify_direct_rl_env.rst)
