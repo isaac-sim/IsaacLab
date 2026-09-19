@@ -109,8 +109,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     Primitive colliders can already produce multiple contacts with this option disabled.
     Additional contacts can increase solver work and the required :attr:`nconmax` and
     :attr:`njmax` capacities. This option does not configure Newton's collision pipeline
-    when :attr:`use_mujoco_contacts` is False. See :ref:`mjwarp-multiple-contacts` for
-    supported geometry pairs, configuration, and tuning guidance.
+    when :attr:`use_mujoco_contacts` is False.
     """
 
     ls_parallel: bool = False
