@@ -109,6 +109,8 @@ class _MeshSubmission:
 if TYPE_CHECKING:
     from newton import State
 
+    from pxr import Usd, UsdLux
+
     from isaaclab.scene_data import SceneDataProvider
 
 
@@ -636,6 +638,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         *args,
         metadata: dict | None = None,
         update_frequency: int = 1,
+        scene_stage: Usd.Stage | None = None,
         background_color: tuple[float, float, float] | None = None,
         render_settings: dict[str, Any] | None = None,
         **kwargs,
@@ -646,17 +649,19 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            scene_stage: Source USD stage containing the scene's authored dome lights.
             background_color: Optional solid background color RGB [0, 1].
             render_settings: Extra RTX attributes to author on the render product. See
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        # Assigned before super().__init__(): ViewerRTX reaches
-        # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # these values. The render settings are copied so a caller cannot mutate them afterwards.
+        # Assigned before super().__init__(): ViewerRTX reaches the light and render-product
+        # authoring hooks during initialization, and the overrides read these values.
+        self._scene_stage = scene_stage
         self._background_color = (
             tuple(float(value) for value in background_color) if background_color is not None else None
         )
+        # The render settings are copied so a caller cannot mutate them afterwards.
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
@@ -679,6 +684,57 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _add_default_lights(self) -> None:
+        """Mirror scene dome lights into the private OVRTX stage."""
+        from pxr import UsdLux
+
+        scene_domes = []
+        if self._scene_stage is not None:
+            scene_domes = [
+                UsdLux.DomeLight(prim) for prim in self._scene_stage.Traverse() if prim.IsA(UsdLux.DomeLight)
+            ]
+        if not scene_domes:
+            super()._add_default_lights()
+            return
+
+        for index, source_dome in enumerate(scene_domes):
+            self._copy_scene_dome(source_dome, f"/root/_IsaacLabDomeLights/dome_{index}")
+
+    def _copy_scene_dome(self, source_dome: UsdLux.DomeLight, target_path: str) -> None:
+        """Copy one composed scene dome into the private OVRTX stage."""
+        from pxr import Sdf, Usd, UsdGeom, UsdLux
+
+        from isaaclab.utils.assets import retrieve_file_path
+
+        source_prim = source_dome.GetPrim()
+        target_dome = UsdLux.DomeLight.Define(self.stage, target_path)
+        target_prim = target_dome.GetPrim()
+        for source_attr in source_prim.GetAttributes():
+            attr_name = source_attr.GetName()
+            if (
+                attr_name == "xformOpOrder"
+                or attr_name.startswith("xformOp:")
+                or not source_attr.HasAuthoredValueOpinion()
+            ):
+                continue
+            value = source_attr.Get(Usd.TimeCode.Default())
+            if value is None:
+                continue
+            if attr_name == "inputs:texture:file" and isinstance(value, Sdf.AssetPath) and value.path:
+                value = Sdf.AssetPath(retrieve_file_path(value.resolvedPath or value.path))
+            target_prim.CreateAttribute(
+                attr_name,
+                source_attr.GetTypeName(),
+                custom=source_attr.IsCustom(),
+                variability=source_attr.GetVariability(),
+            ).Set(value)
+
+        source_transform = UsdGeom.XformCache().GetLocalToWorldTransform(source_prim)
+        target_xform = UsdGeom.Xformable(target_prim)
+        target_xform.ClearXformOpOrder()
+        target_xform.AddTransformOp().Set(source_transform)
+        UsdGeom.Imageable(target_prim).GetVisibilityAttr().Set(UsdGeom.Imageable(source_prim).ComputeVisibility())
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
@@ -2305,8 +2361,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    A solid background can be configured through :class:`NewtonRTXVisualizerCfg`. Other RTX
-    settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
+    The default lighting environment mirrors dome lights from the Isaac Lab scene. A solid
+    background can be configured through :class:`NewtonRTXVisualizerCfg` without replacing those
+    lights. Other RTX settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2331,6 +2388,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            scene_stage=self._scene_data_provider.get_usd_stage(),
             background_color=self.cfg.background_color,
             render_settings=self.cfg.render_settings,
         )
