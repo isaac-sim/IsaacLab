@@ -71,7 +71,8 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
         if _has_non_missing_attr(agent_cfg, "policy"):
             print(
                 "[WARNING]: The `policy` configuration is deprecated for rsl-rl >= 4.0.0. Please use, e.g., `actor` and"
-                " `critic` model configurations instead."
+                " `critic` model configurations instead. Older rsl-rl configurations will not be supported"
+                " starting with Isaac Lab 3.1. Please migrate your configuration."
             )
 
             # handle deprecated obs_normalization argument
@@ -211,7 +212,8 @@ def _has_non_missing_attr(obj, attr_name: str) -> bool:
 def _handle_empirical_normalization(policy_cfg, agent_cfg):
     print(
         "[WARNING]: The `empirical_normalization` parameter is deprecated. Please set `actor_obs_normalization` and"
-        " `critic_obs_normalization` as part of the `policy` configuration instead."
+        " `critic_obs_normalization` as part of the `policy` configuration instead. Older rsl-rl configurations"
+        " will not be supported starting with Isaac Lab 3.1. Please migrate your configuration."
     )
     if _is_missing(policy_cfg.actor_obs_normalization):
         policy_cfg.actor_obs_normalization = agent_cfg.empirical_normalization
@@ -246,7 +248,8 @@ def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
         print(
             "[WARNING]: The `distribution_cfg` configuration is now used to specify the output distribution for"
             " stochastic policies. Consider updating the configuration to use `distribution_cfg` instead of"
-            " `stochastic`, `init_noise_std`, `noise_std_type`, and `state_dependent_std` parameters."
+            " `stochastic`, `init_noise_std`, `noise_std_type`, and `state_dependent_std` parameters. Older rsl-rl"
+            " configurations will not be supported starting with Isaac Lab 3.1. Please migrate your configuration."
         )
         if model_cfg.state_dependent_std is False:  # gaussian distribution
             model_cfg.distribution_cfg = rsl_rl_mlp_model_cfg_cls.GaussianDistributionCfg(

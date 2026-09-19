@@ -38,9 +38,9 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
-    "torchaudio>=2.11",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "torchaudio==2.11.0",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
     "psutil",
@@ -49,15 +49,15 @@ dependencies = [
     "gymnasium>=1.2.0",
     "trimesh>=4.6.8",  # lower bound inherited from newton[importers]
     "pyglet>=2.1.6,<3",
-    "transformers==4.57.6",
+    "transformers==5.10.4",
     "einops",
     "warp-lang==1.17.0",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
-    "pillow>=12.1.1",
+    "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
-    "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.1
+    "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
     "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
@@ -84,14 +84,11 @@ dependencies = [
     "packaging",
     "rich",
     "tqdm>=4.67.1",
-    "rsl-rl-lib==5.4.1",  # default RL framework
-    "onnxscript>=0.5",
+    "rsl-rl-lib==5.5.1",  # default RL framework
+    "gitpython>=3.1.59",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
-    # Pin the Newton release used by both workspace and wheel installs until 1.6.0 final.
-    # [tool.uv].override-dependencies only reaches uv sync, so a wheel built from this
-    # metadata would otherwise resolve the newest stable (1.5.1) and miss newton#4017:
-    # 1.6.0rc1 is a prerelease, which a default resolve skips.
-    "newton[sim]==1.6.0rc1",
+    # Pin the Newton release used by both workspace and wheel installs.
+    "newton[sim]==1.6.0",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -156,19 +153,21 @@ sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 
 rl-games = [
-    "aiohttp>=3.12.14",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+    "aiohttp==3.14.1",  # match isaacsim-kernel 6.1
+    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@5cf4f9ff07e9a01bbefd167cf19b6804b294b51c",
     "gym",
     "standard-distutils",
 ]
 
-rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
+wandb = ["wandb>=0.13.11"]
+
+rsl-rl = ["rsl-rl-lib==5.5.1"]
 
 viser = ["viser>=1.0.16"]
 
 rerun = [
     "rerun-sdk>=0.29.0",
-    "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
+    "pyarrow==23.0.1",
 ]
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
@@ -404,20 +403,17 @@ environments = [
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
-# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
+# Isaac Lab owns the Newton and MuJoCo versions. Overrides replace requirements
 # for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
-# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
+# Torch is pinned in project.dependencies and routes through [tool.uv.sources].
 override-dependencies = [
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",
-    "newton[sim]==1.6.0rc1",
+    "newton[sim]==1.6.0",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
-    "torch==2.11.0",
-    "torchvision==0.26.0",
-    "torchaudio==2.11.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
