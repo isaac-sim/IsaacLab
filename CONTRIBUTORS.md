@@ -170,6 +170,7 @@ Guidelines for modifications:
 * Piotr Barejko
 * Pranav Shirgur
 * Pulkit Goyal
+* Qian Lin
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu
