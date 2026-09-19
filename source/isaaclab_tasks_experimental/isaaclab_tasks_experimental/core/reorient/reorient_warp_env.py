@@ -13,12 +13,6 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation  # , RigidObject
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
 
@@ -555,6 +549,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
     # def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
     def __init__(self, cfg: AllegroHandEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.hand, self.object, self.goal_markers = [self.scene[name] for name in ("robot", "object", "goal_object")]
 
         # ---------------------------------------------------------------------
         # Constants
@@ -628,9 +623,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         goal_rot[:, 3] = 1.0  # (x, y, z, w)
         self.goal_rot.assign(wp.from_torch(goal_rot, dtype=wp.quatf))
 
-        # initialize goal marker
-        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
-
         # Reduction buffers for consecutive_successes update (Warp-only).
         self._num_resets = wp.zeros(1, dtype=wp.float32, device=self.device)
         self._finished_cons_successes = wp.zeros(1, dtype=wp.float32, device=self.device)
@@ -679,24 +671,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
-
-    def _setup_scene(self):
-        # add hand, in-hand object, and goal object
-        self.hand = Articulation(self.cfg.robot_cfg)
-        self.object = Articulation(self.cfg.object_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["robot"] = self.hand
-        self.scene.articulations["object"] = self.object
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         # Store actions in a persistent Warp buffer (analogous to `actions.clone()` in the Torch env).
