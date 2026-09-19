@@ -19,7 +19,8 @@ esac
 download_dir="$(mktemp -d)"
 trap 'rm -rf -- "${download_dir}"' EXIT
 archive="git-lfs-linux-${architecture}-v${version}.tar.gz"
-wget --https-only --tries=3 --timeout=60 -O "${download_dir}/${archive}" \
+curl --fail --location --proto '=https' --proto-redir '=https' \
+    --retry 2 --connect-timeout 60 --max-time 300 --output "${download_dir}/${archive}" \
     "https://github.com/git-lfs/git-lfs/releases/download/v${version}/${archive}"
 printf '%s  %s\n' "${checksum}" "${download_dir}/${archive}" | sha256sum --check --strict -
 tar -xzf "${download_dir}/${archive}" --no-same-owner -C "${download_dir}"
@@ -28,7 +29,8 @@ release_dir="${download_dir}/git-lfs-${version}"
 
 # Preserve upstream and vendored-component notices when replacing the distro package.
 vendor_archive="git-lfs-vendor-v${version}.tar.gz"
-wget --https-only --tries=3 --timeout=60 -O "${download_dir}/${vendor_archive}" \
+curl --fail --location --proto '=https' --proto-redir '=https' \
+    --retry 2 --connect-timeout 60 --max-time 300 --output "${download_dir}/${vendor_archive}" \
     "https://github.com/git-lfs/git-lfs/releases/download/v${version}/${vendor_archive}"
 printf '%s  %s\n' 28c49d50bea97d0b860fd1599cc5ab45aac937fd31125db8374bf149bb95622f \
     "${download_dir}/${vendor_archive}" | sha256sum --check --strict -

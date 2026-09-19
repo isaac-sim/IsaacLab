@@ -157,7 +157,12 @@ class ManagerBasedEnvCfg:
     """
 
     export_io_descriptors: bool = False
-    """Whether to export the IO descriptors for the environment. Defaults to False."""
+    """Whether to export the IO descriptors for the environment. Defaults to False.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+       workflow for supported RSL-RL/PyTorch deployments.
+    """
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""

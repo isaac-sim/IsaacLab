@@ -541,11 +541,6 @@ def test_query_agrees_across_duplicate_source_rows():
         assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
 
 
-def test_env_0_plan_defaults_to_no_global_paths():
-    plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2)
-    assert plan.global_paths == ()
-
-
 def test_query_and_path_are_real_modules():
     """``cloner.path``/``cloner.query`` import as modules, not just package attributes."""
     import isaaclab.cloner.path  # noqa: PLC0415

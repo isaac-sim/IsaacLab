@@ -100,7 +100,7 @@ def command_build_docs() -> None:
         "run",
         "--isolated",
         "--extra",
-        "test",
+        "dev",
         "--",
         "python",
         "-m",

@@ -1050,7 +1050,7 @@ removed in a future release.
 
 Actuator configurations now use joint-qualified names for solver limits. Update active
 configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` through the 3.x release line and will be removed in 3.2.
+``DeprecationWarning`` through the 3.x release line and will be removed in 3.1.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
