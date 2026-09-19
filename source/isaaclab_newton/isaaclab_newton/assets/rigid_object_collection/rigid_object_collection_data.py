@@ -721,6 +721,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         state_0 = SimulationManager.get_state_0()
         model = SimulationManager.get_model()
 
+        # Newton hard resets replace the model-owned gravity allocation. Rebind the live view
+        # here alongside the other simulation pointers so projected gravity does not retain the
+        # allocation from the pre-reset model.
+        self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
+        reset_timestamps([getattr(self, "_projected_gravity_b", None)])
+
         # Root transforms/velocities are (num_envs, num_bodies) — direct 2D bindings
         self._sim_bind_body_link_pose_w = self._root_view.get_root_transforms(state_0)
         self._sim_bind_body_com_vel_w = self._root_view.get_root_velocities(state_0)
