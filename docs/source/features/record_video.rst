@@ -51,6 +51,24 @@ the environment config:
 See `Source types`_ for the full list of recordable sources and `Clip control`_ for length and
 interval options.
 
+Custom visualizer recorders
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Headless capture-only visualizers do not enable continuous simulation rendering.
+Isaac Lab's ``VideoRecorder`` refreshes render state before an on-demand capture.
+Custom recorders that call a visualizer directly must do the same before each frame:
+
+.. code-block:: python
+
+    if not env.sim.is_rendering:
+        env.sim.render()
+    frame = visualizer.render_rgb_array()
+
+This also applies before ``render_tiled_rgb_array()``. Calling ``sim.forward()``
+alone is insufficient for Newton: it updates kinematics but does not publish
+transforms to Kit's Fabric stage or update visualizers. Refreshing only at capture
+time preserves the reduced rendering overhead between recording windows.
+
 
 Overview
 --------
