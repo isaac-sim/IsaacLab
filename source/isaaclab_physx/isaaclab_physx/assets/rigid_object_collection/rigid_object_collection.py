@@ -1502,8 +1502,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This function is called when a prim is deleted.
         """
-        payload = getattr(event, "payload", event) if not isinstance(event, dict) else event
-        prim_path = payload.get("prim_path", "") if isinstance(payload, dict) else ""
+        if isinstance(event, str):
+            prim_path = event
+        else:
+            payload = getattr(event, "payload", event) if not isinstance(event, dict) else event
+            prim_path = payload.get("prim_path", "") if isinstance(payload, dict) else ""
         if prim_path == "/":
             matches_collection = True
         else:
