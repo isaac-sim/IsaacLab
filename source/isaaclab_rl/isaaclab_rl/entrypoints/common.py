@@ -279,12 +279,12 @@ def resolve_seed(seed: int | None) -> int | None:
 
 
 def normalize_task_name(task: str) -> str:
-    """Return the training task name without a namespace prefix or a ``-Play`` suffix.
+    """Return the training task name without a namespace prefix or a ``-Play`` marker.
 
     Args:
         task: Gym task id, possibly with a namespace prefix.
     """
-    return task.split(":")[-1].removesuffix("-Play")
+    return re.sub(r"-Play(-v\d+)?$", r"\1", task.split(":")[-1])
 
 
 def resolve_play_task_name(task: str | None) -> str | None:

@@ -29,6 +29,7 @@ from isaaclab_rl.entrypoints.common import (
     add_common_train_args,
     create_isaaclab_env,
     enable_cameras_for_video,
+    normalize_task_name,
     resolve_play_task_name,
     wrap_sensor_capture,
 )
@@ -198,6 +199,20 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
     assert parser.parse_args(["--frontend", "warp"]).frontend == "warp"
     with pytest.raises(SystemExit):
         parser.parse_args(["--frontend", "tensorflow"])
+
+
+@pytest.mark.parametrize(
+    ("task", "expected"),
+    [
+        ("Isaac-Task-Play", "Isaac-Task"),
+        ("Isaac-Task-Play-v0", "Isaac-Task-v0"),
+        ("my_module:Isaac-Task-Play-v12", "Isaac-Task-v12"),
+        ("Isaac-Playground-v0", "Isaac-Playground-v0"),
+    ],
+)
+def test_normalize_task_name_removes_play_marker(task: str, expected: str) -> None:
+    """Checkpoint lookup uses the training id for versioned and unversioned play tasks."""
+    assert normalize_task_name(task) == expected
 
 
 def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:

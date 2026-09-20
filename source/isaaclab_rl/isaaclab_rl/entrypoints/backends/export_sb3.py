@@ -195,8 +195,9 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
     # and which is unrelated to the action computation, so it is disabled only while tracing.
     previous_validate_args = torch.distributions.Distribution._validate_args
     torch.distributions.Distribution.set_default_validate_args(False)
-    env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
+    env = None
     try:
+        env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups={"policy"})
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
             raise NotImplementedError("SB3 LEAPP export currently supports manager-based environments only.")
@@ -240,7 +241,8 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
                         annotate.update_state(policy_node_name, state_dict_from_sequence(recurrent_state))
     finally:
         torch.distributions.Distribution.set_default_validate_args(previous_validate_args)
-        env.close()
+        if env is not None:
+            env.close()
     return True
 
 

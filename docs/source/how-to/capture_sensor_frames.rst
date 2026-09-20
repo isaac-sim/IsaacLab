@@ -85,7 +85,7 @@ The training entrypoints register the capture flags in ``add_common_train_args``
 
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/common.py
    :language: python
-   :lines: 407-430
+   :pyobject: add_common_train_args
 
 
 Capture schedule
