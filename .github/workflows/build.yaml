@@ -491,7 +491,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
-        extra-pip-packages: "leapp==0.6.1"
+        extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
