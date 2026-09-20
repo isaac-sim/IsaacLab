@@ -23,14 +23,13 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationCfg
 
-from isaaclab_rl.entrypoints import common as _rl_common
+from isaaclab_rl.entrypoints import common as rl_common
 from isaaclab_rl.entrypoints.common import (
     CaptureEnvSensors,
     add_common_train_args,
     create_isaaclab_env,
-    dispatch_library_entrypoint,
     enable_cameras_for_video,
-    resolve_play_task_name,
+    normalize_task_name,
     wrap_sensor_capture,
 )
 
@@ -201,6 +200,20 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
         parser.parse_args(["--frontend", "tensorflow"])
 
 
+@pytest.mark.parametrize(
+    ("task", "expected"),
+    [
+        ("Isaac-Task", "Isaac-Task"),
+        ("my_module:Isaac-Task-v12", "Isaac-Task-v12"),
+        ("my_module:Isaac-Task-Play-v12", "Isaac-Task-Play-v12"),
+        ("Isaac-Playground-v0", "Isaac-Playground-v0"),
+    ],
+)
+def test_normalize_task_name_removes_namespace(task: str, expected: str) -> None:
+    """Checkpoint lookup removes only the optional namespace."""
+    assert normalize_task_name(task) == expected
+
+
 def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """The shared factory preserves the existing Gym path when no frontend is selected."""
     expected_env = object()
@@ -211,7 +224,7 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
         calls.append((task, kwargs))
         return expected_env
 
-    monkeypatch.setattr(_rl_common.gym, "make", fake_make)
+    monkeypatch.setattr(rl_common.gym, "make", fake_make)
     args_cli = argparse.Namespace(video=False, frontend="torch")
 
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
@@ -242,60 +255,6 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
 
     assert env is expected_env
     assert calls == [(env_cfg, "Isaac-Test", {})]
-
-
-def test_dispatch_library_entrypoint_shows_help_without_library(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """The unified dispatcher shows its help before requiring a library selection."""
-    result = dispatch_library_entrypoint(
-        ["--help"],
-        {"rsl_rl": tmp_path / "bench_rsl_rl.py"},
-        action="bench",
-        description="Benchmark training.",
-        library_help="Training library to benchmark.",
-    )
-
-    assert result == 0
-    output = capsys.readouterr().out
-    assert "--rl_library {rsl_rl}" in output
-
-
-def test_resolve_play_task_name_redirects_removed_play_task() -> None:
-    """A retired ``-Play`` id resolves to the registered training id with a deprecation warning."""
-    gym.register(id="Isaac-ResolvePlayTest", entry_point="dummy:Env")
-    try:
-        with pytest.warns(FutureWarning, match="was removed"):
-            resolved = resolve_play_task_name("Isaac-ResolvePlayTest-Play")
-        assert resolved == "Isaac-ResolvePlayTest"
-        with pytest.warns(FutureWarning, match="was removed"):
-            resolved = resolve_play_task_name("my_module:Isaac-ResolvePlayTest-Play")
-        assert resolved == "my_module:Isaac-ResolvePlayTest"
-    finally:
-        del gym.registry["Isaac-ResolvePlayTest"]
-
-
-def test_resolve_play_task_name_redirects_removed_versioned_play_task() -> None:
-    """A retired ``-Play-v0`` id resolves to the registered versioned training id."""
-    gym.register(id="Isaac-ResolvePlayTest-v0", entry_point="dummy:Env")
-    try:
-        with pytest.warns(FutureWarning, match="was removed"):
-            resolved = resolve_play_task_name("Isaac-ResolvePlayTest-Play-v0")
-        assert resolved == "Isaac-ResolvePlayTest-v0"
-    finally:
-        del gym.registry["Isaac-ResolvePlayTest-v0"]
-
-
-def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
-    """Registered ``-Play`` ids (external projects) and unknown ids pass through unchanged."""
-    gym.register(id="Isaac-ExternalPlayTest-Play", entry_point="dummy:Env")
-    try:
-        assert resolve_play_task_name("Isaac-ExternalPlayTest-Play") == "Isaac-ExternalPlayTest-Play"
-    finally:
-        del gym.registry["Isaac-ExternalPlayTest-Play"]
-    assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
-    assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
-    assert resolve_play_task_name(None) is None
 
 
 class _RecordingScreen:
@@ -329,12 +288,12 @@ def test_run_summary_reports_concrete_backends(
     from isaaclab_tasks.utils import resolve_task_config
 
     task = "Isaac-Cartpole-Camera-Direct"
-    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", *selectors])
+    monkeypatch.setattr(rl_common.sys, "argv", ["train.py", *selectors])
     env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
     screen = _RecordingScreen()
     args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
 
-    _rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+    rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
 
     assert screen.fields["Physics"] == expected_physics
     assert screen.fields["Renderer"] == expected_renderer
@@ -346,12 +305,12 @@ def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pyte
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
-    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    monkeypatch.setattr(rl_common.sys, "argv", ["train.py"])
     env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
     assert env_cfg.sim.physics.deterministic is False
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert env_cfg.sim.physics.deterministic is True
     assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
@@ -363,11 +322,11 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
-    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    monkeypatch.setattr(rl_common.sys, "argv", ["train.py"])
     env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert env_cfg.sim.physics.deterministic is False
 
@@ -395,7 +354,7 @@ def test_apply_env_overrides_raises_warp_determinism_to_the_configured_mode(
     env_cfg = ManagerBasedRLEnvCfg(sim=SimulationCfg(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert wp.config.deterministic == getattr(wp.DeterministicMode, expected)
 
@@ -408,7 +367,7 @@ def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pyt
     env_cfg = ManagerBasedRLEnvCfg(sim=SimulationCfg(physics=NewtonCfg()))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED
 
@@ -419,7 +378,7 @@ def test_apply_env_overrides_records_the_request_for_unknown_backend() -> None:
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert physics.deterministic is True
 
@@ -429,6 +388,6 @@ def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert env_cfg.sim.physics is None
