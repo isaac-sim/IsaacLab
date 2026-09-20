@@ -252,7 +252,7 @@ def test_timeline_play_stop(monkeypatch):
     assert sim.physics_sim_view is scene_data.get_rigid_body_view() is None
     assert resource.simulation_view is publication.transforms is None
     assert scene_data.transforms is publication
-    resource.clear()
+    resource.close()
     invalidate.assert_called_once_with()
 
     sim.play()

@@ -395,7 +395,6 @@ class OvPhysxBackend:
     """Own the native OVPhysX runtime and its attached OVStage for one simulation."""
 
     def __init__(self, cfg: OvPhysxBackendCfg):
-        self.cfg = cfg
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
         is_gpu = cfg.device.startswith("cuda:")
@@ -419,7 +418,7 @@ class OvPhysxBackend:
         )
         self.stage: Any = None
 
-    def clear(self) -> None:
+    def close(self) -> None:
         """Release bindings, the runtime, and its stage in native teardown order."""
         physx = self.physx
         if physx is None:
@@ -683,7 +682,7 @@ class OvPhysxManager(PhysicsManager):
         finally:
             try:
                 if cls.backend is not None:
-                    sim.clear_backend(cls.backend.cfg)
+                    sim.close_backend(cls.backend)
                     cls.backend = None
             finally:
                 cls._stage_usda = None
@@ -1080,7 +1079,7 @@ class OvPhysxManager(PhysicsManager):
             else:
                 # Do not clear another backend's shared callbacks or simulation
                 # state if this is only a stale OVPhysX runtime.
-                cls.backend.clear()
+                cls.backend.close()
         except Exception:
             logger.exception("Failed to close OVPhysX during process exit.")
 

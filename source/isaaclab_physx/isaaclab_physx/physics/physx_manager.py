@@ -172,11 +172,10 @@ class PhysxBackend:
     """Own the native PhysX tensor view shared by physics and scene data."""
 
     def __init__(self, cfg: PhysxBackendCfg):
-        self.cfg = cfg
         self.simulation_view = omni.physics.tensors.create_simulation_view("warp", stage_id=cfg.stage_id)
         self.simulation_view.set_subspace_roots("/")
 
-    def clear(self) -> None:
+    def close(self) -> None:
         """Invalidate the native tensor view once and release its handle."""
         if self.simulation_view is not None:
             self.simulation_view.invalidate()
@@ -991,7 +990,7 @@ class PhysxManager(PhysicsManager):
         if cls._scene_data_backend is not None:
             cls._scene_data_backend.clear()
         if cls.backend is not None:
-            PhysicsManager._sim.clear_backend(cls.backend.cfg)
+            PhysicsManager._sim.close_backend(cls.backend)
             cls.backend = None
         cls._view_created = False
 

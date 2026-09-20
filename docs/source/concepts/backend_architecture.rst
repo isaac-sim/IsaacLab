@@ -74,20 +74,22 @@ cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
 ``PHYSICS_READY`` after physics initialization, and ``STOP`` during shutdown.
 The concrete ``close()`` implementation dispatches the ``STOP`` event.
 
-``SimulationContext.get_or_create_backend(backend_cfg)`` owns native resources
-by configuration values. Equal configurations of the same concrete type share
-one resource; a cache miss constructs ``backend_cfg.class_type(backend_cfg)``.
+``SimulationContext`` owns native resources. ``get_or_create_backend(backend_cfg)``
+reuses one resource for equal configurations of the same concrete type; a cache miss
+constructs ``backend_cfg.class_type(backend_cfg)``.
 :class:`~isaaclab.sim.BackendCfg` describes native construction inputs, while
 ``PhysicsCfg`` selects a physics manager. Finalize configurations before
 registration and treat them, including nested values, as read-only afterward.
-Use a new configuration for different settings. ``clear_backend(backend_cfg)``
-releases one resource after its consumers have invalidated their bindings.
-Resources implement ``clear()``; failed release retains the entry for retry.
-Simulation teardown releases all remaining resources.
+Use a new configuration for different settings. ``close_backend(backend)`` closes
+the exact registered object after all consumers have released their bindings;
+it does not compare or hash configurations. Resources implement ``close()``;
+failed release retains the entry for retry. Simulation teardown closes all
+remaining resources after renderers and visualizers have released their bindings.
 
 Managers and native renderers expose their borrowed resource through ``backend``.
 For example, ``NewtonManager.backend.model`` accesses the finalized native model.
-Consumers do not own resource teardown; exposing native handles does not replace SDP transport.
+Closing a renderer releases its bindings, not the shared native resource.
+Exposing native handles does not replace SDP transport.
 
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.

@@ -260,7 +260,6 @@ class OVRTXBackend:
     """Own one native renderer and its optional detached stage, without camera or transport policy."""
 
     def __init__(self, cfg: OVRTXBackendCfg):
-        self.cfg = cfg
         native_cfg = RendererConfig(
             log_file_path=cfg.renderer_cfg.log_file_path,
             log_level=cfg.renderer_cfg.log_level,
@@ -280,7 +279,7 @@ class OVRTXBackend:
             self.renderer = Renderer(native_cfg)
             self._resources = resources.pop_all()
 
-    def clear(self) -> None:
+    def close(self) -> None:
         """Destroy the engine before releasing the stage it may reference."""
         if self.renderer is not None:
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
@@ -1558,7 +1557,7 @@ class OVRTXRenderer(BaseRenderer):
             )
 
     def _close_legacy(self) -> None:
-        """Release the renderer's tensor bindings and stage. See :meth:`close`."""
+        """Release the renderer's tensor bindings. See :meth:`close`."""
 
         # Unbind before tearing down renderer
         def _safe_unbind(binding, name: str) -> None:
@@ -1713,7 +1712,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data.ppisp_pipeline = None
 
     def close(self) -> None:
-        """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
+        """Release this renderer's bindings; the registry closes shared native resources at simulation shutdown."""
         if self._use_ovstage:
             self._close_ovstage()
         else:
@@ -1733,8 +1732,6 @@ class OVRTXRenderer(BaseRenderer):
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
         self._visual_material_writer_ref = None
-        if self.backend.renderer is not None:
-            SimulationContext.instance().clear_backend(self.backend.cfg)
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -2399,7 +2396,7 @@ class OVRTXRenderer(BaseRenderer):
             )
 
     def _close_ovstage(self) -> None:
-        """Release the renderer's stage queries, path lists and ovstage stage. See :meth:`close`."""
+        """Release the renderer's stage queries and path lists. See :meth:`close`."""
 
         def _safe_release_query(query, name: str) -> None:
             if query is None or self.backend.stage is None:

@@ -69,7 +69,7 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
     assert state_values == [expected] * (2 if simulation else 1)
     assert (backend.state_1 is not None) == simulation
     assert (backend.control is not None) == simulation
-    sim.clear_backend(cfg)
+    sim.close_backend(backend)
     assert backend.model is backend.state_0 is backend.state_1 is backend.control is None
 
 

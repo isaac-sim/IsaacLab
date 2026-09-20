@@ -39,7 +39,10 @@ def test_backend_registry_identity_and_lifecycle():
             if not cfg.values:
                 raise ValueError("construction failed")
             self.cfg = cfg
-            self.clear = Mock()
+            self.close = Mock()
+
+        def __eq__(self, other):
+            return isinstance(other, Backend)
 
     class OtherBackend(Backend):
         pass
@@ -60,20 +63,22 @@ def test_backend_registry_identity_and_lifecycle():
     assert len({id(resource) for resource in (first, second, other_cfg, other_type)}) == 4
     assert context.get_or_create_backend(Cfg(class_type=Backend, values=[1])) is first
 
-    context.clear_backend(Cfg(class_type=Backend, values=[1]))
-    first.clear.assert_called_once_with()
-    assert all(resource.clear.call_count == 0 for resource in (second, other_cfg, other_type))
+    context.close_backend(first)
+    first.close.assert_called_once_with()
+    assert all(resource.close.call_count == 0 for resource in (second, other_cfg, other_type))
+    replacement = context.get_or_create_backend(cfg)
+    assert replacement is not first
     with pytest.raises(KeyError):
-        context.clear_backend(cfg)
-    assert context.get_or_create_backend(cfg) is not first
+        context.close_backend(first)
+    replacement.close.assert_not_called()
 
-    second.clear.side_effect = RuntimeError("release failed")
+    second.close.side_effect = RuntimeError("release failed")
     with pytest.raises(RuntimeError, match="release failed"):
-        context.clear_backend(different_cfg)
+        context.close_backend(second)
     assert context.get_or_create_backend(different_cfg) is second
-    second.clear.side_effect = None
-    context.clear_backend(different_cfg)
-    assert second.clear.call_count == 2
+    second.close.side_effect = None
+    context.close_backend(second)
+    assert second.close.call_count == 2
 
 
 def test_backend_ownership_has_no_service_locator_or_resource_keys():
@@ -232,7 +237,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             self.name = name
             self.error = error
 
-        def clear(self):
+        def close(self):
             events.append(self.name)
             if self.error is not None:
                 raise self.error

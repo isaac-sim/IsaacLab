@@ -324,7 +324,6 @@ class NewtonBackend:
     """Own one finalized Newton model and its native state and control buffers."""
 
     def __init__(self, cfg: NewtonBackendCfg):
-        self.cfg = cfg
         self.model = cfg.builder.finalize(device=cfg.device)
         self.model.num_envs = self.model.world_count if cfg.num_envs is None else cfg.num_envs
         if cfg.gravity is not None:
@@ -339,7 +338,7 @@ class NewtonBackend:
         self.state_1 = self.model.state() if cfg.simulation else None
         self.control = self.model.control() if cfg.simulation else None
 
-    def clear(self) -> None:
+    def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
         self.control = self.state_1 = self.state_0 = self.model = None
 
@@ -639,7 +638,7 @@ class NewtonManager(PhysicsManager):
             cls._invalidate_sensor_graph()
             NewtonManager._sensor_state = None
             if NewtonManager.backend is not None:
-                SimulationContext.instance().clear_backend(NewtonManager.backend.cfg)
+                SimulationContext.instance().close_backend(NewtonManager.backend)
                 NewtonManager.backend = None
 
             cls.start_simulation()
@@ -1233,7 +1232,7 @@ class NewtonManager(PhysicsManager):
             del NewtonManager.views[key]
         cls._solver_specific_clear()
         if NewtonManager.backend is not None:
-            SimulationContext.instance().clear_backend(NewtonManager.backend.cfg)
+            SimulationContext.instance().close_backend(NewtonManager.backend)
             NewtonManager.backend = None
 
     @classmethod

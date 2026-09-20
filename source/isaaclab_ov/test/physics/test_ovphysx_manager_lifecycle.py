@@ -48,7 +48,7 @@ def manager_module(monkeypatch):
     cfg = OvPhysxBackendCfg(device="cpu")
     sim = SimpleNamespace(_backend_registry=[], physics_manager=module.OvPhysxManager)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
-    sim.clear_backend = SimulationContext.clear_backend.__get__(sim)
+    sim.close_backend = SimulationContext.close_backend.__get__(sim)
     with monkeypatch.context() as construction:
         construction.setattr(module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
         backend = sim.get_or_create_backend(cfg)
@@ -193,7 +193,6 @@ def test_registry_shares_native_cfg_without_replacing_pxr(monkeypatch, manager_m
     assert sys.modules["pxr.Usd"] is host_usd
     assert bootstrap_calls == [None]
     assert shared is first
-    assert first.cfg is cfg
 
 
 @pytest.mark.parametrize("stop_fails", [False, True])
@@ -209,7 +208,7 @@ def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch,
             raise ValueError("listener failure")
 
     monkeypatch.setattr(PhysicsManager, "close", classmethod(stop))
-    monkeypatch.setattr(manager.backend, "clear", lambda: events.append("release"))
+    monkeypatch.setattr(manager.backend, "close", lambda: events.append("release"))
 
     with pytest.raises(ValueError, match="listener failure") if stop_fails else nullcontext():
         manager.close()
@@ -221,7 +220,7 @@ def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager_module):
     manager = manager_module.OvPhysxManager
     manager.backend.physx = None
     monkeypatch.setattr(manager, "close", classmethod(lambda cls: pytest.fail("unexpected close")))
-    monkeypatch.setattr(manager.backend, "clear", lambda: pytest.fail("unexpected release"))
+    monkeypatch.setattr(manager.backend, "close", lambda: pytest.fail("unexpected release"))
 
     manager._close_at_exit()
 
@@ -240,7 +239,7 @@ def test_atexit_cleanup_releases_stale_runtime_without_clearing_active_backend(m
         events.append("release")
         manager.backend.physx = None
 
-    monkeypatch.setattr(manager.backend, "clear", release)
+    monkeypatch.setattr(manager.backend, "close", release)
 
     manager._close_at_exit()
 
@@ -262,7 +261,7 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
         raise RuntimeError("failure")
 
     monkeypatch.setattr(manager, "close", classmethod(fail_close))
-    monkeypatch.setattr(manager.backend, "clear", lambda: events.append("release"))
+    monkeypatch.setattr(manager.backend, "close", lambda: events.append("release"))
 
     manager._close_at_exit()
 

@@ -1000,23 +1000,23 @@ class SimulationContext:
         self._backend_registry.append((cfg, resource))
         return resource
 
-    def clear_backend(self, cfg: BackendCfg) -> None:
-        """Release one resource after consumers invalidate their bindings.
+    def close_backend(self, backend: Any) -> None:
+        """Close one registered resource by object identity after all consumers release their bindings.
 
         A failed release retains the registry entry so teardown can be retried.
 
         Args:
-            cfg: Configuration identifying the resource to release.
+            backend: The exact registered resource to close, not its configuration.
 
         Raises:
-            KeyError: No resource matches the configuration.
+            KeyError: The backend is not registered with this context.
         """
-        for index, (registered_cfg, resource) in enumerate(self._backend_registry):
-            if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
-                resource.clear()
+        for index, (_, resource) in enumerate(self._backend_registry):
+            if resource is backend:
+                resource.close()
                 self._backend_registry.pop(index)
                 return
-        raise KeyError(cfg)
+        raise KeyError(backend)
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -1046,7 +1046,7 @@ class SimulationContext:
 
                 instance.clone_contexts.clear()
                 for _, resource in instance._backend_registry:
-                    run_cleanup(resource.clear)
+                    run_cleanup(resource.close)
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

@@ -5,7 +5,8 @@ Changed
   Move constructor inputs into a ``BackendCfg`` whose ``class_type`` constructs the resource from cfg;
   equal configurations of the same concrete type shared one resource. Registered cfgs were retained
   without copying; finalize them before registration and treat them as read-only. Release a resource
-  with ``sim.clear_backend(backend_cfg)``. Resources must implement ``clear()``.
+  with ``sim.close_backend(backend)`` using its object identity, not its configuration.
+  Replace resource ``clear()`` methods with ``close()``.
 * **Breaking:** Separated clone contexts from native ownership. Replace clone-context registration
   through ``get_or_create_backend(Context, ...)`` with ``sim.clone_contexts[Context] = Context(...)``.
 * Added ``field(metadata={"copy": False})`` support to ``configclass`` for borrowed native inputs.

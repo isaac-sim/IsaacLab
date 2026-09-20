@@ -24,10 +24,8 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 @pytest.fixture(autouse=True)
 def _native_backend(monkeypatch):
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager
-    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
 
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
-    backend.cfg = OvPhysxBackendCfg(device="cpu")
     backend.physx = None
     backend.stage = None
     monkeypatch.setattr(OvPhysxManager, "backend", backend)
@@ -551,8 +549,8 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     )
     OvPhysxManager._attach_ovstage("#usda 1.0")
     stage = OvPhysxManager.backend.stage
-    OvPhysxManager.backend.clear()
-    OvPhysxManager.backend.clear()
+    OvPhysxManager.backend.close()
+    OvPhysxManager.backend.close()
 
     # The seal must land between population and attach: ovphysx reads sealed data
     # only, so attaching at an unsealed ordinal silently yields an empty scene.
@@ -594,7 +592,7 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
 
     OvPhysxManager._warmup_physx(physx)
     OvPhysxManager.backend.physx = physx
-    OvPhysxManager.backend.clear()
+    OvPhysxManager.backend.close()
 
     assert calls == expected_calls
 
@@ -612,7 +610,7 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
             OvPhysxManager._warmup_physx(SimpleNamespace())
         else:
             OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_op=lambda op: None)
-            OvPhysxManager.backend.clear()
+            OvPhysxManager.backend.close()
 
 
 @pytest.mark.parametrize(
@@ -625,7 +623,7 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
 )
 def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry_points, retryable):
     """Terminal errors free native owners; pre-teardown errors retain them for the next close."""
-    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
     from isaaclab.physics import PhysicsManager
@@ -666,11 +664,12 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     OvPhysxManager.backend.physx = physx
     OvPhysxManager.backend.stage = stage
     backend = OvPhysxManager.backend
+    cfg = OvPhysxBackendCfg(device="cpu")
     sim = SimpleNamespace(
-        _backend_registry=[(backend.cfg, backend)],
+        _backend_registry=[(cfg, backend)],
         physics_manager=OvPhysxManager,
     )
-    sim.clear_backend = SimulationContext.clear_backend.__get__(sim)
+    sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
     for name in ("_cfg", "_sim_time"):
         monkeypatch.setattr(PhysicsManager, name, getattr(PhysicsManager, name))
@@ -682,7 +681,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
         OvPhysxManager.close()
 
     assert PhysicsManager._sim is None
-    assert sim._backend_registry == [(backend.cfg, backend)]
+    assert sim._backend_registry == [(cfg, backend)]
     assert backend.physx is (physx if retryable else None)
     assert backend.stage is (stage if retryable else None)
 

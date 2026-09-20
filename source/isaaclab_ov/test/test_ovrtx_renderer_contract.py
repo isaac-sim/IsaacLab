@@ -83,10 +83,10 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
-    renderer.backend.cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
+    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
     renderer.backend.stage = renderer.backend.paths = None
     renderer.backend._resources = contextlib.ExitStack()
-    SimulationContext.instance()._backend_registry.append((renderer.backend.cfg, renderer.backend))
+    SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     return renderer
 
 
@@ -94,13 +94,13 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 def _simulation_registry(monkeypatch):
     sim = types.SimpleNamespace(_backend_registry=[])
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
-    sim.clear_backend = SimulationContext.clear_backend.__get__(sim)
+    sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch, use_ovstage):
-    """Native identity includes scene policy; uninitialized consumers release their actual handles."""
+    """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
     destroyed = []
 
@@ -117,17 +117,25 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: contextlib.nullcontext(object()))
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
+    shared = OVRTXRenderer(renderer.cfg)
 
     assert not {"_backend", "_renderer", "_stage", "_stage_paths", "_ovstage_exit_stack"}.intersection(vars(renderer))
+    assert shared.backend is renderer.backend
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
-    assert SimulationContext.instance().get_or_create_backend(renderer.backend.cfg) is renderer.backend
+    assert len(SimulationContext.instance()._backend_registry) == 1
     other = OVRTXRenderer(renderer.cfg.replace(enable_shadows=True))
     assert other.backend is not renderer.backend
     renderer.close()
     renderer.close()
+    assert not destroyed
+    assert shared.backend.renderer is not None
+    shared.close()
     other.close()
+    assert not destroyed
+    SimulationContext.instance().close_backend(renderer.backend)
+    SimulationContext.instance().close_backend(other.backend)
     assert len(destroyed) == 2
     assert not SimulationContext.instance()._backend_registry
 
@@ -645,11 +653,13 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
 
 def test_ovrtx_close_releases_legacy_renderer_state():
-    """``close`` unbinds the tensor bindings before releasing the registered native engine."""
+    """Borrowers unbind their tensor bindings before the registry closes the native engine."""
     events: list[str] = []
     renderer = _make_legacy_renderer_with_backend(events)
 
     renderer.close()
+    assert "destroy_renderer" not in events
+    SimulationContext.instance().close_backend(renderer.backend)
 
     assert events == [
         "unbind:camera",
@@ -678,6 +688,8 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     renderer = _make_ovstage_renderer_with_backend(events)
 
     renderer.close()
+    assert "destroy_renderer" not in events
+    SimulationContext.instance().close_backend(renderer.backend)
 
     assert events == [
         "release_query:camera",
