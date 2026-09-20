@@ -144,6 +144,11 @@ As an example of how to use the RL task environment with Stable-Baselines3:
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
+Stable-Baselines3 requires finite continuous action bounds. For manager-based environments, set
+:attr:`~isaaclab.managers.ActionTermCfg.raw_action_bounds` on every continuous action term. For direct
+environments, define a bounded :attr:`~isaaclab.envs.DirectRLEnvCfg.action_space`. The bounds describe
+the raw policy input before action-term scaling or offsets; use ``(-1.0, 1.0)`` only for actions designed
+around a normalized policy domain.
 
 .. caution::
 

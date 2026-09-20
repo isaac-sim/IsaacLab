@@ -46,7 +46,7 @@ def _make_env_with_policy_obs_terms(
         group_obs_dim={"policy": term_dims},
         _group_obs_term_cfgs={"policy": term_cfgs},
     )
-    env.action_manager = SimpleNamespace(action_term_dim=[0])
+    env.action_manager = SimpleNamespace(action_space=gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32))
     return env
 
 
@@ -102,3 +102,13 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+def test_action_space_follows_action_manager_contract():
+    """The environment exposes the raw action bounds composed by the action manager."""
+    env = _make_env_with_policy_obs_terms(num_envs=2, terms=[("vector", (3,), None)])
+    ManagerBasedRLEnv._configure_gym_env_spaces(env)
+
+    np.testing.assert_array_equal(env.single_action_space.low, [-1.0, -1.0])
+    np.testing.assert_array_equal(env.single_action_space.high, [1.0, 1.0])
+    assert env.action_space.shape == (2, 2)

@@ -102,6 +102,63 @@ def test_random_actions(registered_tasks):
         env.close()
 
 
+def test_declared_action_bounds_are_preserved():
+    """Preserve the normalized action contract declared by the environment."""
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
+    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
+    try:
+        assert isinstance(env.unwrapped.single_action_space, gym.spaces.Box)
+        assert env.unwrapped.single_action_space.is_bounded("both")
+
+        wrapped_env = Sb3VecEnvWrapper(env)
+
+        np.testing.assert_array_equal(wrapped_env.action_space.low, -1.0)
+        np.testing.assert_array_equal(wrapped_env.action_space.high, 1.0)
+    finally:
+        env.close()
+
+
+def test_direct_environment_enforces_declared_action_bounds():
+    """Clip raw actions to a direct environment's declared policy domain."""
+    env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=1)
+    env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+    try:
+        env.reset()
+        env.step(torch.tensor([[2.0]], device="cuda"))
+
+        torch.testing.assert_close(env.unwrapped.actions, torch.tensor([[100.0]], device="cuda"))
+    finally:
+        env.close()
+
+
+def test_partially_bounded_action_space_is_rejected():
+    """Reject action spaces whose finite bounds cannot be preserved for SB3."""
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
+    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
+    try:
+        env.unwrapped.single_action_space = gym.spaces.Box(
+            low=np.array([-1.0], dtype=np.float32), high=np.array([np.inf], dtype=np.float32)
+        )
+
+        with pytest.raises(ValueError, match="finite lower and upper bounds"):
+            Sb3VecEnvWrapper(env)
+    finally:
+        env.close()
+
+
+def test_unbounded_action_space_is_rejected():
+    """Do not guess a normalized policy domain for an environment with no action contract."""
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
+    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
+    try:
+        env.unwrapped.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32)
+
+        with pytest.raises(ValueError, match="raw_action_bounds"):
+            Sb3VecEnvWrapper(env)
+    finally:
+        env.close()
+
+
 """
 Helper functions.
 """
