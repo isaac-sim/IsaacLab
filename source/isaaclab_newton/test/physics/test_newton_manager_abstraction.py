@@ -70,7 +70,7 @@ from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -1431,17 +1431,15 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "native_path_active, native_graphable, expected_events",
+    "native_path_active, native_graphable",
     [
-        pytest.param(False, False, ["prepare", "capture"], id="lab_actuators"),
-        pytest.param(True, False, ["prepare", "capture"], id="native_non_graphable"),
-        pytest.param(True, True, ["prepare"], id="native_graphable"),
+        pytest.param(False, False, id="lab_actuators"),
+        pytest.param(True, False, id="native_non_graphable"),
+        pytest.param(True, True, id="native_graphable"),
     ],
 )
-def test_initialize_solver_prepares_picking_before_graph_capture(
-    monkeypatch, native_path_active, native_graphable, expected_events
-):
-    """Viewer setup precedes initial capture, which only graphable native actuators defer."""
+def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch, native_path_active, native_graphable):
+    """Viewer setup precedes capture scheduling on every actuator path."""
     events: list[str] = []
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
@@ -1475,7 +1473,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
 
         sim.reset()
 
-    assert events == expected_events
+    assert events == ["prepare", "capture"]
 
 
 def test_abstract_build_solver_raises():
@@ -1919,18 +1917,40 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         _build_collision_scene(sim)
 
+        markers = []
+
+        def bind_hooks(_event):
+            for register in (
+                NewtonManager.register_post_actuator_callback,
+                NewtonManager.register_state_force_callback,
+                NewtonManager.register_post_step_callback,
+            ):
+                marker = wp.zeros(1, device="cuda:0")
+                markers.append(marker)
+                register(lambda *args, marker=marker: marker.fill_(1.0))
+
+        NewtonManager.register_callback(bind_hooks, PhysicsEvent.PHYSICS_READY)
         sim.reset()
         assert NewtonManager._needs_collision_pipeline is True
         old_model = NewtonManager._collision_pipeline.model
         sim.step(render=False)
 
+        for marker in markers:
+            np.testing.assert_array_equal(marker.numpy(), [1.0])
         sim.reset()
+        for marker in markers[:3]:
+            marker.fill_(9.0)
 
         _free_model_collide_arrays_and_churn(old_model, "cuda:0")
 
         # A hard device sync surfaces any deferred illegal access as an exception.
         sim.step(render=False)
         wp.synchronize_device("cuda:0")
+
+        for marker in markers[:3]:
+            np.testing.assert_array_equal(marker.numpy(), [9.0])
+        for marker in markers[3:]:
+            np.testing.assert_array_equal(marker.numpy(), [1.0])
 
 
 @pytest.fixture
