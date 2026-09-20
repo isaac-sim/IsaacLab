@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+6.4.0 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``MJWarpSolverCfg.enable_multiccd`` to configure multiple contact generation for
+  colliding geometry pairs.
+* Added OpenCV pinhole and fisheye lens-distortion rendering to the Newton backend, including
+  calibrated intrinsics and coefficient muting through ``apply_lens_distortion``.
+
+Changed
+^^^^^^^
+
+* Changed the announced removal release in deprecation warnings, docstrings and forwarding-shim
+  messages to ``3.1``, so every deprecated symbol names the same release. Some notices said
+  ``4.0`` and others ``5.0``, leftovers from earlier numbering, so a deprecated class and the
+  shim or alias forwarding to it could advertise different removals. No symbol was added,
+  renamed or removed.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Newton and MuJoCo schema cfg classes in favor of the single-namespace schema
+  fragments. Each class now raises a ``DeprecationWarning`` on instantiation and will be removed in
+  3.2. The warning names *every* fragment the class's fields need, including the fields it inherits
+  from a legacy base, so following it does not drop authored properties. Replace
+  :class:`~isaaclab_newton.sim.schemas.NewtonRigidBodyPropertiesCfg` with
+  ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]`` and
+  :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` with that pair plus
+  :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`;
+  :class:`~isaaclab_newton.sim.schemas.NewtonJointDrivePropertiesCfg` with
+  ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]`` and
+  :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` with that pair plus
+  :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`;
+  :class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg` with
+  ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]``;
+  :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg` with those three plus
+  :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` and
+  :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`;
+  :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg` with those three plus
+  :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`; and
+  :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg` with
+  ``[PhysxArticulationCfg(...), NewtonArticulationCfg(...)]``. The PhysX fragments appear here
+  because ``disable_gravity``, ``max_joint_velocity``, ``contact_offset`` / ``rest_offset`` and
+  ``articulation_enabled`` have no other USD home today and Newton's importer reads those
+  attributes. Pass fragments as a list in the matching spawner slot. The Newton deformable cfgs are
+  unaffected.
+
+Fixed
+^^^^^
+
+* Fixed Newton-backed articulation and rigid-object root-pose writes leaving solver-owned
+  model transforms stale. Nonfloating root writes now notify the solver immediately,
+  including masked writes and writes that defer forward kinematics with ``skip_forward``.
+* Fixed Newton relaxed CUDA graph capture with CUDA 13 PyTorch wheels by loading the matching CUDA runtime major.
+* Fixed the Newton and MuJoCo schema cfg classes dropping the PhysX routing of the fields they
+  inherit from the solver-common base cfgs. Setting ``disable_gravity``, ``contact_offset``, or
+  ``rest_offset`` on a Newton or MuJoCo cfg authored a bare ``physics:*`` USD attribute that no
+  backend reads instead of the ``physxRigidBody:*`` / ``physxCollision:*`` attribute, and setting
+  ``max_joint_velocity`` on :class:`~isaaclab_newton.sim.schemas.NewtonJointDrivePropertiesCfg` or
+  :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` raised ``ValueError``. These
+  fields now author their PhysX-namespaced attributes on every subclass, matching the base cfgs and
+  :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg`.
+
+
 6.3.1 (2026-09-17)
 ~~~~~~~~~~~~~~~~~~
 
