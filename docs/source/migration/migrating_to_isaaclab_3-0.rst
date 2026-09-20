@@ -3158,7 +3158,7 @@ module and unified command.
    ``benchmark_rigid_object.py``, and friends) are unchanged — only the
    ``run_physx_benchmarks.sh`` wrapper that invoked them was removed, so run those scripts
    directly. The other standalone benchmark scripts under ``scripts/benchmarks/`` —
-   ``benchmark_cameras.py``, ``benchmark_load_robot.py``, ``benchmark_view_comparison.py``,
+   ``benchmark_load_robot.py``, ``benchmark_view_comparison.py``,
    ``benchmark_xform_prim_view.py``, ``benchmark_lazy_export.py``, and
    ``benchmark_hydra_resolve.py`` — are independent of the unified suite and likewise
    unaffected.
