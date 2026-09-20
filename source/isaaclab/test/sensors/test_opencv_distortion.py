@@ -40,11 +40,13 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     import torch
+    import warp as wp
 
     from pxr import Gf, Sdf, Usd, UsdGeom
 
     import isaaclab.sim as sim_utils
     from isaaclab.sensors.camera.camera import Camera
+    from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.sim.spawners.sensors.sensors import spawn_camera
     from isaaclab.sim.spawners.sensors.sensors_cfg import (
         FisheyeCameraCfg,
@@ -52,6 +54,7 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
+    from isaaclab.utils.warp import ProxyArray
 
 
 # Real SO-101 wrist-camera calibration: exercises fx != fy and an off-center principal point, which
@@ -179,19 +182,19 @@ def _camera_prim_with_pinhole_distortion(fx, fy, cx, cy, width=640, height=480):
     return stage, cam
 
 
-def _read_back_intrinsics(cam, width, height):
-    """Invoke :meth:`Camera._update_intrinsic_matrices` on a minimal fake camera and return K."""
-    captured = {}
-
-    def _capture_state(env_ids=None, intrinsics_src=None, update_intrinsics=False):
-        captured["K"] = intrinsics_src.numpy()
-
+def _camera_for_prims(prims, width=640, height=480, device="cpu"):
+    """Use real camera buffers and USD prims without creating a renderer."""
     fake = Camera.__new__(Camera)
-    fake._sensor_prims = [cam]
-    fake._device = "cpu"
+    fake.stage = prims[0].GetPrim().GetStage()
+    fake._sensor_prims = prims
+    fake._device = device
     fake.cfg = SimpleNamespace(height=height, width=width)
-    fake._resolve_env_ids_np = lambda env_ids: np.array([0])
-    fake._update_camera_state = _capture_state
+    fake._view = SimpleNamespace(count=len(prims), close=lambda: None)
+    fake._data = CameraData()
+    fake._data.create_buffers(len(prims), device)
+    fake._frame = ProxyArray(wp.zeros(len(prims), dtype=wp.int64, device=device))
+    fake._ALL_INDICES = wp.array(np.arange(len(prims)), dtype=wp.int32, device=device)
+    fake._ALL_ENV_MASK = wp.ones(len(prims), dtype=wp.bool, device=device)
     # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
     fake._initialize_handle = None
     fake._invalidate_initialize_handle = None
@@ -199,9 +202,14 @@ def _read_back_intrinsics(cam, width, height):
     fake._debug_vis_handle = None
     fake._renderer = None
     fake._render_data = None
+    return fake
 
-    Camera._update_intrinsic_matrices(fake)
-    return captured["K"][0]
+
+def _read_back_intrinsics(cam, width, height):
+    """Read authored USD calibration into the camera's real Warp matrix buffer."""
+    camera = _camera_for_prims([cam], width, height)
+    camera._update_intrinsic_matrices()
+    return camera._data.intrinsic_matrices.warp.numpy()[0]
 
 
 def test_readback_uses_authored_fx_fy_cx_cy():
@@ -262,19 +270,7 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     _stage_a, cam_a = _camera_prim_with_pinhole_distortion(300.0, 300.0, 160.0, 120.0, 640, 480)
     _stage_b, cam_b = _camera_prim_with_pinhole_distortion(300.0, 300.0, 160.0, 120.0, 1280, 720)
 
-    fake = Camera.__new__(Camera)
-    fake._sensor_prims = [cam_a, cam_b]
-    fake._device = "cpu"
-    fake.cfg = SimpleNamespace(height=height, width=width)
-    fake._resolve_env_ids_np = lambda env_ids: np.array([0, 1])
-    fake._update_camera_state = lambda **kwargs: None
-    # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
-    fake._initialize_handle = None
-    fake._invalidate_initialize_handle = None
-    fake._prim_deletion_handle = None
-    fake._debug_vis_handle = None
-    fake._renderer = None
-    fake._render_data = None
+    fake = _camera_for_prims([cam_a, cam_b], width, height)
 
     messages: list[str] = []
     handler = logging.Handler()
@@ -292,36 +288,22 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     assert any("(1280, 720)" in message for message in mismatch_warnings)
 
 
-def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch():
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch(device):
     """In a mixed batch only the distortion camera is skipped (with a warning); a plain camera is updated.
 
     The authored ``omni:lensdistortion:*`` fx/fy/cx/cy are the readback's source of truth, so the
     focal-length/aperture write would be discarded for a distortion camera. Skipping the whole call would
     also drop ordinary selected cameras; only the distortion entries must be left untouched.
     """
+    if device.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA is unavailable")
     width, height = 640, 480
     _stage_d, distortion_cam = _camera_prim_with_pinhole_distortion(339.0, 338.0, 323.0, 250.0, width, height)
     plain_stage = Usd.Stage.CreateInMemory()
     plain_cam = UsdGeom.Camera.Define(plain_stage, "/PlainCamera")
 
-    captured = {}
-
-    def _capture_state(env_ids=None, intrinsics_src=None, update_intrinsics=False):
-        captured["K"] = intrinsics_src.numpy()
-
-    fake = Camera.__new__(Camera)
-    fake._sensor_prims = [distortion_cam, plain_cam]
-    fake._device = "cpu"
-    fake.cfg = SimpleNamespace(height=height, width=width)
-    fake._resolve_env_ids_np = lambda env_ids: np.array([0, 1])
-    fake._update_camera_state = _capture_state
-    # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
-    fake._initialize_handle = None
-    fake._invalidate_initialize_handle = None
-    fake._prim_deletion_handle = None
-    fake._debug_vis_handle = None
-    fake._renderer = None
-    fake._render_data = None
+    fake = _camera_for_prims([distortion_cam, plain_cam], width, height, device)
 
     messages: list[str] = []
     handler = logging.Handler()
@@ -335,15 +317,210 @@ def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch():
             [[500.0, 0.0, 320.0], [0.0, 500.0, 240.0], [0.0, 0.0, 1.0]],
         ],
         dtype=torch.float32,
+        device=device,
     )
     try:
         Camera.set_intrinsic_matrices(fake, requested, env_ids=[0, 1])
     finally:
         cam_logger.removeHandler(handler)
 
-    k = captured["K"]
+    k = fake._data.intrinsic_matrices.warp.numpy()
     # the distortion camera keeps its authored calibration (skipped, request ignored)
     assert k[0, 0, 0] == pytest.approx(339.0, abs=1e-2)
     # the plain camera reflects the requested focal length (updated, not over-skipped)
     assert k[1, 0, 0] == pytest.approx(500.0, abs=1e-2)
     assert any("skipped" in message.lower() for message in messages)
+
+
+@pytest.fixture(params=["cpu", "cuda:0"])
+def intrinsic_camera(request):
+    """Three independent camera prims, with buffers on the selected device."""
+    if request.param.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA is unavailable")
+    stage = Usd.Stage.CreateInMemory()
+    prims = [UsdGeom.Camera.Define(stage, f"/Camera_{i}") for i in range(3)]
+    camera = _camera_for_prims(prims, device=request.param)
+    camera._update_intrinsic_matrices()
+    return stage, camera
+
+
+@pytest.mark.parametrize("env_ids", [None, [2, 0]])
+@pytest.mark.parametrize("batch_delta", [-1, 1])
+def test_intrinsic_batch_mismatch_is_atomic(intrinsic_camera, env_ids, batch_delta):
+    """Both mismatch directions fail before authoring USD or changing the camera's matrices."""
+    stage, camera = intrinsic_camera
+    count = 3 if env_ids is None else len(env_ids)
+    matrices = torch.eye(3, device=camera.device).repeat(count + batch_delta, 1, 1)
+    usd_before = stage.ExportToString()
+    data_before = camera._data.intrinsic_matrices.warp.numpy().copy()
+
+    with pytest.raises(ValueError, match="number of intrinsic matrices"):
+        camera.set_intrinsic_matrices(matrices, env_ids=env_ids)
+
+    assert stage.ExportToString() == usd_before
+    np.testing.assert_array_equal(camera._data.intrinsic_matrices.warp.numpy(), data_before)
+
+
+@pytest.mark.parametrize(
+    "input_kind", ["torch", "torch_strided", "torch_double", "host_torch", "warp", "warp_matrix", "warp_matrix_double"]
+)
+@pytest.mark.parametrize("focal_length", [None, 24.0])
+def test_intrinsic_batch_matches_authored_usd(intrinsic_camera, input_kind, focal_length, caplog):
+    """Float32/64 and strided batches preserve projection semantics and selected-camera order."""
+    _stage, camera = intrinsic_camera
+    requested = torch.tensor(
+        [[[200.125, 0, 140], [0, 300.375, 110], [0, 0, 1]], [[611.25, 0, 350], [0, 589.5, 260], [0, 0, 1]]],
+        dtype=torch.float32,
+        device=camera.device,
+    )
+    matrices = requested
+    if input_kind == "torch_strided":
+        matrices = requested.transpose(1, 2).contiguous().transpose(1, 2)
+        assert not matrices.is_contiguous()
+    elif input_kind == "torch_double":
+        matrices = requested.double()
+    elif input_kind == "host_torch":
+        matrices = requested.cpu()
+    elif input_kind == "warp":
+        matrices = wp.from_torch(requested)
+    elif input_kind == "warp_matrix":
+        matrices = wp.from_torch(requested, dtype=wp.mat33f)
+    elif input_kind == "warp_matrix_double":
+        matrices = wp.from_torch(requested.double(), dtype=wp.mat33d)
+    untouched = camera._data.intrinsic_matrices.warp.numpy()[1].copy()
+
+    camera.set_intrinsic_matrices(matrices, focal_length=focal_length, env_ids=[2, 0])
+
+    assert sum("non square pixels" in message for message in caplog.messages) == 1
+    assert sum("aperture offsets" in message for message in caplog.messages) == 1
+    actual = camera._data.intrinsic_matrices.warp.numpy()
+    np.testing.assert_array_equal(actual[1], untouched)
+    for row, env_id in enumerate([2, 0]):
+        prim = camera._sensor_prims[env_id]
+        mean_focal = float((requested[row, 0, 0] + requested[row, 1, 1]).item()) / 2
+        pixel_size = 1 / 640 if focal_length is None else focal_length / mean_focal
+        assert prim.GetFocalLengthAttr().Get() == pytest.approx(pixel_size * mean_focal)
+        assert prim.GetHorizontalApertureAttr().Get() == pytest.approx(pixel_size * 640)
+        assert prim.GetVerticalApertureAttr().Get() == pytest.approx(pixel_size * 480)
+        assert prim.GetHorizontalApertureOffsetAttr().Get() == 0.0
+        assert prim.GetVerticalApertureOffsetAttr().Get() == 0.0
+        effective_focal = 640 * prim.GetFocalLengthAttr().Get() / prim.GetHorizontalApertureAttr().Get()
+        expected = [[effective_focal, 0, 320], [0, effective_focal, 240], [0, 0, 1]]
+        np.testing.assert_allclose(actual[env_id], expected, rtol=1e-7)
+
+
+@pytest.mark.parametrize("selection", ["all", "slice", "torch", "warp", "repeated", "negative", "empty"])
+def test_intrinsic_camera_selections(intrinsic_camera, selection):
+    """Selection forms preserve untouched cameras and repeated IDs retain the last update."""
+    stage, camera = intrinsic_camera
+    ids = [0, 1, 2] if selection == "all" else [2, 0]
+    env_ids = ids
+    if selection == "all":
+        env_ids = None
+    elif selection == "slice":
+        env_ids = slice(None, None, -2)
+    elif selection == "torch":
+        env_ids = torch.tensor(ids, device=camera.device)
+    elif selection == "warp":
+        env_ids = wp.array(ids, dtype=wp.int32, device=camera.device)
+    elif selection == "repeated":
+        ids = env_ids = [2, 0, 2]
+    elif selection == "negative":
+        env_ids = [-1, 0]
+    elif selection == "empty":
+        ids = env_ids = []
+    matrices = torch.eye(3, device=camera.device).repeat(len(ids), 1, 1)
+    for row in range(len(ids)):
+        matrices[row, 0, 0] = matrices[row, 1, 1] = 200 + row * 100
+    matrices[:, 0, 2] = 320
+    matrices[:, 1, 2] = 240
+    before = camera._data.intrinsic_matrices.warp.numpy().copy()
+    usd_before = stage.ExportToString()
+
+    camera.set_intrinsic_matrices(matrices, env_ids=env_ids)
+
+    expected = before.copy()
+    for row, env_id in enumerate(ids):
+        expected[env_id] = [[200 + row * 100, 0, 320], [0, 200 + row * 100, 240], [0, 0, 1]]
+    np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy(), expected)
+    if not ids:
+        assert stage.ExportToString() == usd_before
+
+
+def test_intrinsic_setter_does_not_read_matrices_or_pinhole_usd_back(intrinsic_camera, monkeypatch):
+    """Keep the matrix batch on device and avoid a second USD traversal after pinhole writes."""
+    _stage, camera = intrinsic_camera
+    matrices = wp.from_torch(torch.eye(3, device=camera.device).repeat(3, 1, 1))
+    original_numpy = wp.array.numpy
+
+    def checked_numpy(array):
+        assert array.ptr != matrices.ptr, "Intrinsic matrices were transferred to the host"
+        return original_numpy(array)
+
+    def reject_readback(*args, **kwargs):
+        pytest.fail("The pinhole setter read USD back after writing it")
+
+    monkeypatch.setattr(wp.array, "numpy", checked_numpy)
+    monkeypatch.setattr(camera, "_update_intrinsic_matrices", reject_readback)
+    camera.set_intrinsic_matrices(matrices)
+    wp.synchronize_device(camera.device)
+
+
+@pytest.mark.parametrize("bad_shape", [(3, 2, 2), (3, 9), (3, 3, 3, 1)])
+def test_invalid_intrinsic_shape_does_not_modify_usd(intrinsic_camera, bad_shape):
+    stage, camera = intrinsic_camera
+    before = stage.ExportToString()
+    with pytest.raises(ValueError, match="shape"):
+        camera.set_intrinsic_matrices(torch.zeros(bad_shape, device=camera.device))
+    assert stage.ExportToString() == before
+
+
+def test_invalid_intrinsic_selection_does_not_partially_modify_usd(intrinsic_camera):
+    stage, camera = intrinsic_camera
+    before = stage.ExportToString()
+    with pytest.raises(IndexError, match="out of range"):
+        camera.set_intrinsic_matrices(torch.eye(3, device=camera.device).repeat(2, 1, 1), env_ids=[0, 3])
+    assert stage.ExportToString() == before
+
+
+@pytest.mark.parametrize("as_warp", [False, True])
+def test_single_intrinsic_matrix(intrinsic_camera, as_warp):
+    _stage, camera = intrinsic_camera
+    matrix = torch.tensor([[240.0, 0, 320], [0, 240.0, 240], [0, 0, 1]], device=camera.device)
+    camera.set_intrinsic_matrices(wp.from_torch(matrix) if as_warp else matrix, env_ids=[1])
+    np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy()[1], matrix.cpu().numpy())
+
+
+def test_intrinsic_refresh_reads_selected_usd_changes(intrinsic_camera):
+    """Explicit refresh still consumes external USD edits without touching other camera matrices."""
+    _stage, camera = intrinsic_camera
+    before = camera._data.intrinsic_matrices.warp.numpy().copy()
+    camera._sensor_prims[2].GetFocalLengthAttr().Set(12.0)
+    camera._sensor_prims[2].GetHorizontalApertureAttr().Set(32.0)
+    camera._update_intrinsic_matrices([2])
+    after = camera._data.intrinsic_matrices.warp.numpy()
+    np.testing.assert_array_equal(after[:2], before[:2])
+    np.testing.assert_allclose(after[2], [[240, 0, 320], [0, 240, 240], [0, 0, 1]])
+
+
+@pytest.mark.parametrize("edit_layer", ["root", "sublayer", "session"])
+def test_intrinsic_setter_respects_usd_composition(intrinsic_camera, edit_layer):
+    """The reported projection follows composed USD even when a stronger opinion shadows a write."""
+    stage, camera = intrinsic_camera
+    with Usd.EditContext(stage, stage.GetSessionLayer()):
+        camera._sensor_prims[1].GetFocalLengthAttr().Set(25.0)
+        camera._sensor_prims[1].GetHorizontalApertureAttr().Set(32.0)
+    target = stage.GetRootLayer()
+    if edit_layer == "sublayer":
+        target = Sdf.Layer.CreateAnonymous()
+        stage.GetRootLayer().subLayerPaths.append(target.identifier)
+    elif edit_layer == "session":
+        target = stage.GetSessionLayer()
+    matrix = torch.tensor([[[100.0, 0, 320], [0, 100.0, 240], [0, 0, 1]]], device=camera.device)
+
+    with Usd.EditContext(stage, target):
+        camera.set_intrinsic_matrices(matrix, env_ids=[1])
+
+    expected_focal = 100 if edit_layer == "session" else 500
+    expected = [[expected_focal, 0, 320], [0, expected_focal, 240], [0, 0, 1]]
+    np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy()[1], expected)
