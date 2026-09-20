@@ -35,7 +35,11 @@ def test_ovphysx_camera_preset_resolves_kitless(task_name: str, presets: str):
     finally:
         sys.argv = old_argv
 
-    camera_cfg = env_cfg.tiled_camera if hasattr(env_cfg, "tiled_camera") else env_cfg.scene.base_camera
+    camera_cfg = (
+        env_cfg.scene.tiled_camera
+        if task_name == "Isaac-Reorient-Cube-Shadow-Camera-Direct"
+        else env_cfg.scene.base_camera
+    )
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
     assert isinstance(camera_cfg.renderer_cfg, OVRTXRendererCfg)

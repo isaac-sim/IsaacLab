@@ -24,6 +24,7 @@ pytestmark = pytest.mark.arm_ci
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import Articulation
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
@@ -99,10 +100,17 @@ def sim():
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-    robot_cfg.actuators["panda_shoulder"].damping = 0.0
-    robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-    robot_cfg.actuators["panda_forearm"].damping = 0.0
+    # Explicit torque actuators enforce effort limits on the commands sent to the simulator.
+    for actuator_name in ("panda_shoulder", "panda_forearm"):
+        actuator_cfg = robot_cfg.actuators[actuator_name]
+        robot_cfg.actuators[actuator_name] = IdealPDActuatorCfg(
+            joint_names_expr=actuator_cfg.joint_names_expr,
+            joint_effort_limit=actuator_cfg.joint_effort_limit,
+            joint_velocity_limit=actuator_cfg.joint_velocity_limit,
+            armature=actuator_cfg.armature,
+            stiffness=0.0,
+            damping=0.0,
+        )
     robot_cfg.spawn.rigid_props.disable_gravity = True
 
     # Define the ContactSensor
@@ -567,9 +575,9 @@ def test_franka_wrench_abs_open_loop(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(0.7, 0.7, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -648,9 +656,9 @@ def test_franka_wrench_abs_closed_loop(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(0.7, 0.7, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -737,9 +745,9 @@ def test_franka_hybrid_decoupled_motion(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -814,9 +822,9 @@ def test_franka_hybrid_variable_kp_impedance(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -1011,9 +1019,9 @@ def test_franka_taskframe_hybrid(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(2.0, 1.5, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -1243,9 +1251,9 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(2.0, 1.5, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -1314,7 +1322,7 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.robot.spawn.articulation_props.fix_root_link = False
+        self.robot.spawn.fix_root_link = False
         self.robot.spawn.rigid_props.disable_gravity = True
 
 
