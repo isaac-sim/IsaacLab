@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import torch
 from tensordict.nn import NormalParamExtractor, TensorDictModule
@@ -17,7 +18,7 @@ from torchrl.collectors import Collector
 from torchrl.data import Bounded, Composite, Unbounded
 from torchrl.envs import ExplorationType
 from torchrl.modules import MLP, IndependentNormal, ProbabilisticActor, TanhNormal, ValueOperator
-from torchrl.objectives import ClipPPOLoss
+from torchrl.objectives import ClipPPOLoss, KLAdaptiveLR
 from torchrl.objectives.value import GAE
 
 from .ppo_cfg import TorchRlPpoCfg
@@ -91,8 +92,10 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
         entropy_bonus=cfg.entropy_coef > 0,
         entropy_coeff=cfg.entropy_coef,
         critic_coeff=cfg.value_loss_coef,
+        clip_value=cfg.use_clipped_value_loss,
     )
     optimizer = torch.optim.Adam(loss_module.parameters(), lr=cfg.learning_rate)
+    scheduler = KLAdaptiveLR(optimizer, target_kl=cfg.desired_kl) if cfg.desired_kl is not None else None
     frames_per_batch = env.batch_size[0] * cfg.num_steps_per_env
     collector = Collector(
         env,
@@ -107,8 +110,11 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
     writer = SummaryWriter(log_dir)
 
     try:
+        collection_start = time.perf_counter()
         for iteration, batch in enumerate(collector, start=1):
-            loss_sums: dict[str, torch.Tensor] = {}
+            collection_time = time.perf_counter() - collection_start
+            learning_start = time.perf_counter()
+            term_sums: dict[str, torch.Tensor] = {}
             num_updates = 0
             for _ in range(cfg.num_learning_epochs):
                 with torch.no_grad():
@@ -121,15 +127,38 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
                     nn.utils.clip_grad_norm_(loss_module.parameters(), cfg.max_grad_norm)
                     optimizer.step()
                     for key, value in terms.items():
-                        if key.startswith("loss_"):
-                            if key in loss_sums:
-                                loss_sums[key].add_(value.detach())
+                        if key.startswith("loss_") or key in {
+                            "ESS",
+                            "clip_fraction",
+                            "entropy",
+                            "kl_approx",
+                            "value_clip_fraction",
+                        }:
+                            if key in term_sums:
+                                term_sums[key].add_(value.detach())
                             else:
-                                loss_sums[key] = value.detach().clone()
+                                term_sums[key] = value.detach().clone()
                     num_updates += 1
+                if scheduler is not None:
+                    with torch.no_grad():
+                        scheduler.step(loss_module(samples)["kl_approx"])
             collector.update_policy_weights_()
+            learning_time = time.perf_counter() - learning_start
 
-            stats = {f"Loss/{key}": (value / num_updates).item() for key, value in loss_sums.items()}
+            mean_terms = {key: (value / num_updates).item() for key, value in term_sums.items()}
+            stats = {f"Loss/{key}": value for key, value in mean_terms.items() if key.startswith("loss_")}
+            term_tags = {
+                "ESS": "Policy/ESS",
+                "clip_fraction": "Policy/clip_fraction",
+                "entropy": "Policy/entropy",
+                "kl_approx": "Policy/kl",
+                "value_clip_fraction": "Value/clip_fraction",
+            }
+            stats.update({tag: mean_terms[key] for key, tag in term_tags.items() if key in mean_terms})
+            stats["Policy/learning_rate"] = optimizer.param_groups[0]["lr"]
+            stats["Perf/collection_time"] = collection_time
+            stats["Perf/learning_time"] = learning_time
+            stats["Perf/total_fps"] = frames_per_batch / (collection_time + learning_time)
             stats["Train/mean_step_reward"] = batch["next", "reward"].mean().item()
             stats.update({key: float(value) for key, value in env.unwrapped.extras.get("log", {}).items()})
             for key, value in stats.items():
@@ -137,6 +166,7 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
             print(f"[TorchRL] iteration {iteration}/{cfg.max_iterations}: reward {stats['Train/mean_step_reward']:.4f}")
             if iteration % cfg.save_interval == 0 or iteration == cfg.max_iterations:
                 torch.save(actor.state_dict(), os.path.join(log_dir, f"model_{iteration}.pt"))
+            collection_start = time.perf_counter()
     finally:
         # release the collector and flush the logs also when training is interrupted
         collector.shutdown()

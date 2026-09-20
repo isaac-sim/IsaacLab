@@ -21,6 +21,8 @@ class CartpolePPOCfg(TorchRlPpoCfg):
     learning_rate = 1.0e-3
     gamma = 0.99
     lam = 0.95
+    use_clipped_value_loss = True
+    desired_kl = 0.01
     entropy_coef = 0.005
 
 

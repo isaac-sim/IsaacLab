@@ -52,6 +52,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         agent_help="Name of the RL agent configuration entry point.",
         include_distributed=False,
     )
+    parser.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
@@ -82,6 +83,8 @@ def run(argv: list[str]) -> None:
                 agent_cfg.seed = args_cli.seed if args_cli.seed != -1 else random.randint(0, 10000)
             if args_cli.max_iterations is not None:
                 agent_cfg.max_iterations = args_cli.max_iterations
+            if args_cli.run_name is not None:
+                agent_cfg.run_name = args_cli.run_name
             agent_cfg.device = env_cfg.sim.device
             env_cfg.seed = agent_cfg.seed
             # terminal observations let the value estimator bootstrap correctly on time-outs

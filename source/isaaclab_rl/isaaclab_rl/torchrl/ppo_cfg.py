@@ -45,6 +45,10 @@ class TorchRlPpoCfg:
     gamma: float = MISSING
     lam: float = MISSING
     clip_param: float = 0.2
+    use_clipped_value_loss: bool = False
+    """Whether to clip value updates by :attr:`clip_param`."""
+    desired_kl: float | None = None
+    """Target KL divergence for adaptive learning-rate scheduling; ``None`` keeps the rate fixed."""
     entropy_coef: float = 0.0
     value_loss_coef: float = 1.0
     max_grad_norm: float = 1.0

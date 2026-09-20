@@ -11,4 +11,5 @@ Added
   transitions so that time-limit bootstrapping is correct.
 * Added :func:`~isaaclab_rl.torchrl.train_ppo` with :class:`~isaaclab_rl.torchrl.TorchRlPpoCfg`, a PPO example
   built from TorchRL's collector, GAE, and clipped PPO loss, and the ``torchrl`` backend of the unified ``train``
-  and ``play`` entrypoints (``--rl_library torchrl``).
+  and ``play`` entrypoints (``--rl_library torchrl``). Training supports named runs, optional clipped value loss
+  and adaptive KL learning rates, and records policy and throughput diagnostics in TensorBoard.
