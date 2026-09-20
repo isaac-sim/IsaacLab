@@ -1,1 +1,1 @@
-Removed a commented-out configclass field check and its obsolete inheritance note.
+Removed a commented-out configclass field check and its outdated Python-version TODO.
