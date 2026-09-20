@@ -117,7 +117,7 @@ converts and remaps that data for backend-independent consumers:
 
 This boundary lets renderers and visualizers consume a common Warp-native data
 path without knowing which physics engine owns the state. See
-:doc:`/source/concepts/scene_data_providers` for the complete
+:doc:`/source/developer-tools/scene_data_providers` for the complete
 data-flow model.
 
 Native engine access boundary

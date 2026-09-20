@@ -87,14 +87,14 @@ class ActuatorBaseCfg:
     """Deprecated alias for :attr:`joint_effort_limit`.
 
     .. deprecated:: 3.0
-        Use :attr:`joint_effort_limit` instead. This alias will be removed in 4.0.
+        Use :attr:`joint_effort_limit` instead. This alias will be removed in 3.1.
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
     """Deprecated alias for :attr:`joint_velocity_limit`.
 
     .. deprecated:: 3.0
-        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 4.0.
+        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 3.1.
     """
 
     stiffness: dict[str, float] | float | None = MISSING
@@ -164,7 +164,7 @@ class ActuatorBaseCfg:
 
     .. deprecated:: 3.0
         For explicit actuators, use :attr:`actuator_effort_limit`. For implicit
-        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 4.0.
+        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 3.1.
     """
 
     velocity_limit: dict[str, float] | float | None = None
@@ -173,5 +173,5 @@ class ActuatorBaseCfg:
     .. deprecated:: 3.0
         Use :attr:`actuator_velocity_limit` for the actuator-model limit or
         :attr:`joint_velocity_limit` for the solver limit. This alias will be
-        removed in 4.0.
+        removed in 3.1.
     """

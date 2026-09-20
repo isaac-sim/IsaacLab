@@ -45,7 +45,7 @@ from .preset_target import PresetTarget
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
-def _user_stacklevel() -> int:
+def user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
     outside the ``isaaclab_tasks.utils`` package, so deprecation messages
     cite user code rather than internal utility frames.
@@ -92,7 +92,7 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
     warnings.warn(
         f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
         FutureWarning,
-        stacklevel=_user_stacklevel(),
+        stacklevel=user_stacklevel(),
     )
     return replacement
 
@@ -148,7 +148,7 @@ class PresetCfg:
             warnings.warn(
                 f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
                 FutureWarning,
-                stacklevel=_user_stacklevel(),
+                stacklevel=user_stacklevel(),
             )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")

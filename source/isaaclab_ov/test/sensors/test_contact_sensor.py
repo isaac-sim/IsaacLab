@@ -53,6 +53,7 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
@@ -186,10 +187,10 @@ CUBE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -205,10 +206,10 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -226,10 +227,10 @@ CYLINDER_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.01,
         axis="Y",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -247,10 +248,10 @@ CAPSULE_CFG = ContactSensorRigidObjectCfg(
         radius=0.25,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -268,10 +269,10 @@ CONE_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(
             collision_enabled=True,
         ),
         activate_contact_sensors=True,
@@ -666,14 +667,19 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         stage = get_current_stage()
-        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0)
+        contact_sensor_cfg = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
+            track_pose=False,
+            debug_vis=False,
+            update_period=0.0,
+        )
+        clone_plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (contact_sensor_cfg,), num_envs, 3.0)
+        assert clone_plan.env_ids is not None and clone_plan.positions is not None
+        env_positions = clone_plan.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, env_positions)
-        assert clone_plan.env_ids is not None
         ovphysx_replicate(
             stage,
             clone_plan.sources,
@@ -682,16 +688,7 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
             clone_plan.clone_mask,
             positions=clone_plan.positions,
         )
-        sim.set_clone_plan(clone_plan)
-
-        contact_sensor = ContactSensor(
-            ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
-                track_pose=False,
-                debug_vis=False,
-                update_period=0.0,
-            )
-        )
+        contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 
         # all three nested bodies must be resolved into the binding (pre-fix: init raised)
@@ -763,6 +760,56 @@ def test_contact_sensor_threshold(device):
                 assert pytest.approx(threshold_value, abs=1e-6) == 0.0, (
                     f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
                 )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_lazy_sensor_reports_contact_loss(device):
+    """Regression for issue #7613: a lazily read sensor must report the loss of contact.
+
+    Mirrors the PhysX regression test: with ``history_length=0`` and ``lazy_sensor_update=True``
+    the sensor is only refreshed when :attr:`ContactSensor.data` is accessed, which a policy-rate
+    reader does once per four physics steps. The reported force must still drop to zero once the
+    shape is held in the air.
+    """
+    with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=True)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=CUBE_CFG.prim_path,
+            track_pose=True,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=0,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+
+        sensor: ContactSensor = scene["contact_sensor"]
+        shape: RigidObject = scene["shape"]
+        contact_pose = CUBE_CFG.contact_pose.to(device=shape.device).unsqueeze(0)
+        non_contact_pose = CUBE_CFG.non_contact_pose.to(device=shape.device).unsqueeze(0)
+
+        # Mimic a policy stepping the environment with a decimation of 4: the sensor data is
+        # read once per policy step and left untouched in between.
+        decimation = 4
+        num_policy_steps = 6
+
+        def run_policy_step(root_pose: torch.Tensor) -> float:
+            """Holds the shape at ``root_pose`` for one policy step and reads the sensor once."""
+            for _ in range(decimation):
+                shape.write_root_pose_to_sim_index(root_pose=root_pose)
+                _perform_sim_step(sim, scene, _SIM_DT)
+            return torch.linalg.norm(sensor.data.net_normal_forces_w.torch, dim=-1).max().item()
+
+        contact_forces = [run_policy_step(contact_pose) for _ in range(num_policy_steps)]
+        air_forces = [run_policy_step(non_contact_pose) for _ in range(num_policy_steps)]
+
+        # Guard against a vacuous test: the sensor must have reported contact while on the ground.
+        assert contact_forces[-1] > 0.1, f"Expected a contact force on the ground; got {contact_forces}"
+        # The first read in the air may still carry the impulse of the last contact step, so only
+        # the subsequent reads are required to be free of contact.
+        assert max(air_forces[1:]) < 0.1, f"Stale contact force reported in the air: {air_forces}"
 
 
 @pytest.mark.skip(

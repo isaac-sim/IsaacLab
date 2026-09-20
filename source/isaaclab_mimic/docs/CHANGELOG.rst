@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+2.0.9 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the locomanipulation SDG scene configurations to author rigid-body properties with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` instead of the deprecated
+  :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg`. The authored USD attributes are
+  unchanged.
+
+
+2.0.8 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation SDG generation with NuRec backgrounds by enabling camera capture, applying Isaac RTX
+  Gaussian renderer settings, syncing randomized fixture poses, and recording the projected scene state after
+  placement. ``--high_res_video`` now records RGB observations at 512x320 instead of 960x540; update MP4
+  conversion dimensions and model input shapes accordingly.
+
+
 2.0.7 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~
 

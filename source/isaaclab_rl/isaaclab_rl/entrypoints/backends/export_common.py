@@ -3,28 +3,52 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared CLI, graph metadata, and recurrent-state helpers for LEAPP policy export."""
-
-# ruff: noqa: E402, I001
+"""Shared CLI, LEAPP session, and recurrent-state helpers for policy export."""
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
-import re
-from collections.abc import Sequence
+import sys
+from collections.abc import Callable, Iterator, Sequence
+from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import GraphConfigs
 
-# TorchScript must be disabled before importing task or environment modules because
-# ``@torch.jit.script`` compiles at decoration time.
+# LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
+# or environment modules that compile decorated helpers at import time.
 torch.jit._state.disable()
 
-from isaaclab.app import AppLauncher
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
+from isaaclab.app import AppLauncher, launch_simulation
 
-from isaaclab_tasks.utils import setup_preset_cli
+from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
+
+from ..common import normalize_task_name
+
+if TYPE_CHECKING:
+    from leapp import GraphConfigs
+
+    from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
+
+__all__ = [
+    "add_common_export_args",
+    "create_graph_configs",
+    "finalize_export_args",
+    "get_checkpoint_path",
+    "is_two_tensor_lstm_state",
+    "leapp_capture",
+    "prepare_export_env",
+    "resolve_export_save_path",
+    "run_export",
+    "state_dict_from_sequence",
+    "state_sequence_from_registered",
+]
+
+_EXPORT_METHOD_ERROR = (
+    "--export_method is only supported for manager-based environments. For direct environments, "
+    "set export_with directly in the annotate.output_tensors() call instead."
+)
 
 
 def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: str) -> None:
@@ -34,13 +58,9 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         parser: Argument parser to extend.
         agent_default: Default Hydra agent configuration entry point for the backend.
     """
-
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     parser.add_argument(
-        "--agent",
-        type=str,
-        default=agent_default,
-        help="Name of the RL agent configuration entry point.",
+        "--agent", type=str, default=agent_default, help="Name of the RL agent configuration entry point."
     )
     parser.add_argument(
         "--checkpoint",
@@ -49,10 +69,7 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         help="Checkpoint path, or 'pretrained'. Omit for automatic local discovery.",
     )
     parser.add_argument(
-        "--export_task_name",
-        type=str,
-        default=None,
-        help="Name of the exported graph. Defaults to the task name.",
+        "--export_task_name", type=str, default=None, help="Name of the exported graph. Defaults to the task name."
     )
     parser.add_argument(
         "--export_method",
@@ -65,17 +82,9 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
             "support your model, try another."
         ),
     )
+    parser.add_argument("--export_save_path", type=str, default=None, help="Path to save the exported model.")
     parser.add_argument(
-        "--export_save_path",
-        type=str,
-        default=None,
-        help="Path to save the exported model",
-    )
-    parser.add_argument(
-        "--validation_steps",
-        type=int,
-        default=5,
-        help="Number of steps to validate the exported model",
+        "--validation_steps", type=int, default=5, help="Number of steps to validate the exported model."
     )
     parser.add_argument(
         "--disable_graph_visualization",
@@ -90,67 +99,114 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
 def finalize_export_args(
     parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
-    """Parse export arguments with preset support and force headless mode."""
+    """Parse export arguments with preset support and force headless mode.
 
+    The remainder carries the typed preset selectors (``physics=``, ``renderer=``, ``presets=``) verbatim
+    for Hydra.
+    """
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
 
 
-def get_checkpoint_path(
-    log_path: str,
-    run_dir: str = ".*",
-    checkpoint: str = ".*",
-    other_dirs: list[str] | None = None,
-    sort_alpha: bool = True,
-    preferred_checkpoint: str | None = None,
-) -> str:
-    """Resolve a model checkpoint from a run directory.
-
-    The checkpoint is selected from ``<log_path>/<run_dir>/<*other_dirs>``.
-    Run and checkpoint names may be regular expressions. The latest matching
-    run and naturally sorted checkpoint are returned.
+def run_export(
+    args_cli: argparse.Namespace,
+    hydra_args: list[str],
+    export_agent: Callable[[argparse.Namespace, Any, Any], bool],
+) -> int:
+    """Resolve the task configuration, launch the simulation, and export one policy.
 
     Args:
-        log_path: Log directory containing training runs.
-        run_dir: Regular expression matching a run directory.
-        checkpoint: Regular expression matching checkpoint files.
-        other_dirs: Literal intermediate directories below the run directory.
-        sort_alpha: Sort runs alphabetically instead of by modification time.
-        preferred_checkpoint: Optional checkpoint expression to try first.
+        args_cli: Parsed export arguments.
+        hydra_args: Hydra overrides and preset selectors left over from parsing.
+        export_agent: Backend export function receiving the arguments, environment config, and agent config.
 
     Returns:
-        Path to the selected checkpoint.
+        Process exit code, ``0`` when a policy was exported.
+    """
+    # Hydra reads the preset tokens from sys.argv directly
+    original_argv = sys.argv
+    sys.argv = [sys.argv[0]] + hydra_args
+    try:
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+        with launch_simulation(env_cfg, args_cli):
+            exported = export_agent(args_cli, env_cfg, agent_cfg)
+    finally:
+        sys.argv = original_argv
+    return 0 if exported else 1
+
+
+def prepare_export_env(env: Any, args_cli: argparse.Namespace, *, required_obs_groups: set[str]) -> str:
+    """Patch a Gymnasium environment for LEAPP tracing and return the name of its policy node.
+
+    Manager-based environments are patched to export only the observation groups the actor consumes.
+    Direct environments annotate their own tensors and therefore reject ``--export_method``.
+
+    Args:
+        env: Environment created for the export.
+        args_cli: Parsed export arguments.
+        required_obs_groups: Observation groups consumed by the actor policy.
 
     Raises:
-        ValueError: If no matching run or checkpoint exists.
+        ValueError: If ``--export_method`` is passed for a direct environment.
     """
+    # concrete environment classes and the LEAPP runtime load simulation modules, so import them
+    # only after launch_simulation has initialized the selected backend
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.utils.leapp import patch_env_for_export
+    from isaaclab.utils.leapp.utils import ensure_env_spec_id
+
+    policy_node_name = ensure_env_spec_id(env)
+    if isinstance(env.unwrapped, ManagerBasedRLEnv):
+        export_method = args_cli.export_method or "onnx-dynamo"
+        patch_env_for_export(env, export_method=export_method, required_obs_groups=required_obs_groups)
+    elif args_cli.export_method is not None:
+        raise ValueError(_EXPORT_METHOD_ERROR)
+    return policy_node_name
+
+
+def resolve_export_save_path(args_cli: argparse.Namespace, library: str, log_dir: str) -> str:
+    """Return the directory the exported graph is written to.
+
+    Published checkpoints are exported to a predictable path independent of the Nucleus mirror layout.
+    """
+    if args_cli.export_save_path is not None:
+        return args_cli.export_save_path
+    if args_cli.checkpoint == "pretrained":
+        return os.path.join(".pretrained_checkpoints", library, normalize_task_name(args_cli.task))
+    return log_dir
+
+
+@contextlib.contextmanager
+def leapp_capture(args_cli: argparse.Namespace, *, save_path: str, env_cfg: Any) -> Iterator[int]:
+    """Record policy steps with LEAPP and compile the graph once the block completes.
+
+    Args:
+        args_cli: Parsed export arguments.
+        save_path: Directory the exported graph is written to.
+        env_cfg: Environment config providing the policy frequency.
+
+    Yields:
+        The number of policy steps the block has to run; at least two so LEAPP observes a state update.
+    """
+    # the LEAPP runtime loads simulation modules, so import it only after the launch
+    import leapp
+
+    graph_name = args_cli.export_task_name or args_cli.task.split(":")[-1]
+    num_steps = max(args_cli.validation_steps, 2)
+    leapp.start(graph_name, save_path=save_path, max_cached_io=num_steps)
     try:
-        runs = [
-            os.path.join(log_path, run.name)
-            for run in os.scandir(log_path)
-            if run.is_dir() and re.match(run_dir, run.name)
-        ]
-        runs.sort() if sort_alpha else runs.sort(key=os.path.getmtime)
-        run_path = os.path.join(runs[-1], *other_dirs) if other_dirs is not None else runs[-1]
-    except (IndexError, FileNotFoundError):
-        raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
-
-    model_checkpoints = []
-    if preferred_checkpoint is not None:
-        model_checkpoints = [name for name in os.listdir(run_path) if re.match(preferred_checkpoint, name)]
-    if not model_checkpoints:
-        model_checkpoints = [name for name in os.listdir(run_path) if re.match(checkpoint, name)]
-    if not model_checkpoints:
-        patterns = f"'{checkpoint}'"
-        if preferred_checkpoint is not None:
-            patterns = f"'{preferred_checkpoint}' nor '{checkpoint}'"
-        raise ValueError(f"No checkpoints in the directory: '{run_path}' match {patterns}.")
-
-    model_checkpoints.sort(
-        key=lambda name: [int(token) if token.isdigit() else token for token in re.split(r"(\d+)", name)]
+        yield num_steps
+    except BaseException:
+        with contextlib.suppress(Exception):
+            leapp.stop()
+        raise
+    leapp.stop()
+    leapp.compile_graph(
+        visualize=not args_cli.disable_graph_visualization,
+        validate=args_cli.validation_steps > 0,
+        graph_configs=create_graph_configs(env_cfg),
     )
-    return os.path.join(run_path, model_checkpoints[-1])
 
 
 def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphConfigs:
@@ -162,14 +218,13 @@ def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphC
     Returns:
         Graph metadata containing the policy frequency [Hz].
     """
+    from leapp import GraphConfigs
 
-    policy_frequency = 1.0 / (env_cfg.sim.dt * env_cfg.decimation)
-    return GraphConfigs(frequency=policy_frequency)
+    return GraphConfigs(frequency=1.0 / (env_cfg.sim.dt * env_cfg.decimation))
 
 
 def is_two_tensor_lstm_state(states: object) -> bool:
     """Return whether *states* looks like an LSTM ``[hidden, cell]`` state."""
-
     return (
         isinstance(states, (list, tuple))
         and len(states) == 2

@@ -46,6 +46,8 @@ __all__ = [
     "UniformPoseCommandCfg",
     "UniformVelocityCommand",
     "UniformVelocityCommandCfg",
+    "DifficultyScheduler",
+    "initial_final_interpolate_fn",
     "modify_env_param",
     "modify_reward_weight",
     "modify_term_cfg",
@@ -127,6 +129,7 @@ __all__ = [
     "joint_acc_l2",
     "joint_deviation_l1",
     "joint_pos_limits",
+    "joint_pos_target_l2",
     "joint_torques_l2",
     "joint_vel_l1",
     "joint_vel_l2",
@@ -135,6 +138,8 @@ __all__ = [
     "orientation_command_error",
     "position_command_error",
     "position_command_error_tanh",
+    "survival_success_rate",
+    "terminated_penalty",
     "track_ang_vel_z_exp",
     "track_lin_vel_xy_exp",
     "undesired_contacts",
@@ -197,7 +202,13 @@ from .commands import (
     UniformVelocityCommand,
     UniformVelocityCommandCfg,
 )
-from .curriculums import modify_env_param, modify_reward_weight, modify_term_cfg
+from .curriculums import (
+    DifficultyScheduler,
+    initial_final_interpolate_fn,
+    modify_env_param,
+    modify_reward_weight,
+    modify_term_cfg,
+)
 from .events import (
     apply_external_force_torque,
     push_by_setting_velocity,
@@ -282,6 +293,7 @@ from .rewards import (
     joint_acc_l2,
     joint_deviation_l1,
     joint_pos_limits,
+    joint_pos_target_l2,
     joint_torques_l2,
     joint_vel_l1,
     joint_vel_l2,
@@ -290,6 +302,8 @@ from .rewards import (
     orientation_command_error,
     position_command_error,
     position_command_error_tanh,
+    survival_success_rate,
+    terminated_penalty,
     track_ang_vel_z_exp,
     track_lin_vel_xy_exp,
     undesired_contacts,

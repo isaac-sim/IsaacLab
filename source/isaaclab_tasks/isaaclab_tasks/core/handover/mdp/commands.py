@@ -59,10 +59,9 @@ class HandoverCommand(CommandTerm):
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         if env_ids is None:
             env_ids = slice(None)
-        # the base class means the metric over ``env_ids``, converts it to a float and
-        # zeroes it, so the episode's success bit is written before delegating
-        # Success is the object being AT the goal when the episode ends, not having passed
-        # through it. The latch guards the first reset, before any distance is measured.
+        # The base class averages the metric over ``env_ids`` and zeroes it, so the episode's success bit is
+        # written before delegating. Success means the object is at the goal when the episode ends, not that
+        # it passed through it; the latch guards the first reset, before any distance is measured.
         self.metrics["success_rate"][env_ids] = (
             (self.metrics["goal_distance"][env_ids] < self.cfg.success_distance_threshold) & self._succeeded[env_ids]
         ).float()
@@ -78,8 +77,7 @@ class HandoverCommand(CommandTerm):
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
-        # The shared sampler covers SO(3) uniformly. Composing two axis-angle rotations, as this did,
-        # reaches only a two-axis subset and needs a unit-axis buffer per axis to do it.
+        # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
         self.quat_command_w[env_ids] = math_utils.random_orientation(len(env_ids), device=self.device)
 
     def _update_command(self) -> None:

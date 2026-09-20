@@ -484,13 +484,6 @@ def _process_mutable_types(cls):
         origin = getattr(ann_value, "__origin__", None)
         if origin is ClassVar:
             continue
-        # check if f is MISSING
-        # note: commented out for now since it causes issue with inheritance
-        #   of dataclasses when parent have some positional and some keyword arguments.
-        # Ref: https://stackoverflow.com/questions/51575931/class-inheritance-in-python-3-7-dataclasses
-        # TODO: check if this is fixed in Python 3.10
-        # if f is MISSING:
-        #     continue
         if isinstance(value, Field):
             setattr(cls, key, value)
         elif not isinstance(value, type):
