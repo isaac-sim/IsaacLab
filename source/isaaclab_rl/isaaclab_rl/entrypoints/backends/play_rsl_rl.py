@@ -21,6 +21,7 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
@@ -139,7 +140,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
-            if args_cli.checkpoint == "pretrained":
+            if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
+                resume_path = resolve_wandb_checkpoint(args_cli.checkpoint)
+            elif args_cli.checkpoint == "pretrained":
                 backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
                 resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
                 if not resume_path:

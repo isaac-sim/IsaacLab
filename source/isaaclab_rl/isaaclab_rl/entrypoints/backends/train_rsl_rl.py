@@ -125,6 +125,12 @@ def _run(args_cli: argparse.Namespace) -> None:
     from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
     from isaaclab.utils.seed import configure_seed
+    from isaaclab.utils.wandb import (
+        announce_new_run,
+        is_wandb_checkpoint,
+        resolve_wandb_checkpoint,
+        resolve_wandb_entity,
+    )
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
@@ -183,7 +189,9 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
+                resume_path = resolve_wandb_checkpoint(args_cli.checkpoint)
+            elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(
                     log_root_path,
                     args_cli.checkpoint,
@@ -230,6 +238,9 @@ def _run(args_cli: argparse.Namespace) -> None:
                 runner.load(resume_path)
 
             dump_train_configs(log_dir, env_cfg, agent_cfg)
+
+            if agent_cfg.logger == "wandb":
+                announce_new_run(agent_cfg.wandb_project, resolve_wandb_entity())
 
             screen.close()
             try:
