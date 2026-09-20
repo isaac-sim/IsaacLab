@@ -1,0 +1,1 @@
+Fixed Newton asset data to rebind gravity views and invalidate projected-gravity caches after hard-reset simulation bindings are rebuilt.
