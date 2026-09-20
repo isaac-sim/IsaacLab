@@ -30,6 +30,8 @@ from stable_baselines3.common.preprocessing import is_image_space, is_image_spac
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
+from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
@@ -120,6 +122,10 @@ class Sb3VecEnvWrapper(VecEnv):
        to the one after reset. The "real" final observation is passed using the info dicts
        under the key ``terminal_observation``.
 
+    Stable-Baselines3 requires finite bounds for continuous action spaces. Manager-based environments
+    should declare the raw policy bounds on their action terms, while direct environments should use
+    a bounded action space specification.
+
     .. warning::
 
         By the nature of physics stepping in Isaac Sim, it is not possible to forward the
@@ -149,8 +155,10 @@ class Sb3VecEnvWrapper(VecEnv):
                 (Only episodic reward, lengths and truncation info are included)
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: When the environment has an external Gymnasium time limit or an unbounded action space.
         """
         # check that input is valid
+        _validate_no_time_limit(env)
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
@@ -361,11 +369,13 @@ class Sb3VecEnvWrapper(VecEnv):
                         self.observation_processors[obs_key] = chained_processor
 
         # obtain gym spaces
-        # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we set it to some high value here. Maybe this is not general but something to think about.
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+            raise ValueError(
+                "Stable-Baselines3 requires finite lower and upper bounds for every continuous action dimension. "
+                "For manager-based environments, set ActionTermCfg.raw_action_bounds. For direct environments, "
+                "define a bounded DirectRLEnvCfg.action_space."
+            )
 
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)

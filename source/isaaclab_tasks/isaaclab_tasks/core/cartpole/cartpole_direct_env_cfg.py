@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 
+from gymnasium import spaces
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
@@ -75,7 +76,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     action_scale = 100.0  # [N]
-    action_space = 1
+    action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,))
     observation_space = 4
     state_space = 0
 

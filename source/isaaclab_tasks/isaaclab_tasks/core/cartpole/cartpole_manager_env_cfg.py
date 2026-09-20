@@ -101,7 +101,9 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    joint_effort = mdp.JointEffortActionCfg(
+        asset_name="robot", joint_names=["slider_to_cart"], scale=100.0, raw_action_bounds=(-1.0, 1.0)
+    )
 
 
 @configclass
