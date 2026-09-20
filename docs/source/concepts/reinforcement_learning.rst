@@ -83,7 +83,7 @@ features your experiment needs, not on a single throughput result.
    * - **TorchRL**
      - Building custom algorithms from PyTorch-native RL components
      - PPO reference runner on a ``torchrl.envs.EnvBase`` wrapper that keeps observation groups and
-       terminal observations; training only (no ``play`` backend yet)
+       terminal observations, with unified training and playback
      - ``--extra torchrl``
 
 Install optional dependencies by selecting the corresponding ``uv`` extra when running a command:
@@ -94,6 +94,7 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
    uv run --extra torchrl isaaclab train --rl_library torchrl --task Isaac-Cartpole
+   uv run --extra torchrl isaaclab play --rl_library torchrl --task Isaac-Cartpole --checkpoint latest
 
 
 Typical training workflow

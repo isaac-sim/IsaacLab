@@ -39,6 +39,7 @@ _BACKEND_MODULES = {
         "rsl_rl": "isaaclab_rl.entrypoints.backends.play_rsl_rl",
         "sb3": "isaaclab_rl.entrypoints.backends.play_sb3",
         "skrl": "isaaclab_rl.entrypoints.backends.play_skrl",
+        "torchrl": "isaaclab_rl.entrypoints.backends.play_torchrl",
     },
 }
 

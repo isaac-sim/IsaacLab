@@ -113,7 +113,7 @@ and is a good starting point for GPU-based training.
      - VLA model fine-tuning
      - ``uv run --extra rlinf isaaclab train --rl_library rlinf ...``
    * - ``torchrl``
-     - Custom algorithms from PyTorch-native RL components (training only)
+     - PPO with PyTorch-native RL components
      - ``uv run --extra torchrl isaaclab train --rl_library torchrl ...``
 
 RL libraries differ in their supported algorithms, tasks, and workflows. See

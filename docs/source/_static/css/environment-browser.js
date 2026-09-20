@@ -204,8 +204,6 @@
         benchmarkChannel: "release",
     };
     const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf", torchrl: "torchrl"};
-    // Libraries with a train backend but no play backend in isaaclab_rl.entrypoints.dispatch.
-    const trainOnlyRlLibraries = new Set(["torchrl"]);
     let benchmarkRows = [];
     const benchmarkErrors = new Set();
 
@@ -386,16 +384,11 @@
 
     const updateModeControls = () => {
         const supportsRl = selectedTask().rl.length > 0;
-        const supportsPlay = supportsRl && !trainOnlyRlLibraries.has(fields.rl.value);
-        if (!supportsPlay) {
+        if (!supportsRl) {
             state.mode = "train";
         }
         for (const modeButton of modeButtons) {
-            const isPlayButton = modeButton.dataset.commandMode === "play";
-            modeButton.disabled = !supportsRl || (isPlayButton && !supportsPlay);
-            modeButton.title = isPlayButton && supportsRl && !supportsPlay
-                ? `${fields.rl.value} supports training only`
-                : "";
+            modeButton.disabled = !supportsRl;
             const isActive = supportsRl && modeButton.dataset.commandMode === state.mode;
             modeButton.classList.toggle("is-active", isActive);
             modeButton.setAttribute("aria-pressed", String(isActive));
@@ -407,7 +400,7 @@
             ...(task.pretrainedCheckpointPresetCompatibility["*"] || []),
             ...(task.pretrainedCheckpointPresetCompatibility[fields.rl.value] || []),
         ];
-        const supportsPretrainedCheckpoint = supportsPlay && state.scope === "core"
+        const supportsPretrainedCheckpoint = supportsRl && state.scope === "core"
             && (!selectedPreset || compatiblePresets.includes(selectedPreset));
         fields.checkpoint.disabled = !supportsPretrainedCheckpoint;
         if (!supportsPretrainedCheckpoint) {

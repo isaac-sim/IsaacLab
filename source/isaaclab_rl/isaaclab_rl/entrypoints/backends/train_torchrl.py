@@ -53,7 +53,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         include_distributed=False,
     )
     add_launcher_args(parser)
-    args_cli, hydra_args = setup_preset_cli(parser, argv, agent_library="torchrl")
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
     return args_cli
@@ -117,5 +117,6 @@ def run(argv: list[str]) -> None:
                 train_ppo(env, agent_cfg, log_dir)
             except KeyboardInterrupt:
                 print("[TorchRL] Training interrupted.")
-            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
+            finally:
+                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                env.close()

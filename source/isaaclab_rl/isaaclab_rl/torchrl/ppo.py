@@ -16,8 +16,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torchrl.collectors import Collector
 from torchrl.data import Bounded, Composite, Unbounded
 from torchrl.envs import ExplorationType
-from torchrl.modules import MLP, IndependentNormal, ProbabilisticActor, ValueOperator
-from torchrl.objectives import ClipPPOLoss, ValueEstimators
+from torchrl.modules import MLP, IndependentNormal, ProbabilisticActor, TanhNormal, ValueOperator
+from torchrl.objectives import ClipPPOLoss
+from torchrl.objectives.value import GAE
 
 from .ppo_cfg import TorchRlPpoCfg
 from .vecenv_wrapper import IsaacLabTorchRLWrapper
@@ -44,13 +45,20 @@ def make_actor(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg) -> Probabilistic
         _mlp(env, "policy", 2 * action_spec.shape[-1], cfg.actor_hidden_dims, cfg.activation),
         NormalParamExtractor(scale_mapping=f"biased_softplus_{cfg.init_noise_std}"),
     )
+    distribution_class = TanhNormal if isinstance(action_spec, Bounded) else IndependentNormal
+    if isinstance(action_spec, Bounded):
+        action_space = env.action_spec_unbatched.space
+        distribution_kwargs = {"low": action_space.low, "high": action_space.high}
+    else:
+        distribution_kwargs = {}
     return ProbabilisticActor(
         TensorDictModule(net, in_keys=["policy"], out_keys=["loc", "scale"]),
+        spec=action_spec,
         in_keys=["loc", "scale"],
         out_keys=["action"],
-        distribution_class=IndependentNormal,
+        distribution_class=distribution_class,
+        distribution_kwargs=distribution_kwargs,
         return_log_prob=True,
-        log_prob_key="sample_log_prob",
         default_interaction_type=ExplorationType.RANDOM,
     )
 
@@ -73,9 +81,10 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
     ``extras["log"]``, are written to ``log_dir``.
     """
     torch.manual_seed(cfg.seed)
-    actor = make_actor(env, cfg).to(cfg.device)
-    critic = make_critic(env, cfg).to(cfg.device)
-    loss = ClipPPOLoss(
+    actor = make_actor(env, cfg).to(cfg.device).eval()
+    critic = make_critic(env, cfg).to(cfg.device).eval()
+    advantage = GAE(gamma=cfg.gamma, lmbda=cfg.lam, value_network=critic, average_gae=True)
+    loss_module = ClipPPOLoss(
         actor,
         critic,
         clip_epsilon=cfg.clip_param,
@@ -83,9 +92,7 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
         entropy_coeff=cfg.entropy_coef,
         critic_coeff=cfg.value_loss_coef,
     )
-    loss.set_keys(sample_log_prob="sample_log_prob")
-    loss.make_value_estimator(ValueEstimators.GAE, gamma=cfg.gamma, lmbda=cfg.lam)
-    optimizer = torch.optim.Adam(loss.parameters(), lr=cfg.learning_rate)
+    optimizer = torch.optim.Adam(loss_module.parameters(), lr=cfg.learning_rate)
     frames_per_batch = env.batch_size[0] * cfg.num_steps_per_env
     collector = Collector(
         env,
@@ -93,24 +100,36 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
         frames_per_batch=frames_per_batch,
         total_frames=frames_per_batch * cfg.max_iterations,
         device=cfg.device,
-        auto_register_policy_transforms=False,
+        split_trajs=False,
+        auto_register_policy_transforms=True,
+        no_cuda_sync=env.device.type == "cuda",
     )
     writer = SummaryWriter(log_dir)
 
     try:
         for iteration, batch in enumerate(collector, start=1):
-            with torch.no_grad():
-                loss.value_estimator(batch)
-            samples = batch.reshape(-1)
+            loss_sums: dict[str, torch.Tensor] = {}
+            num_updates = 0
             for _ in range(cfg.num_learning_epochs):
+                with torch.no_grad():
+                    advantage(batch)
+                samples = batch.reshape(-1)
                 for indices in torch.randperm(samples.shape[0], device=samples.device).chunk(cfg.num_mini_batches):
-                    terms = loss(samples[indices])
-                    optimizer.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)
+                    terms = loss_module(samples[indices])
                     sum(value for key, value in terms.items() if key.startswith("loss_")).backward()
-                    nn.utils.clip_grad_norm_(loss.parameters(), cfg.max_grad_norm)
+                    nn.utils.clip_grad_norm_(loss_module.parameters(), cfg.max_grad_norm)
                     optimizer.step()
+                    for key, value in terms.items():
+                        if key.startswith("loss_"):
+                            if key in loss_sums:
+                                loss_sums[key].add_(value.detach())
+                            else:
+                                loss_sums[key] = value.detach().clone()
+                    num_updates += 1
+            collector.update_policy_weights_()
 
-            stats = {f"Loss/{key}": value.item() for key, value in terms.items() if key.startswith("loss_")}
+            stats = {f"Loss/{key}": (value / num_updates).item() for key, value in loss_sums.items()}
             stats["Train/mean_step_reward"] = batch["next", "reward"].mean().item()
             stats.update({key: float(value) for key, value in env.unwrapped.extras.get("log", {}).items()})
             for key, value in stats.items():

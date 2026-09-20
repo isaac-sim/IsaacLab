@@ -122,6 +122,29 @@ def test_wrapper_reset_step_and_timeout(library: str, finite_horizon: bool, raw_
     assert saw_done, "The short episode must exercise automatic reset"
 
 
+def test_torchrl_actor_uses_unbatched_action_bounds() -> None:
+    """Bounded policies must support minibatches whose size differs from the environment batch."""
+    from types import SimpleNamespace
+
+    pytest.importorskip("torchrl")
+    from torchrl.data import Bounded, Composite, Unbounded
+
+    from isaaclab_rl.torchrl import make_actor
+
+    env = SimpleNamespace(
+        batch_size=torch.Size([2]),
+        action_spec=Bounded(low=-2.0, high=2.0, shape=(2, 1)),
+        action_spec_unbatched=Bounded(low=-2.0, high=2.0, shape=(1,)),
+        observation_spec=Composite(policy=Unbounded(shape=(2, 4)), shape=(2,)),
+    )
+    cfg = SimpleNamespace(actor_hidden_dims=[8], activation="ELU", init_noise_std=1.0)
+
+    actor = make_actor(env, cfg)
+    batch = TensorDict({"policy": torch.randn(6, 4)}, batch_size=[6])
+
+    assert actor(batch)["action"].shape == (6, 1)
+
+
 def _assert_observation_buffer(env: Any) -> None:
     observations = env.get_observations()
     assert isinstance(observations, TensorDict)

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
-from tensordict import TensorDict
+from tensordict import TensorDict, TensorDictBase
 from tensordict.utils import expand_as_right
 from torchrl.data import Bounded, Categorical, Composite, MultiCategorical, TensorSpec, Unbounded
 from torchrl.envs import EnvBase
@@ -83,7 +83,7 @@ class IsaacLabTorchRLWrapper(EnvBase):
         if not isinstance(env.unwrapped, allowed_types):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                f" ManagerBasedRLEnvWarp. Environment type: {type(env)}"
+                f" ManagerBasedRLEnvWarp. Environment type: {type(env.unwrapped)}"
             )
 
         self.env = env
@@ -132,7 +132,7 @@ class IsaacLabTorchRLWrapper(EnvBase):
     Operations - EnvBase
     """
 
-    def _step(self, tensordict: TensorDict) -> TensorDict:
+    def _step(self, tensordict: TensorDictBase) -> TensorDict:
         """Steps the environment with the ``"action"`` entry of ``tensordict``.
 
         Returns:
@@ -142,10 +142,10 @@ class IsaacLabTorchRLWrapper(EnvBase):
         if self._clip_actions is not None:
             actions = torch.clamp(actions, -self._clip_actions, self._clip_actions)
 
-        obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+        obs_dict, reward, terminated, truncated, extras = self.env.step(actions)
 
         # Isaac Lab reuses these buffers across steps; TorchRL keeps every step's tensordict alive until stacked.
-        rew = rew.reshape(*self.batch_size, 1).clone()
+        reward = reward.reshape(*self.batch_size, 1).clone()
         terminated = terminated.reshape(*self.batch_size, 1).clone()
         truncated = truncated.reshape(*self.batch_size, 1).clone()
         if getattr(self.unwrapped.cfg, "is_finite_horizon", False):
@@ -156,13 +156,13 @@ class IsaacLabTorchRLWrapper(EnvBase):
 
         obs = TensorDict(obs_dict, batch_size=self.batch_size, device=self.device)
         out = self._terminal_observations(obs, extras, done)
-        out["reward"] = rew
+        out["reward"] = reward
         out["terminated"] = terminated
         out["truncated"] = truncated
         out["done"] = done
         return out
 
-    def _reset(self, tensordict: TensorDict | None = None, **kwargs) -> TensorDict:
+    def _reset(self, tensordict: TensorDictBase | None = None, **kwargs) -> TensorDict:
         """Resets the environment and returns the initial observations.
 
         A ``"_reset"`` mask in ``tensordict`` does not reset anything: TorchRL issues it after a step with done
@@ -246,7 +246,14 @@ class IsaacLabTorchRLWrapper(EnvBase):
         if isinstance(action_space, gym.spaces.Box):
             if clip_actions is not None:
                 shape = (*self.batch_size, *action_space.shape)
-                return Bounded(low=-clip_actions, high=clip_actions, shape=shape, device=self.device)
+                dtype = torch.as_tensor(action_space.low).dtype
+                return Bounded(
+                    low=-clip_actions,
+                    high=clip_actions,
+                    shape=shape,
+                    dtype=dtype,
+                    device=self.device,
+                )
             return self._gym_space_to_spec(action_space)
         if clip_actions is not None:
             raise ValueError(f"Action clipping is only supported for Box action spaces, got {type(action_space)}.")
