@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 from types import SimpleNamespace
 
 import pytest
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, NewtonSoftContactCfg
+from newton import ModelBuilder
+from newton.solvers import SolverVBD
 
 from isaaclab.sim import SimulationContext
 
@@ -203,6 +206,46 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
 
     assert NewtonManager._solver is solver
     assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({}, id="newton-defaults"),
+        pytest.param(
+            {"rigid_compliant_alm": False, "rigid_avbd_alpha": 0.0, "rigid_body_contact_buffer_size": 256},
+            id="legacy-cable-controls",
+        ),
+        pytest.param({"rigid_compliant_alm": False, "rigid_contact_hard": False}, id="legacy-penalty-contacts"),
+        pytest.param({"rigid_compliant_alm": True}, id="compliant-mode-defaults"),
+        pytest.param({"rigid_compliant_alm": True, "rigid_avbd_alpha": 0.25}, id="compliant-alpha-override"),
+    ],
+)
+def test_vbd_rigid_solver_controls(overrides):
+    """Public VBD controls preserve Newton defaults and reach the actual solver."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    solver_cfg = physics.VBDSolverCfg(**overrides)
+    parameters = inspect.signature(SolverVBD).parameters
+    for name in ("rigid_compliant_alm", "rigid_avbd_alpha", "rigid_contact_hard", "rigid_body_contact_buffer_size"):
+        assert getattr(solver_cfg, name) == overrides.get(name, parameters[name].default)
+
+    builder = ModelBuilder()
+    body = builder.add_body()
+    builder.add_shape_sphere(body=body, radius=0.1)
+    builder.color()
+    model = builder.finalize(device="cpu")
+
+    reference = SolverVBD(model, **overrides)
+    solver = physics.NewtonVBDManager._create_solver(model, solver_cfg)
+    for name in (
+        "rigid_compliant_alm",
+        "rigid_joint_alpha",
+        "rigid_contact_alpha",
+        "rigid_contact_hard",
+        "body_body_contact_buffer_pre_alloc",
+    ):
+        assert getattr(solver, name) == getattr(reference, name)
+    assert solver.body_body_contact_indices.shape == reference.body_body_contact_indices.shape
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

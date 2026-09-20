@@ -58,8 +58,42 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
+    rigid_compliant_alm: bool | None = None
+    """Whether to use compliant ALM for rigid contacts, joints, drives, and limits.
+
+    ``None`` preserves Newton's default, which selects the legacy path in Newton 1.6
+    and emits a deprecation warning when VBD integrates rigid bodies. Set ``True`` to
+    adopt compliant ALM with finite authored stiffness, or ``False`` to retain the legacy
+    path explicitly during migration. Material parameters may need retuning.
+    """
+
+    rigid_avbd_alpha: float | None = None
+    """Shared C0 stabilization strength for rigid joints and body-body contacts.
+
+    Values must be in ``[0, 1]``. ``None`` preserves Newton's mode defaults: ``0.95``
+    for the legacy path and ``0.0`` for compliant ALM. Newton's joint-specific and
+    contact-specific alpha overrides take precedence when supplied by a config subclass.
+    """
+
+    rigid_contact_hard: bool = True
+    """Whether to use hard body-body contacts on the legacy VBD path.
+
+    ``False`` selects legacy penalty-only contacts. This setting does not select the
+    contact mode when :attr:`rigid_compliant_alm` is ``True``.
+
+    .. deprecated:: Newton 1.6
+        Set :attr:`rigid_compliant_alm` to ``True`` and author finite contact stiffness.
+    """
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
+
+    rigid_body_contact_buffer_size: int = 64
+    """Per-body capacity of the body-body contact list.
+
+    Increase this value when Newton reports a per-body body-body contact buffer overflow.
+    Only used when :attr:`integrate_with_external_rigid_solver` is ``False``.
+    """
 
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body capacity of the particle, edge, and face soft-contact list.
