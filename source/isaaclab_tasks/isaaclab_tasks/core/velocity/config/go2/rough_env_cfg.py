@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Unitree Go2 velocity-tracking environment on rough terrain."""
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG  # isort: skip
+from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 
 @configclass
 class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the Unitree Go2 velocity-tracking environment on rough terrain."""
+
     def __post_init__(self):
         super().__post_init__()
 

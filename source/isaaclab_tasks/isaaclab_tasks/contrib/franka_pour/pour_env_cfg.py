@@ -293,7 +293,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
     return capacity
 
 
-def _configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
+def configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
     """Resolve world-count-dependent MPM capacities after command-line overrides."""
     _configure_media_fill(cfg)
     solver_cfg = _mpm_solver_cfg(cfg)

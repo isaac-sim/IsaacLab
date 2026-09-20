@@ -33,7 +33,7 @@ from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
-def _build_gr1t2_pickplace_pipeline():
+def build_gr1t2_pickplace_pipeline():
     """Build an IsaacTeleop retargeting pipeline for GR1T2 pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
@@ -665,7 +665,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
             xr_camera_feeds=[
