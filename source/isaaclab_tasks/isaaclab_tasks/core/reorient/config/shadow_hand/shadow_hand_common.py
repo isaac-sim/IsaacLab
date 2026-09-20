@@ -13,6 +13,7 @@ scales and thresholds live inline in the workflow configuration files.
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -21,8 +22,8 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -180,19 +181,22 @@ CUBE_CFG = RigidObjectCfg(
     spawn=sim_utils.UsdFileCfg(
         spawn_path="/World/envs/env_0/object",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            kinematic_enabled=False,
-            disable_gravity=False,
-            enable_gyroscopic_forces=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0025,
-            max_depenetration_velocity=1000.0,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_depenetration_velocity=1000.0,
+            ),
+        ],
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
         semantic_tags=[("class", "cube")],
     ),
     # Above the palm of the hand, which lies horizontal reaching along -Y. This is the position the

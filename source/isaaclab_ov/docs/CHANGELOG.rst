@@ -1,6 +1,113 @@
 Changelog
 ---------
 
+3.1.3 (2026-09-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab_ov.stage.create_ovstage` to select the ovstage hierarchy computation
+  model from the installed ovstage version instead of always requesting
+  ``HierarchyComputationModel.CPU_INCREMENTAL``. ovstage 0.2 and later place objects correctly
+  under ``GPU_INCREMENTAL``, which moves world-transform computation off the host; ovstage 0.1
+  keeps the host model. The version is resolved once at import by the new
+  :mod:`isaaclab_ov.ovstage_compat` module. No migration is required: the public extras stay
+  pinned to ``ovstage==0.1.1.355824``, so the host model remains in force until that pin moves,
+  and a missing or unparsable install also keeps the host model.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX articulation joint properties (stiffness, damping, armature, position/velocity/effort
+  limits, friction) and body mass/inertia being re-read from their CPU-only bindings on every simulation
+  step. These static properties are now read once after invalidation and kept current by the
+  ``write_*`` / ``set_*`` setters. This removes three blocking host round-trips per physics step from the
+  native Newton actuator path, which made it several times slower than the Isaac Lab actuator path on
+  OVPhysX at large environment counts.
+
+
+3.1.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed implicit actuator PD estimates being submitted as additional joint forces
+  alongside the native ovphysx joint drives. Implicit actuators now submit only
+  their feedforward effort commands while retaining PD estimates as telemetry.
+
+
+3.1.1 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disabled the reversed-joint sign correction for OvPhysX 0.6 and newer, which already returned Jacobians and mass matrices
+  in the public joint basis. Preserved the correction for the default OvPhysX 0.5.11
+  runtime and custom joint and body ordering on both versions.
+* Removed an unnecessary reversed-joint sign correction from gravity compensation forces on OvPhysX 0.5.11.
+* Registered the OvPhysX codeless physics schemas with OVStage before scene population when its registration API was
+  available, including when the host USD registry already provided those schemas.
+* Fixed :class:`~isaaclab_ov.sensors.ContactSensor` reporting the last in-contact force forever after a body
+  left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its data
+  was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The ovphysx contact bindings
+  are now read on every physics step regardless of the history length, while the warp kernels that consume
+  the fetched buffers stay lazy.
+
+
+3.1.0 (2026-09-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+
+
+3.0.2 (2026-09-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Projected source-only world frames from clone-plan positions when destination USD environment prims are absent.
+
+
+3.0.1 (2026-09-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added version-selected support for the OVPhysX 0.6 ``warmup()`` and ``destroy()``
+  lifecycle APIs while retaining the released 0.5.11 ``warmup_gpu()`` and
+  ``release()`` path. The public extras remain pinned to ``ovphysx==0.5.11``.
+
+Fixed
+^^^^^
+
+* Fixed fixed tendons being named after the joint carrying the tendon's root rather than after the
+  tendon instance itself, which gave the same tendon a different name on each physics engine and
+  left it unreachable from a shared configuration.
+
+* Fixed every fixed tendon being counted twice, which made ``fixed_tendon_ids=None`` address twice
+  as many tendons as the articulation has and index past the end of every fixed-tendon buffer. The
+  prim's applied schemas were read from both ``GetAppliedSchemas()`` and the ``apiSchemas``
+  metadata, which report the same entries.
+
+
 3.0.0 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~
 

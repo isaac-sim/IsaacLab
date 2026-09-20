@@ -37,7 +37,7 @@ your project does not use that feature.
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
    When you change it, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 Installation
@@ -106,7 +106,7 @@ Understand the new package boundaries first, then make environment configuration
 
       .. code-block:: python
 
-         from isaaclab.utils.configclass import configclass
+         from isaaclab.utils import configclass
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
@@ -142,8 +142,9 @@ The concrete default remains task-specific so launching without an override stay
 Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/developer-tools/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
@@ -265,7 +266,7 @@ For the full design, see :ref:`schema-cfgs`.
 **Class moves and renames**
 
 The following 2.x class names are kept as deprecated aliases. They forward to
-the new location and will be removed in 4.0.
+the new location and will be removed in 3.1.
 
 .. list-table::
    :header-rows: 1
@@ -300,7 +301,7 @@ the new location and will be removed in 4.0.
 **Code migration**
 
 Existing 2.x code continues to work via the deprecation aliases (with a
-``DeprecationWarning``; removed in 4.0):
+``DeprecationWarning``; removed in 3.1):
 
 .. code-block:: python
 
@@ -349,7 +350,7 @@ scheduled for removal in 4.0.
      - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
-Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 3.1):
 
 .. code-block:: python
 
@@ -427,7 +428,7 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab.physics import PhysxAutoCfg
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
@@ -823,7 +824,7 @@ removed in a future release.
 
 Actuator configurations now use joint-qualified names for solver limits. Update active
 configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` through the 3.x release line and will be removed in 4.0.
+``DeprecationWarning`` through the 3.x release line and will be removed in 3.1.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
@@ -1205,7 +1206,7 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/concepts/native-physics-api/index`
 before using ``root_view`` in backend-portable code.
 
 

@@ -17,7 +17,7 @@ Reference:
 """
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -75,10 +75,8 @@ SHADOW_HAND_CFG = ArticulationCfg(
         usd_path=(
             f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/ShadowRobot/ShadowHandMultiPhysics_v0/right_hand/right_hand.usda"
         ),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            retain_accelerations=True,
-            max_depenetration_velocity=1000.0,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=True, retain_accelerations=True, max_depenetration_velocity=1000.0
         ),
         articulation_props=[
             PhysxArticulationCfg(
@@ -145,7 +143,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
         ),
     },
 )
-"""Shadow Hand, with the asset's own ``Physics`` variant left selected.
+"""Shadow Hand, with the asset's own ``Physics`` and ``Colliders`` variants left selected.
 
 One asset serves both engines; per-engine values are authored in the asset rather than restated
 here. Prefer :data:`SHADOW_HAND_PHYSX_CFG` or :data:`SHADOW_HAND_NEWTON_CFG`, which name the
@@ -153,9 +151,9 @@ engine at the call site instead of relying on the asset's default.
 """
 
 SHADOW_HAND_PHYSX_CFG = SHADOW_HAND_CFG.copy()
-SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx"}
-"""Shadow Hand on the asset's PhysX variant."""
+SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx", "Colliders": "simplified"}
+"""Shadow Hand on the asset's PhysX variant, with simplified colliders."""
 
 SHADOW_HAND_NEWTON_CFG = SHADOW_HAND_CFG.copy()
-SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco"}
-"""Shadow Hand on the asset's MuJoCo variant, for the Newton (MJWarp) solver."""
+SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "simplified"}
+"""Shadow Hand on the asset's MuJoCo variant, with simplified colliders, for the Newton (MJWarp) solver."""

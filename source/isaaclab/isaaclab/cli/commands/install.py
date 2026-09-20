@@ -26,7 +26,7 @@ from ..utils import (
     print_warning,
     run_command,
 )
-from .misc import command_vscode_settings
+from .misc import command_editor
 
 _PACKAGE_INDEX_RETRIES = "12"
 _PACKAGE_INSTALL_RETRY_ATTEMPTS = 3
@@ -302,12 +302,7 @@ def _ensure_cuda_torch() -> None:
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
 
-    if is_arm():
-        cuda_ver = "130"
-    else:
-        cuda_ver = "128"
-
-    cuda_tag = f"cu{cuda_ver}"
+    cuda_tag = "cu130"
     index_url = f"{base_index}/{cuda_tag}"
 
     want_torch = f"{torch_ver}+{cuda_tag}"
@@ -1298,7 +1293,7 @@ def command_install(install_type: str = "all") -> None:
             if install_isaacsim:
                 _install_isaacsim()
 
-            # Install pytorch (version based on arch).
+            # Install the pinned PyTorch CUDA build.
             _ensure_cuda_torch()
 
             # Install all submodules (core set + any explicitly requested optional ones).
@@ -1356,6 +1351,6 @@ def command_install(install_type: str = "all") -> None:
             if saved_pythonpath is not None:
                 os.environ["PYTHONPATH"] = saved_pythonpath
 
-    # Install vscode update unless we're in docker.
+    # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
-        command_vscode_settings()
+        command_editor([], project_dir=ISAACLAB_ROOT)

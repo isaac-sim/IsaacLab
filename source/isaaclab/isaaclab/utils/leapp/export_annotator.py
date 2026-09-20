@@ -139,7 +139,7 @@ class ExportPatcher:
         self._captured_write_term_names: set[str] = set()
         self._fallback_term_names: set[str] = set()
         self._pending_action_output_export: bool = False
-        self._uses_last_action_state: bool = False
+        self._last_action_state_terms: dict[str, str | None] = {}
         self._action_term_scene_keys: dict[str, str] = {}
 
     def setup(self, env):
@@ -330,7 +330,6 @@ class ExportPatcher:
                 func_name = getattr(original_func, "__name__", None)
 
                 if func_name == "last_action":
-                    self._uses_last_action_state = True
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
@@ -436,8 +435,14 @@ class ExportPatcher:
 
             self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
-            if self._uses_last_action_state:
-                annotate.update_state(task_name, {"last_action": action_manager._action})
+            if self._last_action_state_terms:
+                last_action_updates = {}
+                for state_name, action_name in self._last_action_state_terms.items():
+                    if action_name is None:
+                        last_action_updates[state_name] = action_manager._action
+                    else:
+                        last_action_updates[state_name] = action_manager.get_term(action_name).raw_actions
+                annotate.update_state(task_name, last_action_updates)
             fallback_terms = self._fallback_term_names
             static_values = self._collect_action_static_outputs(action_manager, fallback_terms)
             annotate.output_tensors(
@@ -521,10 +526,10 @@ class ExportPatcher:
     def _wrap_last_action(self, original_func):
         """Wrap ``last_action`` as a LEAPP state tensor.
 
-        ``last_action`` is feedback state, not a regular dangling input.  We
-        therefore register it through ``annotate.state_tensors(...)`` on the
-        observation side and update it through ``annotate.update_state(...)``
-        after the traced action pass.
+        ``last_action`` is feedback state, not a regular dangling input.  Each
+        named action term is registered as its own state so LEAPP does not need
+        to preserve tracing through a slice between task boundaries.  An
+        unnamed observation keeps the full action as a separate state.
 
         Args:
             original_func: Original ``last_action`` observation term.
@@ -546,7 +551,9 @@ class ExportPatcher:
                 Annotated last-action tensor.
             """
             result = original_func(env, action_name, **kwargs)
-            return annotate.state_tensors(task_name, {"last_action": result})
+            state_name = "last_action" if action_name is None else f"last_action_{action_name}"
+            self._last_action_state_terms[state_name] = action_name
+            return annotate.state_tensors(task_name, {state_name: result})
 
         wrapped.__name__ = original_func.__name__
         return wrapped

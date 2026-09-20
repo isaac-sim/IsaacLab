@@ -38,6 +38,7 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
     )
 
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -46,7 +47,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
@@ -141,8 +142,8 @@ class _SceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),

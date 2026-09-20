@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -202,6 +202,12 @@ class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+{% if task.amp_selected %}
+
+    # AMP settings
+    compute_final_obs = True
+    num_amp_observations = 2
+{% endif %}
 
     # Post initialization
     def __post_init__(self) -> None:

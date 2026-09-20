@@ -532,4 +532,4 @@ Next steps
    `skills/user/debug-rl-training/
    <../../../skills/user/debug-rl-training/SKILL.md>`__). When you change this
    page, update those skills so their guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.

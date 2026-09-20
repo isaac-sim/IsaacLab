@@ -1,6 +1,70 @@
 Changelog
 ---------
 
+0.17.5 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated legacy RSL-RL configurations. They will no longer be supported in Isaac Lab 3.1; migrate to the current
+  RSL-RL configuration schema.
+
+
+0.17.4 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Moved the LEAPP policy exporters into the installed ``isaaclab_rl`` package.
+
+Fixed
+^^^^^
+
+* Fixed RL environment wrapper validation errors reporting the outer Gymnasium wrapper type instead
+  of the rejected unwrapped environment type.
+* Rejected incompatible agent configurations in RL-Games playback before launching simulation,
+  with guidance to select a matching RL library instead of failing with an opaque ``TypeError``.
+  Camera feature presets use ``--rl_library rsl_rl --agent rsl_rl_cfg_entry_point`` with
+  ``presets=resnet18`` or ``presets=theia_tiny``.
+* Restored launch-safe lazy imports for RSL-RL LEAPP exports, preventing Isaac Sim 6.1 PhysX exports from exiting
+  without producing ONNX artifacts.
+
+
+0.17.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed SKRL train, play, and LEAPP export to default to the canonical task config and derive the algorithm from
+  ``agent.class``. ``--algorithm`` now explicitly selects an algorithm recipe and is rejected when ``--agent`` resolves
+  to a different class. Older runs named after a config suffix such as ``box_discrete`` require an explicit checkpoint
+  path.
+
+
+0.17.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added policy frequency metadata to LEAPP export artifacts for all supported RL libraries.
+
+
+0.17.1 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed published checkpoint lookup ignoring non-default domain presets, which could fetch an
+  incompatible policy or miss an available preset-specific checkpoint. Preset-specific checkpoints
+  can now also be trained, collected, reviewed, and published through the checkpoint management tool.
+* Fixed the zero and random agents overriding task-defined simulation devices when ``--device`` was omitted.
+
+
 0.17.0 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~~
 

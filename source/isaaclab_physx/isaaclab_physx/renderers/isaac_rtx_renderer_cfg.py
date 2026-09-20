@@ -11,7 +11,7 @@ from dataclasses import field
 from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:

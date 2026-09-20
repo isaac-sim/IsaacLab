@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
+from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
@@ -97,7 +97,11 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
-        """The IO descriptor for the action term."""
+        """The IO descriptor for the action term.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+        """
         self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
         self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
         self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
@@ -106,7 +110,11 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def export_IO_descriptor(self) -> bool:
-        """Whether to export the IO descriptor for the action term."""
+        """Whether to export the IO descriptor for the action term.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+        """
         return self._export_IO_descriptor
 
     """
@@ -276,10 +284,17 @@ class ActionManager(ManagerBase):
     def get_IO_descriptors(self) -> list[dict[str, Any]]:
         """Get the IO descriptors for the action manager.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+
         Returns:
             A dictionary with keys as the term names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
 
+    def _collect_io_descriptors(self) -> list[dict[str, Any]]:
+        """Collect IO descriptors without emitting a deprecation warning."""
         data = []
 
         for term_name, term in self._terms.items():

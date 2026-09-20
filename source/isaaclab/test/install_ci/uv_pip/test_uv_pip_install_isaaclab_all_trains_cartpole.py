@@ -9,13 +9,12 @@ Setup:
     - ./isaaclab.sh -u
     - uv --no-config pip install <wheel>[all]
     - uv pip install --reinstall-package torch --reinstall-package torchvision
-        torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
+        torch==<pinned> torchvision==<pinned> --index-url https://download.pytorch.org/whl/cu130
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
-        (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst.
-         Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
+        (per docs/source/setup/installation/index.rst; reinstall after the wheel install to select the CUDA build.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.6.0rc1'"
+    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.6.0'"
         -> verify the wheel resolves the pinned Newton release
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
@@ -57,7 +56,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
             result = self.run_in_uv_env(
-                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.6.0rc1'"],
+                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.6.0'"],
                 cwd=isaaclab_root,
             )
             assert result.returncode == 0, (

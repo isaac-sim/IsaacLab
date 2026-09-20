@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-import collections
 import importlib
+import importlib.util
 import inspect
 import os
 import re
@@ -61,6 +61,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
     Raises:
         ValueError: If the entry point key is not available in the gym registry for the task.
+        ImportError: If a Python configuration requires a missing Pink IK dependency.
     """
     spec = gym.spec(task_name.split(":")[-1])
     # Emit a FutureWarning when loading the env cfg for a retired task
@@ -85,27 +86,17 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     cfg_entry_point = spec.kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
-        # get existing agents and algorithms
-        agents = collections.defaultdict(list)
-        for k in spec.kwargs:
-            if k.endswith("_cfg_entry_point") and k != "env_cfg_entry_point":
-                spec = (
-                    k.replace("_cfg_entry_point", "")
-                    .replace("rl_games", "rl-games")
-                    .replace("rsl_rl", "rsl-rl")
-                    .split("_")
-                )
-                agent = spec[0].replace("-", "_")
-                algorithms = [item.upper() for item in (spec[1:] if len(spec) > 1 else ["PPO"])]
-                agents[agent].extend(algorithms)
-        msg = "\nExisting RL library (and algorithms) config entry points: "
-        for agent, algorithms in agents.items():
-            msg += f"\n  |-- {agent}: {', '.join(algorithms)}"
+        agent_entries = sorted(
+            key for key in spec.kwargs if key.endswith("_cfg_entry_point") and key != "env_cfg_entry_point"
+        )
+        msg = "\nExisting agent configuration entry points:"
+        if agent_entries:
+            msg += "".join(f"\n  |-- {key}" for key in agent_entries)
         # raise error
         raise ValueError(
             f"Could not find configuration for the environment: '{task_name}'."
             f"\nPlease check that the gym registry has the entry point: '{entry_point_key}'."
-            f"{msg if agents else ''}"
+            f"{msg if agent_entries else ''}"
         )
     # parse the default config file
     if isinstance(cfg_entry_point, str) and cfg_entry_point.endswith(".yaml"):
@@ -123,30 +114,49 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         with open(config_file, encoding="utf-8") as f:
             cfg = yaml.full_load(f)
     else:
-        if callable(cfg_entry_point):
-            # resolve path to the module location
-            mod_path = inspect.getfile(cfg_entry_point)
+        try:
+            if callable(cfg_entry_point):
+                # resolve path to the module location
+                mod_path = inspect.getfile(cfg_entry_point)
+                # load the configuration
+                cfg_cls = cfg_entry_point()
+            elif isinstance(cfg_entry_point, str):
+                # resolve path to the module location
+                mod_name, attr_name = cfg_entry_point.split(":")
+                mod = importlib.import_module(mod_name)
+                cfg_cls = getattr(mod, attr_name)
+            else:
+                cfg_cls = cfg_entry_point
             # load the configuration
-            cfg_cls = cfg_entry_point()
-        elif isinstance(cfg_entry_point, str):
-            # resolve path to the module location
-            mod_name, attr_name = cfg_entry_point.split(":")
-            mod = importlib.import_module(mod_name)
-            cfg_cls = getattr(mod, attr_name)
-        else:
-            cfg_cls = cfg_entry_point
-        # load the configuration
-        print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
-        if callable(cfg_cls):
-            cfg = cfg_cls()
-        else:
-            cfg = cfg_cls
+            print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
+            if callable(cfg_cls):
+                cfg = cfg_cls()
+            else:
+                cfg = cfg_cls
+            if entry_point_key == "env_cfg_entry_point" and getattr(cfg, "actions", None) is not None:
+                from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+
+                # Pink action implementations load lazily; report missing dependencies before simulator startup.
+                actions = cfg.actions if isinstance(cfg.actions, dict) else vars(cfg.actions)
+                if any(isinstance(action, PinkInverseKinematicsActionCfg) for action in actions.values()):
+                    for module_name in ("pinocchio", "pink", "qpsolvers", "daqp"):
+                        if importlib.util.find_spec(module_name) is None:
+                            raise ModuleNotFoundError(f"No module named '{module_name}'", name=module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"pinocchio", "pink", "qpsolvers", "daqp"}:
+                raise
+            raise ImportError(
+                f"Task '{task_name}' could not load Pink IK dependency '{exc.name}'. "
+                "Pink IK requires Linux x86_64 or aarch64 with the standard Isaac Lab installation. "
+                "Install the pin, pin-pink, and daqp versions specified in pyproject.toml on a supported platform. "
+                "The standard Windows installation does not provide Pinocchio."
+            ) from exc
     return cfg
 
 
 def parse_env_cfg(
     task_name: str,
-    device: str = "cuda:0",
+    device: str | None = None,
     num_envs: int | None = None,
     use_fabric: bool | None = None,
     overrides: Sequence[str] = (),
@@ -155,7 +165,7 @@ def parse_env_cfg(
 
     Args:
         task_name: The name of the environment.
-        device: The device to run the simulation on. Defaults to "cuda:0".
+        device: The device to run the simulation on. Defaults to None, in which case it is left unchanged.
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
@@ -190,7 +200,8 @@ def parse_env_cfg(
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
     # simulation device
-    cfg.sim.device = device
+    if device is not None:
+        cfg.sim.device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
         cfg.sim.use_fabric = use_fabric

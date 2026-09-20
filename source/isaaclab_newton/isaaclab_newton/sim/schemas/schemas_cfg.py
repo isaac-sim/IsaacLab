@@ -23,7 +23,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     RigidBodyFragment,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

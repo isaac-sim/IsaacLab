@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -14,6 +14,7 @@ from isaaclab_rl.rsl_rl import (
 )
 
 import isaaclab_tasks.core.cartpole.mdp.symmetry as symmetry
+from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
@@ -161,3 +162,12 @@ class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.008,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class CartpoleCameraPPORunnerPresetsCfg(PresetCfg):
+    """RSL-RL configuration family keyed by camera pipeline presets."""
+
+    default = CartpoleCameraPPORunnerCfg()
+    resnet18 = CartpoleCameraFeaturePPORunnerCfg()
+    theia_tiny = CartpoleCameraFeaturePPORunnerCfg()

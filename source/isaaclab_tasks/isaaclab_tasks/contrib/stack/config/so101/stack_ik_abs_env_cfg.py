@@ -9,7 +9,7 @@ import numpy as np
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils import preset
@@ -227,7 +227,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                     "Robot": "robot",
                     "Sensor": "sensors",
                     "Physics": preset(
-                        default="physics",
+                        default="physx",
                         isaacsim_physx="physx",
                         physx="physx",
                         newton_mjwarp="physics",

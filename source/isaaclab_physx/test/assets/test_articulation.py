@@ -34,6 +34,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 from pxr import UsdPhysics
 
@@ -117,7 +118,7 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -140,7 +141,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -498,9 +499,7 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
     """Keep floating-base root writes invariant when public body order moves the root."""
-    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(
-        articulation_props=FRANKA_PANDA_CFG.spawn.articulation_props.replace(fix_root_link=False)
-    )
+    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(fix_root_link=False)
     identity = Articulation(
         FRANKA_PANDA_CFG.replace(
             prim_path="/World/IdentityRobot",
@@ -724,7 +723,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -781,7 +780,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -837,7 +836,7 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -902,7 +901,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -963,7 +962,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -1034,7 +1033,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = True
+    articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1094,7 +1093,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
     # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = False
+    articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1833,7 +1832,9 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
@@ -1869,7 +1870,9 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)

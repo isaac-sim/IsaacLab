@@ -15,6 +15,18 @@ import tomllib
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("name", ["torch", "torchvision", "torchaudio"])
+def test_resolved_torch_stack_supports_blackwell(source_checkout_root: Path, name: str):
+    """All supported platforms need CUDA 13 wheels; PyTorch 2.12's cu126 excludes Blackwell."""
+    with (source_checkout_root / "uv.lock").open("rb") as f:
+        lock = tomllib.load(f)
+
+    packages = [package for package in lock["package"] if package["name"] == name]
+    assert packages
+    assert all(package["version"].endswith("+cu130") for package in packages)
+    assert all(package["source"]["registry"] == "https://download.pytorch.org/whl/cu130" for package in packages)
+
+
 def test_isaaclab_uses_one_standalone_usd_provider(source_checkout_root: Path):
     """Isaac Lab must install only the USD provider shared with its importer dependencies.
 
@@ -57,9 +69,9 @@ def test_standalone_importers_are_opt_in(source_checkout_root: Path):
         pyproject = tomllib.load(f)
 
     project = pyproject["project"]
-    assert "isaacsim-asset-isolated>=6.0,<6.1" not in project["dependencies"]
+    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
     assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
     assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated>=6.0,<6.1",
+        "isaacsim-asset-isolated==6.1.0.0",
         "tinyobjloader==2.0.0rc13",
     ]

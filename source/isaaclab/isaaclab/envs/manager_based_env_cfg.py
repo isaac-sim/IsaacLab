@@ -23,7 +23,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
@@ -157,7 +157,12 @@ class ManagerBasedEnvCfg:
     """
 
     export_io_descriptors: bool = False
-    """Whether to export the IO descriptors for the environment. Defaults to False."""
+    """Whether to export the IO descriptors for the environment. Defaults to False.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+       workflow for supported RSL-RL/PyTorch deployments.
+    """
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""

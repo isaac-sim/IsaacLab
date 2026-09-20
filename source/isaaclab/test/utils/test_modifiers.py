@@ -10,7 +10,7 @@ import torch
 
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.test.utils import test_devices
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.unit
 

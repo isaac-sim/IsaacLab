@@ -109,15 +109,34 @@ def test_wheel_builder_includes_isaacsim_extra(source_checkout_root: Path, tmp_p
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
+def test_wheel_builder_omits_integrations_without_published_wheels(source_checkout_root: Path, tmp_path):
+    """Git-only RL-Games and Robomimic requirements must stay out of published metadata."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        source_project = tomllib.load(f)["project"]
+    generated_project = _generate_wheel_pyproject(source_checkout_root, tmp_path)["project"]
+
+    # Source checkouts retain the integrations through their Git requirements.
+    assert any(dep.startswith("rl-games @ git+") for dep in source_project["optional-dependencies"]["rl-games"])
+    assert any(dep.startswith("robomimic @ git+") for dep in source_project["optional-dependencies"]["mimic"])
+
+    # The published wheel cannot expose the RL-Games extra or reference either Git-only distribution.
+    assert "rl-games" not in generated_project["optional-dependencies"]
+    generated_requirements = generated_project["dependencies"] + [
+        dep for requirements in generated_project["optional-dependencies"].values() for dep in requirements
+    ]
+    assert not any(dep.startswith("rl-games") for dep in generated_requirements)
+    assert not any(dep.startswith("robomimic") for dep in generated_requirements)
+
+
 def test_wheel_builder_keeps_standalone_importers_explicit(source_checkout_root: Path, tmp_path):
     """The wheel must expose standalone importers only through their explicit extra."""
     generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
     project = generated["project"]
 
-    assert "isaacsim-asset-isolated>=6.0,<6.1" not in project["dependencies"]
+    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
     assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
     assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated>=6.0,<6.1",
+        "isaacsim-asset-isolated==6.1.0.0",
         "tinyobjloader==2.0.0rc13",
     ]
 
@@ -135,6 +154,7 @@ def test_wheel_builder_expands_all_extra_into_concrete_requirements(source_check
         "isaacsim[",
         "isaacsim-asset-isolated",
         "ray",
+        "rl-games",
         "robomimic",
         "isaacteleop",
         "pytetwild",
@@ -192,11 +212,3 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: P
     assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
     assert published_overrides == generated_overrides
     assert install_ci_overrides == generated_overrides
-
-
-def test_wheel_builder_uv_overrides_relax_isaacsim_exact_pins(source_checkout_root: Path, tmp_path):
-    """The wheel resolver must relax Isaac Sim 6.0's exact pins so the extras co-resolve."""
-    overrides = _generate_uv_overrides(source_checkout_root, tmp_path)
-
-    for spec in ("typing-extensions>=4.15.0", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
-        assert spec in overrides
