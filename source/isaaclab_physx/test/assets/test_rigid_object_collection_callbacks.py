@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -15,6 +20,15 @@ def _make_collection_for_deletion_test() -> RigidObjectCollection:
     collection._root_view = object()
     collection._debug_vis_handle = None
     return collection
+
+
+def test_prim_deletion_string_path_preserves_legacy_input() -> None:
+    collection = _make_collection_for_deletion_test()
+
+    collection._on_prim_deletion("/World/Table_0/Object_0")
+
+    assert collection.is_initialized is False
+    assert collection._root_view is None
 
 
 def test_prim_deletion_event_invalidates_matching_collection() -> None:
