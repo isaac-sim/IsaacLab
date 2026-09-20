@@ -1,21 +1,123 @@
 :orphan:
 
-Configuring RTX Rendering Settings
-====================================
+Select and configure a Renderer
+===============================
 
-.. note::
+Renderers produce camera-sensor observations. They are distinct from visualizers, which provide
+interactive views for people. Select a renderer for the images your policy or data pipeline needs,
+then tune only the options that affect that workflow.
 
-   This guide covers the **RTX renderer** settings, which are used when running Isaac Lab with
-   Isaac Sim. The RTX renderer is based on NVIDIA's Omniverse RTX rendering pipeline and is
-   available for all camera sensors in the PhysX backend.
+Choose a renderer
+-----------------
 
-   For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
-   :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
+For tasks that advertise renderer presets, choose a compatible physics and renderer pair at launch.
+Use ``--task <task-name> --help`` to see the presets a task actually supports; renderer availability
+is task-specific.
 
-Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults automatically.
-Override individual settings to tune the
-renderer for your workflow, as described below. For camera-heavy workloads that
-need higher throughput, switch to the RTX Minimal renderer instead.
+.. list-table:: Renderer choices
+   :header-rows: 1
+   :widths: 20 25 30 25
+
+   * - Renderer
+     - Choose it when
+     - Trade-off
+     - Typical command
+   * - Newton Warp
+     - You need the lowest VRAM use and high camera throughput for Newton training.
+     - Lightweight rasterization; it has a smaller output set and does not provide motion vectors
+       or full RTX material transport.
+     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb``
+   * - OVRTX
+     - You need scalable kit-less RTX rendering and higher visual fidelity.
+     - Uses more VRAM than Newton Warp. Choose RTX Minimal outputs when throughput matters more
+       than photo-real appearance.
+     - ``physics=newton_mjwarp renderer=ovrtx presets=rgb``
+   * - Isaac RTX (legacy)
+     - A workflow must run through Isaac Sim/Kit or needs its broad RTX and Replicator output set.
+     - Requires Isaac Sim and PhysX; do not use it as the default performance path for new work.
+     - ``physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb``
+
+For example, start a camera task with the low-VRAM Newton renderer:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+Switch the same supported task to the higher-fidelity kit-less RTX renderer:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=ovrtx presets=rgb
+
+The :ref:`renderer details <renderer-details>` and the
+:ref:`camera renderer support matrix <camera-supported-annotators>` are the authoritative references
+for output availability and runtime requirements. Do not compare the renderer choices through a
+camera-count heuristic: measure the complete task and observation configuration you intend to train.
+
+Customize Newton Warp
+---------------------
+
+Newton Warp is the throughput-oriented choice. Begin with its defaults, then enable only the image
+features that matter to the policy. Shadows, textures, ambient lighting, traversal order, and tile
+dimensions are controlled by :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
+
+For a task with a camera renderer configuration, enable directional-light shadows with an override:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+      env.scene.tiled_camera.renderer_cfg.enable_shadows=true
+
+When defining a camera in Python, configure the renderer directly:
+
+.. code-block:: python
+
+   from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+   renderer_cfg = NewtonWarpRendererCfg(
+       enable_textures=True,
+       enable_shadows=True,
+       render_order="tiled",
+   )
+
+Use ``render_order`` and the tile dimensions only after profiling a representative scene; they are
+implementation-level throughput controls, not visual-quality settings.
+
+Customize OVRTX
+---------------
+
+OVRTX provides RTX Minimal and photo-real paths without Isaac Sim. Use the regular ``rgb`` output
+when material appearance, reflections, transparency, or the broader RTX output set matter. For
+training that only needs simplified color, select a ``simple_shading_*`` preset instead:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=ovrtx \
+      presets=simple_shading_diffuse_mdl
+
+In RTX Minimal mode, :class:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` controls
+directional-light shadow rays. They improve visual faithfulness but cost render time. Path-traced
+OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`` or other AOVs.
+
+.. code-block:: python
+
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+
+   renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
+
+Customize Isaac RTX
+-------------------
+
+Isaac RTX remains available for Isaac Sim and PhysX workflows. The settings below are specific to
+that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
 
 .. note::
 
