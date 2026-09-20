@@ -147,7 +147,7 @@ class Sb3VecEnvWrapper(VecEnv):
         self,
         env: ManagerBasedRLEnv | DirectRLEnv,
         fast_variant: bool = True,
-        unbounded_action_bounds: tuple[float, float] = (-1.0, 1.0),
+        action_bounds: tuple[float, float] = (-1.0, 1.0),
     ):
         """Initialize the wrapper.
 
@@ -155,12 +155,12 @@ class Sb3VecEnvWrapper(VecEnv):
             env: The environment to wrap around.
             fast_variant: Use fast variant for processing info
                 (Only episodic reward, lengths and truncation info are included)
-            unbounded_action_bounds: Finite bounds exposed to Stable-Baselines3 when the underlying
+            action_bounds: Finite bounds exposed to Stable-Baselines3 when the underlying
                 continuous action space is unbounded. Defaults to ``(-1.0, 1.0)``.
 
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
-            ValueError: When ``unbounded_action_bounds`` are invalid.
+            ValueError: When ``action_bounds`` are invalid.
         """
         # check that input is valid
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
@@ -187,13 +187,10 @@ class Sb3VecEnvWrapper(VecEnv):
         # initialize the wrapper
         self.env = env
         self.fast_variant = fast_variant
-        low, high = unbounded_action_bounds
+        low, high = action_bounds
         if not np.isfinite(low) or not np.isfinite(high) or low >= high:
-            raise ValueError(
-                f"Invalid unbounded action bounds: {unbounded_action_bounds}. "
-                "Expected finite numeric bounds with low < high."
-            )
-        self._unbounded_action_bounds = unbounded_action_bounds
+            raise ValueError(f"Invalid action bounds: {action_bounds}. Expected finite numeric bounds with low < high.")
+        self._action_bounds = action_bounds
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -383,8 +380,8 @@ class Sb3VecEnvWrapper(VecEnv):
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
             action_space = gym.spaces.Box(
-                low=self._unbounded_action_bounds[0],
-                high=self._unbounded_action_bounds[1],
+                low=self._action_bounds[0],
+                high=self._action_bounds[1],
                 shape=action_space.shape,
                 dtype=action_space.dtype,
             )

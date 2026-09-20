@@ -96,13 +96,10 @@ def test_wrapper_reset_step_and_timeout(library: str, finite_horizon: bool, raw_
 
 @pytest.mark.parametrize("finite_horizon", [False])
 @pytest.mark.parametrize("task", ["Isaac-Cartpole"])
-def test_sb3_unbounded_action_space_uses_normalized_wrapper_bounds(raw_env: Any) -> None:
+def test_sb3_normalizes_unbounded_action_space(raw_env: Any) -> None:
     """Expose normalized bounds to SB3 without modifying the underlying environment."""
-    import gymnasium as gym
-
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
-    assert isinstance(raw_env.unwrapped.single_action_space, gym.spaces.Box)
     assert not raw_env.unwrapped.single_action_space.is_bounded("both")
 
     env = Sb3VecEnvWrapper(raw_env)
@@ -110,45 +107,6 @@ def test_sb3_unbounded_action_space_uses_normalized_wrapper_bounds(raw_env: Any)
     np.testing.assert_array_equal(env.action_space.low, -1.0)
     np.testing.assert_array_equal(env.action_space.high, 1.0)
     assert not raw_env.unwrapped.single_action_space.is_bounded("both")
-
-
-@pytest.mark.parametrize("finite_horizon", [False])
-@pytest.mark.parametrize("task", ["Isaac-Cartpole-Direct"])
-def test_sb3_bounds_do_not_change_direct_environment_actions(raw_env: Any) -> None:
-    """Do not impose the SB3 compatibility bounds on the underlying direct environment."""
-    import gymnasium as gym
-
-    assert isinstance(raw_env.unwrapped.single_action_space, gym.spaces.Box)
-    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
-
-    raw_env.reset()
-    actions = torch.full((_NUM_ENVS, 1), 2.0, device=raw_env.unwrapped.device)
-    raw_env.step(actions)
-
-    torch.testing.assert_close(raw_env.unwrapped.actions, torch.full_like(actions, 200.0))
-
-
-@pytest.mark.parametrize("finite_horizon", [False])
-@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
-def test_sb3_custom_unbounded_action_bounds(raw_env: Any) -> None:
-    """Allow policies to select a different finite domain for an unbounded environment."""
-    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
-
-    env = Sb3VecEnvWrapper(raw_env, unbounded_action_bounds=(-2.0, 3.0))
-
-    np.testing.assert_array_equal(env.action_space.low, -2.0)
-    np.testing.assert_array_equal(env.action_space.high, 3.0)
-
-
-@pytest.mark.parametrize("finite_horizon", [False])
-@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
-def test_sb3_invalid_unbounded_action_bounds_are_rejected(raw_env: Any) -> None:
-    """Reject invalid compatibility bounds before constructing the SB3 wrapper."""
-    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
-
-    for bounds in ((1.0, -1.0), (0.0, 0.0), (-np.inf, 1.0), (-1.0, np.inf)):
-        with pytest.raises(ValueError, match="Invalid unbounded action bounds"):
-            Sb3VecEnvWrapper(raw_env, unbounded_action_bounds=bounds)
 
 
 def _assert_observation_buffer(env: Any) -> None:

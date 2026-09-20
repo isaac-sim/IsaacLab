@@ -146,7 +146,7 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 
 Stable-Baselines3 requires finite continuous action bounds. When the environment has an unbounded action
 space, :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` exposes normalized ``[-1, 1]`` bounds to Stable-Baselines3
-without changing the underlying environment. Set ``unbounded_action_bounds`` when the policy uses a different
+without changing the underlying environment. Set ``action_bounds`` when the policy uses a different
 finite action domain.
 
 .. caution::
