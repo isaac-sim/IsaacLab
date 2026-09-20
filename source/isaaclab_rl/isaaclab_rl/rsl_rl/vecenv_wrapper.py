@@ -12,7 +12,7 @@ import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+from isaaclab_rl.utils.wrappers import validate_no_time_limit
 
 if TYPE_CHECKING:
     from isaaclab.envs import (
@@ -50,7 +50,7 @@ class RslRlVecEnvWrapper(VecEnv):
             ValueError: When the environment is not an Isaac Lab environment or has an external Gymnasium time limit.
         """
         # check that input is valid
-        _validate_no_time_limit(env)
+        validate_no_time_limit(env)
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv
 

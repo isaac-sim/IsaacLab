@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+from isaaclab_rl.utils.wrappers import validate_no_time_limit
 
 if TYPE_CHECKING:
     from isaaclab.envs import (
@@ -95,7 +95,7 @@ def SkrlVecEnvWrapper(
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
     # check that input is valid
-    _validate_no_time_limit(env)
+    validate_no_time_limit(env)
     # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
     from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 

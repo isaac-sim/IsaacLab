@@ -144,6 +144,7 @@ As an example of how to use the RL task environment with Stable-Baselines3:
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
+
 .. caution::
 
   Wrapping the environment with the respective learning framework's wrapper should happen in the end,

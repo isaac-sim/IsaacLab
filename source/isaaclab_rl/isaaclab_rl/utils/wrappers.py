@@ -8,7 +8,7 @@
 import gymnasium as gym
 
 
-def _validate_no_time_limit(env: gym.Env) -> None:
+def validate_no_time_limit(env: gym.Env) -> None:
     """Reject Gymnasium time limits around Isaac Lab vectorized environments.
 
     Isaac Lab tracks episode timeouts independently for every sub-environment. Gymnasium's
