@@ -2,6 +2,9 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+"""Environment wrapper for the TorchRL library."""
+
 from __future__ import annotations
 
 import contextlib
@@ -13,6 +16,8 @@ from tensordict import TensorDict, TensorDictBase
 from tensordict.utils import expand_as_right
 from torchrl.data import Bounded, Categorical, Composite, MultiCategorical, TensorSpec, Unbounded
 from torchrl.envs import EnvBase
+
+from ..utils.env_types import check_env_type
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -65,27 +70,7 @@ class IsaacLabTorchRLWrapper(EnvBase):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`
                 or :class:`DirectRLEnv`.
         """
-        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-        from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
-
-        try:
-            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
-        except ImportError:
-            DirectRLEnvWarp = None
-            ManagerBasedRLEnvWarp = None
-
-        allowed_types = (ManagerBasedRLEnv, DirectRLEnv)
-        if DirectRLEnvWarp is not None:
-            allowed_types += (DirectRLEnvWarp,)
-        if ManagerBasedRLEnvWarp is not None:
-            allowed_types += (ManagerBasedRLEnvWarp,)
-
-        if not isinstance(env.unwrapped, allowed_types):
-            raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                f" ManagerBasedRLEnvWarp. Environment type: {type(env.unwrapped)}"
-            )
-
+        check_env_type(env)
         self.env = env
         self._clip_actions = clip_actions
         num_envs = self.unwrapped.num_envs

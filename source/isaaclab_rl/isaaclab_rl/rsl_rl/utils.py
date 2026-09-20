@@ -3,23 +3,76 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Version handling and configuration migration helpers for the RSL-RL library."""
+
 from __future__ import annotations
 
+import importlib.metadata
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from packaging import version
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
+from .distillation_cfg import RslRlDistillationStudentTeacherCfg, RslRlDistillationStudentTeacherRecurrentCfg
+from .rl_cfg import (
+    RslRlBaseRunnerCfg,
+    RslRlMLPModelCfg,
+    RslRlPpoActorCriticCfg,
+    RslRlPpoActorCriticRecurrentCfg,
+    RslRlPpoAlgorithmCfg,
+    RslRlRNNModelCfg,
+)
 
 if TYPE_CHECKING:
-    from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg
+    from rsl_rl.env import VecEnv
 
+RSL_RL_MIN_VERSION = "5.0.1"
+"""Oldest rsl-rl-lib release supported by the entrypoints."""
 
 _V4_0_0 = version.parse("4.0.0")
 _V5_0_0 = version.parse("5.0.0")
 _MODEL_CFG_NAMES = ("actor", "critic", "student", "teacher")
 
 
-def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_version) -> RslRlBaseRunnerCfg:
+def check_rsl_rl_version() -> str:
+    """Return the installed rsl-rl-lib version, exiting with an installation hint when it is too old.
+
+    Raises:
+        SystemExit: If the installed version is older than :data:`RSL_RL_MIN_VERSION`.
+    """
+    installed_version = importlib.metadata.version("rsl-rl-lib")
+    if version.parse(installed_version) < version.parse(RSL_RL_MIN_VERSION):
+        print(
+            f"Please install the correct version of RSL-RL.\nExisting version is: '{installed_version}'"
+            f" and required version is: '{RSL_RL_MIN_VERSION}'.\nTo install the correct version, run:"
+            f"\n\n\tpip install rsl-rl-lib=={RSL_RL_MIN_VERSION}\n"
+        )
+        raise SystemExit(1)
+    return installed_version
+
+
+def create_rsl_rl_runner(
+    env: VecEnv, agent_cfg: RslRlBaseRunnerCfg, log_dir: str | None = None
+) -> OnPolicyRunner | DistillationRunner:
+    """Instantiate the RSL-RL runner selected by ``agent_cfg.class_name``.
+
+    Args:
+        env: Wrapped environment the runner trains or evaluates on.
+        agent_cfg: Runner configuration.
+        log_dir: Training log directory; None disables logging for playback.
+
+    Raises:
+        ValueError: If the configured runner class is not supported.
+    """
+    if agent_cfg.class_name == "OnPolicyRunner":
+        return OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    if agent_cfg.class_name == "DistillationRunner":
+        return DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+
+
+def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_version: str) -> RslRlBaseRunnerCfg:
     """Handle deprecated RSL-RL configurations across version boundaries.
 
     This function mutates ``agent_cfg`` to keep configurations compatible with the installed ``rsl-rl`` version:
@@ -50,8 +103,6 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
             _handle_empirical_normalization(agent_cfg.policy, agent_cfg)
 
         # remove optimizer argument for PPO only available in rsl-rl >= 4.0.0
-        from isaaclab_rl.rsl_rl import RslRlPpoAlgorithmCfg
-
         if hasattr(agent_cfg.algorithm, "optimizer") and isinstance(agent_cfg.algorithm, RslRlPpoAlgorithmCfg):
             if agent_cfg.algorithm.optimizer != "adam":
                 print(
@@ -78,16 +129,6 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
             # handle deprecated obs_normalization argument
             if _has_non_missing_attr(agent_cfg, "empirical_normalization"):
                 _handle_empirical_normalization(agent_cfg.policy, agent_cfg)
-
-            # import old and new config classes
-            from isaaclab_rl.rsl_rl import (
-                RslRlDistillationStudentTeacherCfg,
-                RslRlDistillationStudentTeacherRecurrentCfg,
-                RslRlMLPModelCfg,
-                RslRlPpoActorCriticCfg,
-                RslRlPpoActorCriticRecurrentCfg,
-                RslRlRNNModelCfg,
-            )
 
             # set actor model configuration if missing
             if hasattr(agent_cfg, "actor") and _is_missing(agent_cfg.actor):
@@ -191,25 +232,25 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                 if _has_non_missing_attr(agent_cfg, model_name):
                     _validate_old_stochastic_cfg(getattr(agent_cfg, model_name))
         else:  # rsl-rl >= 5.0.0
-            # import new distribution config classes
-            from isaaclab_rl.rsl_rl import RslRlMLPModelCfg
-
             for model_name in _MODEL_CFG_NAMES:
                 if _has_non_missing_attr(agent_cfg, model_name):
-                    _update_distribution_cfg(getattr(agent_cfg, model_name), RslRlMLPModelCfg)
+                    _update_distribution_cfg(getattr(agent_cfg, model_name))
 
     return agent_cfg
 
 
-def _is_missing(value) -> bool:
+def _is_missing(value: Any) -> bool:
+    """Return whether a config value is the dataclass ``MISSING`` sentinel."""
     return isinstance(value, type(MISSING))
 
 
-def _has_non_missing_attr(obj, attr_name: str) -> bool:
+def _has_non_missing_attr(obj: Any, attr_name: str) -> bool:
+    """Return whether *obj* defines *attr_name* with a value other than ``MISSING``."""
     return hasattr(obj, attr_name) and not _is_missing(getattr(obj, attr_name))
 
 
-def _handle_empirical_normalization(policy_cfg, agent_cfg):
+def _handle_empirical_normalization(policy_cfg: Any, agent_cfg: Any) -> None:
+    """Migrate the deprecated runner-level ``empirical_normalization`` flag onto the policy config."""
     print(
         "[WARNING]: The `empirical_normalization` parameter is deprecated. Please set `actor_obs_normalization` and"
         " `critic_obs_normalization` as part of the `policy` configuration instead. Older rsl-rl configurations"
@@ -222,7 +263,8 @@ def _handle_empirical_normalization(policy_cfg, agent_cfg):
     agent_cfg.empirical_normalization = MISSING
 
 
-def _clear_new_model_cfg(agent_cfg, model_name: str):
+def _clear_new_model_cfg(agent_cfg: Any, model_name: str) -> None:
+    """Drop a model config that only rsl-rl >= 4.0.0 understands."""
     print(
         f"[WARNING]: The `{model_name}` model configuration is only used for rsl-rl >= 4.0.0. Consider updating rsl-rl"
         " or use the `policy` configuration for rsl-rl < 4.0.0."
@@ -230,7 +272,8 @@ def _clear_new_model_cfg(agent_cfg, model_name: str):
     setattr(agent_cfg, model_name, MISSING)
 
 
-def _validate_old_stochastic_cfg(model_cfg):
+def _validate_old_stochastic_cfg(model_cfg: Any) -> None:
+    """Require the legacy stochastic parameters for ``4.0.0 <= rsl-rl < 5.0.0``."""
     if not hasattr(model_cfg, "stochastic") or _is_missing(model_cfg.stochastic):
         raise ValueError(
             "Please parameterize the output distribution using the old parameters `stochastic`, `init_noise_std`,"
@@ -241,10 +284,10 @@ def _validate_old_stochastic_cfg(model_cfg):
         del model_cfg.distribution_cfg
 
 
-def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
-    if model_cfg.distribution_cfg is not None:
-        pass  # new distribution configuration is used, no need to handle deprecated configurations
-    elif model_cfg.stochastic is True:  # distribution config is None but stochastic output is requested
+def _update_distribution_cfg(model_cfg: Any) -> None:
+    """Migrate the legacy stochastic parameters to ``distribution_cfg`` for rsl-rl >= 5.0.0."""
+    if model_cfg.distribution_cfg is None and model_cfg.stochastic is True:
+        # a stochastic output was requested through the legacy parameters
         print(
             "[WARNING]: The `distribution_cfg` configuration is now used to specify the output distribution for"
             " stochastic policies. Consider updating the configuration to use `distribution_cfg` instead of"
@@ -252,19 +295,14 @@ def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
             " configurations will not be supported starting with Isaac Lab 3.1. Please migrate your configuration."
         )
         if model_cfg.state_dependent_std is False:  # gaussian distribution
-            model_cfg.distribution_cfg = rsl_rl_mlp_model_cfg_cls.GaussianDistributionCfg(
+            model_cfg.distribution_cfg = RslRlMLPModelCfg.GaussianDistributionCfg(
                 init_std=model_cfg.init_noise_std, std_type=model_cfg.noise_std_type
             )
         elif model_cfg.state_dependent_std is True:  # heteroscedastic gaussian distribution
-            model_cfg.distribution_cfg = rsl_rl_mlp_model_cfg_cls.HeteroscedasticGaussianDistributionCfg(
+            model_cfg.distribution_cfg = RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg(
                 init_std=model_cfg.init_noise_std, std_type=model_cfg.noise_std_type
             )
     # remove deprecated stochastic parameters
-    if hasattr(model_cfg, "stochastic"):
-        del model_cfg.stochastic
-    if hasattr(model_cfg, "init_noise_std"):
-        del model_cfg.init_noise_std
-    if hasattr(model_cfg, "noise_std_type"):
-        del model_cfg.noise_std_type
-    if hasattr(model_cfg, "state_dependent_std"):
-        del model_cfg.state_dependent_std
+    for name in ("stochastic", "init_noise_std", "noise_std_type", "state_dependent_std"):
+        if hasattr(model_cfg, name):
+            delattr(model_cfg, name)

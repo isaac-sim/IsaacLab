@@ -3,13 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend selection and execution for unified RL entrypoints."""
+"""Backend selection and execution for the unified RL entrypoints."""
 
 from __future__ import annotations
 
 import argparse
 import importlib
-import runpy
 import sys
 from typing import TYPE_CHECKING
 
@@ -56,11 +55,11 @@ def run_play_cli(argv: list[str] | None = None) -> int:
 
 def run_export_cli(argv: list[str] | None = None) -> int:
     """Dispatch unified LEAPP export command-line arguments to a backend."""
-    # imported locally so that importing train and play entrypoints stays lightweight
+    # imported here so that importing the train and play entrypoints stays lightweight
     import torch
 
-    # Task registration imports decorated Isaac Lab math helpers, so disable
-    # TorchScript before resolving a task's default export backend.
+    # task registration imports decorated Isaac Lab math helpers, so disable TorchScript before
+    # resolving a task's default export backend
     torch.jit._state.disable()
     return run_cli("export", argv)
 
@@ -75,34 +74,6 @@ def run_random_agent_cli(argv: list[str] | None = None) -> int:
     return _run_simple_agent_cli("random", argv)
 
 
-def _run_simple_agent_cli(policy: PolicyName, argv: list[str] | None) -> int:
-    """Run a checkpoint-free agent while isolating its command-line arguments.
-
-    Args:
-        policy: Action policy to apply, either ``"zero"`` or ``"random"``.
-        argv: Command-line arguments excluding the executable name.
-
-    Returns:
-        Process exit code.
-    """
-    # imported locally so that importing this module stays lightweight
-    from isaaclab.app import AppLauncher
-
-    from .simple_agents import run
-
-    if argv is None:
-        argv = sys.argv[1:]
-    # the agent parses this explicit list (not sys.argv), so the sys.argv fusing in
-    # AppLauncher.add_app_launcher_args never reaches it; normalize here instead
-    argv = AppLauncher._fuse_kit_args(argv)
-    original_argv = sys.argv
-    try:
-        run(argv, policy=policy)
-    finally:
-        sys.argv = original_argv
-    return 0
-
-
 def run_cli(action: str, argv: list[str] | None = None) -> int:
     """Dispatch a unified RL command to its selected backend.
 
@@ -115,38 +86,67 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     """
     if action not in _BACKEND_MODULES:
         raise ValueError(f"Unsupported RL action {action!r}. Expected one of: {sorted(_BACKEND_MODULES)}.")
-    # imported locally so that importing this module stays lightweight
-    from isaaclab.app import AppLauncher
-
-    if argv is None:
-        argv = sys.argv[1:]
-    # the backends parse this explicit list (not sys.argv), so the sys.argv fusing in
-    # AppLauncher.add_app_launcher_args never reaches it; normalize here instead
-    argv = AppLauncher._fuse_kit_args(argv)
+    argv = _normalize_argv(argv)
     backends = _BACKEND_MODULES[action]
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--rl_library", choices=sorted(backends))
     selected, backend_argv = parser.parse_known_args(argv)
-    if selected.rl_library is None:
-        selected.rl_library = _resolve_default_library(argv, backends)
-    if selected.rl_library is None:
+    library = selected.rl_library or _resolve_default_library(argv, backends)
+    if library is None:
         _print_selector_help(action, sorted(backends))
         if "-h" in argv or "--help" in argv:
             return 0
         print(f"\n{action}: error: the following argument is required: --rl_library", file=sys.stderr)
         return 2
-    status = _run_backend(backends[selected.rl_library], backend_argv, run_as_script=action == "play")
+    status = _run_backend(backends[library], backend_argv)
     return status if status is not None else 0
 
 
+def _run_simple_agent_cli(policy: PolicyName, argv: list[str] | None) -> int:
+    """Run a checkpoint-free agent while isolating its command-line arguments.
+
+    Args:
+        policy: Action policy to apply, either ``"zero"`` or ``"random"``.
+        argv: Command-line arguments excluding the executable name.
+
+    Returns:
+        Process exit code.
+    """
+    # imported here so that importing this module stays lightweight
+    from .simple_agents import run
+
+    argv = _normalize_argv(argv)
+    original_argv = sys.argv
+    try:
+        run(argv, policy=policy)
+    finally:
+        sys.argv = original_argv
+    return 0
+
+
+def _normalize_argv(argv: list[str] | None) -> list[str]:
+    """Return the command line to dispatch with space-separated Kit arguments fused.
+
+    The backends parse this explicit list rather than ``sys.argv``, so the fusing that
+    :meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` applies to ``sys.argv`` never reaches it.
+    """
+    # imported here so that importing this module stays lightweight
+    from isaaclab.app import AppLauncher
+
+    if argv is None:
+        argv = sys.argv[1:]
+    return AppLauncher._fuse_kit_args(argv)
+
+
 def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str | None:
-    """Return the task-registered default RL library requested by command-line arguments."""
+    """Return the task-registered default RL library requested by the command line."""
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--task")
     args, _ = parser.parse_known_args(argv)
     if args.task is None:
         return None
 
+    # task registration is deferred until a task name asks for it
     import isaaclab_tasks  # noqa: F401
 
     try:
@@ -164,21 +164,11 @@ def _print_selector_help(action: str, backends: list[str]) -> None:
     parser.print_help()
 
 
-def _run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> int | None:
-    """Run a backend module while isolating its command-line arguments."""
-    if not run_as_script:
-        module = importlib.import_module(module_name)
-        runner = getattr(module, "run", None)
-        if not callable(runner):
-            raise TypeError(f"Backend module {module_name!r} does not define run(argv).")
-        original_argv = sys.argv
-        try:
-            return runner(argv)
-        finally:
-            sys.argv = original_argv
+def _run_backend(module_name: str, argv: list[str]) -> int | None:
+    """Run a backend module's ``run(argv)`` while isolating its command-line arguments."""
+    module = importlib.import_module(module_name)
     original_argv = sys.argv
     try:
-        sys.argv = [module_name] + argv
-        runpy.run_module(module_name, run_name="__main__")
+        return module.run(argv)
     finally:
         sys.argv = original_argv

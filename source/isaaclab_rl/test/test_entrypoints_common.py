@@ -28,7 +28,6 @@ from isaaclab_rl.entrypoints.common import (
     CaptureEnvSensors,
     add_common_train_args,
     create_isaaclab_env,
-    dispatch_library_entrypoint,
     enable_cameras_for_video,
     resolve_play_task_name,
     wrap_sensor_capture,
@@ -242,23 +241,6 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
 
     assert env is expected_env
     assert calls == [(env_cfg, "Isaac-Test", {})]
-
-
-def test_dispatch_library_entrypoint_shows_help_without_library(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """The unified dispatcher shows its help before requiring a library selection."""
-    result = dispatch_library_entrypoint(
-        ["--help"],
-        {"rsl_rl": tmp_path / "bench_rsl_rl.py"},
-        action="bench",
-        description="Benchmark training.",
-        library_help="Training library to benchmark.",
-    )
-
-    assert result == 0
-    output = capsys.readouterr().out
-    assert "--rl_library {rsl_rl}" in output
 
 
 def test_resolve_play_task_name_redirects_removed_play_task() -> None:

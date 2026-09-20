@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Population-Based Training observer for the RL-Games runner."""
+
 import os
 import random
 import sys
@@ -16,7 +18,7 @@ from . import pbt_utils
 from .mutation import mutate
 from .pbt_cfg import PbtCfg
 
-# i.e. value for target objective when it is not known
+# objective value of a policy whose score is not known yet
 _UNINITIALIZED_VALUE = float(-1e9)
 
 
@@ -201,11 +203,7 @@ class PbtAlgoObserver(AlgoObserver):
             os.environ.setdefault("WANDB_INIT_TIMEOUT", "300")  # give wandb init more time to be fault tolerant
             wandb.run.finish()
 
-        # Get the directory of the current file
-        thisfile_dir = os.path.dirname(os.path.abspath(__file__))
-        isaac_sim_path = os.path.abspath(os.path.join(thisfile_dir, "../../../../../_isaac_sim"))
-        command = [f"{isaac_sim_path}/python.sh"]
-
+        command = [sys.executable]
         if self.distributed_args.distributed:
             self.distributed_args.master_port = str(pbt_utils.find_free_port())
             command.extend(self.distributed_args.get_args_list())
@@ -216,26 +214,16 @@ class PbtAlgoObserver(AlgoObserver):
             command += ["--distributed"]
 
         print("Running command:", command, flush=True)
-        print("sys.executable = ", sys.executable)
         print(f"Policy {self.cfg.policy_idx}: Restarting self with args {modified_args}", flush=True)
 
         if self.distributed_args.rank == 0:
             pbt_utils.dump_env_sizes()
-
-            # after any sourcing (or before exec’ing python.sh) prevent kept increasing arg_length:
+            # every restart re-sources the environment, so drop duplicate path entries to keep argv bounded
             for var in ("PATH", "PYTHONPATH", "LD_LIBRARY_PATH", "OMNI_USD_RESOLVER_MDL_BUILTIN_PATHS"):
                 val = os.environ.get(var)
-                if not val or os.pathsep not in val:
-                    continue
-                seen = set()
-                new_parts = []
-                for p in val.split(os.pathsep):
-                    if p and p not in seen:
-                        seen.add(p)
-                        new_parts.append(p)
-                os.environ[var] = os.pathsep.join(new_parts)
-
-            os.execv(f"{isaac_sim_path}/python.sh", command)
+                if val and os.pathsep in val:
+                    os.environ[var] = os.pathsep.join(dict.fromkeys(part for part in val.split(os.pathsep) if part))
+            os.execv(sys.executable, command)
 
 
 class MultiObserver(AlgoObserver):
