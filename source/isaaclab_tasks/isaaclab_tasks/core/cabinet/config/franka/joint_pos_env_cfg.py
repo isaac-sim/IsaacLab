@@ -5,7 +5,7 @@
 
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg

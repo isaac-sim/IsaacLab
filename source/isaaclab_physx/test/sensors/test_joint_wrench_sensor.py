@@ -22,6 +22,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wrench_module
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 from pxr import Gf, UsdPhysics
 
@@ -33,9 +34,9 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
@@ -46,7 +47,7 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+            joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
         ),
         actuators={
             "joint": ImplicitActuatorCfg(

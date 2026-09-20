@@ -1,2 +1,0 @@
-# No isaaclab_rl release note or version bump: this change only extends the package's template-generator tests.
-# The user-facing generator and generated-project changes live under tools/template.

@@ -18,7 +18,7 @@ from isaaclab_newton.ik.newton_ik_objectives_cfg import (
 from isaaclab_newton.ik.newton_ik_solver import NewtonIKSolver
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 # Maps the stub body names used across these tests to Newton link indices.
 _LINKS = {"ee": 0, "torso": 1, "custom": 0}

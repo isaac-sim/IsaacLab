@@ -11,7 +11,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 from isaaclab_tasks.utils import preset

@@ -514,7 +514,7 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
 
    if typing.TYPE_CHECKING:
        from .sensor import Sensor

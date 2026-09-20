@@ -11,7 +11,7 @@ owners:
 
 ## When To Use
 
-Read the [sim-to-sim guide](../../../docs/source/concepts/transfer_policies_between_physx_and_newton.rst) first. This skill follows that page in the same order. Before transfer, make the asset and task MJWarp-ready with `isaaclab-preparing-assets-for-newton`.
+Read the [sim-to-sim guide](../../../docs/source/how-to/transfer_policies_between_physx_and_newton.rst) first. This skill follows that page in the same order. Before transfer, make the asset and task MJWarp-ready with `isaaclab-preparing-assets-for-newton`.
 
 ## Workflow
 
@@ -36,5 +36,5 @@ Keep this skill synchronized section-for-section with the sim-to-sim guide, incl
 - [Compact reference](reference.md)
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
-- [Asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst)
+- [Asset migration guide](../../../docs/source/how-to/prepare_asset_for_newton.rst)
 - [RL train and play guide](../../../docs/source/concepts/reinforcement_learning.rst)

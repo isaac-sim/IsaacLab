@@ -7,32 +7,12 @@
 
 from __future__ import annotations
 
-import contextlib
 import copy
 import importlib.metadata as metadata
 import math
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-
-
-def discover_backend_tasks(agent_cfg_entry_points: Sequence[str]) -> tuple[str, ...]:
-    """Discover registered Isaac Lab tasks that expose any of the requested agent entry points."""
-    import gymnasium as gym
-
-    import isaaclab_tasks  # noqa: F401
-
-    with contextlib.suppress(ImportError):
-        import isaaclab_tasks_experimental  # noqa: F401
-
-    task_names = set()
-    for task_spec in gym.registry.values():
-        if "Isaac" not in task_spec.id or "Direct" in task_spec.id:
-            continue
-        spec_kwargs = gym.spec(task_spec.id).kwargs
-        if any(spec_kwargs.get(entry_point) is not None for entry_point in agent_cfg_entry_points):
-            task_names.add(task_spec.id)
-    return tuple(sorted(task_names))
 
 
 def create_initialized_checkpoint(

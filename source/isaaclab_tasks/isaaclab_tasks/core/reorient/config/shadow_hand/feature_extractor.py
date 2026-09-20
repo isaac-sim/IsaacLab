@@ -11,7 +11,8 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
@@ -141,6 +142,14 @@ class FeatureExtractorCfg:
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
+    pretrained_checkpoint: str | None = None
+    """Fallback feature-extractor checkpoint to load when no local checkpoint exists.
+
+    This may be a local or remote path. :class:`FeatureExtractor` first looks for the latest
+    local ``*.pth`` checkpoint in the log directory, then retrieves this checkpoint when configured.
+    Default is None.
+    """
+
     write_image_to_file: bool = False
     """If True, the images from the camera sensor are written to file. Default is False."""
 
@@ -213,7 +222,7 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            checkpoint = self._resolve_checkpoint()
+            checkpoint = self._resolve_checkpoint_path()
             print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 
@@ -224,24 +233,25 @@ class FeatureExtractor:
         else:
             self.feature_extractor.eval()
 
-    def _resolve_checkpoint(self) -> str:
-        """Return the CNN weights to load from :attr:`log_dir`.
+    def _resolve_checkpoint_path(self) -> str:
+        """Resolve the feature-extractor checkpoint to load.
 
-        A copy handed over by the fetch wins. Otherwise playback points the log directory at the
-        pretrained-checkpoint cache, where the published copy carries the policy stem, and a
-        training run writes the native name instead. The two never share a directory, so ``or``
-        picks whichever convention is present.
+        A copy handed over by the generic checkpoint fetch wins. Otherwise, prefer a published
+        companion beside the policy over a checkpoint written by the local training run, then
+        retrieve the task-configured pretrained checkpoint as a fallback.
         """
         if self.cfg.checkpoint_path is not None:
             return self.cfg.checkpoint_path
         published = glob.glob(os.path.join(self.log_dir, f"*_{self.cfg.checkpoint_name}.pth"))
         candidates = published or glob.glob(os.path.join(self.log_dir, self.cfg.checkpoint_glob))
-        if not candidates:
-            raise FileNotFoundError(
-                f"No {self.cfg.checkpoint_name!r} checkpoint was found in '{self.log_dir}'."
-                " Train the task to produce one."
-            )
-        return max(candidates, key=os.path.getmtime)
+        if candidates:
+            return max(candidates, key=os.path.getmtime)
+        if self.cfg.pretrained_checkpoint is not None:
+            print(f"[INFO]: Fetching pretrained feature extractor checkpoint from {self.cfg.pretrained_checkpoint}")
+            return retrieve_file_path(self.cfg.pretrained_checkpoint)
+        raise FileNotFoundError(
+            f"No {self.cfg.checkpoint_name!r} checkpoint was found in '{self.log_dir}'. Train the task to produce one."
+        )
 
     def _preprocess_images(self, camera_output: dict[str, torch.Tensor]) -> torch.Tensor:
         """Preprocesses and concatenates camera images into a single tensor.

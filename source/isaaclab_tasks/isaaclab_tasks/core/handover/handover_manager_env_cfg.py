@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp

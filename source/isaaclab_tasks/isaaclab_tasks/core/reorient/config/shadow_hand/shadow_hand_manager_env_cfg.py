@@ -10,7 +10,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (

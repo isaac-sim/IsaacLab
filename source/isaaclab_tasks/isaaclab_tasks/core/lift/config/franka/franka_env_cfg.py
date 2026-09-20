@@ -11,8 +11,8 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots import FRANKA_PANDA_CFG
 
@@ -24,6 +24,8 @@ from ... import mdp
 # legacy asset so the upstream franka tasks keep their demos and baselines.
 FRANKA_PANDA_LIFT_CFG = FRANKA_PANDA_CFG.copy()
 FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+# Reset clearance was calibrated for these arm meshes; the asset's primitive colliders intersect the ground.
+FRANKA_PANDA_LIFT_CFG.spawn.variants = {"Colliders": "convex_hulls"}
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # Inspired by libfranka's joint_impedance_control.cpp. ``actuator_velocity_limit``
     # remains the soft task-limit snapshot; ``joint_velocity_limit`` is the

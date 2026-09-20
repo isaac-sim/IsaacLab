@@ -11,7 +11,7 @@ import os
 import tempfile
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 # POSIX temp roots are shared between users; Windows already gives each user a private one.
 _CACHE_DIR_NAME = f"ovphysx_derived_data_cache_{os.getuid()}" if hasattr(os, "getuid") else "ovphysx_derived_data_cache"

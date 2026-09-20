@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 

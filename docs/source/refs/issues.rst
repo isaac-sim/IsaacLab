@@ -16,6 +16,16 @@ apply to the others unless it says so.
 PhysX backends
 --------------
 
+Surface grippers require CPU simulation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=isaacsim_physx`` surface-gripper tasks.
+
+Surface grippers require CPU simulation. This includes the UR10 Long/Short Suction stacking tasks,
+the Galbot Right Arm Suction stacking task, and its relative and absolute Mimic variants.
+Pass ``--device cpu`` when running teleoperation. Zero and random agents preserve these tasks'
+CPU defaults when ``--device`` is omitted; an explicit GPU override is unsupported.
+
 Sensor readings are stale immediately after a reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -108,22 +118,13 @@ OpenUSD provider that contains the fix or to Isaac Sim 6.1 or later.
 
 .. _known-issues-closed-loop-newton:
 
-Closed-loop articulations are not available on Newton (e.g. Agility Digit)
+Closed-loop articulations are not validated on Kamino (e.g. Agility Digit)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Affects:** ``physics=newton_mjwarp``, ``physics=newton_kamino``.
+**Affects:** ``physics=newton_kamino``.
 
 Robots whose USD encodes a closed kinematic loop — such as the achilles rod and toe push-rods
-on the Agility Digit — are not currently validated on the Newton backends. The Digit-based
-contrib tasks are PhysX-only and do not expose a Newton preset at all:
-
-* ``IsaacContrib-Velocity-Flat-Digit``
-* ``IsaacContrib-Velocity-Rough-Digit``
-* ``IsaacContrib-Tracking-LocoManip-Digit``
-
-Passing ``presets=newton_mjwarp`` to these tasks is rejected, because the preset never
-selected a Newton backend on them; it only stripped a center-of-mass randomization from a
-PhysX run. Use the default PhysX configuration for Digit-based environments.
+on the Agility Digit — are not validated on ``newton_kamino``.
 
 
 Renderers

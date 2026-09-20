@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -131,7 +132,7 @@ class RenderData:
         # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
         # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
         # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
-        spawn = getattr(spec.cfg, "spawn", None)
+        spawn = spec.cfg.spawn
         clipping_range = getattr(spawn, "clipping_range", None)
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
@@ -146,6 +147,9 @@ class RenderData:
         else:
             self.clear_color = 0xFFEEEEEE
 
+        # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
+        # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
+        self._distortion = spawn.distortion if spawn is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -357,13 +361,71 @@ class RenderData:
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics.torch[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
+            if self._distortion is not None:
+                self.camera_rays = self._build_distortion_rays()
+            else:
+                first_focal_length = intrinsics.torch[:, 1, 1][0:1]
+                fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
-                self.width, self.height, camera_fovs=fov_warp
+                fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
+                self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
+                    self.width, self.height, camera_fovs=fov_warp
+                )
+
+    def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
+        """Build the ``(1, H, W, 2)`` camera-space ray field for an OpenCV lens-distortion camera.
+
+        Uses Newton's native OpenCV pinhole and fisheye ray helpers. Both paths honor calibrated
+        ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
+        :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are treated
+        as zero while the calibrated intrinsics remain active, matching the RTX/OVRTX behavior.
+        """
+        cfg = self._distortion
+        image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
+
+        def _coefficient(value: float) -> float:
+            return float(value) if cfg.apply_lens_distortion else 0.0
+
+        if cfg.model == "opencvFisheye":
+            return self.newton_sensor.utils.compute_camera_rays_fisheye_opencv(
+                self.width,
+                self.height,
+                float(cfg.fx),
+                float(cfg.fy),
+                float(cfg.cx),
+                float(cfg.cy),
+                image_width=image_width,
+                image_height=image_height,
+                k1=_coefficient(cfg.k1),
+                k2=_coefficient(cfg.k2),
+                k3=_coefficient(cfg.k3),
+                k4=_coefficient(cfg.k4),
+                # Limit fisheye rays to the forward hemisphere.
+                max_fov=math.pi,
             )
+
+        return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
+            self.width,
+            self.height,
+            float(cfg.fx),
+            float(cfg.fy),
+            float(cfg.cx),
+            float(cfg.cy),
+            image_width=image_width,
+            image_height=image_height,
+            k1=_coefficient(cfg.k1),
+            k2=_coefficient(cfg.k2),
+            k3=_coefficient(cfg.k3),
+            k4=_coefficient(cfg.k4),
+            k5=_coefficient(cfg.k5),
+            k6=_coefficient(cfg.k6),
+            p1=_coefficient(cfg.p1),
+            p2=_coefficient(cfg.p2),
+            s1=_coefficient(cfg.s1),
+            s2=_coefficient(cfg.s2),
+            s3=_coefficient(cfg.s3),
+            s4=_coefficient(cfg.s4),
+        )
 
     @wp.kernel
     def _update_transforms(
@@ -467,20 +529,9 @@ class NewtonWarpRenderer(BaseRenderer):
 
         Also captures the USD ``stage`` so the segmentation mapper can read the scene's
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
+
         """
         self._stage = stage
-        # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
-        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
-        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
-        # the intended extension point.
-        spawn = getattr(spec.cfg, "spawn", None)
-        if getattr(spawn, "distortion", None) is not None:
-            logger.warning(
-                "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
-                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
-                " the principal point, and a non-square fx are ignored and the camera renders as a"
-                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
-            )
         if spec.cfg.isp_cfg is None:
             return
         try:

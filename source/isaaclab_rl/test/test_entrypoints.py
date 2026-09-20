@@ -31,6 +31,10 @@ from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints", ["isaaclab_rl.entrypoints.multigpu", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        (
+            "import isaaclab_rl.entrypoints.backends.export_rsl_rl",
+            ["torch", "leapp", "rsl_rl", "isaaclab.envs", "isaaclab_tasks"],
+        ),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
         ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
         ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),
@@ -405,6 +409,16 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     assert args.max_iterations == 10
 
 
+def test_torchrl_parser_accepts_run_name(monkeypatch) -> None:
+    """TorchRL accepts the same run-name option exposed by the other training frontends."""
+    from isaaclab_rl.entrypoints.backends import train_torchrl
+
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+    args = train_torchrl._parse_args(["--task", "Isaac-Cartpole", "--run_name", "named-run"])
+
+    assert args.run_name == "named-run"
+
+
 def test_rlinf_rejects_pretrained_checkpoint() -> None:
     """RLinf has no published pre-trained checkpoint."""
     from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
@@ -465,6 +479,24 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     assert dispatch.run_train_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 0
     assert received == {
         "module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
+        "argv": ["--task", "Isaac-Cartpole"],
+        "run_as_script": False,
+    }
+
+
+def test_export_dispatches_selected_backend(monkeypatch) -> None:
+    """The unified export dispatcher forwards backend arguments and its status."""
+    received: dict[str, object] = {}
+
+    def _fake_run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> int:
+        received.update(module_name=module_name, argv=argv, run_as_script=run_as_script)
+        return 1
+
+    monkeypatch.setattr(dispatch, "_run_backend", _fake_run_backend)
+
+    assert dispatch.run_export_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 1
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
         "argv": ["--task", "Isaac-Cartpole"],
         "run_as_script": False,
     }
@@ -700,7 +732,7 @@ def test_humanoid_amp_tasks_register_canonical_skrl_config(motion) -> None:
 def test_skrl_entrypoints_do_not_infer_algorithm_from_registry_key() -> None:
     """Registry-key spelling is a config-source concern, never an algorithm identity."""
     root = Path(__file__).parents[3]
-    paths = [*root.glob("source/isaaclab*/**/*skrl.py"), root / "scripts/reinforcement_learning/leapp/skrl/export.py"]
+    paths = list(root.glob("source/isaaclab*/**/*skrl.py"))
     for path in paths:
         source = path.read_text()
 

@@ -220,7 +220,7 @@ def create_scene_cfg():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     particle_mass = SNOW_SPACING**3 * SNOW_DENSITY
     particle_radius = 0.5 * SNOW_SPACING

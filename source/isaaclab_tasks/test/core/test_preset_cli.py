@@ -250,7 +250,7 @@ def test_bucket_variants_routes_by_target_match():
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
     from isaaclab.sim import SimulationCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
     from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -379,7 +379,7 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.hydra import preset
 

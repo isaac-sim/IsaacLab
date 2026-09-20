@@ -1,6 +1,78 @@
 Changelog
 ---------
 
+7.1.4 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the announced removal release in deprecation warnings, docstrings and forwarding-shim
+  messages to ``3.1``, so every deprecated symbol names the same release. Some notices said
+  ``4.0`` and others ``5.0``, leftovers from earlier numbering, so a deprecated class and the
+  shim or alias forwarding to it could advertise different removals. No symbol was added,
+  renamed or removed.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the PhysX schema cfg classes in favor of the single-namespace schema fragments. Each
+  class now raises a ``DeprecationWarning`` on instantiation and will be removed in 3.2. The warning
+  names *every* fragment the class's fields need, including the fields it inherits from a legacy
+  base, so following it does not drop authored properties. Replace
+  :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` with
+  ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``;
+  :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg` with
+  ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]``;
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` with
+  ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``;
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg` with
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`; and the
+  ``Physx*MeshPropertiesCfg`` cooking classes with their ``Physx*Cfg`` fragments
+  (:class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`). Pass fragments as a list in the matching
+  spawner slot. The PhysX deformable and tendon cfgs are unaffected.
+* Reworded the Isaac Lab 2.x schema aliases (``RigidBodyPropertiesCfg``, ``JointDrivePropertiesCfg``,
+  ``CollisionPropertiesCfg``, ``ArticulationRootPropertiesCfg``, ``MeshCollisionPropertiesCfg`` and
+  the mesh-cooking aliases) to point their ``DeprecationWarning`` at the fragment replacement rather
+  than at the now also-deprecated ``Physx*PropertiesCfg`` classes. The material and tendon aliases
+  are unaffected.
+
+
+7.1.3 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor` reporting the last in-contact force forever after a
+  body left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its
+  data was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The PhysX getters are now
+  called on every physics step regardless of the history length, while the warp kernels that consume the
+  fetched buffers stay lazy. As a consequence, :meth:`~isaaclab_physx.sensors.ContactSensor.update` now
+  raises a ``RuntimeError`` for such sensors when called inside an outer CUDA graph capture, as it already
+  did for history-bearing sensors: update the sensor outside the capture.
+
+
+7.1.2 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a SIGSEGV crash when calling ``SimulationContext.play()`` a second time after
+  ``SimulationContext.stop()`` without an intervening ``reset()``, e.g. registering a raw
+  ``omni.timeline`` event subscription and cycling play/stop twice on the GPU PhysX pipeline.
+  ``PhysxManager`` now detaches the PhysX stage on ``stop()`` so the next play's automatic
+  re-warmup reattaches cleanly instead of calling ``attach_stage`` on a stage that PhysX still
+  considered attached, which corrupted its internal view registry.
+
+
 7.1.1 (2026-09-09)
 ~~~~~~~~~~~~~~~~~~
 
