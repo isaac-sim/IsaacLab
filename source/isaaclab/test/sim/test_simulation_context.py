@@ -684,7 +684,7 @@ def test_timeline_callbacks_with_weakref():
         # regression check: a second play() after stop() with no reset() in between used to
         # SIGSEGV inside PhysX's tensor view registry (see PhysxManager._on_stop); it must also
         # still warm up and recreate the simulation view, not just avoid crashing
-        assert PhysxManager._view is not None
+        assert PhysxManager.get_physics_sim_view() is not None
         # disable app control again
         sim._disable_app_control_on_stop_handle = True  # type: ignore
         sim.stop()

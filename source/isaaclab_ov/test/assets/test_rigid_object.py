@@ -1287,7 +1287,7 @@ def test_warmup_attach_stage_not_called_for_cpu(monkeypatch):
 
         # First reset constructs (or reuses) the real ovphysx.PhysX instance.
         sim.reset()
-        assert OvPhysxManager._physx is not None, "PhysX should be constructed after sim.reset()"
+        assert OvPhysxManager.get_physx_instance() is not None, "PhysX should be constructed after sim.reset()"
 
         warmup_spy = MagicMock()
         monkeypatch.setattr(OvPhysxManager, "_warmup_physx", warmup_spy)

@@ -10,6 +10,7 @@ import logging
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -127,7 +128,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self._backend_registry: dict[type[object], object] = {}
+        self._backend_registry: dict[type[object], list[tuple[object, object]]] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -981,23 +982,53 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
-        """Return the simulation-scoped native backend for a type.
+    def get_or_create_backend(
+        self, backend_type: type[_BackendT], *args: Any, cfg: object = None, **kwargs: Any
+    ) -> _BackendT:
+        """Return the simulation-scoped native backend for a configuration.
 
-        Consumers that register the same backend type resolve one shared native resource
-        instead of constructing state to synchronize.
+        Equal configurations of the same concrete type share a resource. Configuration values
+        are copied on registration so later edits cannot change an existing identity.
 
         Args:
             backend_type: Backend class to construct when the resource does not exist.
             *args: Positional arguments used only when constructing the resource.
+            cfg: Configuration used for identity, not forwarded to the constructor.
+                None retains one resource per backend type. Pass construction cfgs positionally.
             **kwargs: Keyword arguments used only when constructing the resource.
 
         Returns:
             The existing or newly constructed native backend.
         """
-        if backend_type not in self._backend_registry:
-            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
-        return cast(_BackendT, self._backend_registry[backend_type])
+        for registered_cfg, resource in self._backend_registry.get(backend_type, ()):
+            if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
+                return cast(_BackendT, resource)
+        registered_cfg = deepcopy(cfg)
+        resource = backend_type(*args, **kwargs)
+        self._backend_registry.setdefault(backend_type, []).append((registered_cfg, resource))
+        return resource
+
+    def clear_backend(self, backend_type: type[object], *, cfg: object = None) -> None:
+        """Release one resource after consumers invalidate their bindings.
+
+        A failed release retains the registry entry so teardown can be retried.
+
+        Args:
+            backend_type: Registered backend class.
+            cfg: Configuration identifying the resource to release.
+
+        Raises:
+            KeyError: No resource matches the backend type and configuration.
+        """
+        entries = self._backend_registry[backend_type]
+        for index, (registered_cfg, resource) in enumerate(entries):
+            if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
+                resource.clear()
+                entries.pop(index)
+                if not entries:
+                    del self._backend_registry[backend_type]
+                return
+        raise KeyError((backend_type, cfg))
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -1025,9 +1056,10 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
 
-                for resource in instance._backend_registry.values():
-                    if (clear := getattr(resource, "clear", None)) is not None:
-                        run_cleanup(clear)
+                for entries in instance._backend_registry.values():
+                    for _, resource in entries:
+                        if (clear := getattr(resource, "clear", None)) is not None:
+                            run_cleanup(clear)
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

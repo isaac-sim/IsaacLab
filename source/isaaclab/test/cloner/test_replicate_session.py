@@ -46,7 +46,7 @@ def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
 
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=_Context),
-        _backend_registry={_Context: _Context(calls), Unrelated: Unrelated(calls)},
+        _backend_registry={_Context: [(None, _Context(calls))], Unrelated: [(None, Unrelated(calls))]},
         stage=object(),
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
@@ -107,7 +107,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
     plan = _plan(Late, Early)
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Late),
-        _backend_registry={Late: Late(calls), Early: Early(calls)},
+        _backend_registry={Late: [(None, Late(calls))], Early: [(None, Early(calls))]},
         get_clone_plan=lambda: plan,
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
@@ -130,7 +130,7 @@ def test_replicate_physics_false_runs_only_usd(monkeypatch):
     plan = _plan(Physics, UsdReplicateContext)
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Physics),
-        _backend_registry={UsdReplicateContext: Usd(calls)},
+        _backend_registry={UsdReplicateContext: [(None, Usd(calls))]},
         get_clone_plan=lambda: plan,
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)

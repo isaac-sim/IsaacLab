@@ -39,13 +39,25 @@ class _FakePhysX:
 def manager_module(monkeypatch):
     """Import the manager and restore its class-global state after each test."""
     import isaaclab_ov.physics.ovphysx_manager as module
+    from isaaclab_ov.physics import OvPhysxCfg
 
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.sim import SimulationContext
+
+    cfg = OvPhysxCfg()
+    sim = SimpleNamespace(_backend_registry={}, cfg=SimpleNamespace(physics=cfg), physics_manager=module.OvPhysxManager)
+    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    sim.clear_backend = SimulationContext.clear_backend.__get__(sim)
+    with monkeypatch.context() as construction:
+        construction.setattr(module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
+        backend = sim.get_or_create_backend(module.OvPhysxBackend, cfg, "cpu", 0, cfg=cfg)
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    monkeypatch.setattr(SimulationContext, "_instance", sim)
     monkeypatch.setattr(module.atexit, "register", lambda callback: None)
     manager = module.OvPhysxManager
     test_state = {
         "_cfg": None,
-        "_physx": None,
-        "_ovstage": None,
+        "_backend": backend,
         "_stage_usda": None,
         "_next_control_ordinal": 2,
         "_warmup_done": False,
@@ -69,6 +81,29 @@ def _fake_ovphysx_module(bootstrap):
     module.PhysX = _FakePhysX
     module.PhysXConfig = _FakePhysXConfig
     return module
+
+
+def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.sim import SimulationContext
+
+    manager = manager_module.OvPhysxManager
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(physics=None, device="cpu", gravity=(0.0, 0.0, -9.81)),
+        stage=object(),
+        _backend_registry={},
+    )
+    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    for name in ("_sim", "_cfg", "_device", "_sim_time"):
+        monkeypatch.setattr(PhysicsManager, name, getattr(PhysicsManager, name))
+    monkeypatch.setattr(manager, "_ensure_physx_schemas_registered", lambda: None)
+    monkeypatch.setattr(manager, "_backend", None)
+
+    manager.initialize(sim)
+
+    assert manager_module.OvPhysxBackend not in sim._backend_registry
+    assert manager.get_physx_instance() is None
+    assert not any(hasattr(manager, name) for name in ("_physx", "_ovstage"))
 
 
 @pytest.mark.parametrize(
@@ -129,16 +164,17 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
-def test_construct_physx_bootstraps_each_runtime_without_replacing_pxr(monkeypatch, manager_module):
-    manager = manager_module.OvPhysxManager
+def test_registry_constructs_each_runtime_once_without_replacing_pxr(monkeypatch, manager_module):
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    from isaaclab.sim import SimulationContext
+
     host_pxr = ModuleType("pxr")
     host_usd = ModuleType("pxr.Usd")
     bootstrap_calls = []
-    registrations = []
 
     monkeypatch.setitem(sys.modules, "pxr", host_pxr)
     monkeypatch.setitem(sys.modules, "pxr.Usd", host_usd)
-    monkeypatch.setattr(manager_module.atexit, "register", registrations.append)
 
     def bootstrap():
         bootstrap_calls.append(None)
@@ -147,14 +183,19 @@ def test_construct_physx_bootstraps_each_runtime_without_replacing_pxr(monkeypat
 
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(bootstrap))
 
-    manager._construct_physx("cpu", 0)
-    manager._physx = None
-    manager._construct_physx("cpu", 0)
+    sim = SimpleNamespace(_backend_registry={})
+    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    cfg = OvPhysxCfg()
+    first = sim.get_or_create_backend(manager_module.OvPhysxBackend, cfg, "cpu", 0, cfg=cfg)
+    shared = sim.get_or_create_backend(manager_module.OvPhysxBackend, cfg, "cpu", 0, cfg=cfg.copy())
+    different = cfg.replace(enable_enhanced_determinism=True)
+    second = sim.get_or_create_backend(manager_module.OvPhysxBackend, different, "cpu", 0, cfg=different)
 
     assert sys.modules["pxr"] is host_pxr
     assert sys.modules["pxr.Usd"] is host_usd
     assert bootstrap_calls == [None, None]
-    assert registrations == [manager._close_at_exit]
+    assert shared is first
+    assert first.physx is not second.physx
 
 
 def test_close_dispatches_stop_before_runtime_release(monkeypatch, manager_module):
@@ -163,7 +204,7 @@ def test_close_dispatches_stop_before_runtime_release(monkeypatch, manager_modul
     manager = manager_module.OvPhysxManager
     events = []
     monkeypatch.setattr(PhysicsManager, "close", classmethod(lambda cls: events.append("stop")))
-    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: events.append("release")))
+    monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
 
     manager.close()
 
@@ -180,7 +221,7 @@ def test_close_releases_runtime_after_stop_listener_failure(monkeypatch, manager
         raise ValueError("listener failure")
 
     monkeypatch.setattr(PhysicsManager, "close", classmethod(fail_stop))
-    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: events.append("release")))
+    monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
 
     with pytest.raises(ValueError, match="listener failure"):
         manager.close()
@@ -190,9 +231,9 @@ def test_close_releases_runtime_after_stop_listener_failure(monkeypatch, manager
 
 def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager_module):
     manager = manager_module.OvPhysxManager
-    monkeypatch.setattr(manager, "_physx", None)
+    manager._backend.physx = None
     monkeypatch.setattr(manager, "close", classmethod(lambda cls: pytest.fail("unexpected close")))
-    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: pytest.fail("unexpected release")))
+    monkeypatch.setattr(manager._backend, "clear", lambda: pytest.fail("unexpected release"))
 
     manager._close_at_exit()
 
@@ -203,15 +244,15 @@ def test_atexit_cleanup_releases_stale_runtime_without_clearing_active_backend(m
     manager = manager_module.OvPhysxManager
     events = []
     sentinel_callbacks = {17: object()}
-    monkeypatch.setattr(manager, "_physx", object())
+    manager._backend.physx = object()
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=object()))
     monkeypatch.setattr(PhysicsManager, "_callbacks", sentinel_callbacks)
 
-    def release(cls):
+    def release():
         events.append("release")
-        cls._physx = None
+        manager._backend.physx = None
 
-    monkeypatch.setattr(manager, "_release_physx", classmethod(release))
+    monkeypatch.setattr(manager._backend, "clear", release)
 
     manager._close_at_exit()
 
@@ -224,7 +265,7 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
 
     manager = manager_module.OvPhysxManager
     events = []
-    monkeypatch.setattr(manager, "_physx", object())
+    manager._backend.physx = object()
     lazy_manager = f"{manager.__module__}:{manager.__qualname__}"
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=lazy_manager))
 
@@ -233,7 +274,7 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
         raise RuntimeError("failure")
 
     monkeypatch.setattr(manager, "close", classmethod(fail_close))
-    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: events.append("release")))
+    monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
 
     manager._close_at_exit()
 
@@ -254,11 +295,11 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
             events.append(("wait", operation))
 
     physx = FakePhysX()
-    manager._physx = physx
+    manager._backend.physx = physx
     monkeypatch.setattr(
-        manager, "_close_physx_views", staticmethod(lambda value: events.append(("close_views", value)))
+        manager_module.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value))
     )
-    monkeypatch.setattr(manager, "_destroy_ovstage", classmethod(lambda cls: events.append("destroy_stage")))
+    manager._backend.stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
 
     manager._prepare_physx_for_stage_reuse()
 
@@ -324,8 +365,8 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.PathDictionary = FakePathDictionary
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
-    monkeypatch.setattr(manager, "_ovstage", FakeStage())
-    monkeypatch.setattr(manager, "_physx", FakePhysX())
+    manager._backend.stage = FakeStage()
+    manager._backend.physx = FakePhysX()
     monkeypatch.setattr(
         manager,
         "_sim",
@@ -455,38 +496,28 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
 
 
 def test_construct_physx_passes_the_configured_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
-    """The configured cache directory reaches ``PhysXConfig``; without a config the default does."""
+    """Configured and default cache directories reach ``PhysXConfig`` unchanged."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxCfg
 
-    from isaaclab.physics import PhysicsManager
-
-    manager = manager_module.OvPhysxManager
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
 
     configured = str(tmp_path / "configured_cache")
-    monkeypatch.setattr(PhysicsManager, "_cfg", OvPhysxCfg(cooked_collider_cache_dir=configured))
-    manager._construct_physx("cpu", 0)
-    assert manager._physx.config.cooked_collider_cache_dir == configured
+    backend = manager_module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=configured), "cpu", 0)
+    assert backend.physx.config.cooked_collider_cache_dir == configured
 
-    monkeypatch.setattr(PhysicsManager, "_cfg", None)
-    manager._physx = None
-    manager._construct_physx("cpu", 0)
-    assert manager._physx.config.cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
+    backend = manager_module.OvPhysxBackend(OvPhysxCfg(), "cpu", 0)
+    assert backend.physx.config.cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 
 def test_construct_physx_forwards_an_unset_cooked_collider_cache_dir(monkeypatch, manager_module):
     """``None`` reaches ``PhysXConfig`` unchanged so OVPhysX applies its own resolution."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
-    from isaaclab.physics import PhysicsManager
-
-    manager = manager_module.OvPhysxManager
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
-    monkeypatch.setattr(PhysicsManager, "_cfg", OvPhysxCfg(cooked_collider_cache_dir=None))
 
-    manager._construct_physx("cpu", 0)
+    backend = manager_module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=None), "cpu", 0)
 
-    assert manager._physx.config.cooked_collider_cache_dir is None
+    assert backend.physx.config.cooked_collider_cache_dir is None
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")

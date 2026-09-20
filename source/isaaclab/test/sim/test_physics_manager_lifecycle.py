@@ -7,6 +7,7 @@
 
 import gc
 import weakref
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
@@ -17,13 +18,15 @@ from isaaclab.visualizers import VisualizerCfg
 
 
 def test_backend_registry_uses_only_backend_type():
-    """Backend type is both the public and stored identity of a native resource."""
+    """Omitting cfg retains one native resource per backend type."""
     import inspect
 
     from isaaclab.sim import SimulationContext
 
     class Backend:
         def __init__(self, value):
+            if value == 0:
+                raise ValueError("construction failed")
             created.append(value)
 
     class OtherBackend(Backend):
@@ -33,6 +36,9 @@ def test_backend_registry_uses_only_backend_type():
     context._backend_registry = {}
     created = []
 
+    with pytest.raises(ValueError, match="construction failed"):
+        context.get_or_create_backend(Backend, 0)
+    assert not context._backend_registry
     first = context.get_or_create_backend(Backend, 1)
     same = context.get_or_create_backend(Backend, 2)
     other_type = context.get_or_create_backend(OtherBackend, 4)
@@ -44,6 +50,54 @@ def test_backend_registry_uses_only_backend_type():
     assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
     cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
     assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
+
+
+def test_backend_registry_uses_cfg_values_and_releases_only_the_selected_resource():
+    """Equal cfgs share, different types/values separate, and caller mutations do not rekey resources."""
+    from isaaclab.sim import SimulationContext
+
+    @dataclass
+    class Cfg:
+        values: list[int]
+
+    @dataclass
+    class OtherCfg(Cfg):
+        pass
+
+    class Backend:
+        def __init__(self):
+            self.cleared = 0
+            self.fail_release = False
+
+        def clear(self):
+            self.cleared += 1
+            if self.fail_release:
+                raise RuntimeError("release failed")
+
+    context = object.__new__(SimulationContext)
+    context._backend_registry = {}
+    cfg = Cfg([1])
+    first = context.get_or_create_backend(Backend, cfg=cfg)
+    assert context.get_or_create_backend(Backend, cfg=Cfg([1])) is first
+    cfg.values.append(2)
+    second = context.get_or_create_backend(Backend, cfg=cfg)
+    other = context.get_or_create_backend(Backend, cfg=OtherCfg([1]))
+    assert len({id(first), id(second), id(other)}) == 3
+    assert context.get_or_create_backend(Backend, cfg=Cfg([1])) is first
+
+    context.clear_backend(Backend, cfg=Cfg([1]))
+    assert (first.cleared, second.cleared, other.cleared) == (1, 0, 0)
+    with pytest.raises(KeyError):
+        context.clear_backend(Backend, cfg=Cfg([1]))
+    assert context.get_or_create_backend(Backend, cfg=Cfg([1])) is not first
+
+    second.fail_release = True
+    with pytest.raises(RuntimeError, match="release failed"):
+        context.clear_backend(Backend, cfg=cfg)
+    assert context.get_or_create_backend(Backend, cfg=cfg) is second
+    second.fail_release = False
+    context.clear_backend(Backend, cfg=cfg)
+    assert second.cleared == 2
 
 
 def test_service_locator_abstraction_is_removed():
@@ -222,9 +276,9 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             Visualizer("visualizer_last"),
         ],
         _backend_registry={
-            Backend: Backend("backend_failed", LookupError("backend failed")),
-            OtherBackend: OtherBackend("backend_last"),
-            InvalidBackend: InvalidBackend(),
+            Backend: [(0, Backend("backend_failed", LookupError("backend failed"))), (1, Backend("same_type"))],
+            OtherBackend: [(None, OtherBackend("backend_last"))],
+            InvalidBackend: [(None, InvalidBackend())],
         },
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
@@ -246,6 +300,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "visualizer_failed",
         "visualizer_last",
         "backend_failed",
+        "same_type",
         "backend_last",
         "stage",
         "cache",
