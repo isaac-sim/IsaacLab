@@ -73,6 +73,9 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
     rd.height = 8
     rd.num_envs = 2
     rd.warp_buffers = {}
+    rd.intrinsic_bindings = []
+    rd.intrinsic_query = None
+    rd.intrinsic_paths = None
     rd.renderer_info = {}
     rd.ppisp_pipeline = None
     return rd
@@ -489,23 +492,32 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
     assert render_var.ordering == [expected]
 
 
-def test_ovrtx_cleanup_releases_only_the_given_render_data():
-    """``cleanup`` releases the render data's own buffers and leaves the renderer usable.
-
-    The stage queries, tensor bindings and render products the renderer holds are shared with
-    every other camera that resolved to it, so a single camera's cleanup must not take them.
-    """
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
-    renderer._initialized_scene = True
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_cleanup_releases_only_the_given_render_data(use_ovstage):
+    """Release this camera's calibration handles once, leaving shared scene resources usable."""
+    events = []
+    renderer = (
+        _make_ovstage_renderer_with_backend(events) if use_ovstage else _make_legacy_renderer_with_backend(events)
+    )
 
     render_data = _make_ovrtx_render_data()
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
     render_data.ppisp_pipeline = object()
+    if use_ovstage:
+        render_data.intrinsic_query = "intrinsics"
+        render_data.intrinsic_paths = "intrinsics"
+    else:
+        render_data.intrinsic_bindings = [_RecordingBinding(events, "intrinsics")]
 
     renderer.cleanup(render_data)
+    renderer.cleanup(render_data)
 
+    expected = ["release_query:intrinsics", "destroy_path_list:intrinsics"] if use_ovstage else ["unbind:intrinsics"]
+    assert events == expected
+    assert render_data.intrinsic_bindings == []
+    assert render_data.intrinsic_query is None
+    assert render_data.intrinsic_paths is None
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
     assert render_data.ppisp_pipeline is None
@@ -545,7 +557,6 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = False
     renderer._camera_xform_binding = _RecordingBinding(events, "camera")
-    renderer._camera_intrinsic_bindings = [_RecordingBinding(events, "intrinsics")]
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
@@ -624,7 +635,6 @@ def test_ovrtx_close_releases_legacy_renderer_state():
 
     assert events == [
         "unbind:camera",
-        "unbind:intrinsics",
         "unbind:object",
         "unbind:deformable",
         "unbind:particle",
@@ -632,7 +642,6 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
-    assert renderer._camera_intrinsic_bindings == []
     assert renderer._object_xform_binding is None
     assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None

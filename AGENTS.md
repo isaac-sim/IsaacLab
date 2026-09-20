@@ -21,6 +21,8 @@
   renderer implementations must consume device calibration through their native runtime APIs.
   Do not restore per-camera USD access or matrix/index batch readbacks in calibration setters.
   A scalar validation-status readback is allowed for synchronous errors and warnings.
+- Per-camera calibration bindings and queries belong to render data, never the shared renderer;
+  release them with that camera without affecting other cameras.
 - Use the uv-managed environment for routine commands.
 - Use `uv run python` for Python scripts and tests.
 - Use `uv run isaaclab` for Isaac Lab CLI commands.

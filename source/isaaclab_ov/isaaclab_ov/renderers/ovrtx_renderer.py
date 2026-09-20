@@ -104,6 +104,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
+    from ovrtx import AttributeBinding
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -275,6 +276,9 @@ class OVRTXRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        self.intrinsic_bindings: list[AttributeBinding] = []
+        self.intrinsic_query: ovstage.Query | None = None
+        self.intrinsic_paths: int | None = None
         # Per-output metadata collected during render() and copied into CameraData.info by read_output().
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
@@ -518,7 +522,6 @@ class OVRTXRenderer(BaseRenderer):
         offset/count lists) stays in :meth:`__init__`.
         """
         self._camera_xform_binding = None
-        self._camera_intrinsic_bindings = []
         self._object_xform_binding = None
         self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
@@ -596,17 +599,6 @@ class OVRTXRenderer(BaseRenderer):
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.EXISTING_ONLY,
         )
-        self._camera_intrinsic_bindings = [
-            self._renderer.bind_attribute(
-                prim_paths=camera_paths,
-                attribute_name=name,
-                dtype="float32",
-                prim_mode=PrimMode.EXISTING_ONLY,
-                flags=BindingFlag.OPTIMIZE,
-            )
-            for name in _CAMERA_INTRINSIC_ATTRIBUTES
-        ]
-
         # OVRTX requires omni:resetXformStack on cameras for correct world transform binding
         self._renderer.write_attribute(
             prim_paths=camera_paths,
@@ -937,7 +929,23 @@ class OVRTXRenderer(BaseRenderer):
         self._device = str(self._warp_device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
-        return OVRTXRenderData(spec, self._device)
+        render_data = OVRTXRenderData(spec, self._device)
+        camera_paths = [f"/World/envs/env_{i}/{spec.camera_path_relative_to_env_0}" for i in range(spec.num_instances)]
+        if self._use_ovstage:
+            render_data.intrinsic_paths = self._stage_paths.create_path_list_from_strings(camera_paths)
+            render_data.intrinsic_query = self._stage.query_from_path_list(render_data.intrinsic_paths)
+        else:
+            render_data.intrinsic_bindings = [
+                self._renderer.bind_attribute(
+                    prim_paths=camera_paths,
+                    attribute_name=name,
+                    dtype="float32",
+                    prim_mode=PrimMode.EXISTING_ONLY,
+                    flags=BindingFlag.OPTIMIZE,
+                )
+                for name in _CAMERA_INTRINSIC_ATTRIBUTES
+            ]
+        return render_data
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -1567,9 +1575,6 @@ class OVRTXRenderer(BaseRenderer):
 
         _safe_unbind(self._camera_xform_binding, "camera transforms")
         self._camera_xform_binding = None
-        for binding in self._camera_intrinsic_bindings:
-            _safe_unbind(binding, "camera intrinsics")
-        self._camera_intrinsic_bindings = []
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
         self._object_transform_buffer = None
@@ -1748,7 +1753,7 @@ class OVRTXRenderer(BaseRenderer):
         stream = wp.get_stream(parameters.device).cuda_stream
         if self._use_ovstage:
             self._stage.write_attributes(
-                self._camera_xform_query,
+                render_data.intrinsic_query,
                 [
                     ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
                     for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)
@@ -1758,7 +1763,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             operations = []
             try:
-                for row, binding in enumerate(self._camera_intrinsic_bindings):
+                for row, binding in enumerate(render_data.intrinsic_bindings):
                     operations.append(
                         binding.write_async(parameters[row], data_access=DataAccess.ASYNC, cuda_stream=stream)
                     )
@@ -1774,14 +1779,22 @@ class OVRTXRenderer(BaseRenderer):
             self._render_legacy(render_data)
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
-        """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
+        """Release this camera's buffers and calibration handles.
 
-        The stage queries, tensor bindings and render products this renderer holds are shared by
-        every camera that resolves to it, so releasing them here would tear the scene down while
-        the other cameras are still rendering. :meth:`close` releases them instead.
+        Shared scene resources remain usable by other cameras until :meth:`close`.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
         """
         if render_data is None:
             return
+        for binding in render_data.intrinsic_bindings:
+            binding.unbind()
+        render_data.intrinsic_bindings.clear()
+        if render_data.intrinsic_query is not None:
+            self._stage.release_query(render_data.intrinsic_query).wait()
+            render_data.intrinsic_query = None
+        if render_data.intrinsic_paths is not None:
+            self._stage_paths.destroy_path_list(render_data.intrinsic_paths)
+            render_data.intrinsic_paths = None
         render_data.warp_buffers.clear()
         render_data.renderer_info.clear()
         render_data.ppisp_pipeline = None

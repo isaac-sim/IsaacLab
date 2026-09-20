@@ -162,12 +162,10 @@ class IsaacRtxRenderData:
         for row, path in enumerate(spec.camera_prim_paths):
             prim = fabric.GetPrimAtPath(path)
             prim.CreateAttribute(row_attribute, usdrt.Sdf.ValueTypeNames.Int, True).Set(row)
-            # Populate schema fallback values before selecting the columns.
+            # Reinitialize from USD, including values left in Fabric by a previous runtime override.
             for name in _CAMERA_INTRINSIC_ATTRIBUTES:
-                attribute = prim.GetAttribute(name)
-                if not attribute.IsValid():
-                    value = stage.GetPrimAtPath(path).GetAttribute(name).Get()
-                    prim.CreateAttribute(name, usdrt.Sdf.ValueTypeNames.Float, False).Set(value)
+                value = stage.GetPrimAtPath(path).GetAttribute(name).Get()
+                prim.CreateAttribute(name, usdrt.Sdf.ValueTypeNames.Float, False).Set(value)
         selection = fabric.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.Int, row_attribute, usdrt.Usd.Access.Read),
@@ -801,7 +799,7 @@ class IsaacRtxRenderer(BaseRenderer):
             for path in render_data.spec.camera_prim_paths:
                 prim = render_data.intrinsic_stage.GetPrimAtPath(path)
                 if prim.IsValid():
-                    prim.RemoveAttribute(render_data.intrinsic_row_attribute)
+                    prim.RemoveProperty(render_data.intrinsic_row_attribute)
         render_data.intrinsic_stage = None
 
         render_data.annotators.clear()
