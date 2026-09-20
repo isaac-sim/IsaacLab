@@ -85,6 +85,10 @@ releases one resource after its consumers have invalidated their bindings.
 Resources implement ``clear()``; failed release retains the entry for retry.
 Simulation teardown releases all remaining resources.
 
+Managers and native renderers expose their borrowed resource through ``backend``.
+For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+Consumers do not own resource teardown; exposing native handles does not replace SDP transport.
+
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.
 

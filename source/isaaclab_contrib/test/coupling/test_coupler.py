@@ -677,7 +677,7 @@ def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, sh
 
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     backend = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0=state_0)
-    monkeypatch.setattr(coupler.NewtonManager, "_backend", backend)
+    monkeypatch.setattr(coupler.NewtonManager, "backend", backend)
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
 
     NewtonCouplerManager._reset_solver_internals(mask)
@@ -701,7 +701,7 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     backend = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0=state)
-    monkeypatch.setattr(coupler.NewtonManager, "_backend", backend)
+    monkeypatch.setattr(coupler.NewtonManager, "backend", backend)
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
 
     NewtonCouplerManager._reset_solver_internals(mask)
@@ -721,7 +721,7 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
 
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     backend = SimpleNamespace(model=SimpleNamespace(world_count=2), state_0=state)
-    monkeypatch.setattr(coupler.NewtonManager, "_backend", backend)
+    monkeypatch.setattr(coupler.NewtonManager, "backend", backend)
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
 
     NewtonCouplerManager._reset_solver_internals(mask)

@@ -60,15 +60,15 @@ class OVRTXVisualMaterialWriter:
         try:
             for channel, attribute_name, shader_paths, rows, dtype, shape in groups:
                 if renderer._use_ovstage:
-                    path_list = renderer._backend.paths.create_path_list_from_strings(shader_paths)
+                    path_list = renderer.backend.paths.create_path_list_from_strings(shader_paths)
                     try:
-                        address = renderer._backend.stage.query_from_path_list(path_list)
+                        address = renderer.backend.stage.query_from_path_list(path_list)
                     except Exception:
-                        renderer._backend.paths.destroy_path_list(path_list)
+                        renderer.backend.paths.destroy_path_list(path_list)
                         raise
                 else:
                     path_list = None
-                    address = renderer._backend.renderer.bind_attribute(
+                    address = renderer.backend.renderer.bind_attribute(
                         prim_paths=shader_paths,
                         attribute_name=attribute_name,
                         dtype=dtype,
@@ -100,7 +100,7 @@ class OVRTXVisualMaterialWriter:
                 if channel not in channels:
                     continue
                 if renderer._use_ovstage:
-                    operation = renderer._backend.stage.write_attribute(
+                    operation = renderer.backend.stage.write_attribute(
                         address,
                         attribute_name,
                         ordinal=renderer._current_ordinal,
@@ -128,8 +128,8 @@ class OVRTXVisualMaterialWriter:
     def _release_backend_addresses(self, renderer: OVRTXRenderer) -> None:
         for _channel, address, path_list, _attribute_name, _rows in self._addresses:
             if renderer._use_ovstage:
-                renderer._backend.stage.release_query(address).wait()
-                renderer._backend.paths.destroy_path_list(path_list)
+                renderer.backend.stage.release_query(address).wait()
+                renderer.backend.paths.destroy_path_list(path_list)
             else:
                 address.unbind()
         self._addresses.clear()

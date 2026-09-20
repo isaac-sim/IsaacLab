@@ -411,14 +411,12 @@ class OvPhysxBackend:
         if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
         ovphysx.PhysX.set_cpu_mode(not is_gpu)
-        physx_kwargs = {
-            "config": ovphysx.PhysXConfig(
+        self.physx = ovphysx.PhysX(
+            config=ovphysx.PhysXConfig(
                 num_threads=8, cooked_collider_cache_dir=cache_dir, carbonite_overrides=carbonite_overrides
             ),
-        }
-        if is_gpu:
-            physx_kwargs["active_cuda_gpus"] = cfg.device.removeprefix("cuda:")
-        self.physx = ovphysx.PhysX(**physx_kwargs)
+            active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
+        )
         self.stage: Any = None
 
     def clear(self) -> None:
@@ -480,7 +478,8 @@ class OvPhysxManager(PhysicsManager):
     clone_context_type = OvPhysxReplicateContext
 
     _cfg: ClassVar[OvPhysxCfg | None] = None
-    _backend: ClassVar[OvPhysxBackend | None] = None
+    backend: ClassVar[OvPhysxBackend | None] = None
+    """Native runtime borrowed from the simulation registry after warmup; the registry owns its lifetime."""
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
     _next_control_ordinal: ClassVar[int] = 2
@@ -643,7 +642,7 @@ class OvPhysxManager(PhysicsManager):
         """
         if not soft:
             if not cls._warmup_done:
-                if cls._backend is not None and cls._backend.stage is not None:
+                if cls.backend is not None and cls.backend.stage is not None:
                     cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
@@ -656,17 +655,12 @@ class OvPhysxManager(PhysicsManager):
     @classmethod
     def step(cls) -> None:
         """Step the simulation by one physics timestep."""
-        if cls._backend is None or cls._backend.physx is None:
+        if cls.backend is None or cls.backend.physx is None:
             return
         dt = cls.get_physics_dt()
-        cls._step_physx(cls._backend.physx, dt=dt)
-        cls._backend.physx.update_articulations_kinematic()
+        cls.backend.physx.step_sync(dt=dt)
+        cls.backend.physx.update_articulations_kinematic()
         PhysicsManager._sim_time += dt
-
-    @staticmethod
-    def _step_physx(physx: Any, dt: float) -> None:
-        """Step the pinned OVPhysX runtime synchronously."""
-        physx.step_sync(dt=dt)
 
     @staticmethod
     def _warmup_physx(physx: Any) -> None:
@@ -688,9 +682,9 @@ class OvPhysxManager(PhysicsManager):
             super().close()
         finally:
             try:
-                if cls._backend is not None:
-                    sim.clear_backend(cls._backend.cfg)
-                    cls._backend = None
+                if cls.backend is not None:
+                    sim.clear_backend(cls.backend.cfg)
+                    cls.backend = None
             finally:
                 cls._stage_usda = None
                 cls._warmup_done = False
@@ -722,31 +716,31 @@ class OvPhysxManager(PhysicsManager):
             # commits the ordinal, so attaching at an unsealed ordinal fails the parse
             # and silently yields an empty scene.
             stage.advance_write_floor(ordinal=1).wait()
-            cls._backend.physx.attach_ovstage(stage, read_ordinal=1)
+            cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
             stage.destroy()
             raise
-        cls._backend.stage = stage
+        cls.backend.stage = stage
 
         cls._next_control_ordinal = 2
 
     @classmethod
     def _prepare_physx_for_stage_reuse(cls) -> None:
         """Drain stage-bound handles before reusing the active runtime for another stage."""
-        physx = cls._backend.physx
+        physx = cls.backend.physx
         if physx is None:
             return
         OvPhysxView._close_all_for(physx)
         physx.wait_op(physx.reset_stage())
-        if cls._backend.stage is not None:
-            cls._backend.stage.destroy()
-            cls._backend.stage = None
+        if cls.backend.stage is not None:
+            cls.backend.stage.destroy()
+            cls.backend.stage = None
         cls._next_control_ordinal = 2
 
     @classmethod
     def get_physx_instance(cls) -> Any:
         """Return the underlying ovphysx.PhysX instance (or None if not yet created)."""
-        return None if cls._backend is None else cls._backend.physx
+        return None if cls.backend is None else cls.backend.physx
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
@@ -781,7 +775,7 @@ class OvPhysxManager(PhysicsManager):
             RuntimeError: If the OVPhysX simulation has not been initialized.
             ValueError: If gravity does not contain three finite values.
         """
-        if cls._sim is None or cls.get_physx_instance() is None or cls._backend.stage is None:
+        if cls._sim is None or cls.get_physx_instance() is None or cls.backend.stage is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
         gravity_array = np.asarray(gravity, dtype=np.float32)
@@ -798,7 +792,7 @@ class OvPhysxManager(PhysicsManager):
 
         import ovstage  # noqa: PLC0415
 
-        stage = cls._backend.stage
+        stage = cls.backend.stage
         with contextlib.ExitStack() as cleanup:
             paths = cleanup.enter_context(ovstage.PathDictionary(stage))
             path_list = paths.create_path_list_from_strings([cls._sim.cfg.physics_prim_path])
@@ -809,7 +803,7 @@ class OvPhysxManager(PhysicsManager):
                 query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
             stage.advance_write_floor(ordinal=ordinal).wait()
-            cls._backend.physx.update_from_ovstage(ordinal, ordinal)
+            cls.backend.physx.update_from_ovstage(ordinal, ordinal)
 
         # Only publish once the ordinal has been applied, so a failed write leaves
         # :meth:`get_gravity` reporting the gravity the scene is still running with.
@@ -1033,8 +1027,8 @@ class OvPhysxManager(PhysicsManager):
         stage_usda = cls._serialize_selected_stage(sim.stage)
         cls._stage_usda = stage_usda
 
-        previous_backend = cls._backend
-        cls._backend = sim.get_or_create_backend(
+        previous_backend = cls.backend
+        cls.backend = sim.get_or_create_backend(
             OvPhysxBackendCfg(
                 device=PhysicsManager._device,
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
@@ -1044,7 +1038,7 @@ class OvPhysxManager(PhysicsManager):
         if not cls._atexit_registered:
             atexit.register(cls._close_at_exit)
             cls._atexit_registered = True
-        if cls._backend is previous_backend or cls._backend.stage is not None:
+        if cls.backend is previous_backend or cls.backend.stage is not None:
             # Bindings are tied to the realized objects of one stage. Invalidate
             # asset/sensor handles and drain generic views before resetting the
             # cached runtime; PHYSICS_READY after this method rebuilds them.
@@ -1053,12 +1047,12 @@ class OvPhysxManager(PhysicsManager):
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        cls._replay_pending_clones(cls._backend.physx, requires_full_stage=cls._requires_full_stage)
+        cls._replay_pending_clones(cls.backend.physx, requires_full_stage=cls._requires_full_stage)
 
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
-            cls._warmup_physx(cls._backend.physx)
+            cls._warmup_physx(cls.backend.physx)
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
         # the OVStage is attached. The central
@@ -1066,7 +1060,7 @@ class OvPhysxManager(PhysicsManager):
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls._backend.physx, sim.stage, PhysicsManager._device)
+        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True
@@ -1074,7 +1068,7 @@ class OvPhysxManager(PhysicsManager):
     @classmethod
     def _close_at_exit(cls) -> None:
         """Release a live OVPhysX runtime without leaking an atexit exception."""
-        if cls._backend is None or cls._backend.physx is None:
+        if cls.backend is None or cls.backend.physx is None:
             return
         try:
             sim = PhysicsManager._sim
@@ -1086,7 +1080,7 @@ class OvPhysxManager(PhysicsManager):
             else:
                 # Do not clear another backend's shared callbacks or simulation
                 # state if this is only a stale OVPhysX runtime.
-                cls._backend.clear()
+                cls.backend.clear()
         except Exception:
             logger.exception("Failed to close OVPhysX during process exit.")
 

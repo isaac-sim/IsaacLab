@@ -30,7 +30,7 @@ def _native_backend(monkeypatch):
     backend.cfg = OvPhysxBackendCfg(device="cpu")
     backend.physx = None
     backend.stage = None
-    monkeypatch.setattr(OvPhysxManager, "_backend", backend)
+    monkeypatch.setattr(OvPhysxManager, "backend", backend)
 
 
 @pytest.fixture(autouse=True)
@@ -351,7 +351,7 @@ def test_manager_resets_full_stage_requirement_between_contexts(monkeypatch):
     """Closing a manager context resets the full-stage requirement."""
     from isaaclab_ov.physics import OvPhysxManager
 
-    monkeypatch.setattr(OvPhysxManager, "_backend", None)
+    monkeypatch.setattr(OvPhysxManager, "backend", None)
     OvPhysxManager.require_full_stage()
     OvPhysxManager.close()
     assert OvPhysxManager._requires_full_stage is False
@@ -365,7 +365,7 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
     calls = []
     monkeypatch.setattr(OvPhysxManager, "_warmup_done", False)
-    OvPhysxManager._backend.stage = object()
+    OvPhysxManager.backend.stage = object()
     monkeypatch.setattr(OvPhysxManager, "_warmup_and_load", lambda: calls.append("warmup"))
     monkeypatch.setattr(
         OvPhysxManager,
@@ -389,6 +389,8 @@ def test_manager_supports_pinned_runtime_api(
     import isaaclab_ov.physics.ovphysx_manager as module
     from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
 
+    from isaaclab.physics import PhysicsManager
+
     cache_dir = str(tmp_path / "cooked_colliders")
 
     class PinnedPhysX:
@@ -404,6 +406,9 @@ def test_manager_supports_pinned_runtime_api(
 
         def step_sync(self, *, dt):
             self.calls.append(("step_sync", dt))
+
+        def update_articulations_kinematic(self):
+            self.calls.append(("update_articulations_kinematic",))
 
         def reset_stage(self):
             self.calls.append(("reset_stage",))
@@ -425,15 +430,18 @@ def test_manager_supports_pinned_runtime_api(
 
     backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
     physx = backend.physx
-    OvPhysxManager._step_physx(physx, dt=0.02)
-    OvPhysxManager._backend.physx = physx
+    OvPhysxManager.backend.physx = physx
+    monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0)
+    OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
     assert PinnedPhysX.cpu_mode is expected_cpu_mode
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
-    assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
+    assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
+    assert PhysicsManager._sim_time == 0.02
 
 
 def test_manager_serializes_env0_only_stage_in_memory(caplog):
@@ -535,16 +543,16 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     monkeypatch.setattr(om_mod, "create_ovstage", FakeStage)
 
     physx = FakePhysX()
-    OvPhysxManager._backend.physx = physx
+    OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(
         om_mod.OvPhysxView,
         "_close_all_for",
         lambda value: events.append(("close_views", value)),
     )
     OvPhysxManager._attach_ovstage("#usda 1.0")
-    stage = OvPhysxManager._backend.stage
-    OvPhysxManager._backend.clear()
-    OvPhysxManager._backend.clear()
+    stage = OvPhysxManager.backend.stage
+    OvPhysxManager.backend.clear()
+    OvPhysxManager.backend.clear()
 
     # The seal must land between population and attach: ovphysx reads sealed data
     # only, so attaching at an unsealed ordinal silently yields an empty scene.
@@ -585,8 +593,8 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
     OvPhysxManager._warmup_physx(physx)
-    OvPhysxManager._backend.physx = physx
-    OvPhysxManager._backend.clear()
+    OvPhysxManager.backend.physx = physx
+    OvPhysxManager.backend.clear()
 
     assert calls == expected_calls
 
@@ -603,8 +611,8 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
         if operation == "warmup":
             OvPhysxManager._warmup_physx(SimpleNamespace())
         else:
-            OvPhysxManager._backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_op=lambda op: None)
-            OvPhysxManager._backend.clear()
+            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_op=lambda op: None)
+            OvPhysxManager.backend.clear()
 
 
 @pytest.mark.parametrize(
@@ -655,9 +663,9 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
 
     physx = FakePhysX()
     stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
-    OvPhysxManager._backend.physx = physx
-    OvPhysxManager._backend.stage = stage
-    backend = OvPhysxManager._backend
+    OvPhysxManager.backend.physx = physx
+    OvPhysxManager.backend.stage = stage
+    backend = OvPhysxManager.backend
     sim = SimpleNamespace(
         _backend_registry=[(backend.cfg, backend)],
         physics_manager=OvPhysxManager,
@@ -684,7 +692,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     physx.fail_destroy = False
     OvPhysxManager.close()
 
-    assert OvPhysxManager._backend is None
+    assert OvPhysxManager.backend is None
     assert not sim._backend_registry
     assert backend.physx is None and backend.stage is None
     assert events == teardown * (2 if retryable else 1) + ["destroy_stage"]
@@ -715,7 +723,7 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
 
     with pytest.raises(RuntimeError, match="population failed"):
         OvPhysxManager._attach_ovstage("#usda 1.0")
-    assert OvPhysxManager._backend.stage is None
+    assert OvPhysxManager.backend.stage is None
 
     assert destroyed == ["isaaclab"]
 

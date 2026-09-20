@@ -3,6 +3,7 @@ Added
 
 * Added ``OvPhysxBackendCfg`` and ``OVRTXBackendCfg`` for cfg-only native resource acquisition through the registry.
   ``OvPhysxCfg`` continued to configure the physics manager and its scene policy.
+* Exposed ``OvPhysxManager.backend`` and ``OVRTXRenderer.backend`` as borrowed native resources owned by the registry.
 
 Changed
 ^^^^^^^

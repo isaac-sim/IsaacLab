@@ -115,14 +115,14 @@ class _PathRecorder:
 def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer._backend = SimpleNamespace()
+    renderer.backend = SimpleNamespace()
     renderer._initialized_scene = True
     renderer._use_ovstage = use_ovstage
-    renderer._backend.renderer = _NativeRecorder(events)
+    renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
     if use_ovstage:
-        renderer._backend.stage = _OvstageRecorder(events)
-        renderer._backend.paths = _PathRecorder()
+        renderer.backend.stage = _OvstageRecorder(events)
+        renderer.backend.paths = _PathRecorder()
         renderer._current_ordinal = 7
     return renderer, events
 
@@ -156,18 +156,18 @@ def test_legacy_compiles_typed_bindings_and_publishes_selected_channels_zero_cop
         {"texture_scale": torch.tensor([0], dtype=torch.int32, device="cuda")},
         torch.tensor([0], dtype=torch.int32, device="cuda"),
     )
-    assert renderer._backend.renderer.writes == []
-    assert len(renderer._backend.renderer.bindings) == 4
+    assert renderer.backend.renderer.writes == []
+    assert len(renderer.backend.renderer.bindings) == 4
     writer.publish()
 
-    writes = {write[0].attribute_name: write for write in renderer._backend.renderer.writes}
+    writes = {write[0].attribute_name: write for write in renderer.backend.renderer.writes}
     assert set(writes) == {"inputs:texture_scale"}
     write = writes["inputs:texture_scale"]
     assert write[1].untyped_storage().data_ptr() == texture_scale.untyped_storage().data_ptr()
     assert write[2]["data_access"] is DataAccess.ASYNC
     assert write[2]["cuda_event"] == writer._event.cuda_event
     writer.drain()
-    assert all(write[3].wait_count == 1 for write in renderer._backend.renderer.writes)
+    assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 
 
 @pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")
@@ -181,12 +181,12 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
         torch.tensor([1], dtype=torch.int32, device="cuda"),
     )
 
-    assert renderer._backend.stage.writes == []
+    assert renderer.backend.stage.writes == []
     writer.publish()
 
-    assert len(renderer._backend.stage.writes) == 1
-    query, attribute_name, kwargs, completion = renderer._backend.stage.writes[0]
-    assert query == f"query:{renderer._backend.paths.created[0]}"
+    assert len(renderer.backend.stage.writes) == 1
+    query, attribute_name, kwargs, completion = renderer.backend.stage.writes[0]
+    assert query == f"query:{renderer.backend.paths.created[0]}"
     assert attribute_name == "inputs:roughness"
     assert kwargs["tensors"].untyped_storage().data_ptr() == roughness.untyped_storage().data_ptr()
     assert kwargs["ordinal"] == 7
@@ -247,7 +247,7 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
         events.append("floor")
         raise ValueError("floor failed")
 
-    renderer._backend.stage.advance_write_floor = advance_write_floor
+    renderer.backend.stage.advance_write_floor = advance_write_floor
     with pytest.raises(ValueError, match=failure):
         renderer._render_ovstage(SimpleNamespace(ppisp_pipeline=None))
 
@@ -262,8 +262,8 @@ def test_writer_close_drains_and_unbinds_compiled_legacy_addresses():
     writer.publish()
     writer.close()
 
-    assert all(binding.unbound for binding in renderer._backend.renderer.bindings)
-    assert all(write[3].wait_count == 1 for write in renderer._backend.renderer.writes)
+    assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
+    assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
     assert writer._addresses == []
     assert writer._buffers == {}
 
@@ -279,7 +279,7 @@ def test_compilation_rejects_unsupported_device_buffers_before_backend_mutation(
         renderer.visual_material_writer((valid, invalid))
 
     assert renderer._visual_material_writer_ref is None
-    assert renderer._backend.renderer.bindings == []
+    assert renderer.backend.renderer.bindings == []
 
 
 def test_compilation_rejects_host_buffers_without_fallback():
@@ -288,7 +288,7 @@ def test_compilation_rejects_host_buffers_without_fallback():
         renderer.visual_material_writer((_batch("color", ("diffuseColor",), torch.zeros(1, 3)),))
 
     assert renderer._visual_material_writer_ref is None
-    assert renderer._backend.renderer.bindings == []
+    assert renderer.backend.renderer.bindings == []
 
 
 def test_writer_factory_requires_ingested_detached_scene():

@@ -58,7 +58,7 @@ def manager_module(monkeypatch):
     manager = module.OvPhysxManager
     test_state = {
         "_cfg": None,
-        "_backend": backend,
+        "backend": backend,
         "_stage_usda": None,
         "_next_control_ordinal": 2,
         "_warmup_done": False,
@@ -97,13 +97,13 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
     for name in ("_sim", "_cfg", "_device", "_sim_time"):
         monkeypatch.setattr(PhysicsManager, name, getattr(PhysicsManager, name))
     monkeypatch.setattr(manager, "_ensure_physx_schemas_registered", lambda: None)
-    monkeypatch.setattr(manager, "_backend", None)
+    monkeypatch.setattr(manager, "backend", None)
 
     manager.initialize(sim)
 
     assert not sim._backend_registry
     assert manager.get_physx_instance() is None
-    assert not any(hasattr(manager, name) for name in ("_physx", "_ovstage"))
+    assert not any(hasattr(manager, name) for name in ("_backend", "_physx", "_ovstage"))
 
 
 @pytest.mark.parametrize(
@@ -209,7 +209,7 @@ def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch,
             raise ValueError("listener failure")
 
     monkeypatch.setattr(PhysicsManager, "close", classmethod(stop))
-    monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
+    monkeypatch.setattr(manager.backend, "clear", lambda: events.append("release"))
 
     with pytest.raises(ValueError, match="listener failure") if stop_fails else nullcontext():
         manager.close()
@@ -219,9 +219,9 @@ def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch,
 
 def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager_module):
     manager = manager_module.OvPhysxManager
-    manager._backend.physx = None
+    manager.backend.physx = None
     monkeypatch.setattr(manager, "close", classmethod(lambda cls: pytest.fail("unexpected close")))
-    monkeypatch.setattr(manager._backend, "clear", lambda: pytest.fail("unexpected release"))
+    monkeypatch.setattr(manager.backend, "clear", lambda: pytest.fail("unexpected release"))
 
     manager._close_at_exit()
 
@@ -232,15 +232,15 @@ def test_atexit_cleanup_releases_stale_runtime_without_clearing_active_backend(m
     manager = manager_module.OvPhysxManager
     events = []
     sentinel_callbacks = {17: object()}
-    manager._backend.physx = object()
+    manager.backend.physx = object()
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=object()))
     monkeypatch.setattr(PhysicsManager, "_callbacks", sentinel_callbacks)
 
     def release():
         events.append("release")
-        manager._backend.physx = None
+        manager.backend.physx = None
 
-    monkeypatch.setattr(manager._backend, "clear", release)
+    monkeypatch.setattr(manager.backend, "clear", release)
 
     manager._close_at_exit()
 
@@ -253,7 +253,7 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
 
     manager = manager_module.OvPhysxManager
     events = []
-    manager._backend.physx = object()
+    manager.backend.physx = object()
     lazy_manager = f"{manager.__module__}:{manager.__qualname__}"
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=lazy_manager))
 
@@ -262,7 +262,7 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
         raise RuntimeError("failure")
 
     monkeypatch.setattr(manager, "close", classmethod(fail_close))
-    monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
+    monkeypatch.setattr(manager.backend, "clear", lambda: events.append("release"))
 
     manager._close_at_exit()
 
@@ -283,11 +283,11 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
             events.append(("wait", operation))
 
     physx = FakePhysX()
-    manager._backend.physx = physx
+    manager.backend.physx = physx
     monkeypatch.setattr(
         manager_module.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value))
     )
-    manager._backend.stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
+    manager.backend.stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
 
     manager._prepare_physx_for_stage_reuse()
 
@@ -353,8 +353,8 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.PathDictionary = FakePathDictionary
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
-    manager._backend.stage = FakeStage()
-    manager._backend.physx = FakePhysX()
+    manager.backend.stage = FakeStage()
+    manager.backend.physx = FakePhysX()
     monkeypatch.setattr(
         manager,
         "_sim",

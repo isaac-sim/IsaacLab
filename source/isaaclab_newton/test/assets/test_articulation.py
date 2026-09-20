@@ -1194,8 +1194,8 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     new_model.joint_limit_upper = wp.array(
         limit_upper_values, dtype=wp.float32, device=old_model.joint_limit_upper.device
     )
-    SimulationManager._backend.state_0 = new_state
-    SimulationManager._backend.model = new_model
+    SimulationManager.backend.state_0 = new_state
+    SimulationManager.backend.model = new_model
 
     body_velocities = articulation.root_view.get_link_velocities(new_state)
     assert body_velocities is not None
@@ -1343,7 +1343,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
         dtype=wp.float32,
         device=old_model.joint_target_kd.device,
     )
-    SimulationManager._backend.model = new_model
+    SimulationManager.backend.model = new_model
     data._create_simulation_bindings()
 
     # The actuator-owned gains must survive the rebind unchanged...
@@ -3752,8 +3752,8 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
         @classmethod  # type: ignore[misc]
         def _patched_simulate(cls):
             if cls._needs_collision_pipeline:
-                bq = wp.to_torch(cls._backend.state_0.body_q)
-                jq = wp.to_torch(cls._backend.state_0.joint_q)
+                bq = wp.to_torch(cls.backend.state_0.body_q)
+                jq = wp.to_torch(cls.backend.state_0.joint_q)
                 b0 = int(body_starts[0])
                 jc0 = int(jc_starts[0])
                 captured["bq_root"] = bq[b0, :3].clone()

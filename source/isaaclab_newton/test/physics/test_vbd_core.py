@@ -62,7 +62,7 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     backend = sim.get_or_create_backend(cfg)
-    assert all(name not in vars(NewtonManager) for name in ("_model", "_state_0", "_state_1", "_control"))
+    assert all(name not in vars(NewtonManager) for name in ("_backend", "_model", "_state_0", "_state_1", "_control"))
     assert cfg.builder is builder
     assert backend is sim.get_or_create_backend(cfg)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
@@ -220,7 +220,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
 
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(simulate_physics_only))
     monkeypatch.setattr(
-        physics.NewtonVBDManager, "_backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state)
+        physics.NewtonVBDManager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state)
     )
     monkeypatch.setattr(physics.NewtonVBDManager, "_solver", Solver())
 

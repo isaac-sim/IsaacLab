@@ -275,7 +275,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     monkeypatch.setattr(NewtonManager, "_collision_cfg", None)
     monkeypatch.setattr(NewtonManager, "_contacts", None)
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=SimpleNamespace()))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace()))
     monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.GPU_TO_GPU)
 
     NewtonManager._initialize_contacts()
@@ -290,7 +290,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
 def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
     """BVH refitting raises when a particle BVH exists without an initialized sensor state."""
     model = SimpleNamespace(shape_count=0, particle_count=1, bvh_particles=object())
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=model))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model))
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
 
     with pytest.raises(RuntimeError, match="requires an initialized sensor state"):
@@ -342,7 +342,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(get_state))
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=model, state_0=state))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state))
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
@@ -367,7 +367,7 @@ def test_non_graph_capturable_sensor_task_runs_eagerly(monkeypatch):
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: state))
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=model, state_0=state))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state))
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_eager_tasks", set(), raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
@@ -1309,7 +1309,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(state_0=object()))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=object()))
     monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
     monkeypatch.setattr(
         NewtonManager,
@@ -1742,7 +1742,7 @@ def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_
     state_0 = _State("state_0")
     state_1 = _State("state_1")
 
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(state_0=state_0, state_1=state_1, control=object()))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=state_0, state_1=state_1, control=object()))
     monkeypatch.setattr(NewtonManager, "_solver_dt", 0.001)
     monkeypatch.setattr(NewtonManager, "_num_substeps", 2)
     monkeypatch.setattr(NewtonManager, "_collision_decimation", 0)
@@ -1829,7 +1829,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         # Kamino keeps separate input/output states; the bug only exists there.
         assert NewtonManager._use_single_state is False
         # The data layer binds its joint-state write target to _state_0 at setup.
-        reset_target = NewtonManager._backend.state_0.joint_q
+        reset_target = NewtonManager.backend.state_0.joint_q
         assert reset_target.shape[0] > 0  # guard against a vacuous assertion
 
         for _ in range(num_steps):
@@ -1840,7 +1840,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
 
         # The reset must be visible in the manager's canonical _state_0; if the
         # buffer flipped it landed in _state_1 instead.
-        canonical_joint_q = NewtonManager._backend.state_0.joint_q.numpy()
+        canonical_joint_q = NewtonManager.backend.state_0.joint_q.numpy()
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
@@ -1920,12 +1920,12 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
 
         sim.reset()
         assert NewtonManager._needs_collision_pipeline is True
-        old_backend = NewtonManager._backend
+        old_backend = NewtonManager.backend
         old_model = NewtonManager._collision_pipeline.model
         sim.step(render=False)
 
         sim.reset()
-        assert NewtonManager._backend is not old_backend
+        assert NewtonManager.backend is not old_backend
         assert old_backend.model is old_backend.state_0 is old_backend.state_1 is old_backend.control is None
         assert sum(isinstance(cfg, newton_manager_module.NewtonBackendCfg) for cfg, _ in sim._backend_registry) == 1
 

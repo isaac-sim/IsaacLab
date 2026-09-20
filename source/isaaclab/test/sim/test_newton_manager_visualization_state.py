@@ -59,7 +59,7 @@ def _set_sim_context(monkeypatch, nm, clone_plan=_DEFAULT, scene_data_provider=_
     sim.get_clone_plan = lambda: clone_plan
     sim.get_scene_data_provider = lambda: scene_data_provider
     sim.physics_manager = nm.PhysicsManager
-    monkeypatch.setattr(nm.NewtonManager, "_backend", None)
+    monkeypatch.setattr(nm.NewtonManager, "backend", None)
     monkeypatch.setattr(nm.SimulationContext, "instance", classmethod(lambda cls: sim))
     return sim
 
@@ -149,7 +149,7 @@ def _prepare_physx_shadow_sync(monkeypatch, provider, *, model, state_0, entitie
 
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=model, state_0=state_0))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state_0))
     NewtonManager._shadow_deformable_entities = list(entities)
     if sim_particle_count > 0:
         NewtonManager._sim_particle_q = wp.zeros(sim_particle_count, dtype=wp.vec3f, device="cpu")
@@ -298,7 +298,7 @@ def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
     NewtonManager._ensure_visualization_model()
-    assert NewtonManager._backend is None
+    assert NewtonManager.backend is None
 
 
 def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monkeypatch):
@@ -327,8 +327,8 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     NewtonManager._ensure_visualization_model()
 
     assert finalize_calls == ["cpu"]
-    assert NewtonManager._backend.model is not None
-    assert NewtonManager._backend.state_0 is not None
+    assert NewtonManager.backend.model is not None
+    assert NewtonManager.backend.state_0 is not None
     assert NewtonManager._scene_data_mapping is None
 
 
@@ -355,15 +355,15 @@ def test_physx_shadow_model_is_rebuilt_after_physics_stop(monkeypatch):
     )
 
     NewtonManager._ensure_visualization_model()
-    first_model = NewtonManager._backend.model
+    first_model = NewtonManager.backend.model
     NewtonManager._shadow_deformable_entities = [object()]
     ActivePhysicsManager.dispatch_event(PhysicsEvent.STOP)
 
-    assert NewtonManager._backend is None
+    assert NewtonManager.backend is None
     assert NewtonManager._shadow_deformable_entities is None
     assert NewtonManager._visualization_stop_callback is None
     NewtonManager._ensure_visualization_model()
-    assert NewtonManager._backend.model is not first_model
+    assert NewtonManager.backend.model is not first_model
 
 
 def test_ensure_visualization_model_empty_builder_supports_marker_only_scene(monkeypatch, caplog):
@@ -384,8 +384,8 @@ def test_ensure_visualization_model_empty_builder_supports_marker_only_scene(mon
     with caplog.at_level("INFO"):
         NewtonManager._ensure_visualization_model()
 
-    assert NewtonManager._backend.model is not None
-    assert NewtonManager._backend.state_0 is not None
+    assert NewtonManager.backend.model is not None
+    assert NewtonManager.backend.state_0 is not None
     assert any("no Newton bodies or particles" in r.message for r in caplog.records)
 
 
@@ -406,7 +406,7 @@ def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, ca
     with caplog.at_level("ERROR"):
         NewtonManager._ensure_visualization_model()
 
-    assert NewtonManager._backend is None
+    assert NewtonManager.backend is None
     assert any("no Newton bodies or particles" in r.message for r in caplog.records)
 
 
@@ -428,7 +428,7 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
     NewtonManager._ensure_visualization_model()
 
     assert NewtonManager.get_num_envs() == 4
-    assert NewtonManager._backend.model.num_envs == 4
+    assert NewtonManager.backend.model.num_envs == 4
 
 
 def test_ensure_visualization_model_builds_single_world_for_standalone_scene(monkeypatch):
@@ -457,7 +457,7 @@ def test_ensure_visualization_model_builds_single_world_for_standalone_scene(mon
     assert build_calls[0][1:3] == ([], None)
     assert build_calls[0][4] == "cpu"
     assert NewtonManager.get_num_envs() == 1
-    assert NewtonManager._backend.model.num_envs == 1
+    assert NewtonManager.backend.model.num_envs == 1
 
 
 def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch, caplog):
@@ -472,7 +472,7 @@ def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch
     with caplog.at_level("ERROR"):
         NewtonManager._ensure_visualization_model()
 
-    assert NewtonManager._backend is None
+    assert NewtonManager.backend is None
     assert any("No USD stage available" in r.message for r in caplog.records)
 
 
@@ -485,10 +485,10 @@ def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
     monkeypatch.setattr(NewtonManager, "get_scene_data_provider", classmethod(lambda cls: SimpleNamespace()))
 
     # Pre-set sentinel values to ensure update doesn't touch them.
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model="live-model", state_0="live-state"))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model="live-model", state_0="live-state"))
     NewtonManager.update_visualization_state()
-    assert NewtonManager._backend.model == "live-model"
-    assert NewtonManager._backend.state_0 == "live-state"
+    assert NewtonManager.backend.model == "live-model"
+    assert NewtonManager.backend.state_0 == "live-state"
 
 
 @pytest.mark.parametrize("newton_active", [True, False])
@@ -593,7 +593,7 @@ def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatc
     destination = wp.zeros(len(body_paths), dtype=wp.transformf, device="cpu")
     monkeypatch.setattr(
         NewtonManager,
-        "_backend",
+        "backend",
         SimpleNamespace(
             model=SimpleNamespace(body_label=body_paths, body_count=len(body_paths)),
             state_0=SimpleNamespace(body_q=destination, particle_q=None),
@@ -602,7 +602,7 @@ def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatc
 
     NewtonManager.update_visualization_state(provider)
 
-    assert NewtonManager._backend.state_0.body_q is destination
+    assert NewtonManager.backend.state_0.body_q is destination
     assert NewtonManager._scene_data.transforms is destination
     np.testing.assert_allclose(destination.numpy(), source_transforms.numpy())
 
@@ -641,7 +641,7 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     NewtonManager.update_visualization_state(provider)
 
     # Shadow buffer must remain the same object and receive a copy of live points.
-    assert NewtonManager._backend.state_0.particle_q is particle_q
+    assert NewtonManager.backend.state_0.particle_q is particle_q
     copied = particle_q.numpy()
     assert copied[0].tolist() == [1.0, 2.0, 3.0]
     assert copied[1].tolist() == [4.0, 5.0, 6.0]

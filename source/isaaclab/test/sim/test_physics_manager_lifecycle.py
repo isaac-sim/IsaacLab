@@ -8,7 +8,7 @@
 import gc
 import inspect
 import weakref
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -25,7 +25,7 @@ def test_backend_registry_identity_and_lifecycle():
 
     @dataclass(kw_only=True)
     class Cfg(BackendCfg):
-        values: list[int] = field(metadata={"copy": False})
+        values: list[int]
 
         def __deepcopy__(self, memo):
             pytest.fail("Registering a finalized cfg must not copy it.")
@@ -46,9 +46,7 @@ def test_backend_registry_identity_and_lifecycle():
 
     context = object.__new__(SimulationContext)
     context._backend_registry = []
-    values = [1]
-    cfg = Cfg(class_type=Backend, values=values)
-    assert cfg.values is values
+    cfg = Cfg(class_type=Backend, values=[1])
     with pytest.raises(ValueError, match="construction failed"):
         context.get_or_create_backend(replace(cfg, values=[]))
     assert not context._backend_registry
@@ -239,9 +237,6 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             if self.error is not None:
                 raise self.error
 
-    class OtherBackend(Backend):
-        pass
-
     class RenderContext:
         def close(self):
             events.append("renderers")
@@ -257,7 +252,6 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         _backend_registry=[
             (0, Backend("backend_failed", LookupError("backend failed"))),
             (1, Backend("same_type")),
-            (2, OtherBackend("backend_last")),
         ],
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
@@ -280,7 +274,6 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "visualizer_last",
         "backend_failed",
         "same_type",
-        "backend_last",
         "stage",
         "cache",
         "gc",

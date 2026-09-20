@@ -241,7 +241,7 @@ class NewtonCouplerManager(NewtonVBDManager):
     @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
-        backend = NewtonManager._backend
+        backend = NewtonManager.backend
         solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
         has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ()))
         if world_mask is not None and backend is not None and backend.model.world_count == 1 and has_mpm_entry:

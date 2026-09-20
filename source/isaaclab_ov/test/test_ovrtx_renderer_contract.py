@@ -82,11 +82,11 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer._backend = OVRTXBackend.__new__(OVRTXBackend)
-    renderer._backend.cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
-    renderer._backend.stage = renderer._backend.paths = None
-    renderer._backend._resources = contextlib.ExitStack()
-    SimulationContext.instance()._backend_registry.append((renderer._backend.cfg, renderer._backend))
+    renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
+    renderer.backend.cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
+    renderer.backend.stage = renderer.backend.paths = None
+    renderer.backend._resources = contextlib.ExitStack()
+    SimulationContext.instance()._backend_registry.append((renderer.backend.cfg, renderer.backend))
     return renderer
 
 
@@ -118,13 +118,13 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
 
-    assert not {"_renderer", "_stage", "_stage_paths", "_ovstage_exit_stack"}.intersection(vars(renderer))
-    assert renderer._backend.renderer is not None
+    assert not {"_backend", "_renderer", "_stage", "_stage_paths", "_ovstage_exit_stack"}.intersection(vars(renderer))
+    assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
-    assert SimulationContext.instance().get_or_create_backend(renderer._backend.cfg) is renderer._backend
+    assert SimulationContext.instance().get_or_create_backend(renderer.backend.cfg) is renderer.backend
     other = OVRTXRenderer(renderer.cfg.replace(enable_shadows=True))
-    assert other._backend is not renderer._backend
+    assert other.backend is not renderer.backend
     renderer.close()
     renderer.close()
     other.close()
@@ -584,7 +584,7 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_visual_counts = [1]
     renderer._particle_workaround_applied = True
     renderer._cable_segment_counts = [1]
-    renderer._backend.renderer = Backend()
+    renderer.backend.renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
@@ -618,8 +618,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = True
-    renderer._backend.stage = Stage()
-    renderer._backend.paths = StagePaths()
+    renderer.backend.stage = Stage()
+    renderer.backend.paths = StagePaths()
     renderer._camera_xform_query = "camera"
     renderer._camera_paths_list = "camera"
     renderer._object_xform_query = "object"
@@ -635,8 +635,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
-    renderer._backend.renderer = Backend()
-    renderer._backend._resources = ExitStack()
+    renderer.backend.renderer = Backend()
+    renderer.backend._resources = ExitStack()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
@@ -666,7 +666,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None
     assert renderer._particle_workaround_applied is False
-    assert renderer._backend.renderer is None
+    assert renderer.backend.renderer is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
     assert renderer._initialized_scene is False
@@ -699,9 +699,9 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._cable_points_query is None
     assert renderer._cable_paths_list is None
     assert renderer._object_newton_indices is None
-    assert renderer._backend.renderer is None
-    assert renderer._backend.stage is None
-    assert renderer._backend.paths is None
+    assert renderer.backend.renderer is None
+    assert renderer.backend.stage is None
+    assert renderer.backend.paths is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
     assert renderer._initialized_scene is False

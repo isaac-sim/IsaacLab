@@ -234,7 +234,8 @@ def test_timeline_play_stop(monkeypatch):
     sim.play()
     assert sim.is_playing()
     assert not sim.is_stopped()
-    resource = scene_data._backend
+    resource = scene_data.backend
+    assert resource is sim.physics_manager.backend
     view = sim.physics_sim_view
     assert resource.simulation_view is view
     assert scene_data.transforms.transforms is not None
@@ -257,7 +258,7 @@ def test_timeline_play_stop(monkeypatch):
     sim.play()
     assert create_view.call_count == 2
     assert sim.physics_sim_view is not view
-    assert scene_data._backend.simulation_view is sim.physics_sim_view
+    assert scene_data.backend.simulation_view is sim.physics_sim_view
     sim._disable_app_control_on_stop_handle = True
     sim.stop()
 

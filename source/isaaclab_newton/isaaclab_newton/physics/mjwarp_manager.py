@@ -97,7 +97,7 @@ class NewtonMJWarpManager(NewtonManager):
                 rigid_contact_max=cls._solver.get_max_contact_count(),
                 soft_contact_max=0,
                 device=PhysicsManager._device,
-                requested_attributes=cls._backend.model.get_requested_contact_attributes(),
+                requested_attributes=cls.backend.model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -132,7 +132,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
-        cls._solver.reset(cls._backend.state_0, world_mask=world_mask, flags=0)
+        cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

@@ -96,8 +96,8 @@ def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: Clone
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer._backend = SimpleNamespace()
-    renderer._backend.renderer = SimpleNamespace(
+    renderer.backend = SimpleNamespace()
+    renderer.backend.renderer = SimpleNamespace(
         clone_usd=lambda *args, **kwargs: None,
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
@@ -163,7 +163,7 @@ def test_clone_sources_in_ovrtx_uses_active_plan_rows():
     def _clone_usd(source: str, target_paths: list[str]) -> None:
         clone_calls.append((source, target_paths))
 
-    renderer._backend.renderer.clone_usd = _clone_usd
+    renderer.backend.renderer.clone_usd = _clone_usd
 
     renderer._clone_sources_in_ovrtx()
 
@@ -190,7 +190,7 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
     def _clone_usd(source: str, target_paths: list[str]) -> None:
         raise OSError("clone failed")
 
-    renderer._backend.renderer.clone_usd = _clone_usd
+    renderer.backend.renderer.clone_usd = _clone_usd
 
     with pytest.raises(RuntimeError, match="Failed to clone row 0 from /World/envs/env_0"):
         renderer._clone_sources_in_ovrtx()
@@ -215,13 +215,13 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
         call_order.append("clone")
         clone_calls.append((source, target_paths))
 
-    renderer._backend.renderer.clone_usd = _clone_usd
+    renderer.backend.renderer.clone_usd = _clone_usd
 
     def _write_attribute(**kwargs):
         call_order.append("write")
         write_calls.append(kwargs)
 
-    renderer._backend.renderer.write_attribute = _write_attribute
+    renderer.backend.renderer.write_attribute = _write_attribute
 
     renderer._clone_sources_in_ovrtx()
 
@@ -266,13 +266,13 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
         events.append(("paths", "envs", paths))
         return "env_paths"
 
-    renderer._backend.stage = SimpleNamespace(
+    renderer.backend.stage = SimpleNamespace(
         query_from_path_list=_query,
         clone=_clone,
         write_attribute=_write,
         release_query=lambda _query: completion,
     )
-    renderer._backend.paths = SimpleNamespace(
+    renderer.backend.paths = SimpleNamespace(
         create_path_list_from_strings=_create_paths,
         destroy_path_list=lambda _paths: None,
     )
@@ -469,9 +469,9 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     renderer._exported_usd_string = "#usda 1.0\n"
 
     open_calls: list[str] = []
-    renderer._backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
-    renderer._backend.renderer.bind_attribute = lambda **kwargs: object()
-    renderer._backend.renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
+    renderer.backend.renderer.bind_attribute = lambda **kwargs: object()
+    renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
     renderer._initialize_from_spec(_make_camera_render_spec(num_envs=1))
 
@@ -493,9 +493,9 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     renderer.cfg.temp_usd_dir = str(tmp_path)
     renderer._exported_usd_string = "#usda 1.0\n"
 
-    renderer._backend.renderer.open_usd_from_string = lambda _usd_string: None
-    renderer._backend.renderer.bind_attribute = lambda **kwargs: object()
-    renderer._backend.renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: None
+    renderer.backend.renderer.bind_attribute = lambda **kwargs: object()
+    renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
     class _FakeWarpDevice:
         ordinal = 1
@@ -519,7 +519,7 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
     call_order: list[str] = []
     write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
 
-    renderer._backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
+    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
     renderer._clone_sources_in_ovrtx = lambda: call_order.append("clone")
     renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
 
@@ -527,11 +527,11 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
         call_order.append("rewrite_cameras")
         write_array_calls.append((prim_paths, attribute_name, tensors))
 
-    renderer._backend.renderer.write_array_attribute = _write_array_attribute
-    renderer._backend.renderer.bind_attribute = lambda **_kwargs: object()
-    renderer._backend.renderer.write_attribute = lambda **_kwargs: None
-    renderer._setup_xform_bindings = lambda: None
-    renderer._setup_deformable_bindings = lambda _num_envs: None
+    renderer.backend.renderer.write_array_attribute = _write_array_attribute
+    renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
+    renderer.backend.renderer.write_attribute = lambda **_kwargs: None
+    renderer._setup_xform_bindings_legacy = lambda: None
+    renderer._setup_deformable_bindings_legacy = lambda _num_envs: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
     renderer._initialize_from_spec(spec)

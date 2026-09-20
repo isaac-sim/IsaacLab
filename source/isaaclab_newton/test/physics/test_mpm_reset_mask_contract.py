@@ -63,7 +63,7 @@ def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_st
 
     monkeypatch.setattr(SolverImplicitMPM, "reset", record_reset)
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=solver.model))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=solver.model))
     world_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
 
     NewtonMPMManager.reset_solver_state(state=state, world_mask=world_mask, flags=0)
@@ -79,7 +79,7 @@ def test_mpm_manager_explicit_reset_rejects_local_only_mask(cpu_mpm_solver_and_s
     """The explicit API requires the final global-world entry."""
     solver, state = cpu_mpm_solver_and_state
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=solver.model))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=solver.model))
     local_only_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
 
     with pytest.raises(ValueError, match=r"world_mask must have shape \(3,\); got \(2,\)"):
@@ -92,7 +92,7 @@ def test_mpm_manager_explicit_reset_promotes_selected_single_world(monkeypatch):
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_backend", SimpleNamespace(model=SimpleNamespace(world_count=1)))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(world_count=1)))
     monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
 
@@ -110,7 +110,7 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_solver", solver)
     monkeypatch.setattr(
         NewtonManager,
-        "_backend",
+        "backend",
         SimpleNamespace(
             model=SimpleNamespace(world_count=2),
             state_0=state_0,
@@ -128,7 +128,7 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     ]
 
     calls.clear()
-    NewtonManager._backend.state_1 = state_0
+    NewtonManager.backend.state_1 = state_0
 
     NewtonMPMManager.reset_solver_state(world_mask=world_mask, flags=17)
 

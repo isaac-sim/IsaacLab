@@ -99,8 +99,8 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             return
         if cls._rigid_solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
-        cls._rigid_solver.reset(cls._backend.state_0, world_mask=world_mask, flags=0)
-        cls._soft_solver.reset(cls._backend.state_0, world_mask=world_mask, flags=0)
+        cls._rigid_solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        cls._soft_solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _solver_specific_clear(cls) -> None:
@@ -114,7 +114,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     def _simulate_physics_only(cls) -> None:
         # Rebuild the BVH before stepping solvers that require it, such as VBD cloth.
         if hasattr(cls._soft_solver, "rebuild_bvh"):
-            cls._soft_solver.rebuild_bvh(cls._backend.state_0)
+            cls._soft_solver.rebuild_bvh(cls.backend.state_0)
         super()._simulate_physics_only()
 
     @classmethod
@@ -175,7 +175,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         if contact_capacity == 0:
             return
 
-        model = cls._backend.model
+        model = cls.backend.model
         # VBD mutates particle_q in place, so the kernel reconstructs prior positions from particle_qd.
         wp.launch(
             _kernel_body_particle_reaction,
