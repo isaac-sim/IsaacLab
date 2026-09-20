@@ -361,10 +361,20 @@ class Camera(SensorBase):
         averaged and ``cx/cy`` become half the image dimensions. OpenCV distortion cameras retain
         their spawn-time calibration and are skipped with a warning.
 
-        .. note::
-            Writing distinct per-view attributes does not remove a renderer's tiled-projection
-            limitations. Kit/OVRTX tiled products may share their first camera's lens settings;
-            use uniform calibration when the runtime does not support independent projections.
+        All three backends support uniform runtime updates to ordinary pinhole cameras: all
+        environments in a camera batch use the same new calibration.
+
+        .. warning::
+            Different intrinsics per environment are unsupported in the tested tiled configurations:
+
+            * Kit/OVRTX update per-view attributes and reported intrinsic matrices, but rendered
+              views still use the first camera's projection. This also occurs with direct USD writes.
+            * Newton Warp shares one ray field across environments. It raises :class:`ValueError`
+              if the resulting calibration differs between environments, leaving active calibration
+              unchanged.
+
+            Per-environment intrinsic randomization therefore requires additional renderer support;
+            successful attribute updates alone do not establish correct independent projections.
 
         Shape and batch cardinality are checked before any changes. Index validation and projection
         warnings transfer one status integer to the host; matrix and index batches stay on device.
