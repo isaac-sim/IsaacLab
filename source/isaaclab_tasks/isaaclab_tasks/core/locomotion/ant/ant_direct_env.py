@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg
-from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirectEnv
+from ..locomotion_direct_env import LocomotionDirectEnv
+from .ant_direct_env_cfg import AntEnvCfg
 
 
 class AntEnv(LocomotionDirectEnv):

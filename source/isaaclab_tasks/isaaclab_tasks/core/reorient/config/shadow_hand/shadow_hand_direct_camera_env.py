@@ -13,12 +13,12 @@ import torch
 
 from isaaclab.utils.math import scale_transform
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env import ShadowHandDirectEnv
-from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints
+from ...mdp.observations import compute_cube_keypoints
+from .feature_extractor import FeatureExtractor
+from .shadow_hand_direct_env import ShadowHandDirectEnv
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
+    from .shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 
 
 class ShadowHandCameraEnv(ShadowHandDirectEnv):

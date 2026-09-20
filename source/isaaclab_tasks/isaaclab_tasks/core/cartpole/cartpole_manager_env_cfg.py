@@ -20,10 +20,10 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.core.cartpole.cartpole_common import LIGHT_ORIENTATION, CartpolePhysicsCfg
-
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
+from . import mdp
+from .cartpole_common import LIGHT_ORIENTATION, CartpolePhysicsCfg
 
 ##
 # Scene definition

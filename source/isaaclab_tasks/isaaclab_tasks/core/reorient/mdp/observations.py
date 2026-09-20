@@ -22,8 +22,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import Camera
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-
+    from ..config.shadow_hand.feature_extractor import FeatureExtractorCfg
     from .commands import ReorientCommand
 
 
@@ -159,7 +158,7 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
         camera: Camera = env.scene.sensors[sensor_cfg.name]
         # deferred import: the config modules import this mdp package at module load
-        from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor  # noqa: PLC0415
+        from ..config.shadow_hand.feature_extractor import FeatureExtractor
 
         feature_extractor_cfg: FeatureExtractorCfg = cfg.params["feature_extractor_cfg"]
         self._feature_extractor = FeatureExtractor(
@@ -233,7 +232,8 @@ class ShadowHandCameraFeatures(ManagerTermBase):
 def _cube_corner_offsets(size: tuple[float, float, float], num_keypoints: int, device: str) -> torch.Tensor:
     """Corner offsets [m] from the cube center; corner index bits select the +/- half side per axis.
 
-    Cached per ``(size, num_keypoints, device)`` so the hot path does not rebuild the constant every step.
+    Cached per ``(size, num_keypoints, device)`` so the hot path does not rebuild the constant every step;
+    ``device`` is a string so that it is hashable for the cache.
     """
     signs = torch.tensor(
         [[1 - 2 * ((corner >> axis) & 1) for axis in range(3)] for corner in range(num_keypoints)],

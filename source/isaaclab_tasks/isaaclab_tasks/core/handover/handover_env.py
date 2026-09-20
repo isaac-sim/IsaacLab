@@ -16,8 +16,6 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
-from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.reorient.utils import (
     EpisodeErrorRecorder,
     randomize_rotation,
@@ -25,8 +23,11 @@ from isaaclab_tasks.core.reorient.utils import (
     sample_joint_positions_within_limits,
 )
 
+from .handover_common import GOAL_POSITION_OFFSET
+from .mdp.rewards import evaluate_handover_success, handover_reward
+
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
+    from .handover_env_cfg import HandoverEnvCfg
 
 
 class HandoverEnv(DirectMARLEnv):
@@ -329,10 +330,9 @@ class HandoverEnv(DirectMARLEnv):
         )
 
     def _compute_intermediate_values(self) -> None:
+        env_origins = self.scene.env_origins.unsqueeze(1)
         # data for right hand
-        self.right_fingertip_pos = self.right_hand.data.body_pos_w.torch[
-            :, self.finger_bodies
-        ] - self.scene.env_origins.unsqueeze(1)
+        self.right_fingertip_pos = self.right_hand.data.body_pos_w.torch[:, self.finger_bodies] - env_origins
         self.right_fingertip_rot = self.right_hand.data.body_quat_w.torch[:, self.finger_bodies]
         self.right_fingertip_velocities = self.right_hand.data.body_vel_w.torch[:, self.finger_bodies]
 
@@ -340,9 +340,7 @@ class HandoverEnv(DirectMARLEnv):
         self.right_hand_dof_vel = self.right_hand.data.joint_vel.torch
 
         # data for left hand
-        self.left_fingertip_pos = self.left_hand.data.body_pos_w.torch[
-            :, self.finger_bodies
-        ] - self.scene.env_origins.unsqueeze(1)
+        self.left_fingertip_pos = self.left_hand.data.body_pos_w.torch[:, self.finger_bodies] - env_origins
         self.left_fingertip_rot = self.left_hand.data.body_quat_w.torch[:, self.finger_bodies]
         self.left_fingertip_velocities = self.left_hand.data.body_vel_w.torch[:, self.finger_bodies]
 

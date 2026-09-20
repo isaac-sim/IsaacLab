@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
-
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+from ...cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
 
 
 @configclass

@@ -23,7 +23,7 @@ LIGHT_ORIENTATION: tuple[float, float, float, float] = (
     -0.3535534143447876,
     0.8535533547401428,
 )
-"""Distant light orientation as an ``(x, y, z, w)`` quaternion for euler angles (0, -45, -45) degrees."""
+"""Distant light orientation as an ``(x, y, z, w)`` quaternion for roll, pitch, yaw = (0, -45, -45) degrees."""
 
 
 @configclass

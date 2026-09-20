@@ -13,7 +13,7 @@ import torch
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.utils.math import sample_uniform
 
-from isaaclab_tasks.core.pendulum.pendulum_marl_env_cfg import PendulumMARLEnvCfg
+from .pendulum_marl_env_cfg import PendulumMARLEnvCfg
 
 
 class PendulumMARLEnv(DirectMARLEnv):

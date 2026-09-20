@@ -17,9 +17,9 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.core.cartpole.cartpole_common import LIGHT_ORIENTATION, CartpolePhysicsCfg
-
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
+from .cartpole_common import LIGHT_ORIENTATION, CartpolePhysicsCfg
 
 
 @configclass

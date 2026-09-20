@@ -11,20 +11,21 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-import isaaclab_tasks.core.reorient.mdp as mdp
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
-    ShadowHandTiledCameraCfg,
-    validate_shadow_hand_camera_settings,
-)
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import (
-    ShadowHandManagerEnvCfg,
-    ShadowHandManagerSceneCfg,
-)
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientFullStateObsCfg, ReorientRobotObsCfg
 from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES
+
+from ... import mdp
+from ...reorient_manager_env_cfg import ReorientFullStateObsCfg, ReorientRobotObsCfg
+from .feature_extractor import FeatureExtractorCfg
+from .shadow_hand_direct_camera_env_cfg import (
+    ShadowHandTiledCameraCfg,
+    validate_shadow_hand_camera_settings,
+)
+from .shadow_hand_manager_env_cfg import (
+    ShadowHandManagerEnvCfg,
+    ShadowHandManagerSceneCfg,
+)
 
 _PRETRAINED_CHECKPOINT_DIR = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl"
 _MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT = (

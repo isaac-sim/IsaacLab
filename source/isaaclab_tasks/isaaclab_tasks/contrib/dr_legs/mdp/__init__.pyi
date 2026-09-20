@@ -37,4 +37,6 @@ from .rewards import (
     root_orientation_exp,
     walk_success_rate,
 )
+# shared terms that used to live in this package, re-exported for backwards compatibility
+from isaaclab.envs.mdp import survival_success_rate
 from isaaclab.envs.mdp import *

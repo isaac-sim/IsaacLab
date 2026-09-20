@@ -9,10 +9,27 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
+import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
+
+TERRAIN_CFG = TerrainImporterCfg(
+    prim_path="/World/ground",
+    terrain_type="plane",
+    collision_group=-1,
+    physics_material=sim_utils.RigidBodyMaterialCfg(
+        friction_combine_mode="average",
+        restitution_combine_mode="average",
+        static_friction=1.0,
+        dynamic_friction=1.0,
+        restitution=0.0,
+    ),
+    debug_vis=False,
+)
+"""Flat ground plane the Humanoid walks on."""
 
 JOINT_GEARS: dict[str, float] = {
     ".*_waist.*": 67.5,

@@ -31,8 +31,9 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
 
 ##
 # Scene assets

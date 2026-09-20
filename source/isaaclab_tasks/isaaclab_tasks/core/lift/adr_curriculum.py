@@ -8,7 +8,7 @@
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.lift.mdp as mdp
+from . import mdp
 
 
 @configclass

@@ -7,9 +7,9 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
+
+from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 
 @configclass

@@ -32,9 +32,10 @@ from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
-import isaaclab_tasks.core.lift.mdp as mdp
-from isaaclab_tasks.core.lift.config.franka_soft import franka_soft_env_cfg as soft
 from isaaclab_tasks.utils import PresetCfg
+
+from ... import mdp
+from . import franka_soft_env_cfg as soft
 
 ##
 # Physics backend presets

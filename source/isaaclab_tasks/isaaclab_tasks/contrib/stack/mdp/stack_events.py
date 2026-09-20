@@ -314,11 +314,11 @@ def randomize_visual_texture_material(
         return
 
     # enable replicator extension if not already enabled
-    from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
+    from isaaclab.sim.utils import enable_extension
 
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
-    import omni.replicator.core as rep  # noqa: PLC0415
+    import omni.replicator.core as rep
 
     # check to make sure replicate_physics is set to False, else raise error
     # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
@@ -348,7 +348,7 @@ def randomize_visual_texture_material(
     if not hasattr(asset, "cfg"):
         # Static assets carry no runtime view; 'asset' is the spawned cfg. Resolve the prim from
         # the stage by its spawned path. Local import: keep USD out of module load for pure cfg loading.
-        from isaaclab.sim.utils import find_matching_prims  # noqa: PLC0415
+        from isaaclab.sim.utils import find_matching_prims
 
         asset_prim_path = find_matching_prims(asset.prim_path)[0].GetPath().pathString
         prims_group = rep.get.prims(path_pattern=f"{asset_prim_path}/visuals")

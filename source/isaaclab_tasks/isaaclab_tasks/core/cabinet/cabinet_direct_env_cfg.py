@@ -14,7 +14,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
+from .cabinet_env_cfg import (
     CABINET_CFG,
     LIGHT_CFG,
     PLANE_CFG,

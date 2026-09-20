@@ -15,10 +15,11 @@ from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-import isaaclab_tasks.core.lift.lift_env_cfg as lift
-import isaaclab_tasks.core.lift.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from ... import lift_env_cfg as lift
+from ... import mdp
 
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 """Fingertip bodies that carry an object contact sensor."""

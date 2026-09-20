@@ -299,7 +299,7 @@ def get_trocar_tip_position(
         torch.Tensor: Shape (num_envs, 3) - Position in world coordinates
     """
     # USD is a runtime dependency that must not load at config-import time
-    from pxr import Gf, Usd, UsdGeom  # noqa: PLC0415
+    from pxr import Gf, Usd, UsdGeom
 
     # Cache the tip offset to avoid recalculating every step.
     # The local offset from root to tip is a static geometric property of the USD

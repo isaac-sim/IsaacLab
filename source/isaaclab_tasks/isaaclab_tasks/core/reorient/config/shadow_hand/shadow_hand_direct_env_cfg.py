@@ -15,14 +15,14 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
+
+from .shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
     ShadowHandRobotCfg,
 )
-
-from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
 
 @configclass

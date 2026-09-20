@@ -12,9 +12,10 @@ import math
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.core.cartpole.cartpole_common import CartpoleTiledCameraCfg
-from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 from isaaclab_tasks.utils import PresetCfg
+
+from .cartpole_common import CartpoleTiledCameraCfg
+from .cartpole_direct_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 
 @configclass
@@ -59,6 +60,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
         def __post_init__(self):
             super().__post_init__()
+            # the base sets the proprioceptive camera view; widen it to see the camera environments
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
     default = BaseCartpoleCameraEnvCfg()

@@ -7,4 +7,6 @@ __all__ = ["CameraImageStack"]
 
 from .observations import CameraImageStack
 
+# shared terms that used to live in this package, re-exported for backwards compatibility
+from isaaclab.envs.mdp import joint_pos_target_l2, survival_success_rate
 from isaaclab.envs.mdp import *

@@ -24,8 +24,8 @@ from isaaclab.utils.math import (
 from isaaclab.utils.string import resolve_matching_names_values
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg
-    from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
+    from .ant.ant_direct_env_cfg import AntEnvCfg
+    from .humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
 
 
 class LocomotionDirectEnv(DirectRLEnv):

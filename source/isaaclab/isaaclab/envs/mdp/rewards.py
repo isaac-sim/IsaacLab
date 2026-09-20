@@ -75,7 +75,8 @@ def terminated_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
 
     :class:`~isaaclab.managers.RewardManager` scales every term by the step interval, which would make a
     plain terminal penalty depend on ``sim.dt`` and ``decimation``. Dividing by the step interval here
-    cancels that scaling, so the term contributes exactly its weight on the step the episode terminates.
+    cancels that scaling, so the term contributes exactly its weight on the step the episode terminates. This
+    keeps the penalty equal to the fixed death cost the direct workflow applies.
     """
     return env.termination_manager.terminated.float() / env.step_dt
 

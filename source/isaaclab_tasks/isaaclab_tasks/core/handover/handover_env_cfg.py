@@ -24,7 +24,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
@@ -35,6 +34,8 @@ from isaaclab_assets.robots.shadow_hand import (
     TENDON_NAMES,
     TENDON_POSITION_LIMITS,
 )
+
+from .handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
 
 
 def _hand_cfg(

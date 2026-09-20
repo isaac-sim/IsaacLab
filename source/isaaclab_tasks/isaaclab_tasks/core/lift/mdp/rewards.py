@@ -105,7 +105,6 @@ class success_reward(ManagerTermBase):
 
     Maintains a sticky ``succeeded`` boolean tensor per environment that flips to ``True`` once
     the success condition is met during an episode and resets to ``False`` on environment reset.
-
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -406,7 +405,7 @@ def deformable_com_ee_distance(
 class _GoalDistanceReward(ManagerTermBase):
     """Base class for goal-distance rewards that also log the episode success rate.
 
-    Subclasses set :attr:`_succeeded` in ``__call__``; the flag is flushed to ``Metrics/success_rate``
+    Subclasses set ``_succeeded`` in ``__call__``; the flag is flushed to ``Metrics/success_rate``
     in ``extras["log"]`` on reset.
     """
 

@@ -19,16 +19,16 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.locomotion.mdp as mdp
-from isaaclab_tasks.core.locomotion.humanoid.humanoid_common import (
+from isaaclab_assets.robots.humanoid import HUMANOID_CFG
+
+from .. import mdp
+from .humanoid_common import (
     FEET_BODY_NAMES,
     JOINT_EFFORT_LIMITS,
     JOINT_GEARS,
     WALK_TARGET_POS,
     HumanoidPhysicsCfg,
 )
-
-from isaaclab_assets.robots.humanoid import HUMANOID_CFG
 
 ##
 # Scene definition

@@ -331,6 +331,7 @@ class DifficultyScheduler(ManagerTermBase):
         promotion_only: bool = False,
         success_term_name: str = "success",
     ) -> float:
+        # the success term must be a class-based reward exposing a per-environment boolean ``succeeded`` buffer
         succeeded = env.reward_manager.get_term_cfg(success_term_name).func.succeeded[env_ids]
         current = self.current_difficulties[env_ids]
         demoted = current if promotion_only else current - 1
@@ -368,6 +369,7 @@ def initial_final_interpolate_fn(
     """
     difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
     frac = difficulty_term.difficulty_frac
+    # leave the parameter at its configured value until the curriculum has made some progress
     if frac < 0.1:
         return modify_env_param.NO_CHANGE
     return _interpolate_nested(initial_value, final_value, data, frac)

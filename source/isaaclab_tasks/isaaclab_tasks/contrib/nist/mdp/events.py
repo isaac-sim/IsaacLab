@@ -17,15 +17,15 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
-from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
-from isaaclab_tasks.contrib.nist.assembly_profile_cfg import AssemblyProfileCfg
+from ..assembly_keypoints import NIST_BOARD_CFG
+from ..assembly_profile_cfg import AssemblyProfileCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 
-    from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
+    from ..assembly_keypoints import Offset
 
 
 def reset_fixed_asset_uniform(

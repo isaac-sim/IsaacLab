@@ -15,15 +15,15 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.locomotion.ant.ant_common import (
+from isaaclab_assets.robots.ant import ANT_CFG
+
+from .ant_common import (
     FEET_BODY_NAMES,
     JOINT_GEARS,
     TERRAIN_CFG,
     WALK_TARGET_POS,
     AntPhysicsCfg,
 )
-
-from isaaclab_assets.robots.ant import ANT_CFG
 
 
 @configclass

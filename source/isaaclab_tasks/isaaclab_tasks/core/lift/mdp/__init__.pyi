@@ -114,4 +114,6 @@ from .terminations import (
 )
 from .utils import get_reset_state, set_reset_state
 
+# shared terms that used to live in this package, re-exported for backwards compatibility
+from isaaclab.envs.mdp import DifficultyScheduler, initial_final_interpolate_fn
 from isaaclab.envs.mdp import *

@@ -13,13 +13,14 @@ from isaaclab.sensors import CameraCfg, JointWrenchSensorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import (
+from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from .feature_extractor import FeatureExtractorCfg
+from .shadow_hand_direct_env_cfg import (
     ShadowHandEnvCfg,
     ShadowHandSceneCfg,
 )
-from isaaclab_tasks.utils import PresetCfg, preset
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 _PRETRAINED_CHECKPOINT_DIR = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl"
 _DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT = (

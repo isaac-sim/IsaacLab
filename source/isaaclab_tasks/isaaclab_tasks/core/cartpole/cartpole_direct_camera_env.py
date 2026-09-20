@@ -16,10 +16,10 @@ from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
-from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
+from .cartpole_direct_env import CartpoleEnv
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
+    from .cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
 
 class CartpoleCameraEnv(CartpoleEnv):
@@ -94,7 +94,8 @@ class CartpoleCameraEnv(CartpoleEnv):
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
-        return {"policy": obs, "critic": super()._get_observations()["policy"]}
+        critic_obs = super()._get_observations()["policy"]
+        return {"policy": obs, "critic": critic_obs}
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)

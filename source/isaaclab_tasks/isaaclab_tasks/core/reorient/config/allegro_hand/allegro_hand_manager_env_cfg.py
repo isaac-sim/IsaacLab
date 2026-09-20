@@ -10,17 +10,18 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.reorient.mdp as mdp
-from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
+from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
+
+from ... import mdp
+from ...reorient_manager_env_cfg import ReorientManagerEnvBaseCfg, ReorientSceneBaseCfg
+from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientManagerEnvBaseCfg, ReorientSceneBaseCfg
-from isaaclab_tasks.utils import PresetCfg
-
-from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass

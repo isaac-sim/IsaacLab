@@ -9,10 +9,10 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.cabinet.mdp as mdp
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
-
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+from ... import mdp
+from ...cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
 
 
 @configclass

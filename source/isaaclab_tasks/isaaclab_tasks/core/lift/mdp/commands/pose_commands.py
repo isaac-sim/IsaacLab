@@ -76,7 +76,8 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         if not self.cfg.position_only:
             self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
-        # -- success markers, always visible
+
+        # success markers, always visible
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
         if self.success_vis_asset is not None:

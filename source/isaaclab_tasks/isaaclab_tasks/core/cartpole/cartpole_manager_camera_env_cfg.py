@@ -13,10 +13,11 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.core.cartpole.cartpole_common import CartpoleTiledCameraCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
+from .cartpole_common import CartpoleTiledCameraCfg
+from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 
 ##
 # Scene definition

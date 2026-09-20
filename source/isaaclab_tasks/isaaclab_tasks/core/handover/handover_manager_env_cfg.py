@@ -19,12 +19,13 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
-from isaaclab_tasks.core.handover.handover_env_cfg import BALL_CFG, LeftHandCfg, PhysicsCfg, RightHandCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
+
+from . import mdp
+from .handover_env_cfg import BALL_CFG, LeftHandCfg, PhysicsCfg, RightHandCfg
 
 ##
 # Scene definition
@@ -65,7 +66,7 @@ class CommandsCfg:
 
 
 TENDON_ACTION_CFG = mdp.FixedTendonPositionActionCfg(
-    asset_name="robot",
+    asset_name="robot",  # placeholder, replaced per hand below
     tendon_names=TENDON_NAMES,
     # four of the twenty motors pull a tendon across a finger's middle and distal joints; tendons have
     # their own index space, so no joint term can reach them. Map the policy's [-1, 1] onto the
@@ -74,7 +75,7 @@ TENDON_ACTION_CFG = mdp.FixedTendonPositionActionCfg(
     offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
     clip={".*": TENDON_POSITION_LIMITS},
 )
-"""Tendon position action term of one hand, before the asset name is set."""
+"""Tendon position action term shared by both hands; ``asset_name`` is replaced per hand."""
 
 
 @configclass
@@ -114,10 +115,10 @@ class PolicyCfg(ObsGroup):
         func=reorient_mdp.fingertip_vel,
         params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
     )
+    right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
     # a hand's motors span two action terms, so its previous command does too: without the tendon
     # term the policy sees 16 of the 20 actions it took, and the group falls 4 short of the 133
     # hand dimensions the Direct task lays out
-    right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
     right_tendon_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand_tendons"})
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
     object_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})

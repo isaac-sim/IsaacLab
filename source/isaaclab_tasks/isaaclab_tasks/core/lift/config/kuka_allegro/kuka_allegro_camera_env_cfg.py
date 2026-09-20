@@ -14,18 +14,19 @@ renderer backend remain ``presets=`` selectable through the camera configs.
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
+from isaaclab_tasks.utils import PresetCfg
+
+from .camera_cfg import (
     BaseTiledCameraCfg,
     DuoCameraObservationsCfg,
     SingleCameraObservationsCfg,
     WristTiledCameraCfg,
 )
-from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import (
+from .kuka_allegro_env_cfg import (
     KukaAllegroLiftEnvCfg,
     KukaAllegroReorientEnvCfg,
     KukaAllegroSceneCfg,
 )
-from isaaclab_tasks.utils import PresetCfg
 
 _SCENE_KWARGS = {"num_envs": 4096, "env_spacing": 3, "replicate_physics": True}
 

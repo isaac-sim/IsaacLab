@@ -24,10 +24,11 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG, SHADOW_HAND_PHYSX_CFG
+
+from ... import mdp
 
 
 @configclass

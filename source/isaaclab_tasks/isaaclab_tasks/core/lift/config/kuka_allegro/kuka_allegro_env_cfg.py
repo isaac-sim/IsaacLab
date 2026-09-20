@@ -12,11 +12,11 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.lift.lift_env_cfg as lift
-import isaaclab_tasks.core.lift.mdp as mdp
-from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import FINGERTIP_LIST, StateObservationCfg
-
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
+
+from ... import lift_env_cfg as lift
+from ... import mdp
+from .camera_cfg import FINGERTIP_LIST, StateObservationCfg
 
 THUMB_SENSOR = "thumb_link_3_object_s"
 """Contact sensor of the thumb."""

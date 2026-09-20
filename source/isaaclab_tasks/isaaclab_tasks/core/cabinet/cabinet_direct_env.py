@@ -16,7 +16,7 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg
+    from .cabinet_direct_env_cfg import CabinetDirectEnvCfg
 
 
 class CabinetDirectEnv(DirectRLEnv):
@@ -53,7 +53,7 @@ class CabinetDirectEnv(DirectRLEnv):
         self.arm_joint_targets = torch.zeros((self.num_envs, len(self.arm_joint_ids)), device=self.device)
         self.finger_joint_targets = torch.zeros((self.num_envs, len(self.finger_joint_ids)), device=self.device)
 
-        # frame offsets, broadcast to all environments
+        # frame offsets, repeated for every environment
         self.ee_pos_offset = self._repeat_per_env(self.cfg.ee_pos_offset)
         self.finger_pos_offset = self._repeat_per_env(self.cfg.finger_pos_offset)
         self.drawer_handle_pos_offset = self._repeat_per_env(self.cfg.drawer_handle_pos_offset)

@@ -9,13 +9,13 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+from isaaclab_assets import G1_MINIMAL_CFG
+
+from ... import mdp
+from ...velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
-
-from isaaclab_assets import G1_MINIMAL_CFG
 
 
 @configclass

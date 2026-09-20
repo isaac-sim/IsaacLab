@@ -23,15 +23,15 @@ from isaaclab.utils.math import (
     unscale_transform,
 )
 
-from isaaclab_tasks.core.reorient.utils import (
+from .utils import (
     EpisodeErrorRecorder,
     randomize_rotation,
     sample_joint_positions_within_limits,
 )
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+    from .config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
+    from .config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
 
 class ReorientDirectEnv(DirectRLEnv):
@@ -302,10 +302,9 @@ class ReorientDirectEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self) -> None:
         """Refresh the torch-side state snapshots consumed by the observation and reward paths."""
+        env_origins = self.scene.env_origins.unsqueeze(1)
         # data for hand
-        self.fingertip_pos = self.hand.data.body_pos_w.torch[:, self.finger_bodies] - self.scene.env_origins.unsqueeze(
-            1
-        )
+        self.fingertip_pos = self.hand.data.body_pos_w.torch[:, self.finger_bodies] - env_origins
         self.fingertip_rot = self.hand.data.body_quat_w.torch[:, self.finger_bodies]
         self.fingertip_velocities = self.hand.data.body_vel_w.torch[:, self.finger_bodies]
 
@@ -408,9 +407,8 @@ def reorient_reward(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Compute the Direct reorientation reward and success state transition.
 
-    The success evaluation is not recomputed here: callers pass the flags and
-    orientation errors computed once
-    per step.
+    The success evaluation is not recomputed here: callers pass the flags and orientation errors
+    computed once per step.
 
     Args:
         reset_buf: Current episode-reset flags.

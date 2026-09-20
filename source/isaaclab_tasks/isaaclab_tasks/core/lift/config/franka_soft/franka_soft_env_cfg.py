@@ -45,11 +45,12 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
-import isaaclab_tasks.core.lift.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
+
+from ... import mdp
 
 ##
 # Scene assets

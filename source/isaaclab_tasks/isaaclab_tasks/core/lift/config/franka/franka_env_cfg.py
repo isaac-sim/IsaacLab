@@ -16,10 +16,10 @@ from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-import isaaclab_tasks.core.lift.lift_env_cfg as lift
-import isaaclab_tasks.core.lift.mdp as mdp
-
 from isaaclab_assets.robots import FRANKA_PANDA_CFG
+
+from ... import lift_env_cfg as lift
+from ... import mdp
 
 ##
 # Scene assets

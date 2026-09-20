@@ -27,8 +27,9 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
 
 ##
 # Scene definition

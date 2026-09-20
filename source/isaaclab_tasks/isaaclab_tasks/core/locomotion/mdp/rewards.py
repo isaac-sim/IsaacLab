@@ -15,7 +15,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
-import isaaclab_tasks.core.locomotion.mdp.observations as obs
+from . import observations as obs
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -111,9 +111,12 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
 
 
 class power_consumption(ManagerTermBase):
-    """Penalty for the power consumed by the actions to the environment.
+    """Penalty for the power consumed by the joint actions.
 
-    This is computed as commanded torque times the joint velocity.
+    Computed as the action scaled by its gear ratio, normalized by the largest gear ratio, times the joint
+    velocity, summed over joints. The effort action terms scale the actions by the same gear ratios, so up
+    to that normalization and the effort clip this is the commanded effort times the joint velocity. It
+    matches the electricity cost of the direct locomotion environments.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -127,7 +130,7 @@ class power_consumption(ManagerTermBase):
     ) -> torch.Tensor:
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
-        # return power = torque * velocity (here actions: joint torques)
+        # power = effort * velocity, with the effort taken as the gear-normalized action
         return torch.sum(
             torch.abs(env.action_manager.action * asset.data.joint_vel.torch * self.gear_ratio_scaled), dim=-1
         )
@@ -144,7 +147,8 @@ def _resolve_scaled_gear_ratio(gear_ratio: dict[str, float], asset: Articulation
         device: Device of the returned tensor.
 
     Returns:
-        Gear ratios divided by the maximum gear ratio, shape ``(num_joints,)``.
+        Gear ratios divided by the maximum gear ratio, shape ``(num_joints,)``. Broadcasts against the
+        ``(num_envs, num_joints)`` joint tensors.
     """
     gears = torch.ones(asset.num_joints, device=device)
     joint_ids, _, values = string_utils.resolve_matching_names_values(gear_ratio, asset.joint_names)

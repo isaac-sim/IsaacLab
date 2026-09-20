@@ -144,10 +144,11 @@ class object_point_cloud_b(ManagerTermBase):
             env: The environment.
             ref_asset_cfg: Scene entity providing the reference (root) frame. Defaults to ``SceneEntityCfg("robot")``.
             object_cfg: Scene entity of the object to sample. Defaults to ``SceneEntityCfg("object")``.
-            num_points: Number of surface points. Read at construction; changing it at runtime has no effect.
+            num_points: Number of surface points. Must match the value the points were sampled with at construction.
             flatten: Whether to return the points as ``(num_envs, 3 * num_points)`` instead of
                 ``(num_envs, num_points, 3)``.
-            visualize: Whether to draw markers for the points. Read at construction and per call.
+            visualize: Whether to draw markers for the points. The markers are only created when this is
+                ``True`` in the term parameters.
 
         Returns:
             Object surface points [m] in the reference root frame, flattened if requested.
@@ -210,7 +211,10 @@ class vision_camera(ManagerTermBase):
         images = self.sensor.data.output[self.sensor_type]
         torch.nan_to_num_(images, nan=1e6)
         if normalize:
-            images = torch.tanh(images / 2) - 0.5 if self._is_depth else images.float() / 255.0 - 0.5
+            if self._is_depth:
+                images = torch.tanh(images / 2) - 0.5
+            else:
+                images = images.float() / 255.0 - 0.5
             images = images.permute(0, 3, 1, 2).contiguous()
         return images
 

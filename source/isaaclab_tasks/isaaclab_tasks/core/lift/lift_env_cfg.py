@@ -30,9 +30,10 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.lift.mdp as mdp
-from isaaclab_tasks.core.lift.adr_curriculum import CurriculumCfg
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
+from .adr_curriculum import CurriculumCfg
 
 ##
 # Scene assets
@@ -590,8 +591,10 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 30 Hz
         self.episode_length_s = 12.0
         self.is_finite_horizon = False
+
         # commands: track the full pose
         self.commands.object_pose.position_only = False
+
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

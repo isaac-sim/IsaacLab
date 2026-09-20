@@ -17,7 +17,7 @@ from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
-from isaaclab_tasks.core.reorient.utils import SuccessTracker
+from ..utils import SuccessTracker
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject

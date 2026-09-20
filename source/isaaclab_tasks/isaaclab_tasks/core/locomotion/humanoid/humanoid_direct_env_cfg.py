@@ -15,15 +15,9 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.locomotion.ant.ant_common import TERRAIN_CFG
-from isaaclab_tasks.core.locomotion.humanoid.humanoid_common import (
-    FEET_BODY_NAMES,
-    JOINT_GEARS,
-    WALK_TARGET_POS,
-    HumanoidPhysicsCfg,
-)
-
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG
+
+from .humanoid_common import FEET_BODY_NAMES, JOINT_GEARS, TERRAIN_CFG, WALK_TARGET_POS, HumanoidPhysicsCfg
 
 
 @configclass

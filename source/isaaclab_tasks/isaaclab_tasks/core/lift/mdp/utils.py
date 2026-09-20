@@ -54,10 +54,10 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
         Surface points [m] in the object root frame, shape ``(num_envs, num_points, 3)``.
     """
     # USD and trimesh are runtime dependencies that must not load at config-import time
-    import trimesh  # noqa: PLC0415
-    from trimesh.sample import sample_surface  # noqa: PLC0415
+    import trimesh
+    from trimesh.sample import sample_surface
 
-    from pxr import UsdGeom  # noqa: PLC0415
+    from pxr import UsdGeom
 
     points = torch.zeros((num_envs, num_points, 3), dtype=torch.float32, device=device)
     xform_cache = UsdGeom.XformCache()
@@ -198,7 +198,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
 
 def _triangulate_faces(prim) -> np.ndarray:
     """Convert a USD Mesh prim into triangulated face indices (N, 3)."""
-    from pxr import UsdGeom  # noqa: PLC0415
+    from pxr import UsdGeom
 
     mesh = UsdGeom.Mesh(prim)
     counts = mesh.GetFaceVertexCountsAttr().Get()
@@ -214,9 +214,9 @@ def _triangulate_faces(prim) -> np.ndarray:
 
 def create_primitive_mesh(prim) -> trimesh.Trimesh:
     """Create a trimesh mesh from a USD primitive (Cube, Sphere, Cylinder, etc.)."""
-    import trimesh  # noqa: PLC0415
+    import trimesh
 
-    from pxr import UsdGeom  # noqa: PLC0415
+    from pxr import UsdGeom
 
     prim_type = prim.GetTypeName()
     if prim_type == "Cube":
@@ -297,11 +297,11 @@ def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, t
     Returns:
         One merged mesh per owner key.
     """
-    import trimesh  # noqa: PLC0415
+    import trimesh
 
-    from pxr import UsdPhysics  # noqa: PLC0415
+    from pxr import UsdPhysics
 
-    from isaaclab.utils.mesh import (  # noqa: PLC0415
+    from isaaclab.utils.mesh import (
         PRIMITIVE_MESH_TYPES,
         create_trimesh_from_geom_mesh,
         create_trimesh_from_geom_shape,

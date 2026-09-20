@@ -18,16 +18,16 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.locomotion.mdp as mdp
-from isaaclab_tasks.core.locomotion.ant.ant_common import (
+from isaaclab_assets.robots.ant import ANT_CFG
+
+from .. import mdp
+from .ant_common import (
     FEET_BODY_NAMES,
     JOINT_GEARS,
     TERRAIN_CFG,
     WALK_TARGET_POS,
     AntPhysicsCfg,
 )
-
-from isaaclab_assets.robots.ant import ANT_CFG
 
 ##
 # Scene definition
