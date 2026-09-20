@@ -52,6 +52,7 @@ Guidelines for modifications:
 * Alex Omar
 * Alexander Millane
 * Alice Zhou
+* alltheseas
 * Amr Mousa
 * Andrei Aristarkhov
 * Andrej Orsula
