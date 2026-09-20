@@ -105,12 +105,14 @@ def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_id
     """Rejected lag updates leave the existing per-batch configuration unchanged."""
     initial_lags = torch.arange(delay_buffer.batch_size, dtype=torch.int) % 5
     delay_buffer.set_time_lag(initial_lags)
-    expected_lags = delay_buffer.time_lags.clone()
+    expected_lags = delay_buffer.time_lags
+    expected_values = expected_lags.clone()
 
     with pytest.raises(ValueError):
         delay_buffer.set_time_lag(time_lag, batch_ids)
 
-    assert torch.equal(delay_buffer.time_lags, expected_lags)
+    assert delay_buffer.time_lags is expected_lags
+    assert torch.equal(delay_buffer.time_lags, expected_values)
     assert delay_buffer.min_time_lag == 0
     assert delay_buffer.max_time_lag == 4
 
