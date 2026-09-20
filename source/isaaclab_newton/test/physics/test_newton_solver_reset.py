@@ -92,7 +92,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
             env_ids=env_ids,
         )
 
-        state = SimulationManager._state_0
+        state = SimulationManager._backend.state_0
         joint_q_before = wp.to_torch(state.joint_q).clone()
         joint_qd_before = wp.to_torch(state.joint_qd).clone()
         warm_start[0].fill_(13.0)

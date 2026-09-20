@@ -8,3 +8,6 @@ Changed
   with ``sim.clear_backend(backend_cfg)``. Resources must implement ``clear()``.
 * **Breaking:** Separated clone contexts from native ownership. Replace clone-context registration
   through ``get_or_create_backend(Context, ...)`` with ``sim.clone_contexts[Context] = Context(...)``.
+* Added ``field(metadata={"copy": False})`` support to ``configclass`` for borrowed native inputs.
+  Construction, ``copy()``, and ``replace()`` preserved these references without changing the
+  independent copying of ordinary configuration fields.

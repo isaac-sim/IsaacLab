@@ -8,7 +8,7 @@
 import gc
 import inspect
 import weakref
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -21,17 +21,16 @@ from isaaclab.visualizers import VisualizerCfg
 
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
-    from isaaclab.sim import SimulationContext
+    from isaaclab.sim import BackendCfg, SimulationContext
 
-    @dataclass
-    class Cfg:
-        class_type: type
-        values: list[int]
+    @dataclass(kw_only=True)
+    class Cfg(BackendCfg):
+        values: list[int] = field(metadata={"copy": False})
 
         def __deepcopy__(self, memo):
             pytest.fail("Registering a finalized cfg must not copy it.")
 
-    @dataclass
+    @dataclass(kw_only=True)
     class OtherCfg(Cfg):
         pass
 
@@ -47,7 +46,9 @@ def test_backend_registry_identity_and_lifecycle():
 
     context = object.__new__(SimulationContext)
     context._backend_registry = []
-    cfg = Cfg(Backend, [1])
+    values = [1]
+    cfg = Cfg(class_type=Backend, values=values)
+    assert cfg.values is values
     with pytest.raises(ValueError, match="construction failed"):
         context.get_or_create_backend(replace(cfg, values=[]))
     assert not context._backend_registry
@@ -56,12 +57,12 @@ def test_backend_registry_identity_and_lifecycle():
     assert first.cfg is cfg
     different_cfg = replace(cfg, values=[1, 2])
     second = context.get_or_create_backend(different_cfg)
-    other_cfg = context.get_or_create_backend(OtherCfg(Backend, [1]))
+    other_cfg = context.get_or_create_backend(OtherCfg(class_type=Backend, values=[1]))
     other_type = context.get_or_create_backend(replace(cfg, class_type=OtherBackend))
     assert len({id(resource) for resource in (first, second, other_cfg, other_type)}) == 4
-    assert context.get_or_create_backend(Cfg(Backend, [1])) is first
+    assert context.get_or_create_backend(Cfg(class_type=Backend, values=[1])) is first
 
-    context.clear_backend(Cfg(Backend, [1]))
+    context.clear_backend(Cfg(class_type=Backend, values=[1]))
     first.clear.assert_called_once_with()
     assert all(resource.clear.call_count == 0 for resource in (second, other_cfg, other_type))
     with pytest.raises(KeyError):

@@ -9,13 +9,28 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .ovrtx_renderer import OVRTXRenderer
+    from .ovrtx_renderer import OVRTXBackend, OVRTXRenderer
+
+
+@configclass
+class OVRTXBackendCfg(BackendCfg):
+    """Native engine settings and the configuration of its detached scene owner."""
+
+    class_type: type[OVRTXBackend] | str = "{DIR}.ovrtx_renderer:OVRTXBackend"
+    renderer_cfg: OVRTXRendererCfg = MISSING
+    """Renderer configuration; incompatible scene/product policies require separate native engines."""
+    use_ovstage: bool = MISSING
+    """Whether the native resource owns a detached OVStage instead of the legacy internal stage."""
+    read_gpu_transforms: bool = MISSING
+    """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
 
 
 @configclass

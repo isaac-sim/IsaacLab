@@ -11,9 +11,9 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, NewtonSoftContactCfg
 
-from isaaclab.physics import PhysicsManager
+from isaaclab.sim import SimulationContext
 
 
 @pytest.mark.parametrize(
@@ -27,8 +27,9 @@ from isaaclab.physics import PhysicsManager
         ),
     ],
 )
-def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg, expected):
-    """Soft-contact configuration updates the finalized model when provided."""
+@pytest.mark.parametrize("simulation", [False, True], ids=["render", "physics"])
+def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, simulation):
+    """Registry construction shares the builder and applies model options before native allocation."""
     state_values = []
 
     class Model:
@@ -49,42 +50,27 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
             return object()
 
     class Builder:
-        body_label = ()
-        up_axis = None
-
         def finalize(self, *, device):
             return model
 
+        def __deepcopy__(self, memo):
+            pytest.fail("A native builder must be borrowed without copying.")
+
     model = Model()
-    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(soft_contact_cfg=soft_contact_cfg), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu", raising=False)
-    monkeypatch.setattr(NewtonManager, "_builder", Builder(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_up_axis", "Z", raising=False)
-    monkeypatch.setattr(NewtonManager, "_gravity_vector", (0.0, 0.0, -9.81), raising=False)
-    monkeypatch.setattr(NewtonManager, "_num_envs", 0, raising=False)
-    monkeypatch.setattr(NewtonManager, "_clone_physics_only", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_pending_extended_state_attributes", set(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_pending_extended_contact_attributes", set(), raising=False)
-    for attr in (
-        "_model",
-        "_state_0",
-        "_state_1",
-        "_control",
-        "_adapter",
-        "_use_newton_actuators_active",
-        "_world_reset_mask",
-        "_fk_reset_mask",
-    ):
-        monkeypatch.setattr(NewtonManager, attr, getattr(NewtonManager, attr, None), raising=False)
-    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {}, raising=False)
-    monkeypatch.setattr(NewtonManager, "_drain_stale_cuda_error", classmethod(lambda cls: None))
-    monkeypatch.setattr(NewtonManager, "dispatch_event", classmethod(lambda cls, event: None))
-
-    NewtonManager.start_simulation()
-
+    builder = Builder()
+    cfg = NewtonBackendCfg(builder=builder, device="cpu", soft_contact_cfg=soft_contact_cfg, simulation=simulation)
+    sim = object.__new__(SimulationContext)
+    sim._backend_registry = []
+    backend = sim.get_or_create_backend(cfg)
+    assert all(name not in vars(NewtonManager) for name in ("_model", "_state_0", "_state_1", "_control"))
+    assert cfg.builder is builder
+    assert backend is sim.get_or_create_backend(cfg)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
-
-    assert state_values == [expected, expected]
+    assert state_values == [expected] * (2 if simulation else 1)
+    assert (backend.state_1 is not None) == simulation
+    assert (backend.control is not None) == simulation
+    sim.clear_backend(cfg)
+    assert backend.model is backend.state_0 is backend.state_1 is backend.control is None
 
 
 @pytest.mark.parametrize("env_paths", [(), ("/World/Env_0", "/World/Env_1")], ids=["flat", "replicated"])
@@ -233,9 +219,10 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
         events.append(("step", cls))
 
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(simulate_physics_only))
-    monkeypatch.setattr(physics.NewtonVBDManager, "_model", SimpleNamespace(particle_count=1))
+    monkeypatch.setattr(
+        physics.NewtonVBDManager, "_backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state)
+    )
     monkeypatch.setattr(physics.NewtonVBDManager, "_solver", Solver())
-    monkeypatch.setattr(physics.NewtonVBDManager, "_state_0", state)
 
     physics.NewtonVBDManager._simulate_physics_only()
 

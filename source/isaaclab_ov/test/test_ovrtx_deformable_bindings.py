@@ -95,10 +95,11 @@ class _FakeOVRTXBackend:
 def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer._backend = SimpleNamespace()
     renderer._device = device
     renderer._camera_rel_path = "Camera"
     renderer._clone_plan = None
-    renderer._renderer = _FakeOVRTXBackend()
+    renderer._backend.renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
     renderer._deformable_particle_offsets = []
     renderer._deformable_particle_counts = []
@@ -112,7 +113,7 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._cable_points_binding = None
     renderer._cable_segment_counts = []
     renderer._use_ovstage = False
-    return renderer, renderer._renderer
+    return renderer, renderer._backend.renderer
 
 
 def test_points_array_binding_uses_write_not_map():
@@ -570,7 +571,7 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
         writes.append({"query": query, "attribute": attribute, **kwargs})
         return SimpleNamespace(wait=lambda: None)
 
-    renderer._stage = SimpleNamespace(write_attribute=_write)
+    renderer._backend.stage = SimpleNamespace(write_attribute=_write)
     renderer._current_ordinal = 7
     renderer._warp_device = wp.get_device("cuda:0")
 
