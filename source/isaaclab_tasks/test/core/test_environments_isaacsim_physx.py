@@ -25,8 +25,6 @@ _COVERED_TASKS = [
     "Isaac-Cartpole-Camera-Direct",  # Already covered by test_rendering_cartpole.py
     "Isaac-Lift-Cloth-Franka-Camera",  # Already covered by test_rendering_franka_cloth.py
     "Isaac-Lift-KukaAllegro-Camera",  # Already covered by test_rendering_lift_kuka_hetero.py
-    "Isaac-Lift-Soft-Franka",  # Temporarily excluded because it can crash the test process
-    "Isaac-Lift-Soft-Franka-Camera",  # Temporarily excluded because it can crash the test process
     "Isaac-Reorient-Cube-Shadow-Camera-Direct",  # Already covered by test_rendering_shadow_hand.py
     "Isaac-Velocity-Flat-AnymalD",  # Already covered by test_environment_determinism.py
     "Isaac-Velocity-Rough-AnymalD",  # Already covered by test_environment_determinism.py
@@ -40,14 +38,10 @@ _ENVIRONMENT_TASKS = setup_environment(
 )
 
 
-@pytest.mark.parametrize(
-    "task_name",
-    _ENVIRONMENT_TASKS,
-)
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
+@pytest.mark.parametrize("task_name", _ENVIRONMENT_TASKS)
 @pytest.mark.isaacsim_ci
-def test_environments_isaacsim_physx(task_name, num_envs, device):
-    _run_environments(task_name, device, num_envs, physics_preset_name="isaacsim_physx")
+def test_environments_isaacsim_physx(task_name):
+    _run_environments(task_name, "cuda", 2, physics_preset_name="isaacsim_physx")
 
 
 @pytest.mark.parametrize("task_name", [task for task in _ENVIRONMENT_TASKS if task in SINGLE_ENVIRONMENT_TASKS])

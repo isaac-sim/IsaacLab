@@ -42,6 +42,24 @@ class OperationalSpaceControllerCfg:
     partial_inertial_dynamics_decoupling: bool = False
     """Whether to ignore the inertial coupling between the translational & rotational motions."""
 
+    inertia_conditioning_thresholds: tuple[float, float] = (1.0e-5, 1.0e-4)
+    """Lower and upper relative eigenvalue thresholds for inertial decoupling near singularities.
+
+    Each eigenvalue of :math:`J M^{-1} J^T` is divided by its largest eigenvalue. Directions at or below
+    the lower threshold receive damping equal to the lower threshold times the largest eigenvalue,
+    added before inversion. A cubic smoothstep reduces this damping to zero at the upper threshold,
+    where the usual inverse is recovered. This bounds amplification without discarding weak directions.
+    Inertia calculations use double precision to limit cancellation near singularities.
+    Thresholds must satisfy ``0 < lower < upper <= 1``. With partial decoupling, each block is filtered
+    separately. The ratios depend on the task's translational and rotational scaling.
+
+    Full inertial decoupling uses the same damping for posture control: undamped directions remain
+    dynamically decoupled, while weak directions gradually become available to posture control.
+    Decoupling is approximate in damped directions. For singularity handling in operational space, see
+    `Chang and Khatib (1995) <https://khatib.stanford.edu/publications/pdfs/Chang_1995.pdf>`_.
+    Actuator effort limits must still be enforced separately.
+    """
+
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Event terms for the lift tasks."""
+"""Event terms for the lift environments."""
 
 from __future__ import annotations
 
@@ -580,7 +580,7 @@ class mesh_clearance(ManagerTermBase):
     Reset draws can place the object overlapping the arm; the solver resolves the overlap
     ballistically at episode birth. Checks both the object's surface point cloud against the
     robot's collision meshes and the robot's collision vertices against the object's collision
-    mesh with Warp signed-distance queries — the winding-number sign catches full containment.
+    mesh with Warp signed-distance queries; the winding-number sign catches full containment.
 
     The object point cloud comes from the same sampler as the point-cloud observation (per
     clone-plan prototype, geometry-keyed cache), so with the default count the cloud is
