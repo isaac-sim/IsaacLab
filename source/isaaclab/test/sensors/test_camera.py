@@ -368,32 +368,41 @@ def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera
 
 
 def test_intrinsic_matrix(setup_sim_camera):
-    """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
+    """Runtime calibration changes pixels without USD authoring and resets with the camera."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
     camera_cfg.update_latest_camera_pose = True
-    # init camera
+    camera_cfg.offset = CameraCfg.OffsetCfg(pos=(0.0, 0.0, 15.0), convention="opengl")
+    target = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
+    target.func("/World/CalibrationTarget", target, translation=(0.0, 0.0, 10.0))
     camera = Camera(camera_cfg)
-    # play sim
     sim.reset()
-    # Desired properties (obtained from realsense camera at 320x240 resolution)
-    rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = np.asarray(rs_intrinsic_matrix, dtype=float).reshape(1, 3, 3)
-    rs_intrinsic_matrix_tensor = torch.tensor(rs_intrinsic_matrix, dtype=torch.float32, device=camera.device)
-    # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix_tensor)
 
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        camera.update(dt)
-        # Check that matrix is correct
-        assert np.isclose(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices.torch[0, 0, 0].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices.torch[0, 1, 1].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices.torch[0, 0, 2].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2].item())
+    def width():
+        for _ in range(4):
+            sim.step()
+            camera.update(dt, force_recompute=True)
+        depth = camera.data.output["distance_to_image_plane"].torch[..., 0]
+        return ((depth > 4.0) & (depth < 6.0)).any(dim=1).sum(dim=1).float()
+
+    before = width()
+    assert (before > 20).all()
+    original = camera.data.intrinsic_matrices.torch.clone()
+    wider = original.clone()
+    wider[:, 0, 0] *= 0.5
+    wider[:, 1, 1] *= 0.5
+    authored = [attr.Get() for attr in camera._sensor_prims[0].GetPrim().GetAttributes()]
+    camera.set_intrinsic_matrices(wider)
+    torch.testing.assert_close(width(), before * 0.5, atol=2.0, rtol=0.0)
+    torch.testing.assert_close(camera.data.intrinsic_matrices.torch, wider)
+    assert [attr.Get() for attr in camera._sensor_prims[0].GetPrim().GetAttributes()] == authored
+
+    fabric = camera._render_data.intrinsic_stage
+    row_attribute = camera._render_data.intrinsic_row_attribute
+    sim.stop()
+    assert not fabric.GetPrimAtPath(camera_cfg.prim_path).GetAttribute(row_attribute).IsValid()
+    sim.reset()
+    torch.testing.assert_close(camera.data.intrinsic_matrices.torch, original)
+    torch.testing.assert_close(width(), before)
 
 
 def test_depth_clipping(setup_sim_camera):
@@ -882,6 +891,15 @@ def test_camera_multi_regex_init(setup_camera_device, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
                 for i in range(4):
                     assert im_data[i].mean() > 0.0
+    # Distinct selected rows must reach the matching Fabric prims, regardless of bucket order.
+    matrices = camera.data.intrinsic_matrices.torch[[8, 0, 4]].clone()
+    matrices[:, 0, 0] = matrices[:, 1, 1] = torch.tensor([100.0, 200.0, 300.0], device=device)
+    camera.set_intrinsic_matrices(matrices, env_ids=[8, 0, 4])
+    fabric = sim_utils.get_current_stage(fabric=True)
+    for row, index in enumerate((8, 0, 4)):
+        prim = fabric.GetPrimAtPath(camera._sensor_prims[index].GetPath().pathString)
+        fx = camera_cfg.width * prim.GetAttribute("focalLength").Get() / prim.GetAttribute("horizontalAperture").Get()
+        assert fx == pytest.approx(matrices[row, 0, 0].item())
     del camera
 
 

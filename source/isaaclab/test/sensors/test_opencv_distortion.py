@@ -23,6 +23,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -347,20 +348,24 @@ def intrinsic_camera(request):
 
 
 @pytest.mark.parametrize("env_ids", [None, [2, 0]])
-@pytest.mark.parametrize("batch_delta", [-1, 1])
-def test_intrinsic_batch_mismatch_is_atomic(intrinsic_camera, env_ids, batch_delta):
-    """Both mismatch directions fail before authoring USD or changing the camera's matrices."""
+@pytest.mark.parametrize("batch_delta", [-1, 0, 1])
+def test_intrinsic_batch_rejection_is_atomic(intrinsic_camera, env_ids, batch_delta):
+    """Cardinality errors and backend rejection leave USD and active calibration unchanged."""
     stage, camera = intrinsic_camera
     count = 3 if env_ids is None else len(env_ids)
     matrices = torch.eye(3, device=camera.device).repeat(count + batch_delta, 1, 1)
     usd_before = stage.ExportToString()
     data_before = camera._data.intrinsic_matrices.warp.numpy().copy()
+    parameters_before = camera._intrinsic_parameters.numpy().copy()
+    if batch_delta == 0:
+        camera._renderer.update_camera_intrinsics = Mock(side_effect=ValueError("Backend calibration constraint"))
 
-    with pytest.raises(ValueError, match="number of intrinsic matrices"):
+    with pytest.raises(ValueError, match="Backend calibration constraint|number of intrinsic matrices"):
         camera.set_intrinsic_matrices(matrices, env_ids=env_ids)
 
     assert stage.ExportToString() == usd_before
     np.testing.assert_array_equal(camera._data.intrinsic_matrices.warp.numpy(), data_before)
+    np.testing.assert_array_equal(camera._intrinsic_parameters.numpy(), parameters_before)
 
 
 @pytest.mark.parametrize(

@@ -41,6 +41,8 @@
 - Test observable behavior and public contracts, not implementation details.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
+- Extend existing camera tests and shared renderer scenes for calibration regressions; do not add a
+  standalone calibration scene or subprocess test harness.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.
 
 ## Changelog and release metadata

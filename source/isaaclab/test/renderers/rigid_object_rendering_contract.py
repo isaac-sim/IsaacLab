@@ -147,7 +147,7 @@ def _write_pose_and_render(
 
 
 def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert root-scale preservation and pose-to-pixel synchronization."""
+    """Assert root-scale preservation and pose/calibration changes in rendered pixels."""
     with backend.simulation_context_factory() as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_make_scene_cfg(backend))
@@ -186,6 +186,28 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
                 torch.all(torch.abs(center_centroids - (_CAMERA_WIDTH - 1) / 2) < 8.0),
                 f"[{backend.name}] Expected centered silhouettes, got centroids={center_centroids.tolist()}.",
             )
+
+            intrinsics = camera.data.intrinsic_matrices.torch.clone()
+            pointer = camera.data.intrinsic_matrices.warp.ptr
+            authored = [[attr.Get() for attr in prim.GetPrim().GetAttributes()] for prim in camera._sensor_prims]
+            zoomed = intrinsics.clone()
+            zoomed[:, 0, 0] *= 2.0
+            zoomed[:, 1, 1] *= 2.0
+            for focal_length in (None, 12.0):
+                camera.set_intrinsic_matrices(zoomed, focal_length=focal_length)
+                depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                _, widths, _ = _measure_depth_mask(depth, backend.name, camera)
+                torch.testing.assert_close(widths.float(), center_widths.float() * 2.0, atol=2.0, rtol=0.0)
+                torch.testing.assert_close(camera.data.intrinsic_matrices.torch, zoomed)
+                _require(camera.data.intrinsic_matrices.warp.ptr == pointer, "Calibration storage changed.")
+                _require(
+                    [[attr.Get() for attr in prim.GetPrim().GetAttributes()] for prim in camera._sensor_prims]
+                    == authored,
+                    "Runtime calibration authored USD.",
+                )
+                camera.set_intrinsic_matrices(intrinsics)
+                restored = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                torch.testing.assert_close(restored, center_depth)
 
             negative_poses = center_poses.clone()
             negative_poses[:, 0] -= _OBJECT_SHIFT
