@@ -545,6 +545,7 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = False
     renderer._camera_xform_binding = _RecordingBinding(events, "camera")
+    renderer._camera_intrinsic_bindings = [_RecordingBinding(events, "intrinsics")]
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
@@ -623,6 +624,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
 
     assert events == [
         "unbind:camera",
+        "unbind:intrinsics",
         "unbind:object",
         "unbind:deformable",
         "unbind:particle",
@@ -630,6 +632,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
+    assert renderer._camera_intrinsic_bindings == []
     assert renderer._object_xform_binding is None
     assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None

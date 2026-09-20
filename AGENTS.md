@@ -17,6 +17,10 @@
 - Do not remove or rename a public API without a prior deprecation and migration path.
 - Update public documentation when adding or changing public APIs.
 - Verify documented technical claims against the current code and primary sources before relying on them.
+- Runtime camera calibration belongs to the camera's device buffers. Import USD at initialization;
+  renderer implementations must consume device calibration through their native runtime APIs.
+  Do not restore per-camera USD access or matrix/index batch readbacks in calibration setters.
+  A scalar validation-status readback is allowed for synchronous errors and warnings.
 - Use the uv-managed environment for routine commands.
 - Use `uv run python` for Python scripts and tests.
 - Use `uv run isaaclab` for Isaac Lab CLI commands.

@@ -5,12 +5,12 @@
 
 """Kit-less tests for the renderer-agnostic OpenCV lens-distortion camera model.
 
-Two renderer-independent code paths are covered without a running simulation app, renderer or GPU:
+Renderer-independent authoring and calibration are covered without a running simulation app:
 
 * Authoring: :func:`isaaclab.sim.spawners.sensors.spawn_camera` with a ``distortion`` cfg authors the
   ``omni:lensdistortion:*`` USD API on the camera prim (which the RTX/OVRTX renderer round-trips
   through the USD export it loads).
-* Readback: :meth:`isaaclab.sensors.camera.Camera._update_intrinsic_matrices` reconstructs
+* Readback: :meth:`isaaclab.sensors.camera.Camera._initialize_intrinsics` reconstructs
   ``camera.data.intrinsic_matrices`` from the authored ``fx/fy/cx/cy`` (which may be non-square or
   off-center) instead of assuming ``fx == fy`` and a centered principal point.
 
@@ -165,7 +165,7 @@ def test_camera_without_distortion_authors_no_opencv_api():
 
 
 """
-Readback: Camera._update_intrinsic_matrices with an authored distortion model.
+Readback: Camera._initialize_intrinsics with an authored distortion model.
 """
 
 
@@ -200,15 +200,18 @@ def _camera_for_prims(prims, width=640, height=480, device="cpu"):
     fake._invalidate_initialize_handle = None
     fake._prim_deletion_handle = None
     fake._debug_vis_handle = None
-    fake._renderer = None
-    fake._render_data = None
+    fake._render_data = SimpleNamespace(parameters=None)
+    fake._renderer = SimpleNamespace(
+        update_camera_intrinsics=lambda data, _matrices, parameters: setattr(data, "parameters", wp.clone(parameters)),
+        cleanup=lambda _data: None,
+    )
+    fake._initialize_intrinsics()
     return fake
 
 
 def _read_back_intrinsics(cam, width, height):
     """Read authored USD calibration into the camera's real Warp matrix buffer."""
     camera = _camera_for_prims([cam], width, height)
-    camera._update_intrinsic_matrices()
     return camera._data.intrinsic_matrices.warp.numpy()[0]
 
 
@@ -278,7 +281,7 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     cam_logger = logging.getLogger("isaaclab.sensors.camera.camera")
     cam_logger.addHandler(handler)
     try:
-        Camera._update_intrinsic_matrices(fake)
+        Camera._initialize_intrinsics(fake)
     finally:
         cam_logger.removeHandler(handler)
 
@@ -340,7 +343,6 @@ def intrinsic_camera(request):
     stage = Usd.Stage.CreateInMemory()
     prims = [UsdGeom.Camera.Define(stage, f"/Camera_{i}") for i in range(3)]
     camera = _camera_for_prims(prims, device=request.param)
-    camera._update_intrinsic_matrices()
     return stage, camera
 
 
@@ -365,9 +367,10 @@ def test_intrinsic_batch_mismatch_is_atomic(intrinsic_camera, env_ids, batch_del
     "input_kind", ["torch", "torch_strided", "torch_double", "host_torch", "warp", "warp_matrix", "warp_matrix_double"]
 )
 @pytest.mark.parametrize("focal_length", [None, 24.0])
-def test_intrinsic_batch_matches_authored_usd(intrinsic_camera, input_kind, focal_length, caplog):
+def test_intrinsic_batch_matches_runtime_projection(intrinsic_camera, input_kind, focal_length, caplog):
     """Float32/64 and strided batches preserve projection semantics and selected-camera order."""
-    _stage, camera = intrinsic_camera
+    stage, camera = intrinsic_camera
+    usd_before = stage.ExportToString()
     requested = torch.tensor(
         [[[200.125, 0, 140], [0, 300.375, 110], [0, 0, 1]], [[611.25, 0, 350], [0, 589.5, 260], [0, 0, 1]]],
         dtype=torch.float32,
@@ -396,17 +399,14 @@ def test_intrinsic_batch_matches_authored_usd(intrinsic_camera, input_kind, foca
     actual = camera._data.intrinsic_matrices.warp.numpy()
     np.testing.assert_array_equal(actual[1], untouched)
     for row, env_id in enumerate([2, 0]):
-        prim = camera._sensor_prims[env_id]
         mean_focal = float((requested[row, 0, 0] + requested[row, 1, 1]).item()) / 2
         pixel_size = 1 / 640 if focal_length is None else focal_length / mean_focal
-        assert prim.GetFocalLengthAttr().Get() == pytest.approx(pixel_size * mean_focal)
-        assert prim.GetHorizontalApertureAttr().Get() == pytest.approx(pixel_size * 640)
-        assert prim.GetVerticalApertureAttr().Get() == pytest.approx(pixel_size * 480)
-        assert prim.GetHorizontalApertureOffsetAttr().Get() == 0.0
-        assert prim.GetVerticalApertureOffsetAttr().Get() == 0.0
-        effective_focal = 640 * prim.GetFocalLengthAttr().Get() / prim.GetHorizontalApertureAttr().Get()
+        parameters = camera._render_data.parameters.numpy()[:, env_id]
+        np.testing.assert_allclose(parameters, [pixel_size * mean_focal, pixel_size * 640, pixel_size * 480, 0, 0])
+        effective_focal = 640 * float(parameters[0]) / float(parameters[1])
         expected = [[effective_focal, 0, 320], [0, effective_focal, 240], [0, 0, 1]]
         np.testing.assert_allclose(actual[env_id], expected, rtol=1e-7)
+    assert stage.ExportToString() == usd_before
 
 
 @pytest.mark.parametrize("selection", ["all", "slice", "torch", "warp", "repeated", "negative", "empty"])
@@ -443,26 +443,29 @@ def test_intrinsic_camera_selections(intrinsic_camera, selection):
     for row, env_id in enumerate(ids):
         expected[env_id] = [[200 + row * 100, 0, 320], [0, 200 + row * 100, 240], [0, 0, 1]]
     np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy(), expected)
-    if not ids:
-        assert stage.ExportToString() == usd_before
+    assert stage.ExportToString() == usd_before
 
 
-def test_intrinsic_setter_does_not_read_matrices_or_pinhole_usd_back(intrinsic_camera, monkeypatch):
-    """Keep the matrix batch on device and avoid a second USD traversal after pinhole writes."""
+def test_intrinsic_setter_has_no_usd_or_batch_readback(intrinsic_camera, monkeypatch):
+    """Gate runtime ownership: only scalar validation status may cross to the host, and USD is unavailable."""
     _stage, camera = intrinsic_camera
     matrices = wp.from_torch(torch.eye(3, device=camera.device).repeat(3, 1, 1))
     original_numpy = wp.array.numpy
 
     def checked_numpy(array):
-        assert array.ptr != matrices.ptr, "Intrinsic matrices were transferred to the host"
+        assert array.ptr == camera._intrinsic_status.ptr, "Only scalar validation status may reach the host"
         return original_numpy(array)
 
     def reject_readback(*args, **kwargs):
-        pytest.fail("The pinhole setter read USD back after writing it")
+        pytest.fail("The runtime setter tried to import USD calibration")
 
     monkeypatch.setattr(wp.array, "numpy", checked_numpy)
-    monkeypatch.setattr(camera, "_update_intrinsic_matrices", reject_readback)
-    camera.set_intrinsic_matrices(matrices)
+    monkeypatch.setattr(camera, "_initialize_intrinsics", reject_readback)
+    # Runtime calibration must not even resolve a USD prim or layer.
+    camera.stage = None
+    camera._sensor_prims = None
+    indices = wp.array([2, 0, 1], dtype=wp.int32, device=camera.device)
+    camera.set_intrinsic_matrices(matrices, env_ids=indices)
     wp.synchronize_device(camera.device)
 
 
@@ -491,21 +494,9 @@ def test_single_intrinsic_matrix(intrinsic_camera, as_warp):
     np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy()[1], matrix.cpu().numpy())
 
 
-def test_intrinsic_refresh_reads_selected_usd_changes(intrinsic_camera):
-    """Explicit refresh still consumes external USD edits without touching other camera matrices."""
-    _stage, camera = intrinsic_camera
-    before = camera._data.intrinsic_matrices.warp.numpy().copy()
-    camera._sensor_prims[2].GetFocalLengthAttr().Set(12.0)
-    camera._sensor_prims[2].GetHorizontalApertureAttr().Set(32.0)
-    camera._update_intrinsic_matrices([2])
-    after = camera._data.intrinsic_matrices.warp.numpy()
-    np.testing.assert_array_equal(after[:2], before[:2])
-    np.testing.assert_allclose(after[2], [[240, 0, 320], [0, 240, 240], [0, 0, 1]])
-
-
 @pytest.mark.parametrize("edit_layer", ["root", "sublayer", "session"])
-def test_intrinsic_setter_respects_usd_composition(intrinsic_camera, edit_layer):
-    """The reported projection follows composed USD even when a stronger opinion shadows a write."""
+def test_runtime_intrinsics_are_independent_of_usd_edit_target(intrinsic_camera, edit_layer):
+    """Runtime calibration owns its values independently of USD composition and never authors layers."""
     stage, camera = intrinsic_camera
     with Usd.EditContext(stage, stage.GetSessionLayer()):
         camera._sensor_prims[1].GetFocalLengthAttr().Set(25.0)
@@ -518,9 +509,11 @@ def test_intrinsic_setter_respects_usd_composition(intrinsic_camera, edit_layer)
         target = stage.GetSessionLayer()
     matrix = torch.tensor([[[100.0, 0, 320], [0, 100.0, 240], [0, 0, 1]]], device=camera.device)
 
+    before = stage.ExportToString()
     with Usd.EditContext(stage, target):
         camera.set_intrinsic_matrices(matrix, env_ids=[1])
+    assert stage.ExportToString() == before
 
-    expected_focal = 100 if edit_layer == "session" else 500
+    expected_focal = 100
     expected = [[expected_focal, 0, 320], [0, expected_focal, 240], [0, 0, 1]]
     np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy()[1], expected)

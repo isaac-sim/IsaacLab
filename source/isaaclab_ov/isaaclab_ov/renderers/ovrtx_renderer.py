@@ -114,6 +114,13 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 # ``frame.render_vars`` keys of the render vars read below. Baked at import from the installed
 # OVRTX version, which decides whether frames are keyed by source name or RenderVar prim path.
 _LDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["LdrColor"]
+_CAMERA_INTRINSIC_ATTRIBUTES = (
+    "focalLength",
+    "horizontalAperture",
+    "verticalAperture",
+    "horizontalApertureOffset",
+    "verticalApertureOffset",
+)
 _HDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["HdrColor"]
 _ALBEDO_VAR = RENDER_VAR_FRAME_KEYS["DiffuseAlbedoSD"]
 _NORMALS_VAR = RENDER_VAR_FRAME_KEYS["NormalSD"]
@@ -511,6 +518,7 @@ class OVRTXRenderer(BaseRenderer):
         offset/count lists) stays in :meth:`__init__`.
         """
         self._camera_xform_binding = None
+        self._camera_intrinsic_bindings = []
         self._object_xform_binding = None
         self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
@@ -588,6 +596,16 @@ class OVRTXRenderer(BaseRenderer):
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.EXISTING_ONLY,
         )
+        self._camera_intrinsic_bindings = [
+            self._renderer.bind_attribute(
+                prim_paths=camera_paths,
+                attribute_name=name,
+                dtype="float32",
+                prim_mode=PrimMode.EXISTING_ONLY,
+                flags=BindingFlag.OPTIMIZE,
+            )
+            for name in _CAMERA_INTRINSIC_ATTRIBUTES
+        ]
 
         # OVRTX requires omni:resetXformStack on cameras for correct world transform binding
         self._renderer.write_attribute(
@@ -1549,6 +1567,9 @@ class OVRTXRenderer(BaseRenderer):
 
         _safe_unbind(self._camera_xform_binding, "camera transforms")
         self._camera_xform_binding = None
+        for binding in self._camera_intrinsic_bindings:
+            _safe_unbind(binding, "camera intrinsics")
+        self._camera_intrinsic_bindings = []
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
         self._object_transform_buffer = None
@@ -1721,6 +1742,29 @@ class OVRTXRenderer(BaseRenderer):
             self._update_camera_ovstage(render_data, positions, orientations, intrinsics)
         else:
             self._update_camera_legacy(render_data, positions, orientations, intrinsics)
+
+    def update_camera_intrinsics(self, render_data: OVRTXRenderData, intrinsics: wp.array, parameters: wp.array):
+        """Publish calibration columns from GPU memory into the renderer-owned scene."""
+        stream = wp.get_stream(parameters.device).cuda_stream
+        if self._use_ovstage:
+            self._stage.write_attributes(
+                self._camera_xform_query,
+                [
+                    ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
+                    for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)
+                ],
+                ordinal=self._current_ordinal,
+            ).wait()
+        else:
+            operations = []
+            try:
+                for row, binding in enumerate(self._camera_intrinsic_bindings):
+                    operations.append(
+                        binding.write_async(parameters[row], data_access=DataAccess.ASYNC, cuda_stream=stream)
+                    )
+            finally:
+                for operation in operations:
+                    operation.wait()
 
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""

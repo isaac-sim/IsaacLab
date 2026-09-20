@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
 import newton
-import torch
 import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -33,6 +32,29 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel(enable_backward=False)
+def _check_shared_intrinsics(intrinsics: wp.array(dtype=wp.mat33f), different: wp.array(dtype=wp.int32)):
+    i = wp.tid()
+    for row in range(3):
+        for column in range(3):
+            if wp.abs(intrinsics[i][row, column] - intrinsics[0][row, column]) > 1.0e-4:
+                wp.atomic_or(different, 0, 1)
+
+
+@wp.kernel(enable_backward=False)
+def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(dtype=wp.vec3f)):
+    y, x = wp.tid()
+    matrix = intrinsics[0]
+    direction = wp.vec3f(
+        (float(x) + 0.5 - matrix[0, 2]) / matrix[0, 0],
+        -(float(y) + 0.5 - matrix[1, 2]) / matrix[1, 1],
+        -1.0,
+    )
+    rays[0, y, x, 0] = wp.vec3f(0.0)
+    rays[0, y, x, 1] = wp.normalize(direction)
+
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
@@ -114,6 +136,7 @@ class RenderData:
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self._camera_quat_scratch: wp.array = None
+        self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=newton_sensor.model.device)
         # Name under which this camera's render launch is registered with the
         # Newton sensor manager (set on first render).
         self.sensor_task_name: str | None = None
@@ -364,12 +387,14 @@ class RenderData:
             if self._distortion is not None:
                 self.camera_rays = self._build_distortion_rays()
             else:
-                first_focal_length = intrinsics.torch[:, 1, 1][0:1]
-                fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
-
-                fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-                self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
-                    self.width, self.height, camera_fovs=fov_warp
+                self.camera_rays = wp.empty(
+                    (1, self.height, self.width, 2), dtype=wp.vec3f, device=self.newton_sensor.model.device
+                )
+                wp.launch(
+                    _update_camera_rays,
+                    (self.height, self.width),
+                    [intrinsics.warp, self.camera_rays],
+                    device=self.newton_sensor.model.device,
                 )
 
     def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
@@ -595,9 +620,33 @@ class NewtonWarpRenderer(BaseRenderer):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ):
-        """Update camera poses and intrinsics.
+        """Update camera poses and initialize the ray field on first use.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
+
+    def update_camera_intrinsics(self, render_data: RenderData, intrinsics: wp.array, parameters: wp.array):
+        """Regenerate the shared native ray field in place, preserving captured render pointers."""
+        if render_data._distortion is not None:
+            return  # The camera retains its fixed OpenCV calibration.
+        if intrinsics.shape[0] > 1:
+            render_data._intrinsic_status.zero_()
+            wp.launch(
+                _check_shared_intrinsics,
+                intrinsics.shape[0],
+                [intrinsics, render_data._intrinsic_status],
+                device=intrinsics.device,
+            )
+            if render_data._intrinsic_status.numpy()[0]:
+                raise ValueError(
+                    "Newton Warp requires identical camera intrinsics across environments: its native ray field "
+                    "is shared across worlds. Use a uniform calibration batch or a renderer with per-view intrinsics."
+                )
+        wp.launch(
+            _update_camera_rays,
+            (render_data.height, render_data.width),
+            [intrinsics, render_data.camera_rays],
+            device=intrinsics.device,
+        )
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""

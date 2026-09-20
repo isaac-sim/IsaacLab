@@ -34,6 +34,7 @@ def _install_omni_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.replicator.core", replicator_core_module)
     monkeypatch.setitem(sys.modules, "omni.syntheticdata", syntheticdata_module)
     monkeypatch.setitem(sys.modules, "omni.usd", usd_module)
+    monkeypatch.setitem(sys.modules, "usdrt", MagicMock())
     monkeypatch.setattr(omni_module, "replicator", replicator_module, raising=False)
     monkeypatch.setattr(omni_module, "syntheticdata", syntheticdata_module, raising=False)
     monkeypatch.setattr(omni_module, "usd", usd_module, raising=False)
@@ -79,6 +80,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     settings = MagicMock()
     settings.get.return_value = False
     stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
     # Pass the Camera prim check that gates render-product creation.
     stage.GetPrimAtPath.return_value.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
 
@@ -201,6 +203,7 @@ def test_simple_shading_configures_its_render_product(
     camera_prim.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
 
     stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
     stage.GetPrimAtPath.side_effect = lambda path: render_product_prim if path == rp.path else camera_prim
 
     annotator = MagicMock()
@@ -306,6 +309,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     # Camera validation terminates create_render_data immediately after the
     # color-render setting is selected, keeping this a lightweight unit test.
     stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
     stage.GetPrimAtPath.return_value.IsA.return_value = False
     spec = SimpleNamespace(
         camera_prim_paths=["/World/NotACamera"],

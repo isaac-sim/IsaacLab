@@ -38,61 +38,67 @@ logger = logging.getLogger(__name__)
 
 
 @wp.kernel(enable_backward=False)
-def _camera_intrinsics_to_usd_kernel(
+def _camera_select_intrinsics_kernel(
     matrices: wp.array3d(dtype=Any),
+    env_ids: wp.array(dtype=wp.int32),
+    fixed: wp.array(dtype=wp.bool),
+    width: int,
+    height: int,
+    rows: wp.array(dtype=wp.int32),
+    status: wp.array(dtype=wp.int32),
+):
+    row = wp.tid()
+    index = env_ids[row]
+    if index < 0:
+        index += rows.shape[0]
+    if index < 0 or index >= rows.shape[0]:
+        wp.atomic_or(status, 0, 1)
+        return
+    if fixed[index]:
+        wp.atomic_or(status, 0, 8)
+        return
+    wp.atomic_max(rows, index, row)
+    if wp.abs(wp.float64(matrices[row, 0, 0]) - wp.float64(matrices[row, 1, 1])) > wp.float64(1.0e-4):
+        wp.atomic_or(status, 0, 2)
+    if wp.abs(wp.float64(matrices[row, 0, 2]) - wp.float64(width) * wp.float64(0.5)) > wp.float64(1.0e-4) or wp.abs(
+        wp.float64(matrices[row, 1, 2]) - wp.float64(height) * wp.float64(0.5)
+    ) > wp.float64(1.0e-4):
+        wp.atomic_or(status, 0, 4)
+
+
+@wp.kernel(enable_backward=False)
+def _camera_set_intrinsics_kernel(
+    matrices: wp.array3d(dtype=Any),
+    rows: wp.array(dtype=wp.int32),
     width: int,
     height: int,
     focal_length: wp.float64,
     use_focal_length: bool,
-    parameters: wp.array(dtype=wp.vec4d),
+    current_matrices: wp.array(dtype=wp.mat33f),
+    current_parameters: wp.array2d(dtype=wp.float32),
+    output_matrices: wp.array(dtype=wp.mat33f),
+    output_parameters: wp.array2d(dtype=wp.float32),
 ):
-    """Convert K to focal length, apertures, and warning bits, rounding USD float attributes once."""
-    i = wp.tid()
-    fx = wp.float64(matrices[i, 0, 0])
-    fy = wp.float64(matrices[i, 1, 1])
-    cx = wp.float64(matrices[i, 0, 2])
-    cy = wp.float64(matrices[i, 1, 2])
+    index = wp.tid()
+    row = rows[index]
+    output_matrices[index] = current_matrices[index]
+    for attribute in range(5):
+        output_parameters[attribute, index] = current_parameters[attribute, index]
+    if row < 0:
+        return
+    mean_focal = (wp.float64(matrices[row, 0, 0]) + wp.float64(matrices[row, 1, 1])) * wp.float64(0.5)
     pixel_size = wp.float64(1.0) / wp.float64(width)
     if use_focal_length:
-        pixel_size = focal_length / ((fx + fy) / wp.float64(2.0))
-    warnings = int(0)
-    if wp.abs(fx - fy) > wp.float64(1.0e-4):
-        warnings = warnings | 1
-    if wp.abs(cx - wp.float64(width) / wp.float64(2.0)) > wp.float64(1.0e-4) or wp.abs(
-        cy - wp.float64(height) / wp.float64(2.0)
-    ) > wp.float64(1.0e-4):
-        warnings = warnings | 2
-    parameters[i] = wp.vec4d(
-        wp.float64(wp.float32(pixel_size * (fx + fy) / wp.float64(2.0))),
-        wp.float64(wp.float32(pixel_size * wp.float64(width))),
-        wp.float64(wp.float32(pixel_size * wp.float64(height))),
-        wp.float64(warnings),
-    )
-
-
-@wp.kernel(enable_backward=False)
-def _camera_intrinsics_from_usd_kernel(
-    parameters: wp.array(dtype=wp.vec4d),
-    env_ids: wp.array(dtype=wp.int32),
-    width: int,
-    height: int,
-    opencv: bool,
-    matrices: wp.array(dtype=wp.mat33f),
-):
-    """Build K from focal length/aperture or calibrated fx/fy/cx/cy and scatter to the camera buffer."""
-    i = wp.tid()
-    env_id = env_ids[i]
-    if env_id < 0:
-        return
-    values = parameters[i]
-    if opencv:
-        fx, fy, cx, cy = wp.float32(values[0]), wp.float32(values[1]), wp.float32(values[2]), wp.float32(values[3])
-    else:
-        fx = wp.float32(wp.float64(width) * values[0] / values[1])
-        fy = fx
-        cx = wp.float32(width) * 0.5
-        cy = wp.float32(height) * 0.5
-    matrices[env_id] = wp.mat33f(fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0)
+        pixel_size = focal_length / mean_focal
+    focal = wp.float32(pixel_size * mean_focal)
+    horizontal = wp.float32(pixel_size * wp.float64(width))
+    output_parameters[0, index] = focal
+    output_parameters[1, index] = horizontal
+    output_parameters[2, index] = wp.float32(pixel_size * wp.float64(height))
+    output_parameters[3, index] = 0.0
+    output_parameters[4, index] = 0.0
+    fx = wp.float32(wp.float64(width) * wp.float64(focal) / wp.float64(horizontal))
+    output_matrices[index] = wp.mat33f(fx, 0.0, float(width) * 0.5, 0.0, fx, float(height) * 0.5, 0.0, 0.0, 1.0)
 
 
 @wp.kernel
@@ -344,44 +350,38 @@ class Camera(SensorBase):
         focal_length: float | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
     ):
-        """Set parameters of the USD camera from its intrinsic matrix.
+        """Set runtime camera calibration without authoring USD.
 
-        The intrinsic matrix is used to set the following parameters to the USD camera:
+        Camera buffers own the active calibration. The renderer receives device arrays directly:
+        Kit writes Fabric, OVRTX writes its scene, and Newton updates its persistent ray field.
+        USD is read at initialization; saving USD does not save these runtime overrides. To persist
+        calibration, configure :meth:`PinholeCameraCfg.from_intrinsic_matrix` when spawning cameras.
 
-        - ``focal_length``: The focal length of the camera.
-        - ``horizontal_aperture``: The horizontal aperture of the camera.
-        - ``vertical_aperture``: The vertical aperture of the camera.
-        - ``horizontal_aperture_offset``: The horizontal offset of the camera.
-        - ``vertical_aperture_offset``: The vertical offset of the camera.
-
-        .. warning::
-
-            Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
-            i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
-            is not true in the input intrinsic matrix, then the camera will not set up correctly.
+        Ordinary pinhole cameras retain square pixels and a centered principal point: ``fx/fy`` are
+        averaged and ``cx/cy`` become half the image dimensions. OpenCV distortion cameras retain
+        their spawn-time calibration and are skipped with a warning.
 
         .. note::
+            Writing distinct per-view attributes does not remove a renderer's tiled-projection
+            limitations. Kit/OVRTX tiled products may share their first camera's lens settings;
+            use uniform calibration when the runtime does not support independent projections.
 
-            Cameras carrying an OpenCV lens-distortion model are skipped (with a warning): their
-            ``fx/fy/cx/cy`` are fixed at spawn through the
-            :attr:`~isaaclab.sim.spawners.sensors.PinholeCameraCfg.distortion` cfg and cannot be overridden
-            here. Any other selected cameras in the same call are still updated.
-
-            Matrix conversion runs as a Warp batch on the input device. Authoring USD camera attributes
-            still requires a device-to-host transfer and per-camera USD calls; this method is not
-            suitable for CUDA graph capture.
+        Shape and batch cardinality are checked before any changes. Index validation and projection
+        warnings transfer one status integer to the host; matrix and index batches stay on device.
+        Consequently this method is not CUDA graph capturable.
 
         Args:
-            matrices: The intrinsic matrices [pixel], with shape (N, 3, 3), or a Warp array of
-                ``wp.mat33f`` / ``wp.mat33d``. A single (3, 3) matrix is accepted for one selected camera.
-            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
+            matrices: Intrinsic matrices [pixel], shape (N, 3, 3), or a Warp array of ``wp.mat33f`` /
+                ``wp.mat33d``. A single (3, 3) matrix is accepted for one selected camera.
+            focal_length: Perspective focal length in the scene's camera length units. If None,
                 a pixel size of 1 / width is used to derive the focal length from the matrix.
-            env_ids: Sensor indices in the same order as the matrix batch. Defaults to None (all cameras).
-                Repeated indices retain the last matrix in the batch.
+            env_ids: Sensor indices in matrix order. Defaults to all cameras. Repeated indices
+                retain the last matrix. Newton requires the resulting calibration to be shared
+                across environments because its native ray field has no world dimension.
 
         Raises:
-            TypeError: If ``matrices`` is not a :class:`torch.Tensor` or a Warp array.
-            ValueError: If the matrix shape or batch size does not match the selected cameras.
+            TypeError: If the matrices or indices have unsupported types.
+            ValueError: If matrix shape, batch cardinality, or a backend calibration constraint fails.
             IndexError: If a selected camera index is out of range.
         """
         if isinstance(matrices, torch.Tensor):
@@ -396,90 +396,64 @@ class Camera(SensorBase):
             matrices = matrices.contiguous().reshape((1, *matrices.shape))
         if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
             raise ValueError(f"Expected intrinsic matrices with shape (N, 3, 3), got {matrices.shape}.")
-        env_ids_np = self._resolve_env_ids_np(env_ids).copy()
-        if matrices.shape[0] != len(env_ids_np):
+        indices = self._ALL_INDICES if env_ids is None else self._resolve_env_ids_wp(env_ids)
+        if matrices.shape[0] != indices.shape[0]:
             raise ValueError(
                 "The number of intrinsic matrices must match the number of selected cameras: "
-                f"got {matrices.shape[0]} matrices for {len(env_ids_np)} cameras."
+                f"got {matrices.shape[0]} matrices for {indices.shape[0]} cameras."
             )
-        env_ids_np[env_ids_np < 0] += self._view.count
-        if np.any((env_ids_np < 0) | (env_ids_np >= self._view.count)):
-            raise IndexError("Camera indices are out of range.")
-        if len(env_ids_np) == 0:
+        if indices.shape[0] == 0:
             return
-
+        matrices = matrices.to(self._device)
         height, width = self.image_shape
-        parameters = wp.empty(len(env_ids_np), dtype=wp.vec4d, device=matrices.device)
+        self._intrinsic_rows.fill_(-1)
+        self._intrinsic_status.zero_()
         wp.launch(
-            _camera_intrinsics_to_usd_kernel,
-            dim=len(env_ids_np),
-            inputs=[matrices, width, height, wp.float64(focal_length or 0.0), focal_length is not None, parameters],
-            device=matrices.device,
-        )
-        # USD authoring is a host boundary. Transfer only the converted parameters, once per batch.
-        write_ids = env_ids_np.copy()
-        last_rows = {}
-        distorted_ids = []
-        warning_flags = 0
-        for row, (i, values) in enumerate(zip(env_ids_np, parameters.numpy().tolist(), strict=True)):
-            sensor_prim = self._sensor_prims[i]
-            if sensor_prim.GetPrim().GetAttribute("omni:lensdistortion:model").Get():
-                distorted_ids.append(i)
-                write_ids[row] = -1
-                continue
-            focal, horizontal, vertical, warnings = values
-            sensor_prim.GetHorizontalApertureAttr().Set(horizontal)
-            sensor_prim.GetVerticalApertureAttr().Set(vertical)
-            sensor_prim.GetFocalLengthAttr().Set(focal)
-            sensor_prim.GetHorizontalApertureOffsetAttr().Set(0.0)
-            sensor_prim.GetVerticalApertureOffsetAttr().Set(0.0)
-            warning_flags |= int(warnings)
-            # Repeated selections follow USD's last-write-wins semantics without a device scatter race.
-            if i in last_rows:
-                write_ids[last_rows[i]] = -1
-            last_rows[i] = row
-        if warning_flags & 1:
-            logger.warning(
-                "Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used."
-            )
-        if warning_flags & 2:
-            logger.warning(
-                "Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height"
-            )
-        if distorted_ids:
-            logger.warning(
-                "set_intrinsic_matrices() skipped one or more cameras configured with an OpenCV"
-                " lens-distortion model; their intrinsics are fixed at spawn via the 'distortion' cfg."
-            )
-        # Direct root/session opinions resolve to the values just written. Weaker layers or mapped
-        # edit targets can be shadowed, so their calibration must still come from composed USD.
-        target = self.stage.GetEditTarget()
-        session_layer = self.stage.GetSessionLayer()
-        if not (
-            target == Usd.EditTarget(session_layer)
-            or (session_layer.empty and target == Usd.EditTarget(self.stage.GetRootLayer()))
-        ):
-            self._update_intrinsic_matrices(env_ids_np)
-            return
-        if distorted_ids:
-            self._update_intrinsic_matrices(distorted_ids)
-        # Reuse the rounded USD values; no USD readback or host construction of K is necessary.
-        parameters = parameters.to(self._device)
-        wp.launch(
-            _camera_intrinsics_from_usd_kernel,
-            dim=len(write_ids),
+            _camera_select_intrinsics_kernel,
+            dim=indices.shape[0],
             inputs=[
-                parameters,
-                self._ALL_INDICES
-                if env_ids is None and not distorted_ids
-                else wp.array(write_ids, dtype=wp.int32, device=self._device),
+                matrices,
+                indices,
+                self._intrinsic_fixed,
                 width,
                 height,
-                False,
-                self._data.intrinsic_matrices.warp,
+                self._intrinsic_rows,
+                self._intrinsic_status,
             ],
             device=self._device,
         )
+        status = int(self._intrinsic_status.numpy()[0])
+        if status & 1:
+            raise IndexError("Camera indices are out of range.")
+        if status & 2:
+            logger.warning("Camera non square pixels are not supported; the average of f_x and f_y is used.")
+        if status & 4:
+            logger.warning("Camera aperture offsets are not supported; c_x and c_y are half of width and height.")
+        if status & 8:
+            logger.warning("set_intrinsic_matrices() skipped cameras with an OpenCV lens-distortion model.")
+        wp.launch(
+            _camera_set_intrinsics_kernel,
+            dim=self._view.count,
+            inputs=[
+                matrices,
+                self._intrinsic_rows,
+                width,
+                height,
+                wp.float64(focal_length or 0.0),
+                focal_length is not None,
+                self._data.intrinsic_matrices.warp,
+                self._intrinsic_parameters,
+                self._intrinsic_pending,
+                self._intrinsic_parameters_pending,
+            ],
+            device=self._device,
+        )
+        # Let the backend validate its constraints before committing the public calibration buffers.
+        self._renderer.update_camera_intrinsics(
+            self._render_data, self._intrinsic_pending, self._intrinsic_parameters_pending
+        )
+        wp.copy(self._data.intrinsic_matrices.warp, self._intrinsic_pending)
+        wp.copy(self._intrinsic_parameters, self._intrinsic_parameters_pending)
 
     """
     Operations - Set pose.
@@ -801,7 +775,7 @@ class Camera(SensorBase):
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.
         self._data.create_buffers(self._view.count, device_str)
-        self._update_intrinsic_matrices()
+        self._initialize_intrinsics()
         self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)
 
@@ -856,57 +830,36 @@ class Camera(SensorBase):
                 )
         return tuple(float(value) for value in intrinsics)
 
-    def _update_intrinsic_matrices(self, env_ids: Sequence[int] | wp.array | None = None):
-        """Compute camera's matrix of intrinsic parameters.
-
-        Also called calibration matrix. This matrix works for linear depth images. Without an authored
-        OpenCV lens-distortion model the readback assumes square pixels and a centered principal point;
-        when such a model is present its calibrated ``fx/fy/cx/cy`` are used instead.
-
-        .. note::
-            The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
-            The coordinates of points on the image plane are in the homogeneous representation.
-        """
-        env_ids_np = self._resolve_env_ids_np(env_ids)
-        if len(env_ids_np) == 0:
-            return
-
+    def _initialize_intrinsics(self):
+        """Import composed USD calibration once and allocate persistent runtime buffers."""
         height, width = self.image_shape
-        pinhole_ids, pinhole_parameters = [], []
-        opencv_ids, opencv_parameters = [], []
-        # Read only authoritative USD metadata on the host; conversion and scatter run in Warp.
-        for i in env_ids_np:
-            sensor_prim = self._sensor_prims[int(i)]
-            authored = self._read_authored_opencv_intrinsics(sensor_prim.GetPrim(), width, height, int(i))
+        matrices, parameters, fixed = [], [], []
+        for i, sensor_prim in enumerate(self._sensor_prims):
+            prim = sensor_prim.GetPrim()
+            values = [
+                sensor_prim.GetFocalLengthAttr().Get(),
+                sensor_prim.GetHorizontalApertureAttr().Get(),
+                sensor_prim.GetVerticalApertureAttr().Get(),
+                sensor_prim.GetHorizontalApertureOffsetAttr().Get(),
+                sensor_prim.GetVerticalApertureOffsetAttr().Get(),
+            ]
+            parameters.append(values)
+            fixed.append(bool(prim.GetAttribute("omni:lensdistortion:model").Get()))
+            authored = self._read_authored_opencv_intrinsics(prim, width, height, i)
             if authored is not None:
-                opencv_ids.append(i)
-                opencv_parameters.append(authored)
+                fx, fy, cx, cy = authored
             else:
-                pinhole_ids.append(i)
-                pinhole_parameters.append(
-                    (sensor_prim.GetFocalLengthAttr().Get(), sensor_prim.GetHorizontalApertureAttr().Get(), 0.0, 0.0)
-                )
-        for ids, parameters, opencv in (
-            (pinhole_ids, pinhole_parameters, False),
-            (opencv_ids, opencv_parameters, True),
-        ):
-            if not ids:
-                continue
-            wp.launch(
-                _camera_intrinsics_from_usd_kernel,
-                dim=len(ids),
-                inputs=[
-                    wp.array(parameters, dtype=wp.vec4d, device=self._device),
-                    self._ALL_INDICES
-                    if env_ids is None and len(ids) == self._view.count
-                    else wp.array(ids, dtype=wp.int32, device=self._device),
-                    width,
-                    height,
-                    opencv,
-                    self._data.intrinsic_matrices.warp,
-                ],
-                device=self._device,
-            )
+                fx = fy = width * values[0] / values[1]
+                cx, cy = width * 0.5, height * 0.5
+            matrices.append(((fx, 0.0, cx), (0.0, fy, cy), (0.0, 0.0, 1.0)))
+        device = self._device
+        wp.copy(self._data.intrinsic_matrices.warp, wp.array(matrices, dtype=wp.mat33f, device=device))
+        self._intrinsic_parameters = wp.array(np.asarray(parameters, dtype=np.float32).T.copy(), device=device)
+        self._intrinsic_fixed = wp.array(fixed, dtype=wp.bool, device=device)
+        self._intrinsic_rows = wp.empty(self._view.count, dtype=wp.int32, device=device)
+        self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=device)
+        self._intrinsic_pending = wp.empty_like(self._data.intrinsic_matrices.warp)
+        self._intrinsic_parameters_pending = wp.empty_like(self._intrinsic_parameters)
 
     def _update_poses(
         self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None, frame_op: int = 0
@@ -989,18 +942,6 @@ class Camera(SensorBase):
             device=self._device,
         )
 
-    def _resolve_env_ids_np(self, env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> np.ndarray:
-        """Resolve camera indices to a host ``int32`` array for USD metadata reads."""
-        if env_ids is None:
-            return np.arange(self._view.count, dtype=np.int32)
-        if isinstance(env_ids, slice):
-            return np.arange(self._view.count, dtype=np.int32)[env_ids]
-        if isinstance(env_ids, wp.array):
-            return env_ids.numpy().astype(np.int32, copy=False).reshape(-1)
-        if isinstance(env_ids, torch.Tensor):
-            return env_ids.detach().cpu().numpy().astype(np.int32, copy=False).reshape(-1)
-        return np.asarray(env_ids, dtype=np.int32).reshape(-1)
-
     def _resolve_env_ids_wp(self, env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> wp.array | None:
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
@@ -1008,9 +949,11 @@ class Camera(SensorBase):
         if isinstance(env_ids, wp.array):
             if env_ids.dtype != wp.int32:
                 raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
+            if env_ids.ndim != 1:
+                raise ValueError("Warp camera indices must be a one-dimensional array.")
             if str(env_ids.device) == str(self._device):
                 return env_ids
-            env_ids = env_ids.numpy().astype(np.int32, copy=False).reshape(-1)
+            return env_ids.to(self._device)
         elif isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
             if not env_ids.is_contiguous():
