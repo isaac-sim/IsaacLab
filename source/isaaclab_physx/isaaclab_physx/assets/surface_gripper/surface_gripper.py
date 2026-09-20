@@ -15,7 +15,6 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
-from isaaclab.cloner import queue_replication
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
@@ -84,8 +83,6 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
-        # this class does not run AssetBase.__init__, so it registers its cfg itself
-        queue_replication(cfg)
         self._cfg = cfg.copy()
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported

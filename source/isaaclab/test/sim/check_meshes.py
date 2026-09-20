@@ -81,30 +81,30 @@ def design_scene():
     # spawn a red cone
     cfg_sphere = sim_utils.MeshSphereCfg(
         radius=0.25,
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        mass_props=sim_utils.MassCfg(mass=1.0),
         visual_material=sim_utils.PreviewSurfaceCfg(),
     )
     cfg_cuboid = sim_utils.MeshCuboidCfg(
         size=(0.2, 0.2, 0.2),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        mass_props=sim_utils.MassCfg(mass=1.0),
         visual_material=sim_utils.PreviewSurfaceCfg(),
     )
     cfg_cylinder = sim_utils.MeshCylinderCfg(
         radius=0.15,
         height=0.5,
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        mass_props=sim_utils.MassCfg(mass=1.0),
         visual_material=sim_utils.PreviewSurfaceCfg(),
     )
     cfg_capsule = sim_utils.MeshCapsuleCfg(
         radius=0.15,
         height=0.5,
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        mass_props=sim_utils.MassCfg(mass=1.0),
         visual_material=sim_utils.PreviewSurfaceCfg(),
     )
     cfg_cone = sim_utils.MeshConeCfg(
         radius=0.15,
         height=0.5,
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        mass_props=sim_utils.MassCfg(mass=1.0),
         visual_material=sim_utils.PreviewSurfaceCfg(),
     )
     # create a dictionary of all the objects to be spawned
@@ -128,11 +128,11 @@ def design_scene():
         if random.random() < 0.5:
             obj_cfg.rigid_props = None
             obj_cfg.deformable_props = sim_utils.DeformableBodyPropertiesCfg()
-            obj_cfg.collision_props = [PhysxCollisionCfg(rest_offset=0.0)]
+            obj_cfg.collision_props = PhysxCollisionCfg(rest_offset=0.0)
         else:
             obj_cfg.deformable_props = None
-            obj_cfg.rigid_props = sim_utils.RigidBodyPropertiesCfg()
-            obj_cfg.collision_props = sim_utils.CollisionPropertiesCfg()
+            obj_cfg.rigid_props = sim_utils.UsdPhysicsRigidBodyCfg()
+            obj_cfg.collision_props = sim_utils.UsdPhysicsCollisionCfg()
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
         # spawn the object

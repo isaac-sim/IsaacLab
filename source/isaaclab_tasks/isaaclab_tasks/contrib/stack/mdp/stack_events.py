@@ -138,12 +138,7 @@ def randomize_scene_lighting_domelight(
     default_texture: str = "",
     asset_cfg: SceneEntityCfg = SceneEntityCfg("light"),
 ):
-    # Static assets carry no runtime view; fetch the light prim from the stage by its
-    # spawned path. Local import: keep USD out of module load for pure cfg loading.
-    from isaaclab.sim.utils import find_matching_prims  # noqa: PLC0415
-
-    light_cfg = env.scene[asset_cfg.name]
-    light_prim = find_matching_prims(light_cfg.prim_path)[0]
+    light_prim = env.scene[asset_cfg.name].prim
 
     intensity_attr = light_prim.GetAttribute("inputs:intensity")
     intensity_attr.Set(default_intensity)

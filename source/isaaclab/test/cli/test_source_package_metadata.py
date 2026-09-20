@@ -15,6 +15,18 @@ import tomllib
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("name", ["torch", "torchvision", "torchaudio"])
+def test_resolved_torch_stack_supports_blackwell(source_checkout_root: Path, name: str):
+    """All supported platforms need CUDA 13 wheels; PyTorch 2.12's cu126 excludes Blackwell."""
+    with (source_checkout_root / "uv.lock").open("rb") as f:
+        lock = tomllib.load(f)
+
+    packages = [package for package in lock["package"] if package["name"] == name]
+    assert packages
+    assert all(package["version"].endswith("+cu130") for package in packages)
+    assert all(package["source"]["registry"] == "https://download.pytorch.org/whl/cu130" for package in packages)
+
+
 def test_isaaclab_uses_one_standalone_usd_provider(source_checkout_root: Path):
     """Isaac Lab must install only the USD provider shared with its importer dependencies.
 
