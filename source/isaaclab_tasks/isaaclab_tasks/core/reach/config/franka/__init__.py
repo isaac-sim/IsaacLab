@@ -3,16 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Franka reach environments."""
+
 import gymnasium as gym
 
-from isaaclab_tasks.core.reach.config.franka import agents
+from . import agents
 
 ##
 # Register Gym environments.
-##
-
-##
-# Franka Reach
 ##
 
 gym.register(
@@ -27,10 +25,6 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
-
-##
-# Operational Space Control
-##
 
 gym.register(
     id="Isaac-Reach-Franka-OSC",

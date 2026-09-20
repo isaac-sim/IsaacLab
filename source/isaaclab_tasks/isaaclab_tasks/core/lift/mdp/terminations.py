@@ -3,18 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to activate certain terminations for the lift task.
-
-The functions can be passed to the :class:`isaaclab.managers.TerminationTermCfg` object to enable
-the termination introduced by the function.
-"""
+"""Termination terms for the lift environments."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils.math import combine_frame_transforms
@@ -49,8 +44,10 @@ class out_of_bound(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-        in_bound_range: dict[str, tuple[float, float]] = {},
+        in_bound_range: dict[str, tuple[float, float]] | None = None,
     ) -> torch.Tensor:
+        if in_bound_range is None:
+            in_bound_range = {}
         # rebuild only the axes whose bounds changed (curriculum typically only moves one)
         for i, key in enumerate(["x", "y", "z"]):
             bounds = tuple(in_bound_range.get(key, (0.0, 0.0)))
@@ -65,8 +62,10 @@ class out_of_bound(ManagerTermBase):
 
 
 def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Terminating environment when violation of velocity limits detects, this usually indicates unstable physics caused
-    by very bad, or aggressive action"""
+    """Terminate when a joint velocity exceeds twice its solver limit.
+
+    Such violations indicate unstable physics, typically caused by aggressive actions.
+    """
     robot: Articulation = env.scene[asset_cfg.name]
     joint_vel = robot.data.joint_vel.torch
     joint_vel_limits = robot.data.joint_vel_limits.torch
@@ -95,7 +94,7 @@ def ee_below_minimum(
 ) -> torch.Tensor:
     """Return whether the end-effector is below the minimum environment-frame height [m]."""
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-    ee_z = wp.to_torch(ee_frame.data.target_pos_w)[..., 0, 2] - env.scene.env_origins[:, 2]
+    ee_z = ee_frame.data.target_pos_w.torch[..., 0, 2] - env.scene.env_origins[:, 2]
     return ee_z < minimum_height
 
 
@@ -122,9 +121,7 @@ def deformable_outside_bounds(
     """
     asset: DeformableObject = env.scene[asset_cfg.name]
     nodal_pos = asset.data.nodal_pos_w.torch - env.scene.env_origins.unsqueeze(1)
-    lower = torch.tensor([x_bounds[0], y_bounds[0], z_bounds[0]], device=nodal_pos.device)
-    upper = torch.tensor([x_bounds[1], y_bounds[1], z_bounds[1]], device=nodal_pos.device)
-    return ((nodal_pos < lower) | (nodal_pos > upper)).flatten(1).any(dim=1)
+    return _points_outside_box(nodal_pos, x_bounds, y_bounds, z_bounds)
 
 
 def cable_outside_bounds(
@@ -134,12 +131,21 @@ def cable_outside_bounds(
     z_bounds: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
 ) -> torch.Tensor:
-    """Terminate if any cable segment leaves the allowed workspace box."""
+    """Terminate if any cable segment leaves the allowed workspace box.
+
+    Args:
+        env: The environment instance.
+        x_bounds: Allowed x-position range in the environment frame [m].
+        y_bounds: Allowed y-position range in the environment frame [m].
+        z_bounds: Allowed z-position range in the environment frame [m].
+        asset_cfg: The cable entity.
+
+    Returns:
+        Boolean tensor with shape ``(num_envs,)``.
+    """
     asset: CableObject = env.scene[asset_cfg.name]
     segment_pos = asset.data.segment_pose_w.torch[..., :3] - env.scene.env_origins.unsqueeze(1)
-    lower = torch.tensor([x_bounds[0], y_bounds[0], z_bounds[0]], device=segment_pos.device)
-    upper = torch.tensor([x_bounds[1], y_bounds[1], z_bounds[1]], device=segment_pos.device)
-    return ((segment_pos < lower) | (segment_pos > upper)).flatten(1).any(dim=1)
+    return _points_outside_box(segment_pos, x_bounds, y_bounds, z_bounds)
 
 
 def joint_vel_out_of_sim_limit(
@@ -151,3 +157,34 @@ def joint_vel_out_of_sim_limit(
     return torch.any(
         torch.abs(asset.data.joint_vel.torch[:, joint_ids]) > asset.data.joint_vel_limits.torch[:, joint_ids], dim=1
     )
+
+
+def _points_outside_box(
+    points: torch.Tensor,
+    x_bounds: tuple[float, float],
+    y_bounds: tuple[float, float],
+    z_bounds: tuple[float, float],
+) -> torch.Tensor:
+    """Return whether any of each environment's points [m] lies outside the axis-aligned box.
+
+    The bounds are compared as Python scalars so the hot path allocates no constant tensors.
+
+    Args:
+        points: Positions [m], shape ``(num_envs, num_points, 3)``.
+        x_bounds: Allowed x-position range [m].
+        y_bounds: Allowed y-position range [m].
+        z_bounds: Allowed z-position range [m].
+
+    Returns:
+        Boolean tensor with shape ``(num_envs,)``.
+    """
+    x, y, z = points.unbind(dim=-1)
+    outside = (
+        (x < x_bounds[0])
+        | (x > x_bounds[1])
+        | (y < y_bounds[0])
+        | (y > y_bounds[1])
+        | (z < z_bounds[0])
+        | (z > z_bounds[1])
+    )
+    return outside.any(dim=1)

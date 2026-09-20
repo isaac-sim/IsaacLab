@@ -346,7 +346,7 @@ def _terminated_penalty_kernel(
 def terminated_penalty(env: ManagerBasedRLEnv, out: wp.array(dtype=wp.float32)) -> None:
     """One-off penalty for terminating early, independent of the environment step size.
 
-    Warp-first override of :func:`isaaclab_tasks.core.locomotion.mdp.rewards.terminated_penalty`.
+    Warp-first override of :func:`isaaclab.envs.mdp.rewards.terminated_penalty`.
     """
     wp.launch(
         kernel=_terminated_penalty_kernel,
@@ -392,7 +392,7 @@ def _survival_rate_kernel(
 class survival_success_rate(ManagerTermBase):
     """Tracks episode survival as the success metric (Warp-first).
 
-    Twin of :class:`isaaclab_tasks.core.locomotion.mdp.rewards.survival_success_rate`.
+    Twin of :class:`isaaclab.envs.mdp.rewards.survival_success_rate`.
     Returns zero reward (pure metric tracking). On reset, computes the fraction of
     just-reset environments that timed out (survived the full episode) entirely on-device
     and exposes it as ``Metrics/success_rate`` through the reward manager's reset extras.

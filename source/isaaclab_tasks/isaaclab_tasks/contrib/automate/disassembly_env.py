@@ -521,7 +521,7 @@ class DisassemblyEnv(DirectRLEnv):
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
 
             # Solve DLS problem.
-            delta_dof_pos = fc._get_delta_dof_pos(
+            delta_dof_pos = fc.get_delta_dof_pos(
                 delta_pose=delta_hand_pose,
                 ik_method="dls",
                 jacobian=self.fingertip_midpoint_jacobian[env_ids],

@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Cartpole balancing environment.
+"""Cartpole balancing environments.
 
-This package consolidates the direct-workflow and manager-based-workflow
-cartpole tasks. Module files carry a ``_direct_`` or ``_manager_`` infix to
-disambiguate the two workflows within the flat package layout.
+This package consolidates the direct-workflow and manager-based-workflow cartpole tasks. Module files
+carry a ``_direct_`` or ``_manager_`` infix to disambiguate the two workflows within the flat package
+layout.
 """
 
 import gymnasium as gym

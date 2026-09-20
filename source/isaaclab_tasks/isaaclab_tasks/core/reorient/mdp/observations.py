@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Functions specific to the in-hand dexterous manipulation environments."""
+"""Observation terms for the in-hand reorientation environments."""
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,31 +18,16 @@ from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCf
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from isaaclab.assets import RigidObject
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import Camera
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-
+    from ..config.shadow_hand.feature_extractor import FeatureExtractorCfg
     from .commands import ReorientCommand
 
 
 CUBE_HALF_SIZE: tuple[float, float, float] = (0.03, 0.03, 0.03)
 """Half side lengths [m] of the reorientation cube."""
-
-
-# -- cube keypoint helpers, shared by the camera and state observation terms
-def _cube_corner_offsets(
-    size: tuple[float, float, float], num_keypoints: int, device: torch.device | str
-) -> torch.Tensor:
-    """Corner offsets [m] from the cube center; corner index bits select the +/- half side per axis."""
-    signs = torch.tensor(
-        [[1 - 2 * ((corner >> axis) & 1) for axis in range(3)] for corner in range(num_keypoints)],
-        dtype=torch.float32,
-        device=device,
-    )
-    half_size = torch.tensor(size, dtype=torch.float32, device=device) / 2.0
-    return signs * half_size
 
 
 def compute_cube_keypoints(
@@ -61,17 +47,12 @@ def compute_cube_keypoints(
     Returns:
         Cube-corner positions [m], shape ``(num_envs, num_keypoints, 3)``.
     """
-    # Vectorized over corners: the earlier implementation looped over the eight corners,
-    # allocating a tensor and calling quat_apply once per corner. The corner sign-offsets
-    # are pose-independent, so they are built once and all num_keypoints corners are rotated
-    # by the pose in a single batched quat_apply — mathematically identical, no Python loop.
     num_envs = pose.shape[0]
-    corners = _cube_corner_offsets(size, num_keypoints, pose.device)
-    # Broadcast each env's quaternion across its corners and rotate every offset at once.
+    corners = _cube_corner_offsets(size, num_keypoints, str(pose.device))
+    # rotate every corner offset by its environment's quaternion in one batched call
     rotated = math_utils.quat_apply(
         pose[:, None, 3:7].expand(num_envs, num_keypoints, 4), corners.expand(num_envs, num_keypoints, 3)
     )
-    # Translate the rotated offsets by the cube-center position to get world-frame corners.
     keypoints = pose[:, None, 0:3] + rotated
     if out is None:
         return keypoints
@@ -96,14 +77,13 @@ def cube_keypoints_from_quat(
     """
     num_envs = quat.shape[0]
     size = (2.0 * half_size[0], 2.0 * half_size[1], 2.0 * half_size[2])
-    corners = _cube_corner_offsets(size, num_keypoints, quat.device)
+    corners = _cube_corner_offsets(size, num_keypoints, str(quat.device))
     rotated = math_utils.quat_apply(
         quat[:, None, :].expand(num_envs, num_keypoints, 4), corners.expand(num_envs, num_keypoints, 3)
     )
     return rotated.reshape(num_envs, num_keypoints * 3)
 
 
-# -- command terms
 def goal_quat_diff(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, command_name: str, make_quat_unique: bool
 ) -> torch.Tensor:
@@ -128,18 +108,16 @@ def goal_quat_diff(
     return math_utils.quat_unique(quat_error) if make_quat_unique else quat_error
 
 
-# -- fingertip terms
-# Task-local because the framework provides body_pose_w but no body_pos_w or body_vel_w.
 def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Flattened fingertip positions in the environment frame [m], shape ``(num_envs, num_fingertips * 3)``."""
-    asset = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     positions = asset.data.body_pos_w.torch[:, asset_cfg.body_ids] - env.scene.env_origins.unsqueeze(1)
     return positions.reshape(env.num_envs, -1)
 
 
 def fingertip_vel(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Flattened fingertip spatial velocities [m/s, rad/s], shape ``(num_envs, num_fingertips * 6)``."""
-    asset = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.body_vel_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1)
 
 
@@ -153,7 +131,7 @@ def shadow_hand_goal_keypoints(env: ManagerBasedRLEnv, command_name: str) -> tor
     Returns:
         Flattened zero-origin cube keypoints [m], shape ``(num_envs, 24)``.
     """
-    command_term = env.command_manager.get_term(command_name)
+    command_term: ReorientCommand = env.command_manager.get_term(command_name)
     return cube_keypoints_from_quat(command_term.quat_command_w)
 
 
@@ -179,9 +157,8 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         super().__init__(cfg, env)
         sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
         camera: Camera = env.scene.sensors[sensor_cfg.name]
-        # Runtime-only import: the mdp layer must not import the task-config layer
-        # at module load (config modules import mdp; see the layering note above).
-        from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
+        # deferred import: the config modules import this mdp package at module load
+        from ..config.shadow_hand.feature_extractor import FeatureExtractor
 
         feature_extractor_cfg: FeatureExtractorCfg = cfg.params["feature_extractor_cfg"]
         self._feature_extractor = FeatureExtractor(
@@ -249,3 +226,19 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         if pose_loss is not None:
             env.extras.setdefault("log", {})["pose_loss"] = pose_loss
         return embeddings
+
+
+@functools.cache
+def _cube_corner_offsets(size: tuple[float, float, float], num_keypoints: int, device: str) -> torch.Tensor:
+    """Corner offsets [m] from the cube center; corner index bits select the +/- half side per axis.
+
+    Cached per ``(size, num_keypoints, device)`` so the hot path does not rebuild the constant every step;
+    ``device`` is a string so that it is hashable for the cache.
+    """
+    signs = torch.tensor(
+        [[1 - 2 * ((corner >> axis) & 1) for axis in range(3)] for corner in range(num_keypoints)],
+        dtype=torch.float32,
+        device=device,
+    )
+    half_size = torch.tensor(size, dtype=torch.float32, device=device) / 2.0
+    return signs * half_size
