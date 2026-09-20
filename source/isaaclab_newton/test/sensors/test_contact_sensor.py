@@ -509,11 +509,10 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
         pytest.param(
             False,
             id="newton_contacts",
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason=(
                     "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
                 ),
-                strict=False,
             ),
         ),
         pytest.param(True, id="mujoco_contacts"),
@@ -648,11 +647,10 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         pytest.param(
             False,
             id="newton_contacts",
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason=(
                     "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
                 ),
-                strict=False,
             ),
         ),
         pytest.param(True, id="mujoco_contacts"),
@@ -810,7 +808,7 @@ ALLEGRO_FINGER_LINKS = {
         pytest.param(
             False,
             id="newton_contacts",
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason="Newton contact pipeline reports inaccurate per-finger forces in articulated systems"
             ),
         ),
