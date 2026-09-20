@@ -25,6 +25,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
+from isaaclab_physx.sim.views._pose_tracking_view import _PoseTrackingView
 
 from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -1355,7 +1356,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self._body_names_list.append(name)
 
         # -- object view
-        self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_exprs)
+        self._root_view = _PoseTrackingView(
+            self._physics_sim_view.create_rigid_body_view(root_prim_path_exprs),
+            SimulationManager._mark_tensor_pose_write,
+        )
 
         # check if the rigid body was created
         if self._root_view._backend is None:

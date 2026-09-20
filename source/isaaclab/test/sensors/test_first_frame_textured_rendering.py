@@ -12,14 +12,26 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import pytest
 import torch
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.envs import ManagerBasedEnv, mdp
+from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -55,25 +67,55 @@ def _is_grey(mean_rgb: torch.Tensor) -> bool:
     return bool(channels_equal and all_low)
 
 
-@pytest.fixture(scope="function")
-def setup_sim(device):
-    """Fixture to set up and tear down the textured rendering test environment."""
-    # Create a new stage
+@contextmanager
+def _simulation_context(
+    device: str,
+    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81),
+    visualizer_cfg: VisualizerCfg | None = None,
+) -> Iterator[tuple[sim_utils.SimulationContext, float]]:
+    """Create and reliably tear down a simulation context for rendering tests."""
     sim_utils.create_new_stage()
-    # Simulation time-step
     dt = 0.01
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # populate scene
-    _populate_scene()
-    # load stage
-    sim_utils.update_stage()
-    yield sim, dt
-    # Teardown
-    rep.vp_manager.destroy_hydra_textures("Replicator")
-    sim.stop()
-    sim.clear_instance()
+    sim = sim_utils.SimulationContext(
+        sim_utils.SimulationCfg(
+            dt=dt,
+            device=device,
+            gravity=gravity,
+            visualizer_cfgs=[] if visualizer_cfg is None else visualizer_cfg,
+        )
+    )
+    try:
+        yield sim, dt
+    finally:
+        rep.vp_manager.destroy_hydra_textures("Replicator")
+        sim.stop()
+        sim.clear_instance()
+
+
+@pytest.fixture(scope="function")
+def setup_sim(device: str) -> Iterator[tuple[sim_utils.SimulationContext, float]]:
+    """Fixture to set up and tear down the textured rendering test environment."""
+    with _simulation_context(device) as (sim, dt):
+        _populate_scene()
+        sim_utils.update_stage()
+        yield sim, dt
+
+
+@pytest.fixture(scope="function")
+def setup_pose_sim(device: str) -> Iterator[tuple[sim_utils.SimulationContext, float]]:
+    """Set up a local-only RTX scene with a Kit visualizer for the tensor-pose regression test."""
+    visualizer_cfg = KitVisualizerCfg(
+        window_width=WIDTH,
+        window_height=HEIGHT,
+        eye=(1.5, -1.5, 1.0),
+        lookat=(0.5, 0.0, 0.2),
+        randomly_sample_visible_envs=False,
+    )
+    with _simulation_context(device, gravity=(0.0, 0.0, 0.0), visualizer_cfg=visualizer_cfg) as (sim, dt):
+        light_cfg = sim_utils.DomeLightCfg(intensity=DOME_LIGHT_INTENSITY, color=(1.0, 1.0, 1.0))
+        light_cfg.func("/World/Light", light_cfg)
+        sim_utils.update_stage()
+        yield sim, dt
 
 
 def _assert_first_frame_textured(first_frame: torch.Tensor, stable_frame: torch.Tensor):
@@ -137,6 +179,145 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     del camera
 
     _assert_first_frame_textured(first_frame, stable_frame)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+def test_tensor_pose_is_visible_in_first_kit_frame(
+    setup_pose_sim: tuple[sim_utils.SimulationContext, float], device: str
+):
+    """A tensor pose write after reset must be visible in the first Kit visualizer frame."""
+    sim, _ = setup_pose_sim
+    cube = RigidObject(
+        RigidObjectCfg(
+            prim_path="/World/Objects/MovingCube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=PhysxRigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=PhysxCollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(5.0, 0.0, 0.2)),
+        )
+    )
+
+    sim.reset()
+
+    visualizer = sim.visualizers[0]
+    visualizer.render_rgb_array()
+
+    root_pose = cube.data.default_root_pose.torch.clone()
+    root_pose[:, :3] = torch.tensor((0.5, 0.0, 0.2), device=sim.device)
+    cube.write_root_pose_to_sim_index(root_pose=root_pose)
+
+    first_frame = torch.from_numpy(visualizer.render_rgb_array()).to(dtype=torch.float32)
+    first_frame_step = sim.get_physics_step_count()
+
+    sim.step()
+    stable_frame = torch.from_numpy(visualizer.render_rgb_array()).to(dtype=torch.float32)
+
+    def red_fraction(frame: torch.Tensor) -> float:
+        red, green, blue = frame.unbind(dim=-1)
+        red_pixels = (red > 40.0) & (red > 1.5 * green) & (red > 1.5 * blue)
+        return red_pixels.float().mean().item()
+
+    first_red_fraction = red_fraction(first_frame)
+    stable_red_fraction = red_fraction(stable_frame)
+
+    assert first_frame_step == 0
+    assert stable_red_fraction > 0.005, "The moved red cube is not visible in the stable reference frame."
+    assert first_red_fraction > 0.5 * stable_red_fraction, (
+        f"The tensor pose is stale in the first frame: first red fraction={first_red_fraction:.6f}, "
+        f"stable red fraction={stable_red_fraction:.6f}."
+    )
+
+    del cube
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
+    """Reset must restore the initial pose in state and camera observations without stepping physics."""
+
+    @configclass
+    class CameraObservationsCfg(ObservationGroupCfg):
+        """Camera geometry returned directly by environment reset."""
+
+        concatenate_terms = False
+        depth = ObservationTermCfg(
+            func=mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "distance_to_image_plane", "normalize": False},
+        )
+
+    sim_utils.create_new_stage()
+    cfg = make_empty_manager_based_env_cfg(device=device)
+    cfg.seed = 0
+    cfg.decimation = 1
+    cfg.sim.render_interval = 1
+    cfg.sim.physics = PhysxCfg()
+    cfg.sim.use_fabric = True
+    cfg.sim.gravity = (0.0, 0.0, 0.0)
+    cfg.sim.visualizer_cfgs = []
+    cfg.num_rerenders_on_reset = 2
+    cfg.observations = {"camera": CameraObservationsCfg()}
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.3, 0.15, 0.2),
+            rigid_props=PhysxRigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=PhysxCollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.35, 0.0, 0.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=HEIGHT,
+        width=WIDTH,
+        data_types=["distance_to_image_plane"],
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, 10.0)),
+    )
+    env = ManagerBasedEnv(cfg)
+    try:
+        env.reset()
+        action = torch.zeros_like(env.action_manager.action)
+        # Establish rendered references at both poses before testing the reset boundary.
+        for _ in range(STABILISATION_STEPS):
+            initial_obs, _ = env.step(action)
+        initial_depth = initial_obs["camera"]["depth"].clone()
+        cube = env.scene["cube"]
+        initial_pose = cube.data.default_root_pose.torch.clone()
+        initial_pose[:, :3] += env.scene.env_origins
+        moved_pose = initial_pose.clone()
+        moved_pose[:, 0] += 0.7
+        moved_pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=device)
+        cube.write_root_pose_to_sim_index(root_pose=moved_pose)
+        for _ in range(STABILISATION_STEPS):
+            moved_obs, _ = env.step(action)
+        moved_depth = moved_obs["camera"]["depth"].clone()
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, moved_pose)
+
+        step_before_reset = env.sim.get_physics_step_count()
+        reset_obs, _ = env.reset()
+        reset_depth = reset_obs["camera"]["depth"].clone()
+
+        assert env.sim.get_physics_step_count() == step_before_reset
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+
+        # Depth silhouettes check geometry, independent of RGB exposure and temporal denoising.
+        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
+        moved_mask = torch.isfinite(moved_depth) & (moved_depth > 0.0) & (moved_depth < 10.0)
+        reset_mask = torch.isfinite(reset_depth) & (reset_depth > 0.0) & (reset_depth < 10.0)
+        assert initial_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
+        assert not (initial_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
+        overlap = (initial_mask & reset_mask).sum() / (initial_mask | reset_mask).sum()
+        assert overlap > 0.9, (
+            f"Reset camera observation did not restore the initial silhouette: IoU={overlap.item():.3f}"
+        )
+    finally:
+        env.close()
 
 
 """

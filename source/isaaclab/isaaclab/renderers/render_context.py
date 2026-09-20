@@ -76,6 +76,8 @@ class RenderContext:
         "_prepared_renderer_ids",
         "_prepared_num_envs",
         "_last_scene_state_step",
+        "_scene_state_revision",
+        "_rendered_scene_state_revision",
         "_visual_materials",
         "_visual_material_batches",
         "_visual_material_batches_by_channel",
@@ -92,6 +94,8 @@ class RenderContext:
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
         self._last_scene_state_step: int | None = None
+        self._scene_state_revision: int = 0
+        self._rendered_scene_state_revision: int = -1
         self._visual_materials: list[Any] = []
         self._visual_material_batches: tuple[VisualMaterialBatch, ...] = ()
         self._visual_material_batches_by_channel: dict[str, VisualMaterialBatch] = {}
@@ -119,6 +123,16 @@ class RenderContext:
     def renderer_types(self) -> tuple[str, ...]:
         """Return the registered camera renderer types."""
         return tuple(cfg.renderer_type for cfg, _renderer in self._renderer_entries)
+
+    @property
+    def scene_state_revision(self) -> int:
+        """Return the revision incremented by scene mutations outside physics steps."""
+        return self._scene_state_revision
+
+    @property
+    def scene_state_is_rendered(self) -> bool:
+        """Return whether the latest external scene mutations reached a rendered frame."""
+        return self._rendered_scene_state_revision == self._scene_state_revision
 
     def get_renderer(self, cfg: RendererCfg) -> BaseRenderer:
         """Return a backend for this configuration, reusing a matching instance if present.
@@ -373,6 +387,19 @@ class RenderContext:
             renderer.render(render_data)
         renderer.read_output(render_data, camera_data)
 
+    def mark_scene_state_dirty(self) -> None:
+        """Invalidate rendered scene state after a mutation outside a physics step."""
+        self._scene_state_revision += 1
+        self._last_scene_state_step = None
+
+    def mark_scene_state_rendered(self, scene_state_revision: int) -> None:
+        """Record that a scene revision reached a rendered frame.
+
+        Args:
+            scene_state_revision: Scene revision captured immediately before producing the frame.
+        """
+        self._rendered_scene_state_revision = max(self._rendered_scene_state_revision, scene_state_revision)
+
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""
         self._prepared_renderer_ids.clear()
@@ -411,6 +438,8 @@ class RenderContext:
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
         self._last_scene_state_step = None
+        self._scene_state_revision = 0
+        self._rendered_scene_state_revision = -1
         self._physics_initialized = False
         self._visual_materials.clear()
         self._visual_material_batches = ()

@@ -1,0 +1,1 @@
+Added regression coverage for initial object poses in camera observations returned by environment reset.

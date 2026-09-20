@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 _DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
+_PLAY_SIMULATIONS_SETTING = "/app/player/playSimulations"
 
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
@@ -222,10 +223,7 @@ class KitVisualizer(BaseVisualizer):
                 if app is not None and app.is_running():
                     # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
                     # Disable playSimulations around app.update() so Kit does not advance its own physics here.
-                    settings = get_settings_manager()
-                    settings.set_bool("/app/player/playSimulations", False)
-                    app.update()
-                    settings.set_bool("/app/player/playSimulations", True)
+                    self._update_kit_app(app)
                     self._app_pumped_this_step = True
             except (ImportError, AttributeError) as exc:
                 logger.debug("[KitVisualizer] App update skipped: %s", exc)
@@ -301,12 +299,8 @@ class KitVisualizer(BaseVisualizer):
             with contextlib.suppress(Exception):
                 self._rgb_render_product.resume()
 
-        if not self._app_pumped_this_step:
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set_bool("/app/player/playSimulations", False)
-            omni.kit.app.get_app().update()
-            settings.set_bool("/app/player/playSimulations", bool(play_flag))
+        if self._needs_kit_app_update():
+            self._update_kit_app(omni.kit.app.get_app())
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):
@@ -411,10 +405,6 @@ class KitVisualizer(BaseVisualizer):
         for source in self._live_plot_sources:
             if isinstance(source, DirectScalarLivePlots):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
-
-    def requires_forward_before_step(self) -> bool:
-        """OV viewport relies on refreshed kinematic state before render."""
-        return True
 
     def pumps_app_update(self) -> bool:
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
@@ -901,6 +891,39 @@ class KitVisualizer(BaseVisualizer):
         image = np.ascontiguousarray(image)
         self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
 
+    def _needs_kit_app_update(self) -> bool:
+        """Return whether an RGB capture cannot reuse the Kit frame pumped by :meth:`step`."""
+        if not self._app_pumped_this_step:
+            return True
+
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            return False
+        return not sim.render_context.scene_state_is_rendered
+
+    def _update_kit_app(self, app: Any) -> None:
+        """Prepare scene state and pump one Kit frame without advancing physics."""
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        scene_state_revision = None
+        if sim is not None:
+            sim.physics_manager.forward()
+            scene_state_revision = sim.render_context.scene_state_revision
+
+        settings = get_settings_manager()
+        play_flag = settings.get(_PLAY_SIMULATIONS_SETTING)
+        settings.set_bool(_PLAY_SIMULATIONS_SETTING, False)
+        try:
+            app.update()
+        finally:
+            settings.set_bool(_PLAY_SIMULATIONS_SETTING, bool(play_flag) if play_flag is not None else True)
+
+        if sim is not None and scene_state_revision is not None:
+            sim.render_context.mark_scene_state_rendered(scene_state_revision)
+
     def _sync_camera_pose_updates_to_kit(self) -> None:
         """Flush generated camera pose writes before camera RGB is sampled."""
         try:
@@ -909,12 +932,7 @@ class KitVisualizer(BaseVisualizer):
             app = omni.kit.app.get_app()
             if app is None or not app.is_running():
                 return
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set_bool("/app/player/playSimulations", False)
-            app.update()
-            if play_flag is not None:
-                settings.set_bool("/app/player/playSimulations", bool(play_flag))
+            self._update_kit_app(app)
         except Exception as exc:
             logger.debug("[KitVisualizer] Camera pose Kit sync skipped: %s", exc)
 
