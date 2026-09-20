@@ -61,6 +61,7 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 ##
 from isaaclab_assets import (  # isort:skip
     ANYMAL_C_CFG,
+    CARTPOLE_CFG,
     FRANKA_PANDA_CFG,
     FRANKA_PANDA_HIGH_PD_CFG,
 )
@@ -1877,6 +1878,45 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
     torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_joint_effort_target_produces_motion(sim, device, gravity_enabled):
+    """Verify that a staged joint effort reaches the PhysX solver and accelerates the joint."""
+    articulation_cfg = CARTPOLE_CFG.replace(
+        actuators={
+            "all": ImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                joint_effort_limit=400.0,
+                stiffness=0.0,
+                damping=0.0,
+            ),
+        }
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations=2, device=device)
+    sim.reset()
+
+    initial_position = articulation.data.default_joint_pos.torch.clone()
+    articulation.write_joint_state_to_sim_index(
+        position=initial_position,
+        velocity=torch.zeros_like(initial_position),
+        full_data=True,
+    )
+
+    cart_joint_id = articulation.joint_names.index("slider_to_cart")
+    effort_target = torch.zeros_like(initial_position)
+    effort_target[0, cart_joint_id] = 50.0
+    articulation.actuators.target_command.set_effort_index(value=effort_target, full_data=True)
+
+    for _ in range(4):
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+
+    cart_velocity = articulation.data.joint_vel.torch[:, cart_joint_id]
+    assert cart_velocity[0] > 0.1, "a positive effort target must accelerate the commanded cart joint"
+    torch.testing.assert_close(cart_velocity[1], torch.zeros_like(cart_velocity[1]), atol=1e-5, rtol=0.0)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
