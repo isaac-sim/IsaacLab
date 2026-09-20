@@ -3,13 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow locomotion environment shared by the Ant and Humanoid tasks."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import (
     euler_xyz_from_quat,
     normalize,
@@ -20,6 +23,10 @@ from isaaclab.utils.math import (
 )
 from isaaclab.utils.string import resolve_matching_names_values
 
+if TYPE_CHECKING:
+    from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg
+    from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
+
 
 class LocomotionDirectEnv(DirectRLEnv):
     """Base direct-workflow environment shared by the ant and humanoid locomotion tasks.
@@ -29,9 +36,9 @@ class LocomotionDirectEnv(DirectRLEnv):
     workflows train against the same problem and converge to the same reward.
     """
 
-    cfg: DirectRLEnvCfg
+    cfg: AntEnvCfg | HumanoidEnvCfg
 
-    def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: AntEnvCfg | HumanoidEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.robot, self.terrain, self.joint_wrench = [

@@ -28,15 +28,10 @@ from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import (
 )
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import (
-    FINGERTIP_NAMES,
-    JOINT_NAMES,
-    TENDON_NAMES,
-    TENDON_POSITION_LIMITS,
-)
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
 ##
-# Default: full-state actor.
+# Full-state actor (default)
 ##
 
 
@@ -85,11 +80,12 @@ class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        # simulation settings
         self.sim.physics = PhysicsCfg()
 
 
 ##
-# ``presets=asymmetric``: reduced actor, privileged critic.
+# Reduced actor with privileged critic (``presets=asymmetric``)
 ##
 
 

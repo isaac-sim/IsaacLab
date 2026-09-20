@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reset events for state-based in-hand reorientation tasks."""
+"""Event terms for the in-hand reorientation environments."""
 
 from __future__ import annotations
 

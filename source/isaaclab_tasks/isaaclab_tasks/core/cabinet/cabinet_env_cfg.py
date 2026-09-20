@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the manager-based cabinet-opening environment."""
 
 from dataclasses import MISSING
 
@@ -33,8 +34,13 @@ from isaaclab.visualizers import VisualizerCfg
 import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
+##
+# Scene assets
+##
+
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
+"""Frame marker for the end-effector and drawer-handle frame transformers."""
 
 CABINET_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Cabinet",
@@ -82,6 +88,11 @@ LIGHT_CFG = AssetBaseCfg(
     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
 )
 """Shared dome-light configuration."""
+
+
+##
+# Simulation presets
+##
 
 
 @configclass
@@ -145,8 +156,8 @@ class CabinetDecimationCfg(PresetCfg):
 class CabinetSceneCfg(InteractiveSceneCfg):
     """Configuration for the cabinet scene with a robot and a cabinet.
 
-    This is the abstract base implementation, the exact scene is defined in the derived classes
-    which need to set the robot and end-effector frames
+    This is the abstract base implementation. The exact scene is defined in the derived classes,
+    which need to set the robot and end-effector frames.
     """
 
     # robot and end-effector frames -- set by a robot-specific subclass
@@ -268,11 +279,11 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # 1. Approach the handle
+    # (1) approach the handle
     approach_ee_handle = RewTerm(func=mdp.approach_ee_handle, weight=2.0, params={"threshold": 0.2})
     align_ee_handle = RewTerm(func=mdp.align_ee_handle, weight=0.5)
 
-    # 2. Grasp the handle
+    # (2) grasp the handle
     approach_gripper_handle = RewTerm(func=mdp.approach_gripper_handle, weight=5.0, params={"offset": MISSING})
     align_grasp_around_handle = RewTerm(func=mdp.align_grasp_around_handle, weight=0.125)
     grasp_handle = RewTerm(
@@ -285,7 +296,7 @@ class RewardsCfg:
         },
     )
 
-    # 3. Open the drawer
+    # (3) open the drawer
     open_drawer_bonus = RewTerm(
         func=mdp.open_drawer_bonus,
         weight=7.5,
@@ -300,7 +311,7 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
     )
 
-    # 4. Penalize actions for cosmetic reasons
+    # (4) penalize actions for cosmetic reasons
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-2)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.0001)
 
@@ -321,7 +332,9 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
+    # Simulation settings: the time step and physics vary per backend
     sim: CabinetSimCfg = CabinetSimCfg()
+    decimation: int = CabinetDecimationCfg()
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)
     # Basic settings
@@ -332,10 +345,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
-    decimation: int = CabinetDecimationCfg()
-
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.episode_length_s = 8.0
-        # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

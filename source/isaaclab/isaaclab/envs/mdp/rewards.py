@@ -18,7 +18,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import RewardTermCfg
-from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
+from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -68,6 +68,32 @@ class is_terminated_term(ManagerTermBase):
             reset_buf += env.termination_manager.get_term(term)
 
         return (reset_buf * (~env.termination_manager.time_outs)).float()
+
+
+def terminated_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Penalize early termination once, independently of the environment step size.
+
+    :class:`~isaaclab.managers.RewardManager` scales every term by the step interval, which would make a
+    plain terminal penalty depend on ``sim.dt`` and ``decimation``. Dividing by the step interval here
+    cancels that scaling, so the term contributes exactly its weight on the step the episode terminates.
+    """
+    return env.termination_manager.terminated.float() / env.step_dt
+
+
+class survival_success_rate(ManagerTermBase):
+    """Track episode survival as the success metric.
+
+    The term returns zero reward and only tracks the metric. On episode reset it writes
+    ``Metrics/success_rate`` into ``extras["log"]``, where an episode counts as a success when it
+    timed out without terminating early.
+    """
+
+    def reset(self, env_ids: torch.Tensor) -> None:
+        survived = self._env.termination_manager.time_outs[env_ids]
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
+
+    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
+        return torch.zeros(env.num_envs, device=env.device)
 
 
 """
@@ -187,6 +213,17 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
         asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
     )
     return torch.sum(torch.abs(angle), dim=1)
+
+
+def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize joint positions that deviate from a target value using an L2 squared kernel.
+
+    The joint positions are wrapped to ``[-pi, pi]`` before the deviation is computed.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_pos = wrap_to_pi(asset.data.joint_pos.torch[:, asset_cfg.joint_ids])
+    return torch.sum(torch.square(joint_pos - target), dim=1)
 
 
 def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:

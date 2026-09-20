@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Robot-neutral event functions shared by the cube-stacking tasks.
-
-These were previously defined in ``franka_stack_events.py``; they are robot-agnostic and are used
-by every stack robot config, so they live here and ``franka_stack_events`` re-exports them for
-backward compatibility.
-"""
+"""Robot-neutral event terms shared by the cube-stacking tasks."""
 
 from __future__ import annotations
 
@@ -317,14 +312,13 @@ def randomize_visual_texture_material(
         not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
     ):
         return
-        # textures = [default_texture]
 
     # enable replicator extension if not already enabled
-    from isaaclab.sim.utils import enable_extension
+    from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
 
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
-    import omni.replicator.core as rep
+    import omni.replicator.core as rep  # noqa: PLC0415
 
     # check to make sure replicate_physics is set to False, else raise error
     # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Camera and observation configurations for the Kuka-Allegro lift environments."""
+
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -13,14 +15,17 @@ from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
+import isaaclab_tasks.core.lift.lift_env_cfg as lift
+import isaaclab_tasks.core.lift.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from ... import lift_env_cfg as lift
-from ... import mdp
-
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
+"""Fingertip bodies that carry an object contact sensor."""
 
+##
+# Camera presets
+##
 
 BASE_CAMERA_CFG = CameraCfg(
     prim_path="{ENV_REGEX_NS}/Camera",
@@ -101,7 +106,7 @@ WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
 
 @configclass
 class BaseTiledCameraCfg(PresetCfg):
-    """Tiled camera configurations"""
+    """Base-mounted camera presets, one per data type and resolution."""
 
     rgb64 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=64, height=64)
     rgb128 = BASE_CAMERA_CFG.replace(data_types=["rgb"], width=128, height=128)
@@ -145,7 +150,7 @@ class BaseTiledCameraCfg(PresetCfg):
 
 @configclass
 class WristTiledCameraCfg(PresetCfg):
-    """Tiled camera configurations"""
+    """Wrist-mounted camera presets, one per data type and resolution."""
 
     rgb64 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=64, height=64)
     rgb128 = WRIST_CAMERA_CFG.replace(data_types=["rgb"], width=128, height=128)
@@ -187,14 +192,16 @@ class WristTiledCameraCfg(PresetCfg):
     default = rgb64
 
 
-############################
+##
+# MDP settings
+##
 
 
 @configclass
 class StateObservationCfg(lift.ObservationsCfg):
-    """Kuka Allegro participant scene for Lift Lifting/Reorientation"""
+    """State observations for the Kuka-Allegro lift tasks."""
 
-    def __post_init__(self: lift.ObservationsCfg):
+    def __post_init__(self):
         super().__post_init__()
         self.proprio.contact = ObsTerm(
             func=mdp.fingers_contact_force_b,
@@ -206,7 +213,7 @@ class StateObservationCfg(lift.ObservationsCfg):
 
 @configclass
 class SingleCameraObservationsCfg(StateObservationCfg):
-    """Observation specifications for the MDP."""
+    """State observations plus the base camera image."""
 
     @configclass
     class BaseImageObsCfg(ObsGroup):
@@ -226,10 +233,12 @@ class SingleCameraObservationsCfg(StateObservationCfg):
 
 @configclass
 class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
-    """Observation specifications for the MDP."""
+    """State observations plus the base and wrist camera images."""
 
     @configclass
     class WristImageObsCfg(ObsGroup):
+        """Camera observations for the wrist image group."""
+
         wrist_observation = ObsTerm(
             func=mdp.vision_camera,
             noise=Unoise(n_min=-0.0, n_max=0.0),

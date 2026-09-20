@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Geometry and reset-state helpers for the lift environments."""
+
 from __future__ import annotations
 
 import hashlib
@@ -21,33 +23,41 @@ if TYPE_CHECKING:
 
     from isaaclab.envs import ManagerBasedEnv
 
-# ---- module-scope caches ----
-_PRIM_SAMPLE_CACHE: dict[tuple[str, int], np.ndarray] = {}  # (prim_hash, num_points) -> (N,3) in root frame
-_FINAL_SAMPLE_CACHE: dict[str, np.ndarray] = {}  # env_hash -> (num_points,3) in root frame
+_PRIM_SAMPLE_CACHE: dict[tuple[str, int], np.ndarray] = {}
+"""Per-prim surface samples in the object root frame, keyed by ``(prim_hash, num_points)``."""
+
+_FINAL_SAMPLE_CACHE: dict[str, np.ndarray] = {}
+"""Downsampled per-object samples in the object root frame, keyed by the object's geometry hash."""
 
 
-def clear_pointcloud_caches():
+def clear_pointcloud_caches() -> None:
+    """Clear the in-memory point-cloud sampling caches."""
     _PRIM_SAMPLE_CACHE.clear()
     _FINAL_SAMPLE_CACHE.clear()
 
 
 def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, device: str = "cpu") -> torch.Tensor:
-    """
-    Samples point clouds for each environment instance by collecting points
-    from all matching USD prims under `prim_path`, then downsamples to
-    exactly `num_points` per env using farthest-point sampling.
+    """Sample a surface point cloud per environment from the USD prims matching ``prim_path``.
 
-    Caching is in-memory within this module:
-      - per-prim raw samples:   _PRIM_SAMPLE_CACHE[(prim_hash, num_points)]
-      - final downsampled env:  _FINAL_SAMPLE_CACHE[env_hash]
+    Points are gathered from every mesh or primitive-shape prim under each source prim of the clone
+    plan and downsampled to exactly ``num_points`` with farthest-point sampling. Samples are cached
+    in memory per prim geometry and per object geometry, so repeated calls for the same object
+    (across terms or environments) reuse them.
+
+    Args:
+        num_envs: Number of environments.
+        num_points: Number of surface points per environment.
+        prim_path: Regex prim path of the object, e.g. ``"{ENV_REGEX_NS}/Object"``.
+        device: Device of the returned tensor.
 
     Returns:
-        torch.Tensor: Shape (num_envs, num_points, 3) on `device`.
+        Surface points [m] in the object root frame, shape ``(num_envs, num_points, 3)``.
     """
-    import trimesh
-    from trimesh.sample import sample_surface
+    # USD and trimesh are runtime dependencies that must not load at config-import time
+    import trimesh  # noqa: PLC0415
+    from trimesh.sample import sample_surface  # noqa: PLC0415
 
-    from pxr import UsdGeom
+    from pxr import UsdGeom  # noqa: PLC0415
 
     points = torch.zeros((num_envs, num_points, 3), dtype=torch.float32, device=device)
     xform_cache = UsdGeom.XformCache()
@@ -188,7 +198,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
 
 def _triangulate_faces(prim) -> np.ndarray:
     """Convert a USD Mesh prim into triangulated face indices (N, 3)."""
-    from pxr import UsdGeom
+    from pxr import UsdGeom  # noqa: PLC0415
 
     mesh = UsdGeom.Mesh(prim)
     counts = mesh.GetFaceVertexCountsAttr().Get()
@@ -202,11 +212,11 @@ def _triangulate_faces(prim) -> np.ndarray:
     return np.asarray(faces, dtype=np.int64)
 
 
-def create_primitive_mesh(prim):
+def create_primitive_mesh(prim) -> trimesh.Trimesh:
     """Create a trimesh mesh from a USD primitive (Cube, Sphere, Cylinder, etc.)."""
-    import trimesh
+    import trimesh  # noqa: PLC0415
 
-    from pxr import UsdGeom
+    from pxr import UsdGeom  # noqa: PLC0415
 
     prim_type = prim.GetTypeName()
     if prim_type == "Cube":
@@ -221,7 +231,7 @@ def create_primitive_mesh(prim):
     elif prim_type == "Capsule":
         c = UsdGeom.Capsule(prim)
         return trimesh.creation.capsule(radius=c.GetRadiusAttr().Get(), height=c.GetHeightAttr().Get())
-    elif prim_type == "Cone":  # Cone
+    elif prim_type == "Cone":
         c = UsdGeom.Cone(prim)
         return trimesh.creation.cone(radius=c.GetRadiusAttr().Get(), height=c.GetHeightAttr().Get())
     else:
@@ -277,12 +287,25 @@ def farthest_point_sampling(
 
 
 def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, trimesh.Trimesh]:
-    """Collect collision meshes under ``root_prim``, grouped in caller-selected frames."""
-    import trimesh
+    """Collect collision meshes under ``root_prim``, grouped in caller-selected frames.
 
-    from pxr import UsdPhysics
+    Args:
+        root_prim: Prim whose subtree is searched for collision meshes.
+        owner_frame_fn: Maps a collision prim to ``(owner_key, frame_prim)``, or ``None`` to skip it. The
+            mesh is expressed in ``frame_prim``'s frame and merged with other meshes of the same owner.
 
-    from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+    Returns:
+        One merged mesh per owner key.
+    """
+    import trimesh  # noqa: PLC0415
+
+    from pxr import UsdPhysics  # noqa: PLC0415
+
+    from isaaclab.utils.mesh import (  # noqa: PLC0415
+        PRIMITIVE_MESH_TYPES,
+        create_trimesh_from_geom_mesh,
+        create_trimesh_from_geom_shape,
+    )
 
     mesh_types = PRIMITIVE_MESH_TYPES + ["Mesh"]
     mesh_prims = sim_utils.get_all_matching_child_prims(

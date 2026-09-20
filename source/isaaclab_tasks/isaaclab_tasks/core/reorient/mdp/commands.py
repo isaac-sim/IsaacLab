@@ -65,9 +65,7 @@ class ReorientCommand(CommandTerm):
         self.pos_command_w = self.pos_command_e + self._env.scene.env_origins
         # -- orientation: (x, y, z, w)
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)
-        self.quat_command_w[:, 3] = 1.0  # set the scalar component to 1.0
-
-        # -- unit vectors
+        self.quat_command_w[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
 
         # -- metrics
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
@@ -75,6 +73,8 @@ class ReorientCommand(CommandTerm):
         self.metrics["consecutive_success"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
         self._success = SuccessTracker(self.num_envs, self.device)
+        # marker positions are constant per run and cached on first use to avoid a per-frame host-to-device copy
+        self._marker_pos_offset: torch.Tensor | None = None
         self._fixed_marker_pos_w: torch.Tensor | None = None
 
         # adds (optional) cmd kind and element names for leapp export
@@ -134,8 +134,7 @@ class ReorientCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]):
         self._success.record_goal_reached(env_ids)
-        # The shared sampler covers SO(3) uniformly. Composing a rotation about x with one about y, as
-        # this did, reaches only a two-axis subset and needs a unit-axis buffer per axis to do it.
+        # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
         quat = math_utils.random_orientation(len(env_ids), device=self.device)
         # make sure the quaternion real-part is always positive
         self.quat_command_w[env_ids] = math_utils.quat_unique(quat) if self.cfg.make_quat_unique else quat
@@ -162,13 +161,13 @@ class ReorientCommand(CommandTerm):
 
     def _debug_vis_callback(self, event):
         if self.cfg.fixed_marker_pos is None:
-            marker_pos = self.pos_command_w + torch.tensor(self.cfg.marker_pos_offset, device=self.device)
+            if self._marker_pos_offset is None:
+                self._marker_pos_offset = torch.tensor(self.cfg.marker_pos_offset, device=self.device)
+            marker_pos = self.pos_command_w + self._marker_pos_offset
         else:
             if self._fixed_marker_pos_w is None:
-                # constant per run; cached to avoid a host-to-device allocation every render frame
                 self._fixed_marker_pos_w = (
-                    torch.tensor(self.cfg.fixed_marker_pos, device=self.device).repeat(self.num_envs, 1)
-                    + self._env.scene.env_origins
+                    torch.tensor(self.cfg.fixed_marker_pos, device=self.device) + self._env.scene.env_origins
                 )
             marker_pos = self._fixed_marker_pos_w
         self.goal_pose_visualizer.visualize(

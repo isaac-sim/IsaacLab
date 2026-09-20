@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow Ant locomotion environment."""
+
 from __future__ import annotations
 
 from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg

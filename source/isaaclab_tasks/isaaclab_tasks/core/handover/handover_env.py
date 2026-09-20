@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow two-hand handover environment."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -15,7 +17,6 @@ from isaaclab.envs import DirectMARLEnv
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
-from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.reorient.utils import (
     EpisodeErrorRecorder,
@@ -24,8 +25,16 @@ from isaaclab_tasks.core.reorient.utils import (
     sample_joint_positions_within_limits,
 )
 
+if TYPE_CHECKING:
+    from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
+
 
 class HandoverEnv(DirectMARLEnv):
+    """Two Shadow Hands hand a ball over to a fixed goal position.
+
+    Both agents observe their own hand plus the object and goal, and share one distance reward.
+    """
+
     cfg: HandoverEnvCfg
 
     def __init__(self, cfg: HandoverEnvCfg, render_mode: str | None = None, **kwargs):
@@ -238,8 +247,8 @@ class HandoverEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | None):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
-        # Flush per-episode success: the object is AT the goal as the episode ends, not merely
-        # that it passed through. 0-dim device tensor, for the same reason.
+        # flush the per-episode success: the object is at the goal as the episode ends, not merely
+        # passed through it. Logged as a 0-dim device tensor to avoid a host sync.
         succeeded = (self._last_goal_dist[env_ids] < self.cfg.success_distance_threshold) & self._episode_succeeded[
             env_ids
         ]
@@ -303,7 +312,7 @@ class HandoverEnv(DirectMARLEnv):
 
         self._compute_intermediate_values()
 
-    def _reset_target_pose(self, env_ids):
+    def _reset_target_pose(self, env_ids: Sequence[int] | torch.Tensor) -> None:
         # reset goal rotation
         rand_floats = sample_uniform(-1.0, 1.0, (len(env_ids), 2), device=self.device)
         new_rot = randomize_rotation(
@@ -319,24 +328,22 @@ class HandoverEnv(DirectMARLEnv):
             environment_ids=self.scene._ALL_INDICES,
         )
 
-    def _compute_intermediate_values(self):
+    def _compute_intermediate_values(self) -> None:
         # data for right hand
-        self.right_fingertip_pos = self.right_hand.data.body_pos_w.torch[:, self.finger_bodies]
+        self.right_fingertip_pos = self.right_hand.data.body_pos_w.torch[
+            :, self.finger_bodies
+        ] - self.scene.env_origins.unsqueeze(1)
         self.right_fingertip_rot = self.right_hand.data.body_quat_w.torch[:, self.finger_bodies]
-        self.right_fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
-            self.num_envs, self.num_fingertips, 3
-        )
         self.right_fingertip_velocities = self.right_hand.data.body_vel_w.torch[:, self.finger_bodies]
 
         self.right_hand_dof_pos = self.right_hand.data.joint_pos.torch
         self.right_hand_dof_vel = self.right_hand.data.joint_vel.torch
 
         # data for left hand
-        self.left_fingertip_pos = self.left_hand.data.body_pos_w.torch[:, self.finger_bodies]
+        self.left_fingertip_pos = self.left_hand.data.body_pos_w.torch[
+            :, self.finger_bodies
+        ] - self.scene.env_origins.unsqueeze(1)
         self.left_fingertip_rot = self.left_hand.data.body_quat_w.torch[:, self.finger_bodies]
-        self.left_fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
-            self.num_envs, self.num_fingertips, 3
-        )
         self.left_fingertip_velocities = self.left_hand.data.body_vel_w.torch[:, self.finger_bodies]
 
         self.left_hand_dof_pos = self.left_hand.data.joint_pos.torch

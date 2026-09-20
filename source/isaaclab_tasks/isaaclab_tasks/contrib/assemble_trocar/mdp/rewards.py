@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Reward terms for the trocar assembly environment."""
+
 from __future__ import annotations
 
 import logging
@@ -11,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply
 
@@ -295,9 +298,8 @@ def get_trocar_tip_position(
     Returns:
         torch.Tensor: Shape (num_envs, 3) - Position in world coordinates
     """
-    from pxr import Gf, Usd, UsdGeom
-
-    import isaaclab.utils.math as math_utils
+    # USD is a runtime dependency that must not load at config-import time
+    from pxr import Gf, Usd, UsdGeom  # noqa: PLC0415
 
     # Cache the tip offset to avoid recalculating every step.
     # The local offset from root to tip is a static geometric property of the USD

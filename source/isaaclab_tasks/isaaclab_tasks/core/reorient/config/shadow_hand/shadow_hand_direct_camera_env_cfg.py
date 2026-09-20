@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Shadow Hand camera reorientation environment."""
+
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
@@ -184,6 +186,8 @@ class ShadowHandCameraSceneCfg(ShadowHandSceneCfg):
 
 @configclass
 class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
+    """Configuration for the direct-workflow Shadow Hand camera reorientation environment."""
+
     # scene
     scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg()
 

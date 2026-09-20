@@ -17,23 +17,18 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
-from isaaclab_tasks.core.handover.handover_env_cfg import (
-    BALL_CFG,
-    LeftHandCfg,
-    PhysicsCfg,
-    RightHandCfg,
-)
+from isaaclab_tasks.core.handover.handover_env_cfg import BALL_CFG, LeftHandCfg, PhysicsCfg, RightHandCfg
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import (
-    FINGERTIP_NAMES,
-    JOINT_NAMES,
-    TENDON_NAMES,
-    TENDON_POSITION_LIMITS,
-)
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
+
+##
+# Scene definition
+##
 
 
 @configclass
@@ -57,11 +52,29 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
     )
 
 
+##
+# MDP settings
+##
+
+
 @configclass
 class CommandsCfg:
     """Handover goal command."""
 
     object_pose = mdp.HandoverCommandCfg(asset_name="object", success_distance_threshold=0.1, debug_vis=True)
+
+
+TENDON_ACTION_CFG = mdp.FixedTendonPositionActionCfg(
+    asset_name="robot",
+    tendon_names=TENDON_NAMES,
+    # four of the twenty motors pull a tendon across a finger's middle and distal joints; tendons have
+    # their own index space, so no joint term can reach them. Map the policy's [-1, 1] onto the
+    # tendon's commandable span and clip to the bound the task guarantees.
+    scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+    offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
+    clip={".*": TENDON_POSITION_LIMITS},
+)
+"""Tendon position action term of one hand, before the asset name is set."""
 
 
 @configclass
@@ -73,44 +86,20 @@ class ActionsCfg:
     """
 
     right_hand = mdp.EMAJointPositionToLimitsActionCfg(
-        asset_name="right_hand",
-        joint_names=JOINT_NAMES,
-        alpha=1.0,
-        rescale_to_limits=True,
+        asset_name="right_hand", joint_names=JOINT_NAMES, alpha=1.0, rescale_to_limits=True
     )
-    right_hand_tendons = mdp.FixedTendonPositionActionCfg(
-        asset_name="right_hand",
-        tendon_names=TENDON_NAMES,
-        # the other four motors pull a tendon across a finger's middle and distal joints;
-        # tendons have their own index space, so no joint term can reach them. Map the
-        # policy's [-1, 1] onto the tendon's commandable span.
-        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
-        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
-        # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
-        clip={".*": TENDON_POSITION_LIMITS},
-    )
+    right_hand_tendons = TENDON_ACTION_CFG.replace(asset_name="right_hand")
     left_hand = mdp.EMAJointPositionToLimitsActionCfg(
-        asset_name="left_hand",
-        joint_names=JOINT_NAMES,
-        alpha=1.0,
-        rescale_to_limits=True,
+        asset_name="left_hand", joint_names=JOINT_NAMES, alpha=1.0, rescale_to_limits=True
     )
-    left_hand_tendons = mdp.FixedTendonPositionActionCfg(
-        asset_name="left_hand",
-        tendon_names=TENDON_NAMES,
-        # the other four motors pull a tendon across a finger's middle and distal joints;
-        # tendons have their own index space, so no joint term can reach them. Map the
-        # policy's [-1, 1] onto the tendon's commandable span.
-        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
-        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
-        # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
-        clip={".*": TENDON_POSITION_LIMITS},
-    )
+    left_hand_tendons = TENDON_ACTION_CFG.replace(asset_name="left_hand")
 
 
 @configclass
 class PolicyCfg(ObsGroup):
-    # Right agent: 133 hand dimensions followed by 24 object/goal dimensions.
+    """Both hands' proprioception plus the object and goal state, in the Direct adapter's order."""
+
+    # right agent: 133 hand dimensions followed by 24 object/goal dimensions
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
     right_joint_pos = ObsTerm(
         func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
@@ -125,10 +114,10 @@ class PolicyCfg(ObsGroup):
         func=reorient_mdp.fingertip_vel,
         params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
     )
-    right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
-    # A hand's motors span two action terms, so its previous command does too: without the tendon
+    # a hand's motors span two action terms, so its previous command does too: without the tendon
     # term the policy sees 16 of the 20 actions it took, and the group falls 4 short of the 133
-    # hand dimensions the Direct task lays out.
+    # hand dimensions the Direct task lays out
+    right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
     right_tendon_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand_tendons"})
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
     object_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
@@ -140,8 +129,7 @@ class PolicyCfg(ObsGroup):
         params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
     )
 
-    # Left agent: the same 157-dimensional layout.
-    # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
+    # left agent: the same 157-dimensional layout
     left_joint_pos = ObsTerm(
         func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
     )
@@ -302,24 +290,38 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
+##
+# Environment configuration
+##
+
+
 @configclass
 class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based handover environment matching the Direct RSL-RL view."""
 
+    # Scene settings
     scene: HandoverManagerSceneCfg = HandoverManagerSceneCfg()
+    # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
+    # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    # ``presets=randomized`` adds the domain-randomization terms
     events: HandoverEventPresetCfg = HandoverEventPresetCfg()
 
     def __post_init__(self):
+        """Post initialization."""
+        # general settings
         self.decimation = 2
         self.episode_length_s = 7.5
-        # simulation — mirrors the Direct cfg
+        # simulation settings, mirrored from the Direct configuration
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
         self.sim.physics = PhysicsCfg()
-        self.viewer.eye = (2.0, 2.0, 2.0)
+        # visualizer settings: frame both hands and the object between them
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0
+        )

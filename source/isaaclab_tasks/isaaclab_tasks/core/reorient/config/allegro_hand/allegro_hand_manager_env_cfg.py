@@ -139,4 +139,5 @@ class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        # simulation settings
         self.sim.physics = PhysicsCfg()

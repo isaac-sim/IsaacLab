@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Unitree H1 velocity-tracking environment on rough terrain."""
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -14,10 +15,7 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     RewardsCfg,
 )
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets import H1_MINIMAL_CFG  # isort: skip
+from isaaclab_assets import H1_MINIMAL_CFG
 
 
 @configclass
@@ -73,6 +71,8 @@ class H1Rewards(RewardsCfg):
 
 @configclass
 class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the Unitree H1 velocity-tracking environment on rough terrain."""
+
     rewards: H1Rewards = H1Rewards()
 
     def __post_init__(self):

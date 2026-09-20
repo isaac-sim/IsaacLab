@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow cartpole environment driven by camera observations."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -45,8 +47,8 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         self._stack: CircularBuffer | None = None
         if self.cfg.frame_stack > 1:
-            # Channel-stack mode: buffer storage is laid out so that .stacked is a free
-            # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
+            # channel-stack mode: the buffer storage is laid out so that ``stacked`` is a free
+            # contiguous reshape into (B, K*C, H, W) without a per-step permute or reshape
             self._stack = CircularBuffer(
                 max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
             )
@@ -57,10 +59,10 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         rgb_like = is_rgb_like(data_type)
         segmentation = data_type == "semantic_segmentation"
-        # Defer normalize past the ring buffer when stacking RGB-like data so the ring holds
-        # uint8 (4x cheaper per-step copies). Math is identical -- K frames live in disjoint
-        # channel slices of (B, K*C, H, W). Colorized segmentation is uint8 RGBA and qualifies;
-        # non-colorized segmentation is an int32 label map and does not.
+        # defer normalization past the ring buffer when stacking RGB-like data so the ring holds
+        # uint8 (4x cheaper per-step copies); the math is identical since the K frames live in
+        # disjoint channel slices of (B, K*C, H, W). Colorized segmentation is uint8 RGBA and
+        # qualifies; non-colorized segmentation is an int32 label map and does not.
         defer_normalize = self._stack is not None and (rgb_like or (segmentation and camera_data.dtype == torch.uint8))
 
         if data_type == "albedo":
@@ -79,12 +81,10 @@ class CartpoleCameraEnv(CartpoleEnv):
             obs = self._stack.stacked
 
         if defer_normalize:
-            # No ``out=`` -- a fresh float32 tensor is allocated per call. The caching
-            # allocator returns a different block than the previous step's (still
-            # referenced by the trainer), so the previous-iteration ``observations``
-            # is not overwritten before ``record_transition`` reads it. See
-            # :func:`isaaclab.utils.warp.ops.normalize_image_uint8` for the aliasing
-            # hazard documentation.
+            # no ``out=``: a fresh float32 tensor is allocated per call, so the previous step's
+            # observations (still referenced by the trainer) are not overwritten before
+            # ``record_transition`` reads them. See :func:`isaaclab.utils.warp.ops.normalize_image_uint8`
+            # for the aliasing hazard.
             obs = normalize_camera_image(obs, data_type, channel_dim=1)
         elif self._stack is not None:
             # ``stacked`` is a view of the ring buffer storage which is overwritten on
@@ -94,8 +94,7 @@ class CartpoleCameraEnv(CartpoleEnv):
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
-        critic_obs = super()._get_observations()["policy"]
-        return {"policy": obs, "critic": critic_obs}
+        return {"policy": obs, "critic": super()._get_observations()["policy"]}
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)

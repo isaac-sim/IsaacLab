@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Kuka-Allegro lift and reorient environments."""
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -10,23 +12,30 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass
 
+import isaaclab_tasks.core.lift.lift_env_cfg as lift
+import isaaclab_tasks.core.lift.mdp as mdp
+from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import FINGERTIP_LIST, StateObservationCfg
+
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
-from ... import lift_env_cfg as lift
-from ... import mdp
-from .camera_cfg import StateObservationCfg
-
-FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 THUMB_SENSOR = "thumb_link_3_object_s"
+"""Contact sensor of the thumb."""
+
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
+"""Contact sensors of the remaining fingers."""
+
+
+##
+# Scene definition
+##
 
 
 @configclass
 class KukaAllegroSceneCfg(lift.SceneCfg):
-    """KukaAllegro scene for the Lift and Reorient tasks.
+    """Kuka-Allegro scene for the lift and reorient tasks.
 
-    The ``base_camera`` / ``wrist_camera`` slots are left unset (``None``) for the state task; the
-    camera env config populates them (see ``kuka_allegro_camera_env_cfg``).
+    The ``base_camera`` and ``wrist_camera`` slots are left unset for the state task; the camera
+    environment configuration populates them.
     """
 
     robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -46,13 +55,22 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
             )
 
 
+##
+# MDP settings
+##
+
+
 @configclass
 class KukaAllegroRelJointPosActionCfg:
+    """Relative joint position targets for all joints."""
+
     action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
 
 
 @configclass
 class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
+    """Reward terms for the MDP, with the Allegro finger contact sensors filled in."""
+
     good_finger_contact = RewTerm(
         func=mdp.contacts,
         weight=1.0,
@@ -79,14 +97,21 @@ class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
         self.success.params["finger_names"] = FINGER_SENSORS
 
 
+##
+# Environment configuration
+##
+
+
 @configclass
 class KukaAllegroMixinCfg:
+    """Kuka-Allegro specific scene, observation, action and reward terms, mixed into the task configurations."""
+
     scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
 
-    def __post_init__(self: lift.ReorientEnvCfg):
+    def __post_init__(self):
         super().__post_init__()
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
@@ -106,7 +131,7 @@ class KukaAllegroMixinCfg:
         diversity_feature = self.events.conditional_reset.params.get("diversity_feature")
         if diversity_feature is not None:
             diversity_feature.body_names = ["palm_link", ".*_tip"]
-        # finger closing-speed DR: armature sets tau/M.
+        # finger closing-speed randomization: the armature sets the effort-to-inertia ratio
         self.events.finger_closing_speed = EventTerm(
             func=mdp.randomize_joint_parameters,
             mode="startup",
@@ -121,9 +146,9 @@ class KukaAllegroMixinCfg:
 
 @configclass
 class KukaAllegroReorientEnvCfg(KukaAllegroMixinCfg, lift.ReorientEnvCfg):
-    pass
+    """Kuka-Allegro object reorientation environment."""
 
 
 @configclass
 class KukaAllegroLiftEnvCfg(KukaAllegroMixinCfg, lift.LiftEnvCfg):
-    pass
+    """Kuka-Allegro object lifting environment."""

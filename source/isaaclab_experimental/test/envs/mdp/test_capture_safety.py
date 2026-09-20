@@ -394,7 +394,7 @@ def _discover_warp_mdp_terms() -> set[str]:
     """Return every public warp MDP term as a ``"<module>:<name>"`` identity.
 
     Qualified rather than bare: the same term name legitimately appears in more than one task
-    mirror (``survival_success_rate`` is defined by both cartpole and locomotion), and keying
+    mirror (``survival_success_rate`` is twinned by both cartpole and locomotion), and keying
     by name alone would let a spec for one of them mark the other as declared.
     """
     terms: set[str] = set()

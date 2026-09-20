@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+import torch
 
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
@@ -294,3 +296,86 @@ class modify_term_cfg(modify_env_param):
         super().__init__(cfg, env)
         # overwrite the simplified address with the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
+
+
+class DifficultyScheduler(ManagerTermBase):
+    """Adaptive difficulty scheduler for curriculum learning.
+
+    Each environment keeps an integer difficulty level. At episode end the level is promoted when the
+    reward term named by ``success_term_name`` reports success for that environment through a sticky
+    boolean ``succeeded`` buffer, and demoted otherwise unless ``promotion_only`` is set. The normalized
+    mean difficulty across environments is exposed as :attr:`difficulty_frac` for other curriculum terms,
+    such as :func:`initial_final_interpolate_fn`, to interpolate their targets.
+    """
+
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        init_difficulty: int = cfg.params.get("init_difficulty", 0)
+        self.current_difficulties = torch.full((env.num_envs,), float(init_difficulty), device=env.device)
+        self.difficulty_frac: float = 0.0
+        """Mean difficulty across environments, normalized by ``max_difficulty``."""
+
+    def get_state(self) -> torch.Tensor:
+        return self.current_difficulties
+
+    def set_state(self, state: torch.Tensor) -> None:
+        self.current_difficulties = state.clone().to(self._env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        init_difficulty: int = 0,
+        min_difficulty: int = 0,
+        max_difficulty: int = 50,
+        promotion_only: bool = False,
+        success_term_name: str = "success",
+    ) -> float:
+        succeeded = env.reward_manager.get_term_cfg(success_term_name).func.succeeded[env_ids]
+        current = self.current_difficulties[env_ids]
+        demoted = current if promotion_only else current - 1
+        self.current_difficulties[env_ids] = torch.where(succeeded, current + 1, demoted).clamp(
+            min=min_difficulty, max=max_difficulty
+        )
+        # Python float: the dependent curriculum terms compare and interpolate host-side
+        self.difficulty_frac = (torch.mean(self.current_difficulties) / max(max_difficulty, 1)).item()
+        return self.difficulty_frac
+
+
+def initial_final_interpolate_fn(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    data: Any,
+    initial_value: Any,
+    final_value: Any,
+    difficulty_term_str: str,
+) -> Any:
+    """Interpolate a term parameter between initial and final values by the current difficulty fraction.
+
+    Intended as the ``modify_fn`` of :class:`modify_term_cfg`. Works on arbitrarily nested lists and
+    tuples; scalars (int and float) are interpolated at the leaves and integers stay integers.
+
+    Args:
+        env: The environment.
+        env_ids: Environments being updated. Unused, the interpolation is shared by all environments.
+        data: Current value of the parameter, which fixes the structure and leaf types of the result.
+        initial_value: Value at zero difficulty.
+        final_value: Value at maximum difficulty.
+        difficulty_term_str: Name of the :class:`DifficultyScheduler` curriculum term to read.
+
+    Returns:
+        The interpolated value, or :attr:`modify_env_param.NO_CHANGE` while the difficulty is below 10%.
+    """
+    difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
+    frac = difficulty_term.difficulty_frac
+    if frac < 0.1:
+        return modify_env_param.NO_CHANGE
+    return _interpolate_nested(initial_value, final_value, data, frac)
+
+
+def _interpolate_nested(initial: Any, final: Any, data: Any, frac: float) -> Any:
+    """Interpolate leaf scalars of nested sequences, preserving the container and leaf types of ``data``."""
+    if isinstance(data, Sequence) and not isinstance(data, (str, bytes)):
+        return type(data)(_interpolate_nested(i, f, d, frac) for i, f, d in zip(initial, final, data))
+    value = frac * (final - initial) + initial
+    return int(value) if isinstance(data, int) else value

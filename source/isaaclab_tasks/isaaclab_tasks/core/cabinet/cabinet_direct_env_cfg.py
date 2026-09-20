@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the direct-workflow cabinet-opening environment."""
+
 from __future__ import annotations
 
 from dataclasses import MISSING
