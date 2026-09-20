@@ -30,6 +30,8 @@ from stable_baselines3.common.preprocessing import is_image_space, is_image_spac
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
+from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
@@ -149,8 +151,10 @@ class Sb3VecEnvWrapper(VecEnv):
                 (Only episodic reward, lengths and truncation info are included)
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: When the environment has an external Gymnasium time limit.
         """
         # check that input is valid
+        _validate_no_time_limit(env)
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 

@@ -12,6 +12,8 @@ import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
+from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+
 if TYPE_CHECKING:
     from isaaclab.envs import (
         DirectRLEnv,
@@ -45,9 +47,10 @@ class RslRlVecEnvWrapper(VecEnv):
             clip_actions: The clipping value for actions. If ``None``, then no clipping is done.
 
         Raises:
-            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: When the environment is not an Isaac Lab environment or has an external Gymnasium time limit.
         """
         # check that input is valid
+        _validate_no_time_limit(env)
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv
 

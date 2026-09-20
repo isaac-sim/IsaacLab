@@ -102,6 +102,19 @@ def test_random_actions(registered_tasks):
         env.close()
 
 
+def test_gymnasium_time_limit_is_rejected():
+    """Reject scalar Gymnasium time limits around Isaac Lab vectorized environments."""
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
+    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
+    try:
+        time_limited_env = gym.wrappers.RecordEpisodeStatistics(gym.wrappers.TimeLimit(env, max_episode_steps=2))
+
+        with pytest.raises(ValueError, match="episode_length_s"):
+            Sb3VecEnvWrapper(time_limited_env)
+    finally:
+        env.close()
+
+
 """
 Helper functions.
 """

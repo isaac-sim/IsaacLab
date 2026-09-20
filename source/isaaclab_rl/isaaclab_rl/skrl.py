@@ -30,6 +30,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
+from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+
 if TYPE_CHECKING:
     from isaaclab.envs import (
         DirectMARLEnv,
@@ -86,13 +88,14 @@ def SkrlVecEnvWrapper(
             will be wrapped as single-agent or multi-agent.
 
     Raises:
-        ValueError: When the environment is not an instance of any Isaac Lab environment interface.
+        ValueError: When the environment is not an Isaac Lab environment or has an external Gymnasium time limit.
         ValueError: If the specified ML framework is not valid.
 
     Reference:
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
     # check that input is valid
+    _validate_no_time_limit(env)
     # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
     from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 

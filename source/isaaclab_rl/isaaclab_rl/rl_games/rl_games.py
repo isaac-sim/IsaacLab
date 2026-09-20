@@ -46,6 +46,8 @@ from rl_games.common.vecenv import IVecEnv
 
 from isaaclab.envs import VecEnvObs
 
+from isaaclab_rl.utils.wrappers import _validate_no_time_limit
+
 if TYPE_CHECKING:
     from isaaclab.envs import (
         DirectRLEnv,
@@ -115,10 +117,11 @@ class RlGamesVecEnvWrapper(IVecEnv):
                 True for backward compatible.
 
         Raises:
-            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: The environment is not an Isaac Lab environment or has an external Gymnasium time limit.
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
+        _validate_no_time_limit(env)
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 

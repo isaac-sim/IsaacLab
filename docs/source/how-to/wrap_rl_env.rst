@@ -144,6 +144,12 @@ As an example of how to use the RL task environment with Stable-Baselines3:
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
+Isaac Lab vectorized environments manage episode timeouts internally and independently for every
+sub-environment. Do not pass ``max_episode_steps`` to :func:`gymnasium.make`, because Gymnasium's scalar
+``TimeLimit`` wrapper is incompatible with this vectorized contract. Configure
+:attr:`~isaaclab.envs.ManagerBasedRLEnvCfg.episode_length_s` or
+:attr:`~isaaclab.envs.DirectRLEnvCfg.episode_length_s` instead.
+
 
 .. caution::
 
