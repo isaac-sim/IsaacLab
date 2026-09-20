@@ -15,7 +15,6 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 """
 
-# needed to import for allowing type-hinting: torch.Tensor | dict[str, torch.Tensor]
 from __future__ import annotations
 
 import contextlib
@@ -25,10 +24,12 @@ from typing import TYPE_CHECKING, Any
 import gymnasium as gym
 import numpy as np
 import torch
-import torch.nn as nn  # noqa: F401
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
+from torch import nn
+
+from .utils.env_types import check_env_type
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -162,29 +163,7 @@ class Sb3VecEnvWrapper(VecEnv):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
             ValueError: When ``action_bounds`` are invalid.
         """
-        # check that input is valid
-        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-        from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
-
-        try:
-            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
-        except ImportError:
-            DirectRLEnvWarp = None
-            ManagerBasedRLEnvWarp = None
-
-        allowed_types = (ManagerBasedRLEnv, DirectRLEnv)
-        if DirectRLEnvWarp is not None:
-            allowed_types += (DirectRLEnvWarp,)
-        if ManagerBasedRLEnvWarp is not None:
-            allowed_types += (ManagerBasedRLEnvWarp,)
-
-        if not isinstance(env.unwrapped, allowed_types):
-            raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                " ManagerBasedRLEnvWarp. Environment type:"
-                f" {type(env.unwrapped)}"
-            )
-        # initialize the wrapper
+        check_env_type(env)
         self.env = env
         self.fast_variant = fast_variant
         low, high = action_bounds

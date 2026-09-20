@@ -6,8 +6,9 @@
 """Unit tests for SB3-specific LEAPP export helpers."""
 
 import importlib
+import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import gymnasium as gym
 import numpy as np
@@ -16,8 +17,6 @@ import pytest
 torch = pytest.importorskip("torch")
 stable_baselines3 = pytest.importorskip("stable_baselines3")
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-
-sb3_contrib = pytest.importorskip("sb3_contrib")
 
 
 def _load_export_module() -> ModuleType:
@@ -68,6 +67,31 @@ def test_sb3_vec_normalize_path_matches_play_convention():
     assert export_module._vec_normalize_path("/tmp/run/model_100_steps.zip") == Path(
         "/tmp/run/model_vecnormalize_100_steps.pkl"
     )
+
+
+def test_sb3_export_restores_distribution_validation_when_env_creation_fails(monkeypatch):
+    """Environment construction failures do not leak the process-wide Torch validation setting."""
+    export_module = _load_export_module()
+    monkeypatch.setitem(sys.modules, "leapp", SimpleNamespace(annotate=object()))
+    monkeypatch.setattr(export_module, "_resolve_checkpoint", lambda args_cli, env_cfg: "/tmp/model.zip")
+
+    def raise_env_creation_error(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(export_module.gym, "make", raise_env_creation_error)
+    args_cli = SimpleNamespace(task="Isaac-Test", device=None)
+    env_cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=2),
+        sim=SimpleNamespace(device="cpu"),
+        seed=None,
+        log_dir=None,
+    )
+    previous_validate_args = torch.distributions.Distribution._validate_args
+
+    with pytest.raises(RuntimeError, match="boom"):
+        export_module.export_sb3_agent(args_cli, env_cfg, {"seed": 42})
+
+    assert torch.distributions.Distribution._validate_args == previous_validate_args
 
 
 def test_sb3_observation_normalization_uses_torch():

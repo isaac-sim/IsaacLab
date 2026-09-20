@@ -30,7 +30,7 @@ the :meth:`gymnasium.make` function.
 
    .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
-      :start-at: # parse configuration via Hydra
+      :start-at: env_cfg, _ = resolve_task_config(args_cli.task, "")
       :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
 
 
@@ -141,7 +141,7 @@ and whether to render, are used to override the default configuration.
 
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
-   :start-at: # parse configuration via Hydra
+   :start-at: env_cfg, _ = resolve_task_config(args_cli.task, "")
    :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
 
 Once creating the environment, the rest of the execution follows the standard resetting and stepping.

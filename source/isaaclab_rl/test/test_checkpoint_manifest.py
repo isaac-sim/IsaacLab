@@ -26,7 +26,7 @@ def test_write_run_manifest_records_normalized_run_identity(tmp_path: Path) -> N
     write_run_manifest(
         str(run_dir),
         library="rsl_rl",
-        task="example:Isaac-Cartpole-Direct-Play",
+        task="example:Isaac-Cartpole-Direct",
         metadata={"agent": "rsl_rl_cfg_entry_point"},
     )
 
@@ -65,7 +65,7 @@ def test_latest_selects_naturally_last_checkpoint_from_newest_compatible_run(tmp
         str(tmp_path),
         "latest",
         library="skrl",
-        task="Isaac-Cartpole-Play",
+        task="Isaac-Cartpole",
         checkpoint_pattern=r".*\.pt",
         other_dirs=["checkpoints"],
         metadata={"algorithm": "ppo"},
