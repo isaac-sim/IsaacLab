@@ -160,7 +160,8 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
                         set_rl_games_policy_states(
                             agent, state_sequence_from_registered(registered_state, list(state_dict), actor_states)
                         )
-                    actions = agent.get_action(agent.obs_to_torch(obs), is_deterministic=agent.is_deterministic)
+                    obs = agent.obs_to_torch(obs)
+                    actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
                     if recurrent:
                         annotate.update_state(
                             policy_node_name, state_dict_from_sequence(get_rl_games_policy_states(agent))

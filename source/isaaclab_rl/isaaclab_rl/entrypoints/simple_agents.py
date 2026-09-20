@@ -75,7 +75,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         print(f"[INFO]: Gym observation space: {env.observation_space}")
         print(f"[INFO]: Gym action space: {env.action_space}")
         env.reset()
-        action_policy = _create_zero_action_policy(env) if policy == "zero" else _create_random_action_policy(env)
+        if policy == "zero":
+            action_policy = create_zero_action_policy(env)
+        else:
+            action_policy = create_random_action_policy(env)
         print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
         # keep running while any visualizer is open and the step budget is not exhausted
@@ -90,7 +93,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         env.close()
 
 
-def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
+def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     """Create a policy that emits finite actions for passive environment playback.
 
     Manager-based environments infer hold commands for absolute task-space action terms and use literal zeros for all
@@ -113,7 +116,7 @@ def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     return lambda: actions
 
 
-def _create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor]:
+def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor]:
     """Create a policy that samples uniform random actions in ``[-1, 1]``."""
     device = env.unwrapped.device
     return lambda: 2 * torch.rand(env.action_space.shape, device=device) - 1

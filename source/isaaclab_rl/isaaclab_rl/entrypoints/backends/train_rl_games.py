@@ -197,7 +197,8 @@ def run(argv: list[str]) -> None:
                     wandb.config.update({"env_cfg": env_cfg.to_dict()})
                     wandb.config.update({"agent_cfg": agent_cfg})
 
-            run_args = {"train": True, "play": False, "sigma": float(args_cli.sigma) if args_cli.sigma else None}
+            train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
+            run_args = {"train": True, "play": False, "sigma": train_sigma}
             if resume_path is not None:
                 run_args["checkpoint"] = resume_path
 

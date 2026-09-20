@@ -135,9 +135,13 @@ def run(argv: list[str]) -> None:
     component_placement = HybridComponentPlacement(cfg, cluster)
 
     if cfg.algorithm.loss_type == "embodied_sac":
-        from rlinf.workers.actor.fsdp_sac_policy_worker import EmbodiedSACFSDPPolicy as actor_worker_cls
+        from rlinf.workers.actor.fsdp_sac_policy_worker import EmbodiedSACFSDPPolicy
+
+        actor_worker_cls = EmbodiedSACFSDPPolicy
     else:
-        from rlinf.workers.actor.fsdp_actor_worker import EmbodiedFSDPActor as actor_worker_cls
+        from rlinf.workers.actor.fsdp_actor_worker import EmbodiedFSDPActor
+
+        actor_worker_cls = EmbodiedFSDPActor
     actor_group = actor_worker_cls.create_group(cfg).launch(
         cluster, name=cfg.actor.group_name, placement_strategy=component_placement.get_strategy("actor")
     )

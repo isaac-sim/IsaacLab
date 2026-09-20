@@ -92,7 +92,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
     # Handle configurations for rsl-rl < 4.0.0
     if installed_version < _V4_0_0:
         # exit if no policy configuration is present
-        if not hasattr(agent_cfg, "policy") or _is_missing(agent_cfg.policy):
+        if not hasattr(agent_cfg, "policy") or is_missing(agent_cfg.policy):
             raise ValueError(
                 "The `policy` configuration is required for rsl-rl < 4.0.0. Please specify the `policy` configuration"
                 " or update rsl-rl."
@@ -131,7 +131,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                 _handle_empirical_normalization(agent_cfg.policy, agent_cfg)
 
             # set actor model configuration if missing
-            if hasattr(agent_cfg, "actor") and _is_missing(agent_cfg.actor):
+            if hasattr(agent_cfg, "actor") and is_missing(agent_cfg.actor):
                 print("[WARNING]: The `policy` configuration is used to infer the `actor` model configuration.")
                 if type(agent_cfg.policy) is RslRlPpoActorCriticCfg:
                     agent_cfg.actor = RslRlMLPModelCfg(
@@ -157,7 +157,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                         rnn_num_layers=agent_cfg.policy.rnn_num_layers,
                     )
             # set critic model configuration if missing
-            if hasattr(agent_cfg, "critic") and _is_missing(agent_cfg.critic):
+            if hasattr(agent_cfg, "critic") and is_missing(agent_cfg.critic):
                 print("[WARNING]: The `policy` configuration is used to infer the `critic` model configuration.")
                 if type(agent_cfg.policy) is RslRlPpoActorCriticCfg:
                     agent_cfg.critic = RslRlMLPModelCfg(
@@ -177,7 +177,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                         rnn_num_layers=agent_cfg.policy.rnn_num_layers,
                     )
             # set student model configuration if missing
-            if hasattr(agent_cfg, "student") and _is_missing(agent_cfg.student):
+            if hasattr(agent_cfg, "student") and is_missing(agent_cfg.student):
                 print("[WARNING]: The `policy` configuration is used to infer the `student` model configuration.")
                 if type(agent_cfg.policy) is RslRlDistillationStudentTeacherCfg:
                     agent_cfg.student = RslRlMLPModelCfg(
@@ -201,7 +201,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                         rnn_num_layers=agent_cfg.policy.rnn_num_layers,
                     )
             # set teacher model configuration if missing
-            if hasattr(agent_cfg, "teacher") and _is_missing(agent_cfg.teacher):
+            if hasattr(agent_cfg, "teacher") and is_missing(agent_cfg.teacher):
                 print("[WARNING]: The `policy` configuration is used to infer the `teacher` model configuration.")
                 if type(agent_cfg.policy) is RslRlDistillationStudentTeacherCfg:
                     agent_cfg.teacher = RslRlMLPModelCfg(
@@ -239,14 +239,14 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
     return agent_cfg
 
 
-def _is_missing(value: Any) -> bool:
+def is_missing(value: Any) -> bool:
     """Return whether a config value is the dataclass ``MISSING`` sentinel."""
     return isinstance(value, type(MISSING))
 
 
 def _has_non_missing_attr(obj: Any, attr_name: str) -> bool:
     """Return whether *obj* defines *attr_name* with a value other than ``MISSING``."""
-    return hasattr(obj, attr_name) and not _is_missing(getattr(obj, attr_name))
+    return hasattr(obj, attr_name) and not is_missing(getattr(obj, attr_name))
 
 
 def _handle_empirical_normalization(policy_cfg: Any, agent_cfg: Any) -> None:
@@ -256,9 +256,9 @@ def _handle_empirical_normalization(policy_cfg: Any, agent_cfg: Any) -> None:
         " `critic_obs_normalization` as part of the `policy` configuration instead. Older rsl-rl configurations"
         " will not be supported starting with Isaac Lab 3.1. Please migrate your configuration."
     )
-    if _is_missing(policy_cfg.actor_obs_normalization):
+    if is_missing(policy_cfg.actor_obs_normalization):
         policy_cfg.actor_obs_normalization = agent_cfg.empirical_normalization
-    if _is_missing(policy_cfg.critic_obs_normalization):
+    if is_missing(policy_cfg.critic_obs_normalization):
         policy_cfg.critic_obs_normalization = agent_cfg.empirical_normalization
     agent_cfg.empirical_normalization = MISSING
 
@@ -274,7 +274,7 @@ def _clear_new_model_cfg(agent_cfg: Any, model_name: str) -> None:
 
 def _validate_old_stochastic_cfg(model_cfg: Any) -> None:
     """Require the legacy stochastic parameters for ``4.0.0 <= rsl-rl < 5.0.0``."""
-    if not hasattr(model_cfg, "stochastic") or _is_missing(model_cfg.stochastic):
+    if not hasattr(model_cfg, "stochastic") or is_missing(model_cfg.stochastic):
         raise ValueError(
             "Please parameterize the output distribution using the old parameters `stochastic`, `init_noise_std`,"
             " `noise_std_type`, and `state_dependent_std` or update rsl-rl."

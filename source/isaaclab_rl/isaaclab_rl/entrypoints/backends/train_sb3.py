@@ -131,11 +131,10 @@ def run(argv: list[str]) -> None:
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
             n_timesteps = agent_cfg.pop("n_timesteps")
-            norm_args = {
-                key: agent_cfg.pop(key)
-                for key in ("normalize_input", "normalize_value", "clip_obs")
-                if key in agent_cfg
-            }
+            norm_args = {}
+            for key in ("normalize_input", "normalize_value", "clip_obs"):
+                if key in agent_cfg:
+                    norm_args[key] = agent_cfg.pop(key)
 
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli)

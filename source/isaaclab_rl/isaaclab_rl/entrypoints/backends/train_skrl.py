@@ -75,7 +75,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def _distributed_rank(args_cli: argparse.Namespace) -> int:
     """Return the global distributed rank for the selected skrl ML framework."""
-    return int(os.getenv("JAX_RANK" if args_cli.ml_framework == "jax" else "RANK", "0"))
+    if args_cli.ml_framework == "jax":
+        return int(os.getenv("JAX_RANK", "0"))
+    return int(os.getenv("RANK", "0"))
 
 
 def run(argv: list[str]) -> None:

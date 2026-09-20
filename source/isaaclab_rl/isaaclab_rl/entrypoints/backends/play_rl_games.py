@@ -157,7 +157,8 @@ def run(argv: list[str]) -> None:
 
             def step() -> None:
                 nonlocal obs
-                actions = agent.get_action(agent.obs_to_torch(obs), is_deterministic=agent.is_deterministic)
+                obs = agent.obs_to_torch(obs)
+                actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
                 obs, _, dones, _ = env.step(actions)
                 # reset recurrent states for episodes that have terminated
                 if agent.is_rnn and agent.states is not None and len(dones) > 0:

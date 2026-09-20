@@ -88,7 +88,10 @@ def ensure_actor_hidden_state_initialized(policy: Any, batch_size: int, device: 
     if memory is None or not hasattr(memory, "rnn"):
         return None
     zeros = torch.zeros(memory.rnn.num_layers, batch_size, memory.rnn.hidden_size, device=device, dtype=dtype)
-    actor_state = (zeros.clone(), zeros.clone()) if isinstance(memory.rnn, torch.nn.LSTM) else zeros
+    if isinstance(memory.rnn, torch.nn.LSTM):
+        actor_state = (zeros.clone(), zeros.clone())
+    else:
+        actor_state = zeros
     set_actor_hidden_state(policy, actor_state)
     return actor_state
 
@@ -157,9 +160,10 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     try:
         # only the observation groups consumed by the actor are exported; critic and teacher groups are dropped
         obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
-        required_obs_groups = (
-            set(obs_groups_cfg.get("actor", ["policy"])) if isinstance(obs_groups_cfg, Mapping) else {"policy"}
-        )
+        if isinstance(obs_groups_cfg, Mapping):
+            required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+        else:
+            required_obs_groups = {"policy"}
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 

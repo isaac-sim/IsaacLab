@@ -128,7 +128,8 @@ def run(argv: list[str]) -> None:
 
             screen.stage("Loading policy")
             env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
-            vec_norm_path = Path(checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl"))
+            vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")
+            vec_norm_path = Path(vec_norm_path)
             if vec_norm_path.exists():
                 print(f"Loading saved normalization: {vec_norm_path}")
                 env = VecNormalize.load(vec_norm_path, env)

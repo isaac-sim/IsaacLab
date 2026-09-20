@@ -221,8 +221,13 @@ class PbtAlgoObserver(AlgoObserver):
             # every restart re-sources the environment, so drop duplicate path entries to keep argv bounded
             for var in ("PATH", "PYTHONPATH", "LD_LIBRARY_PATH", "OMNI_USD_RESOLVER_MDL_BUILTIN_PATHS"):
                 val = os.environ.get(var)
-                if val and os.pathsep in val:
-                    os.environ[var] = os.pathsep.join(dict.fromkeys(part for part in val.split(os.pathsep) if part))
+                if not val or os.pathsep not in val:
+                    continue
+                unique_parts = []
+                for part in val.split(os.pathsep):
+                    if part and part not in unique_parts:
+                        unique_parts.append(part)
+                os.environ[var] = os.pathsep.join(unique_parts)
             os.execv(sys.executable, command)
 
 

@@ -64,7 +64,8 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
 def _vec_normalize_path(checkpoint_path: str) -> Path:
     """Return the VecNormalize sidecar path used by the SB3 train and play workflows."""
     checkpoint = Path(checkpoint_path)
-    return checkpoint.with_name(f"{checkpoint.stem.replace('model', 'model_vecnormalize', 1)}.pkl")
+    stem = checkpoint.stem.replace("model", "model_vecnormalize", 1)
+    return checkpoint.with_name(f"{stem}.pkl")
 
 
 def _normalize_tensor(value: torch.Tensor, running_stats: Any, vec_normalize: Any) -> torch.Tensor:
@@ -216,9 +217,9 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
         save_path = resolve_export_save_path(args_cli, "sb3", log_dir)
         with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg) as num_steps:
             obs = env.reset()[0]["policy"]
-            recurrent_state = (
-                initialize_sb3_recurrent_state(policy, env.num_envs) if is_sb3_recurrent_policy(policy) else None
-            )
+            recurrent_state = None
+            if is_sb3_recurrent_policy(policy):
+                recurrent_state = initialize_sb3_recurrent_state(policy, env.num_envs)
             for _ in range(num_steps):
                 with torch.inference_mode():
                     obs = normalize_observation(obs, vec_normalize)
@@ -232,7 +233,9 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
                     obs_dict, _, terminated, truncated, _ = env.step(actions)
                     obs = obs_dict["policy"]
                     if next_recurrent_state is not None:
-                        not_done = (~(terminated | truncated)).to(dtype=next_recurrent_state[0].dtype).reshape(1, -1, 1)
+                        # zero the recurrent state of environments that finished their episode
+                        not_done = (~(terminated | truncated)).to(dtype=next_recurrent_state[0].dtype)
+                        not_done = not_done.reshape(1, -1, 1)
                         recurrent_state = tuple(state * not_done for state in next_recurrent_state)
                         annotate.update_state(policy_node_name, state_dict_from_sequence(recurrent_state))
     finally:

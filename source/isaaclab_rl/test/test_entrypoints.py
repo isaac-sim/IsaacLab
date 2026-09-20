@@ -19,9 +19,8 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
-from isaaclab_rl.entrypoints import simple_agents as _simple_agents
-from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
+from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch, simple_agents
+from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
 
 
 @pytest.mark.parametrize(
@@ -142,7 +141,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
         scene=SimpleNamespace(env_origins=torch.tensor([[1.0, 1.0, 1.0]])),
     )
 
-    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     expected_pink_poses = torch.tensor(
         [[[3.0, 4.0, 5.0, 0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 1.0]]]
@@ -181,7 +180,7 @@ def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
         get_term=lambda name: term,
     )
     unwrapped = SimpleNamespace(action_manager=manager)
-    policy = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))
+    policy = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))
 
     with pytest.raises(RuntimeError, match="inferred non-finite actions"):
         policy()
@@ -202,7 +201,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
         num_envs=2,
     )
 
-    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     assert torch.equal(actions["continuous"], torch.zeros(2, 2))
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
@@ -220,7 +219,7 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
         num_envs=3,
     )
 
-    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     assert torch.equal(actions["robot"], torch.zeros(3, 2))
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
@@ -228,13 +227,13 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
 
 @pytest.mark.parametrize("policy", ["zero", "random"])
 def test_simple_agents_default_to_newton_visualizer(
-    policy: _simple_agents.PolicyName,
+    policy: simple_agents.PolicyName,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Checkpoint-free agents default to Newton visualization."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
-    args = _simple_agents._parse_args([], policy)
+    args = simple_agents._parse_args([], policy)
 
     assert args.device is None
     assert args.visualizer == ["newton_gl"]
@@ -242,13 +241,13 @@ def test_simple_agents_default_to_newton_visualizer(
 
 @pytest.mark.parametrize("policy", ["zero", "random"])
 def test_simple_agents_accept_explicit_device(
-    policy: _simple_agents.PolicyName,
+    policy: simple_agents.PolicyName,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Checkpoint-free agents should retain an explicit CLI device."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
-    args = _simple_agents._parse_args(["--device", "cuda:1"], policy)
+    args = simple_agents._parse_args(["--device", "cuda:1"], policy)
 
     assert args.device == "cuda:1"
 
@@ -278,12 +277,12 @@ def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPa
         assert launcher_args.device == "cpu"
         raise _ExpectedStop
 
-    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
-    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", launch_simulation)
 
     with pytest.raises(_ExpectedStop):
-        _simple_agents.run([], policy="zero")
+        simple_agents.run([], policy="zero")
 
 
 def test_simple_agents_apply_explicit_device_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -311,12 +310,12 @@ def test_simple_agents_apply_explicit_device_override(monkeypatch: pytest.Monkey
         assert launcher_args.device == "cuda:1"
         raise _ExpectedStop
 
-    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
-    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", launch_simulation)
 
     with pytest.raises(_ExpectedStop):
-        _simple_agents.run([], policy="random")
+        simple_agents.run([], policy="random")
 
 
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -330,16 +329,16 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
             raise ValueError("unsupported physics backend")
 
     args = SimpleNamespace(num_envs=None, device=None, disable_fabric=False, task="Invalid-Task")
-    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
     monkeypatch.setattr(
-        _simple_agents,
+        simple_agents,
         "launch_simulation",
         lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
     )
 
     with pytest.raises(SystemExit, match="Invalid environment configuration: unsupported physics backend"):
-        _simple_agents.run([], policy="zero")
+        simple_agents.run([], policy="zero")
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:

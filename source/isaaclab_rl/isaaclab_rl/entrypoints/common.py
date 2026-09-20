@@ -638,7 +638,9 @@ def resolve_play_checkpoint(
     )
 
     logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
-    backend_names = get_pretrained_checkpoint_backend_names(env_cfg) if env_cfg is not None else ()
+    backend_names = ()
+    if env_cfg is not None:
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
     path = get_published_pretrained_checkpoint(framework, normalize_task_name(task), *backend_names)
     if path is None:
         raise FileNotFoundError(
