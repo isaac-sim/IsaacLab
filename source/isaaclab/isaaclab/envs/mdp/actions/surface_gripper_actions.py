@@ -28,15 +28,16 @@ class SurfaceGripperBinaryAction(ActionTerm):
     """Surface gripper binary action.
 
     This action term maps a binary action to the *open* or *close* surface gripper configurations.
-    The surface gripper behavior is as follows:
+    The surface gripper commands are as follows:
+
     - [-1, -0.3] --> Gripper is Opening
     - [-0.3, 0.3] --> Gripper is Idle (do nothing)
     - [0.3, 1] --> Gripper is Closing
 
     Based on above, we follow the following convention for the binary action:
 
-    1. Open action: 1 (bool) or positive values (float).
-    2. Close action: 0 (bool) or negative values (float).
+    1. Open action: ``True`` (bool) or non-negative values (float).
+    2. Close action: ``False`` (bool) or negative values (float).
 
     The action term is specifically designed for surface grippers, which use a different
     interface than joint-based grippers.
@@ -88,15 +89,13 @@ class SurfaceGripperBinaryAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # compute the binary mask
+        # identify actions that select the close command
         if actions.dtype == torch.bool:
-            # true: close, false: open
-            binary_mask = actions == 0
+            close_mask = ~actions
         else:
-            # true: close, false: open
-            binary_mask = actions < 0
+            close_mask = actions < 0
         # compute the command
-        self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
+        self._processed_actions = torch.where(close_mask, self._close_command, self._open_command)
 
     def apply_actions(self):
         """Apply the processed actions to the surface gripper."""

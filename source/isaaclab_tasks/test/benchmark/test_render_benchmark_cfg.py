@@ -14,8 +14,10 @@ import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
@@ -105,3 +107,9 @@ def test_ground_tile_matches_default_env_spacing():
     cfg = _load_cfg()
 
     assert cfg.scene.ground.spawn.size[:2] == (cfg.scene.env_spacing, cfg.scene.env_spacing)
+    rigid_props = cfg.scene.ground.spawn.rigid_props
+    assert next(f for f in rigid_props if isinstance(f, UsdPhysicsRigidBodyCfg)).kinematic_enabled is True
+    assert next(f for f in rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity is True
+    assert isinstance(cfg.scene.ground.spawn.mass_props, MassCfg)
+    assert cfg.scene.ground.spawn.mass_props.mass == pytest.approx(1.0)
+    assert isinstance(cfg.scene.ground.spawn.collision_props, UsdPhysicsCollisionCfg)

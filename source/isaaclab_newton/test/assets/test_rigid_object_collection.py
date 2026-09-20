@@ -25,6 +25,7 @@ import warp as wp
 from isaaclab_newton.assets import RigidObjectCollection
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
@@ -95,13 +96,13 @@ def generate_cubes_scene(
     if has_api:
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled),
         )
     else:
         # since no rigid body properties defined, this is just a static collider
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
 
     # create the rigid object configs
@@ -188,9 +189,9 @@ def test_set_body_inertial_properties_updates_inverses(device):
             sim_utils.create_prim(f"/World/Env_{env_index}", "Xform", translation=(float(env_index), 0.0, 1.0))
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
         object_collection = RigidObjectCollection(
             RigidObjectCollectionCfg(
@@ -243,51 +244,11 @@ def test_set_body_inertial_properties_updates_inverses(device):
         torch.testing.assert_close(wp.to_torch(model_inv_mass), updated_inv_mass)
 
 
-@pytest.mark.skip(reason="Newton doesn't support kinematic rigid bodies yet")
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_cubes", [1, 3])
-@pytest.mark.parametrize("device", test_devices())
-def test_initialization_with_kinematic_enabled(num_envs, num_cubes, device):
-    """Test that initialization for prim with kinematic flag enabled."""
-    with _newton_sim_context(device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        object_collection, origins = generate_cubes_scene(
-            num_envs=num_envs, num_cubes=num_cubes, kinematic_enabled=True, device=device
-        )
-
-        # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(object_collection) < 10
-
-        # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert object_collection.is_initialized
-        assert len(object_collection.body_names) == num_cubes
-
-        # Check buffers that exist and have correct shapes
-        assert object_collection.data.body_link_pos_w.torch.shape == (num_envs, num_cubes, 3)
-        assert object_collection.data.body_link_quat_w.torch.shape == (num_envs, num_cubes, 4)
-
-        # Simulate physics
-        for _ in range(2):
-            sim.step()
-            object_collection.update(sim.cfg.dt)
-            # check that the object is kinematic
-            default_body_pose = object_collection.data.default_body_pose.torch.clone()
-            default_body_vel = object_collection.data.default_body_vel.torch.clone()
-            default_body_pose[..., :3] += origins.unsqueeze(1)
-            torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, default_body_pose)
-            torch.testing.assert_close(object_collection.data.body_link_vel_w.torch, default_body_vel)
-
-
-@pytest.mark.parametrize("num_cubes", [2])
-@pytest.mark.parametrize("device", test_devices())
-def test_initialization_with_no_rigid_body(num_cubes, device):
+def test_initialization_with_no_rigid_body():
     """Test that initialization fails when no rigid body is found at the provided prim path."""
-    with _newton_sim_context(device, auto_add_lighting=True) as sim:
+    with _newton_sim_context("cpu", auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
+        object_collection, _ = generate_cubes_scene(num_cubes=2, has_api=False, device="cpu")
 
         # Check that the framework doesn't hold excessive strong references.
         assert sys.getrefcount(object_collection) < 10

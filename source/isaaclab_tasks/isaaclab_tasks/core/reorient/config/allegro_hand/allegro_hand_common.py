@@ -12,6 +12,7 @@ presets, and the sim mixin. No task tunables.
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -30,19 +31,22 @@ CUBE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            kinematic_enabled=False,
-            disable_gravity=False,
-            enable_gyroscopic_forces=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0025,
-            max_depenetration_velocity=1000.0,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_depenetration_velocity=1000.0,
+            ),
+        ],
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
         scale=(1.2, 1.2, 1.2),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),

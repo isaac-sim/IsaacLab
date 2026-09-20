@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+1.0.0 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``Sb3VecEnvWrapper`` to expose normalized ``[-1, 1]`` bounds instead of the artificial
+  ``[-100, 100]`` fallback for unbounded continuous action spaces. Pass ``action_bounds=(-100, 100)``
+  to preserve the previous action space when loading an existing Stable-Baselines3 checkpoint.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``--export_io_descriptors`` training option. It remains
+  available for compatibility and will be removed in Isaac Lab 3.2. Use the
+  LEAPP export workflow for supported RSL-RL/PyTorch deployments.
+
+
 0.17.5 (2026-09-16)
 ~~~~~~~~~~~~~~~~~~~
 
