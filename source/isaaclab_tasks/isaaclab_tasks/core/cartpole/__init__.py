@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Cartpole balancing environment.
+"""Cartpole balancing environments.
 
-This package consolidates the direct-workflow and manager-based-workflow
-cartpole tasks. Module files carry a ``_direct_`` or ``_manager_`` infix to
-disambiguate the two workflows within the flat package layout.
+This package consolidates the direct-workflow and manager-based-workflow cartpole tasks. Module files
+carry a ``_direct_`` or ``_manager_`` infix to disambiguate the two workflows within the flat package
+layout.
 """
 
 import gymnasium as gym
@@ -27,6 +26,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.cartpole_direct_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
+        "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:CartpoleDirectPPOCfg",
         "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
@@ -59,6 +59,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.cartpole_manager_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
+        "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:CartpolePPOCfg",
         "default_agent": "rsl_rl",
         "rsl_rl_with_symmetry_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"

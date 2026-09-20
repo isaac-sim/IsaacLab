@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Shadow Hand reorientation environment."""
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -13,18 +15,13 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
+
+from .shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
     ShadowHandRobotCfg,
-)
-
-from isaaclab_assets.robots.shadow_hand import (
-    FINGERTIP_NAMES,
-    JOINT_NAMES,
-    TENDON_NAMES,
-    TENDON_POSITION_LIMITS,
 )
 
 
@@ -47,6 +44,8 @@ class ShadowHandSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ShadowHandEnvCfg(DirectRLEnvCfg):
+    """Configuration for the direct-workflow Shadow Hand cube reorientation environment."""
+
     # env
     decimation = 2
     episode_length_s = 10.0
@@ -56,7 +55,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation — values mirrored by the manager cfg
+    # simulation, mirrored by the manager-based configuration
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,

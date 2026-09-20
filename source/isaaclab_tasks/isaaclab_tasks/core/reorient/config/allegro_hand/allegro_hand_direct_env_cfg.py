@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Allegro Hand reorientation environment."""
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -13,14 +15,14 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
+from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
+
+from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
-
-from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -39,6 +41,8 @@ class AllegroHandSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
+    """Configuration for the direct-workflow Allegro Hand cube reorientation environment."""
+
     # env
     decimation = 4
     episode_length_s = 10.0
@@ -48,7 +52,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation — values mirrored by the manager cfg
+    # simulation, mirrored by the manager-based configuration
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,

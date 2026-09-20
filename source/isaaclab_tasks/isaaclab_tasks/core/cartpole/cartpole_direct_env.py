@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow cartpole balancing environment."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -14,7 +16,7 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+    from .cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 class CartpoleEnv(DirectRLEnv):
@@ -51,11 +53,10 @@ class CartpoleEnv(DirectRLEnv):
             ),
             dim=-1,
         )
-        observations = {"policy": obs}
-        return observations
+        return {"policy": obs}
 
     def _get_rewards(self) -> torch.Tensor:
-        total_reward = compute_rewards(
+        return compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_pole_pos,
@@ -67,7 +68,6 @@ class CartpoleEnv(DirectRLEnv):
             self.reset_terminated,
             self.step_dt,
         )
-        return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self.joint_pos = self.cartpole.data.joint_pos.torch
@@ -81,7 +81,7 @@ class CartpoleEnv(DirectRLEnv):
         if env_ids is None:
             env_ids = self.cartpole._ALL_INDICES
 
-        # Log survival success rate before resetting
+        # log the survival success rate before resetting (survived = timed out without terminating early)
         survived = self.reset_time_outs[env_ids].float()
         self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
 
@@ -145,7 +145,7 @@ def compute_rewards(
     cart_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
     step_dt: float,
-):
+) -> torch.Tensor:
     pole_pos = wrap_to_pi(pole_pos)
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()

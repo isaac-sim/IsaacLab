@@ -26,8 +26,9 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.fourbar_pole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
 
 ##
 # Pre-defined configs

@@ -23,9 +23,10 @@ class _FakeMultiAgentEnv:
     }
     render_mode = None
 
-    def __init__(self):
+    def __init__(self, compute_final_obs=False):
         self.unwrapped = self
-        self.cfg = SimpleNamespace(state_space=2)
+        self.cfg = SimpleNamespace(state_space=2, compute_final_obs=compute_final_obs)
+        self.extras = {agent: {} for agent in self.possible_agents}
         self.state_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,))
         self.sim = object()
         self.scene = SimpleNamespace(num_envs=2)
@@ -36,14 +37,18 @@ class _FakeMultiAgentEnv:
         }
 
     def reset(self, seed=None, options=None):
-        return self.obs_dict, {}
+        return self.obs_dict, self.extras
 
     def step(self, actions):
         # shift the observations so a step is distinguishable from a reset
         self.obs_dict = {agent: obs + 10.0 for agent, obs in self.obs_dict.items()}
+        if self.cfg.compute_final_obs:
+            # per-agent terminal observations, distinguishable from the returned (post-reset) observations
+            for agent, obs in self.obs_dict.items():
+                self.extras[agent]["final_obs"] = obs + 100.0
         rewards = {agent: torch.zeros(2) for agent in self.possible_agents}
         dones = {agent: torch.zeros(2, dtype=torch.bool) for agent in self.possible_agents}
-        return self.obs_dict, rewards, dones, dones, {}
+        return self.obs_dict, rewards, dones, dones, self.extras
 
     def state(self):
         return torch.tensor([[7.0, 8.0], [9.0, 10.0]])
@@ -107,3 +112,26 @@ def test_multi_agent_to_single_agent_state_observation_tracks_steps():
 
     step_obs = env.step(torch.zeros(2, 2))[0]
     torch.testing.assert_close(env.obs_buf["policy"], step_obs["policy"])
+
+
+def test_multi_agent_to_single_agent_concatenates_final_obs():
+    """Per-agent terminal observations should surface as the single-agent ``extras["final_obs"]`` entry."""
+    source_env = _FakeMultiAgentEnv(compute_final_obs=True)
+    env = multi_agent_to_single_agent(source_env)
+
+    extras = env.step(torch.zeros(2, 2))[4]
+
+    expected = torch.tensor([[111.0, 112.0, 115.0], [113.0, 114.0, 116.0]])
+    torch.testing.assert_close(extras["final_obs"]["policy"], expected)
+    torch.testing.assert_close(env.extras["final_obs"]["policy"], expected)
+    # the per-agent extras of the wrapped environment are left untouched
+    assert "final_obs" not in source_env.extras
+
+
+def test_multi_agent_to_single_agent_omits_final_obs_when_unavailable():
+    """No ``final_obs`` entry without captured terminal observations or in the state-as-observation mode."""
+    env = multi_agent_to_single_agent(_FakeMultiAgentEnv())
+    assert "final_obs" not in env.step(torch.zeros(2, 2))[4]
+
+    env = multi_agent_to_single_agent(_FakeMultiAgentEnv(compute_final_obs=True), state_as_observation=True)
+    assert "final_obs" not in env.step(torch.zeros(2, 2))[4]

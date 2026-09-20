@@ -53,9 +53,22 @@ CUBE_CFG = RigidObjectCfg(
 )
 """In-hand cube for the Allegro reorientation task."""
 
+GOAL_OBJECT_CFG = VisualizationMarkersCfg(
+    prim_path="/Visuals/goal_marker",
+    markers={
+        "goal": sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(1.2, 1.2, 1.2),
+        )
+    },
+)
+"""Goal cube marker for the reorientation environments."""
+
 
 @configclass
 class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the Allegro Hand reorientation environments."""
+
     isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
     )
@@ -73,14 +86,3 @@ class PhysicsCfg(PresetCfg):
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
-
-
-GOAL_OBJECT_CFG = VisualizationMarkersCfg(
-    prim_path="/Visuals/goal_marker",
-    markers={
-        "goal": sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(1.2, 1.2, 1.2),
-        )
-    },
-)
