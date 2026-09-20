@@ -165,6 +165,24 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
     assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
+def test_warp_direct_build_selects_warp_scene_from_cfg():
+    cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
+    expected_env = object()
+
+    def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
+        assert cfg.scene.class_type is fe.InteractiveSceneWarp
+        assert kwargs == {"render_mode": "rgb_array"}
+        return expected_env
+
+    with (
+        patch.object(WarpFrontend, "_resolve_direct_warp_class", return_value=fake_env),
+        patch.object(WarpFrontend, "_require_newton_physics"),
+    ):
+        env = WarpFrontend._build_direct_env(cfg, "Isaac-Test", render_mode="rgb_array")
+
+    assert env is expected_env
+
+
 # ======================================================================
 # SceneEntityCfg.from_stable
 # ======================================================================

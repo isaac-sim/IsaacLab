@@ -55,6 +55,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import class_to_dict
 
@@ -312,9 +313,17 @@ class ObservationManager(ManagerBase):
     def get_IO_descriptors(self, group_names_to_export: list[str] = ["policy"]):
         """Get the IO descriptors for the observation manager.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors(group_names_to_export)
+
+    def _collect_io_descriptors(self, group_names_to_export: list[str] = ["policy"]):
+        """Collect IO descriptors without emitting a deprecation warning."""
         group_data: dict[str, list[dict[str, Any]]] = {}
 
         # Collect raw descriptor dicts (plus overloads).
