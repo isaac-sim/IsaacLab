@@ -33,7 +33,6 @@ from ..common import (
     normalize_task_name,
     pre_launch_video_config,
     resolve_checkpoint_selector,
-    resolve_play_task_name,
     resolve_published_checkpoint,
     resolve_seed,
     run_playback,
@@ -64,7 +63,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
-    args_cli.task = resolve_play_task_name(args_cli.task)
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
     return args_cli

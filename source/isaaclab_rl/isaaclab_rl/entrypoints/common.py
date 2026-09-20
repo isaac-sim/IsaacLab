@@ -16,7 +16,6 @@ import random
 import re
 import sys
 import time
-import warnings
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
@@ -279,43 +278,12 @@ def resolve_seed(seed: int | None) -> int | None:
 
 
 def normalize_task_name(task: str) -> str:
-    """Return the training task name without a namespace prefix or a ``-Play`` marker.
+    """Return the task name without a namespace prefix.
 
     Args:
         task: Gym task id, possibly with a namespace prefix.
     """
-    return re.sub(r"-Play(-v\d+)?$", r"\1", task.split(":")[-1])
-
-
-def resolve_play_task_name(task: str | None) -> str | None:
-    """Redirect a retired ``-Play`` task id to its training task id.
-
-    Task ids with a ``-Play`` suffix (before an optional ``-v<N>`` version) were removed in favor of
-    play-mode overrides that play scripts apply to the training configuration (see ``play_mode`` on
-    the environment configuration). When ``task`` carries the suffix, is not itself registered, and
-    the corresponding training task id is registered, the training task id is returned (preserving
-    any namespace prefix) along with a deprecation warning. Externally registered ``-Play`` tasks
-    are returned unchanged.
-
-    Args:
-        task: Gym task id, possibly with a namespace prefix.
-
-    Returns:
-        The task id to use, or None if ``task`` is None.
-    """
-    if not task:
-        return task
-    namespace, _, name = task.rpartition(":")
-    train_name = re.sub(r"-Play(-v\d+)?$", r"\1", name)
-    if train_name == name or name in gym.registry or train_name not in gym.registry:
-        return task
-    warnings.warn(
-        f"Task '{name}' was removed. Playing '{train_name}' with play-mode overrides instead. "
-        "Pass --train_env_cfg to play the training configuration as-is.",
-        FutureWarning,
-        stacklevel=2,
-    )
-    return f"{namespace}:{train_name}" if namespace else train_name
+    return task.split(":")[-1]
 
 
 """
@@ -593,7 +561,7 @@ def resolve_published_checkpoint(library: str, task: str, env_cfg: Any) -> str |
 
     Args:
         library: RL library name.
-        task: Gym task id; namespaces and a trailing ``-Play`` are ignored.
+        task: Gym task id; namespaces are ignored.
         env_cfg: Resolved environment config used to identify the active backends.
 
     Returns:
@@ -620,7 +588,7 @@ def resolve_play_checkpoint(
     Args:
         checkpoint: Local or Nucleus checkpoint path.
         framework: RL library name.
-        task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
+        task: Gym task id; namespaces are ignored for published lookups.
         env_cfg: Resolved environment config used to identify the active backends.
 
     Returns:
