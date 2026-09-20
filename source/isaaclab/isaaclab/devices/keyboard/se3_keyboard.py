@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -18,7 +18,10 @@ from scipy.spatial.transform import Rotation
 import carb
 import omni
 
-from ..device_base import DeviceBase, DeviceCfg
+from ..device_base import DeviceBase
+
+if TYPE_CHECKING:
+    from .se3_keyboard_cfg import Se3KeyboardCfg
 
 
 class Se3Keyboard(DeviceBase):
@@ -199,14 +202,3 @@ class Se3Keyboard(DeviceBase):
             "C": np.asarray([0.0, 0.0, 1.0]) * self.rot_sensitivity,
             "V": np.asarray([0.0, 0.0, -1.0]) * self.rot_sensitivity,
         }
-
-
-@dataclass
-class Se3KeyboardCfg(DeviceCfg):
-    """Configuration for SE3 keyboard devices."""
-
-    gripper_term: bool = True
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
-    class_type: type[DeviceBase] = Se3Keyboard

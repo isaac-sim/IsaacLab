@@ -5,15 +5,6 @@
 
 """Tests for handle_deprecated_rsl_rl_cfg across rsl-rl version boundaries."""
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
 from dataclasses import MISSING
 
 import pytest
@@ -164,15 +155,11 @@ class TestBelow4:
         with pytest.raises(ValueError, match="policy"):
             handle_deprecated_rsl_rl_cfg(_distillation_runner(algorithm=_distillation_algo()), "3.0.0")
 
-    def test_preserves_policy(self):
+    def test_preserves_policy(self, capsys):
         cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
         handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
         assert not _is_missing(cfg.policy)
         assert cfg.policy.actor_hidden_dims == [256, 256]
-
-    def test_removes_optimizer_silently_for_adam(self, capsys):
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
         assert "optimizer" not in capsys.readouterr().out
 
     def test_removes_optimizer_with_warning_for_non_adam(self, capsys):
@@ -228,7 +215,7 @@ class TestBelow4:
 # ===================================================================
 class TestV4:
     # PPO tests
-    def test_infers_mlp_actor_critic(self):
+    def test_infers_mlp_actor_critic(self, capsys):
         p = RslRlPpoActorCriticCfg(
             actor_hidden_dims=[512],
             critic_hidden_dims=[64],
@@ -243,6 +230,7 @@ class TestV4:
         handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
 
         assert isinstance(cfg.actor, RslRlMLPModelCfg) and not isinstance(cfg.actor, RslRlRNNModelCfg)
+        assert _is_missing(cfg.policy)
         assert cfg.actor.hidden_dims == [512]
         assert cfg.actor.stochastic is True
         assert cfg.actor.init_noise_std == 0.5
@@ -252,6 +240,7 @@ class TestV4:
         assert isinstance(cfg.critic, RslRlMLPModelCfg) and not isinstance(cfg.critic, RslRlRNNModelCfg)
         assert cfg.critic.hidden_dims == [64]
         assert cfg.critic.stochastic is False
+        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_infers_rnn_actor_critic(self):
         p = RslRlPpoActorCriticRecurrentCfg(
@@ -273,11 +262,6 @@ class TestV4:
         assert cfg.actor.rnn_hidden_dim == 128
         assert cfg.actor.rnn_num_layers == 3
         assert isinstance(cfg.critic, RslRlRNNModelCfg)
-
-    def test_clears_policy_after_inference(self):
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
-        assert _is_missing(cfg.policy)
 
     def test_skips_existing_actor(self):
         actor = _mlp_model()
@@ -383,7 +367,7 @@ class TestV4:
 # ===================================================================
 class TestV5:
     # Distribution tests
-    def test_gaussian_from_stochastic(self):
+    def test_gaussian_from_stochastic(self, capsys):
         a = _mlp_model()
         a.init_noise_std = 0.5
         a.noise_std_type = "log"
@@ -395,6 +379,9 @@ class TestV5:
         assert not isinstance(d, RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg)
         assert d.init_std == 0.5
         assert d.std_type == "log"
+        for name in ("stochastic", "init_noise_std", "noise_std_type", "state_dependent_std"):
+            assert not hasattr(cfg.actor, name)
+        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_heteroscedastic_from_stochastic(self):
         a = _mlp_model()
@@ -424,14 +411,6 @@ class TestV5:
         handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
         assert cfg.actor.distribution_cfg is None
 
-    def test_removes_deprecated_params(self):
-        cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=_mlp_model())
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
-        assert not hasattr(cfg.actor, "stochastic")
-        assert not hasattr(cfg.actor, "init_noise_std")
-        assert not hasattr(cfg.actor, "noise_std_type")
-        assert not hasattr(cfg.actor, "state_dependent_std")
-
     def test_migrates_rnn_models(self):
         a = _rnn_model()
         a.state_dependent_std = True
@@ -449,7 +428,7 @@ class TestV5:
         p.init_noise_std = 0.7
         p.noise_std_type = "log"
         cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
+        assert handle_deprecated_rsl_rl_cfg(cfg, "5.0.0") is cfg
 
         assert _is_missing(cfg.policy)
         assert isinstance(cfg.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
@@ -526,8 +505,3 @@ class TestV5:
         assert _is_missing(cfg.policy) and _is_missing(cfg.empirical_normalization)
         assert cfg.actor.obs_normalization is True
         assert isinstance(cfg.actor.distribution_cfg, RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg)
-
-    # Edge tests
-    def test_returns_same_object(self):
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
-        assert handle_deprecated_rsl_rl_cfg(cfg, "5.0.0") is cfg

@@ -239,6 +239,13 @@ class RslRlBaseRunnerCfg:
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""
 
+    init_at_random_ep_len: bool = True
+    """Whether to randomize each environment's episode length before learning.
+
+    Defaults to True. Disable this for curricula whose first recorded outcomes must come from
+    complete episodes.
+    """
+
     max_iterations: int = MISSING
     """The maximum number of iterations."""
 

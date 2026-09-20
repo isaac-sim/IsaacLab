@@ -1,38 +1,21 @@
-Extensions Changelog
-====================
+Package Changelogs
+==================
 
-All notable changes to this project are documented in this file. The format is based on
-`Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`__ and this project adheres to
-`Semantic Versioning <https://semver.org/spec/v2.0.0.html>`__. For a broader information
-about the changes in the framework, please refer to the
-`release notes <https://github.com/isaac-sim/IsaacLab/releases/>`__.
+Isaac Lab packages maintain independent versions and changelogs. Use the package-specific
+history when you need API-level details, and use the
+`GitHub release notes <https://github.com/isaac-sim/IsaacLab/releases/>`__ for coordinated
+framework releases.
 
-Each extension has its own changelog. The changelog for each extension is located in the
-``docs`` directory of the extension. The changelog for each extension is also included in
-this changelog to make it easier to find the changelog for a specific extension.
-
-isaaclab
---------------
-
-Extension containing the core framework of Isaac Lab.
-
-.. include:: ../../../source/isaaclab/docs/CHANGELOG.rst
-   :start-line: 3
-
-
-isaaclab_assets
----------------------
-
-Extension for configurations of various assets and sensors for Isaac Lab.
-
-.. include:: ../../../source/isaaclab_assets/docs/CHANGELOG.rst
-   :start-line: 3
-
-
-isaaclab_tasks
---------------------
-
-Extension containing the environments built using Isaac Lab.
-
-.. include:: ../../../source/isaaclab_tasks/docs/CHANGELOG.rst
-   :start-line: 3
+* :isaaclab-source:`isaaclab <source/isaaclab/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_assets <source/isaaclab_assets/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_contrib <source/isaaclab_contrib/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_experimental <source/isaaclab_experimental/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_mimic <source/isaaclab_mimic/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_newton <source/isaaclab_newton/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_ov <source/isaaclab_ov/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_physx <source/isaaclab_physx/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_ppisp <source/isaaclab_ppisp/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_rl <source/isaaclab_rl/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_tasks <source/isaaclab_tasks/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_teleop <source/isaaclab_teleop/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_visualizers <source/isaaclab_visualizers/docs/CHANGELOG.rst>`

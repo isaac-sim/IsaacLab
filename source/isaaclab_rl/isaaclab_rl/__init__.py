@@ -16,4 +16,18 @@ All wrappers work similar to the :class:`gymnasium.Wrapper` class. Using a wrapp
 the initialized environment instance to the wrapper constructor. However, since learning frameworks
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
+
+The package also provides the unified training and playback entrypoints used by the
+``scripts/reinforcement_learning`` executables. See :mod:`isaaclab_rl.entrypoints` for details.
 """
+
+import importlib.metadata
+
+from isaaclab.utils.module import lazy_export
+
+try:
+    __version__ = importlib.metadata.version("isaaclab_rl")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
+
+lazy_export()

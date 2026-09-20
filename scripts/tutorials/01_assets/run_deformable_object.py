@@ -8,28 +8,39 @@ This script demonstrates how to work with the deformable object and interact wit
 
 .. code-block:: bash
 
-    # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py
+    # Usage with default PhysX physics and default kit visualizer.
+    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py
+
+    # Usage with Newton VBD physics and default kit visualizer.
+    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
+        --backend newton_vbd
+
+    # Usage with OvPhysX physics without a visualizer.
+    uv run --extra ovphysx --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
+        --backend ovphysx
 
 """
 
-"""Launch Isaac Sim Simulator first."""
-
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+parser.add_argument(
+    "--backend", type=str, default="physx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend."
+)
+# append simulation launcher CLI arguments
+add_launcher_args(parser)
+# Kit cannot be combined with OvPhysX, so use no visualizer by default for that backend
+backend_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=None if backend_args.backend == "ovphysx" else ["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+args_cli.physics = args_cli.backend
 
 """Rest everything follows."""
 
@@ -37,12 +48,16 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import DeformableObject, DeformableObjectCfg
-from isaaclab.sim import SimulationContext
+from isaaclab.physics import PhysicsCfg
+
+if TYPE_CHECKING:
+    from isaaclab.assets import DeformableObject
 
 
 def design_scene():
     """Designs the scene."""
+    from isaaclab.assets import DeformableObject, DeformableObjectCfg
+
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -50,67 +65,98 @@ def design_scene():
     cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
     cfg.func("/World/Light", cfg)
 
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
-    # Each group will have a robot in it
+    # Create a dictionary for the scene entities
+    scene_entities = {}
+
+    # Create separate groups called "env_0", "env_1", ...
+    # Newton's scene loader requires the "env_\d+" naming convention to
+    # detect per-environment Xforms and replicate them as separate worlds.
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
-    # Deformable Object
+    youngs_modulus = 1e5
+    poissons_ratio = 0.4
+    density = 500.0
+    if args_cli.backend == "newton_vbd":
+        from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
+        from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+
+        deformable_props = NewtonDeformableBodyPropertiesCfg()
+        # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
+        collision_props = None
+        physics_material = NewtonDeformableBodyMaterialCfg(
+            k_mu=youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
+            k_lambda=youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
+            density=density,
+        )
+    else:
+        from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+        from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+
+        deformable_props = PhysxDeformableBodyPropertiesCfg()
+        collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
+        physics_material = PhysxDeformableBodyMaterialCfg(
+            poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
+        )
+
+    # 3D Deformable Object
     cfg = DeformableObjectCfg(
-        prim_path="/World/Origin.*/Cube",
+        prim_path="/World/env_.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
+            deformable_props=deformable_props,
+            collision_props=collision_props,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
-            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
+            physics_material=physics_material,
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         debug_vis=True,
     )
+
     cube_object = DeformableObject(cfg=cfg)
+    scene_entities["cube_object"] = cube_object
 
     # return the scene information
-    scene_entities = {"cube_object": cube_object}
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, DeformableObject], origins: torch.Tensor):
+def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: torch.Tensor):
     """Runs the simulation loop."""
     # Extract scene entities
     # note: we only do this here for readability. In general, it is better to access the entities directly from
     #   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.
-    cube_object = entities["cube_object"]
+    cube_object: DeformableObject = entities["cube_object"]
+
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
 
     # Nodal kinematic targets of the deformable bodies
-    nodal_kinematic_target = cube_object.data.nodal_kinematic_target.clone()
+    nodal_kinematic_target = cube_object.data.nodal_kinematic_target.torch.clone()
 
     # Simulate physics
-    while simulation_app.is_running():
-        # reset
-        if count % 250 == 0:
+    while sim.is_headless_or_exist_active_visualizer():
+        # reset at start and after 3 seconds
+        if count % int(3.0 / sim_dt) == 0:
             # reset counters
-            sim_time = 0.0
             count = 0
 
             # reset the nodal state of the object
-            nodal_state = cube_object.data.default_nodal_state_w.clone()
+            nodal_state = cube_object.data.default_nodal_state_w.torch.clone()
             # apply random pose to the object
             pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + origins
             quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
             nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
             # write nodal state to simulation
-            cube_object.write_nodal_state_to_sim(nodal_state)
+            cube_object.write_nodal_state_to_sim_index(nodal_state)
 
             # Write the nodal state to the kinematic target and free all vertices
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
-            cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
+            cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 
             # reset buffers
             cube_object.reset()
@@ -119,13 +165,14 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             print("[INFO]: Resetting object state...")
 
         # update the kinematic target for cubes at index 0 and 3
+        kinematic_cubes = [0, 3]
         # we slightly move the cube in the z-direction by picking the vertex at index 0
-        nodal_kinematic_target[[0, 3], 0, 2] += 0.001
+        nodal_kinematic_target[kinematic_cubes, 0, 2] += 0.2 * sim_dt
         # set vertex at index 0 to be kinematically constrained
         # 0: constrained, 1: free
-        nodal_kinematic_target[[0, 3], 0, 3] = 0.0
+        nodal_kinematic_target[kinematic_cubes, 0, 3] = 0.0
         # write kinematic target to simulation
-        cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
+        cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 
         # write internal data to simulation
         cube_object.write_data_to_sim()
@@ -136,31 +183,34 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
         count += 1
         # update buffers
         cube_object.update(sim_dt)
-        # print the root position
-        if count % 50 == 0:
-            print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
+
+        # print the root positions every second
+        if count % int(1.0 / sim_dt) == 0:
+            print(f"Time {sim_time:.2f}s: \tRoot position (in world): {cube_object.data.root_pos_w.torch[:, :3]}")
 
 
 def main():
     """Main function."""
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[3.0, 0.0, 1.0], target=[0.0, 0.0, 0.5])
-    # Design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        if args_cli.backend == "newton_vbd":
+            physics_cfg.solver_cfg.iterations = 10
+            physics_cfg.num_substeps = 4
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
+        # Design scene
+        scene_entities, scene_origins = design_scene()
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
+        print("[INFO]: Simulation complete...")
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

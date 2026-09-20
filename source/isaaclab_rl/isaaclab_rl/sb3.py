@@ -18,8 +18,9 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 # needed to import for allowing type-hinting: torch.Tensor | dict[str, torch.Tensor]
 from __future__ import annotations
 
+import contextlib
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import gymnasium as gym
 import numpy as np
@@ -29,7 +30,11 @@ from stable_baselines3.common.preprocessing import is_image_space, is_image_spac
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+
+    with contextlib.suppress(ImportError):
+        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 # remove SB3 warnings because PPO with bigger net actually benefits from GPU
 warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
@@ -146,10 +151,26 @@ class Sb3VecEnvWrapper(VecEnv):
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
+        from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+
+        try:
+            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+        except ImportError:
+            DirectRLEnvWarp = None
+            ManagerBasedRLEnvWarp = None
+
+        allowed_types = (ManagerBasedRLEnv, DirectRLEnv)
+        if DirectRLEnvWarp is not None:
+            allowed_types += (DirectRLEnvWarp,)
+        if ManagerBasedRLEnvWarp is not None:
+            allowed_types += (ManagerBasedRLEnvWarp,)
+
+        if not isinstance(env.unwrapped, allowed_types):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
-                f" {type(env)}"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
+                f" {type(env.unwrapped)}"
             )
         # initialize the wrapper
         self.env = env
@@ -182,7 +203,7 @@ class Sb3VecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
@@ -246,7 +267,8 @@ class Sb3VecEnvWrapper(VecEnv):
         self._ep_rew_buf += rewards
         self._ep_len_buf += 1
         # convert extra information to list of dicts
-        infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
+        final_obs = self._process_obs(extras["final_obs"]) if len(reset_ids) > 0 and "final_obs" in extras else None
+        infos = self._process_extras(obs, terminated, truncated, extras, reset_ids, final_obs=final_obs)
 
         # reset info for terminated environments
         self._ep_rew_buf[reset_ids] = 0.0
@@ -354,10 +376,12 @@ class Sb3VecEnvWrapper(VecEnv):
         obs = obs_dict["policy"]
         # note: ManagerBasedRLEnv uses torch backend (by default).
         if isinstance(obs, dict):
+            processed_obs = {}
             for key, value in obs.items():
                 if key in self.observation_processors:
-                    obs[key] = self.observation_processors[key](value)
-                obs[key] = obs[key].detach().cpu().numpy()
+                    value = self.observation_processors[key](value)
+                processed_obs[key] = value.detach().cpu().numpy()
+            obs = processed_obs
         elif isinstance(obs, torch.Tensor):
             obs = obs.detach().cpu().numpy()
         else:
@@ -365,7 +389,13 @@ class Sb3VecEnvWrapper(VecEnv):
         return obs
 
     def _process_extras(
-        self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
+        self,
+        obs: np.ndarray,
+        terminated: np.ndarray,
+        truncated: np.ndarray,
+        extras: dict,
+        reset_ids: np.ndarray,
+        final_obs: np.ndarray | dict[str, np.ndarray] | None = None,
     ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
         # faster version: only process env that terminated and add bootstrapping info
@@ -383,16 +413,18 @@ class Sb3VecEnvWrapper(VecEnv):
                 infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
 
                 # add information about terminal observation separately
-                if isinstance(obs, dict):
-                    terminal_obs = {key: value[idx] for key, value in obs.items()}
+                terminal_obs_source = final_obs if final_obs is not None else obs
+                if isinstance(terminal_obs_source, dict):
+                    terminal_obs = {key: value[idx] for key, value in terminal_obs_source.items()}
                 else:
-                    terminal_obs = obs[idx]
+                    terminal_obs = terminal_obs_source[idx]
                 infos[idx]["terminal_observation"] = terminal_obs
 
             return infos
 
         # create empty list of dictionaries to fill
-        infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.num_envs)]
+        extra_keys = [key for key in extras.keys() if key != "final_obs"]
+        infos: list[dict[str, Any]] = [dict.fromkeys(extra_keys) for _ in range(self.num_envs)]
         # fill-in information for each sub-environment
         # note: This loop becomes slow when number of environments is large.
         for idx in range(self.num_envs):
@@ -407,6 +439,8 @@ class Sb3VecEnvWrapper(VecEnv):
             infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
             # fill-in information from extras
             for key, value in extras.items():
+                if key == "final_obs":
+                    continue
                 # 1. remap extra episodes information safely
                 # 2. for others just store their values
                 if key == "log":
@@ -419,12 +453,13 @@ class Sb3VecEnvWrapper(VecEnv):
             # add information about terminal observation separately
             if idx in reset_ids:
                 # extract terminal observations
-                if isinstance(obs, dict):
-                    terminal_obs = dict.fromkeys(obs.keys())
-                    for key, value in obs.items():
+                terminal_obs_source = final_obs if final_obs is not None else obs
+                if isinstance(terminal_obs_source, dict):
+                    terminal_obs = dict.fromkeys(terminal_obs_source.keys())
+                    for key, value in terminal_obs_source.items():
                         terminal_obs[key] = value[idx]
                 else:
-                    terminal_obs = obs[idx]
+                    terminal_obs = terminal_obs_source[idx]
                 # add info to dict
                 infos[idx]["terminal_observation"] = terminal_obs
             else:

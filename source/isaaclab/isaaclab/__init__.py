@@ -5,15 +5,151 @@
 
 """Package containing the core framework."""
 
+import importlib.metadata
+import importlib.util
 import os
-import toml
+import sys
 
-# Conveniences to other module directories via relative paths
-ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-"""Path to the extension source directory."""
 
-ISAACLAB_METADATA = toml.load(os.path.join(ISAACLAB_EXT_DIR, "config", "extension.toml"))
-"""Extension metadata dictionary parsed from the extension.toml file."""
+def _deprioritize_prebundle_paths():
+    """Move Isaac Sim ``pip_prebundle`` and known conflicting extension directories to the end of ``sys.path``.
 
-# Configure the module-level variables
-__version__ = ISAACLAB_METADATA["package"]["version"]
+    Isaac Sim's ``setup_python_env.sh`` injects ``pip_prebundle`` directories
+    onto ``PYTHONPATH``.  These contain older copies of packages like torch,
+    warp, and nvidia-cudnn that shadow the versions installed by Isaac Lab,
+    causing CUDA runtime errors.
+
+    Additionally, certain Isaac Sim kit extensions (such as ``omni.warp.core``)
+    bundle their own copies of Python packages that conflict with pip-installed
+    versions.  When loaded by the extension system these paths can appear on
+    ``sys.path`` before ``site-packages``, leading to version mismatches.
+
+    Rather than removing these paths entirely (which would break packages like
+    ``sympy`` that only exist in the prebundle), this function moves them to
+    the **end** of ``sys.path`` so that pip-installed packages in
+    ``site-packages`` take priority.
+
+    The ``PYTHONPATH`` environment variable is also rewritten so that child
+    processes inherit the corrected ordering.
+    """
+
+    # Extension directory fragments that are known to ship Python packages
+    # which conflict with Isaac Lab's pip-installed versions.
+    _CONFLICTING_EXT_FRAGMENTS = (
+        "omni.warp.core",
+        "omni.isaac.ml_archive",
+        "omni.isaac.core_archive",
+        "omni.kit.pip_archive",
+        "isaacsim.pip.newton",
+    )
+
+    def _should_demote(path: str) -> bool:
+        norm = path.replace("\\", "/").lower()
+        if "pip_prebundle" in norm:
+            return True
+        for frag in _CONFLICTING_EXT_FRAGMENTS:
+            if frag.lower() in norm:
+                return True
+        return False
+
+    # Partition: keep non-conflicting in place, collect conflicting.
+    clean = []
+    demoted = []
+    for p in sys.path:
+        if _should_demote(p):
+            demoted.append(p)
+        else:
+            clean.append(p)
+
+    if not demoted:
+        return
+
+    # Rebuild sys.path: originals first, then demoted at the very end.
+    sys.path[:] = clean + demoted
+
+    # Rewrite PYTHONPATH with the same ordering for subprocesses.
+    if "PYTHONPATH" in os.environ:
+        parts = os.environ["PYTHONPATH"].split(os.pathsep)
+        env_clean = []
+        env_demoted = []
+        for p in parts:
+            if _should_demote(p):
+                env_demoted.append(p)
+            else:
+                env_clean.append(p)
+        os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
+
+
+def _expose_mujoco_usd_schemas():
+    """Put the MuJoCo USD schemas on OpenUSD's plugin search path.
+
+    ``mujoco-usd-converter`` ships them as a codeless schema plugin that it registers when the
+    package is imported. OpenUSD builds its schema registry once, on the first schema query, and
+    ignores plugins registered after that -- so MJCF conversion fails with "Cannot find a valid
+    schema for ``MjcSceneAPI``" whenever anything touched a schema first. Adding the plugin to the
+    search path lets OpenUSD find it while building the registry, so importing the converter late
+    no longer matters.
+
+    OpenUSD reads the search path while building the registry, so this only helps while the
+    registry is still unbuilt. A host that queries a schema before importing Isaac Lab has to put
+    the plugin directory on ``PXR_PLUGINPATH_NAME`` itself.
+
+    Isaac Lab's Kit experiences must not also enable ``omni.usd.schema.mujoco``. The extension
+    bundles a second plugin with the same name and reports its duplicate registration as an error.
+    """
+    plugins = None
+    spec = importlib.util.find_spec("mujoco_usd_converter")
+    if spec is not None and spec.origin is not None:
+        plugins = os.path.join(os.path.dirname(spec.origin), "plugins")
+
+    # Source Isaac Sim exposes this prebundle only after Kit starts, which is too late for the
+    # schema registry. Its root is available earlier through the launcher environment.
+    if plugins is None or not os.path.isdir(plugins):
+        isaac_path = os.environ.get("ISAAC_PATH")
+        if isaac_path is None:
+            return
+        plugins = os.path.join(
+            isaac_path,
+            "exts",
+            "isaacsim.pip.newton",
+            "pip_prebundle",
+            "mujoco_usd_converter",
+            "plugins",
+        )
+    if not os.path.isdir(plugins):
+        return
+    search_path = os.environ.get("PXR_PLUGINPATH_NAME", "")
+    if plugins not in search_path.split(os.pathsep):
+        os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (search_path, plugins)))
+
+
+_deprioritize_prebundle_paths()
+_expose_mujoco_usd_schemas()
+
+
+try:
+    __version__ = importlib.metadata.version("isaaclab")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
+
+
+# TODO(myurasov-nv): bootstrap_kernel() is ported from the internal GitLab wheel builder
+# for backwards compatibility. It is not called currently, but may be needed if Isaac Sim
+# requires explicit kernel bootstrapping before use. Remove once confirmed unnecessary.
+def bootstrap_kernel():
+    """Import Isaac Sim so it can initialize its kernel when available."""
+    isaaclab_path = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+    if importlib.util.find_spec("isaacsim") is not None:
+        import isaacsim  # noqa: F401
+
+        if importlib.util.find_spec("carb") is not None:
+            import carb
+
+            carb.log_info(f"Isaac Lab path: {isaaclab_path}")
+
+
+def main():
+    """Run the ``isaaclab`` command through its compatibility dispatcher."""
+    from isaaclab.__main__ import main as _main
+
+    sys.exit(_main())

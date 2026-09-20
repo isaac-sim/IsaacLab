@@ -60,7 +60,7 @@ def load_tensorboard_logs(directory: str) -> dict:
 def get_invocation_command_from_cfg(
     cfg: dict,
     python_cmd: str = "/workspace/isaaclab/isaaclab.sh -p",
-    workflow: str = "scripts/reinforcement_learning/rl_games/train.py",
+    workflow: str = "scripts/reinforcement_learning/train.py",
 ) -> str:
     """Generate command with proper Hydra arguments"""
     runner_args = []

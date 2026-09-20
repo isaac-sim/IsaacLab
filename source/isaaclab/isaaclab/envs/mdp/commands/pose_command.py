@@ -15,6 +15,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -28,7 +29,7 @@ class UniformPoseCommand(CommandTerm):
 
     The command generator generates poses by sampling positions uniformly within specified
     regions in cartesian space. For orientation, it samples uniformly the euler angles
-    (roll-pitch-yaw) and converts them into quaternion representation (w, x, y, z).
+    (roll-pitch-yaw) and converts them into quaternion representation (x, y, z, w).
 
     The position and orientation commands are generated in the base frame of the robot, and not the
     simulation world frame. This means that users need to handle the transformation from the
@@ -60,13 +61,24 @@ class UniformPoseCommand(CommandTerm):
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
 
         # create buffers
-        # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
+        # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
         self.pose_command_b[:, 3] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
+        # -- per-episode sticky success bit (only used when at least one success threshold is set)
+        self._track_success = (
+            cfg.position_success_threshold is not None or cfg.orientation_success_threshold is not None
+        )
+        if self._track_success:
+            self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
+        self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
 
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"
@@ -82,19 +94,41 @@ class UniformPoseCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired pose command. Shape is (num_envs, 7).
 
-        The first three elements correspond to the position, followed by the quaternion orientation in (w, x, y, z).
+        The first three elements correspond to the position, followed by the quaternion orientation in (x, y, z, w).
         """
         return self.pose_command_b
+
+    def compute_success(self) -> torch.Tensor:
+        """Compute whether the current body pose satisfies the configured success thresholds.
+
+        Successful entries are also recorded by the episode-level success tracker when enabled.
+
+        Returns:
+            A boolean tensor indicating which environments satisfy every configured threshold.
+            If no success threshold is configured, all entries are false.
+        """
+        position_error, orientation_error = self._compute_error()
+        success = self._compute_success(position_error, orientation_error)
+        if self._track_success:
+            self._succeeded |= success
+        return success
 
     """
     Implementation specific functions.
     """
 
     def _update_metrics(self):
+        position_error, orientation_error = self._compute_error()
+        self.metrics["position_error"] = position_error
+        self.metrics["orientation_error"] = orientation_error
+        if self._track_success:
+            self._succeeded |= self._compute_success(position_error, orientation_error)
+
+    def _compute_error(self) -> tuple[torch.Tensor, torch.Tensor]:
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            self.robot.data.root_pos_w,
-            self.robot.data.root_quat_w,
+            self.robot.data.root_pos_w.torch,
+            self.robot.data.root_quat_w.torch,
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
@@ -102,11 +136,33 @@ class UniformPoseCommand(CommandTerm):
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            self.robot.data.body_pos_w[:, self.body_idx],
-            self.robot.data.body_quat_w[:, self.body_idx],
+            self.robot.data.body_pos_w.torch[:, self.body_idx],
+            self.robot.data.body_quat_w.torch[:, self.body_idx],
         )
-        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+        return torch.linalg.norm(pos_error, dim=-1), torch.linalg.norm(rot_error, dim=-1)
+
+    def _compute_success(self, position_error: torch.Tensor, orientation_error: torch.Tensor) -> torch.Tensor:
+        success = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        if self.cfg.position_success_threshold is not None:
+            success &= position_error < self.cfg.position_success_threshold
+        if self.cfg.orientation_success_threshold is not None:
+            success &= orientation_error < self.cfg.orientation_success_threshold
+        if not self._track_success:
+            success[:] = False
+        return success
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        extras = super().reset(env_ids)
+        if self._track_success:
+            if env_ids is None:
+                env_ids = slice(None)
+            # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
+            # a TensorBoard card with the same metric from other tasks.
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                self._succeeded[env_ids].float().mean().item()
+            )
+            self._succeeded[env_ids] = False
+        return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
@@ -149,8 +205,17 @@ class UniformPoseCommand(CommandTerm):
         if not self.robot.is_initialized:
             return
         # update the markers
+        environment_ids = self._env.scene._ALL_INDICES
         # -- goal pose
-        self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
+        self.goal_pose_visualizer.visualize(
+            self.pose_command_w[:, :3],
+            self.pose_command_w[:, 3:],
+            environment_ids=environment_ids,
+        )
         # -- current body pose
-        body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
-        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])
+        body_link_pose_w = self.robot.data.body_link_pose_w.torch[:, self.body_idx]
+        self.current_pose_visualizer.visualize(
+            body_link_pose_w[:, :3],
+            body_link_pose_w[:, 3:7],
+            environment_ids=environment_ids,
+        )

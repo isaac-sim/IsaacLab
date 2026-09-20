@@ -1,19 +1,75 @@
-﻿isaaclab.sim.schemas
+isaaclab.sim.schemas
 ====================
 
 .. automodule:: isaaclab.sim.schemas
 
-  .. rubric:: Classes
+  .. rubric:: Solver-common base classes
+
+  These base classes carry the universal-physics fields that every backend honors.
+  They live in core ``isaaclab`` and have no backend dependency. For backend-specific
+  knobs, use the matching subclass in :mod:`isaaclab_physx.sim.schemas` or
+  :mod:`isaaclab_newton.sim.schemas`. See :doc:`/source/concepts/schema_cfgs`
+  for the full design.
 
   .. autosummary::
 
-    ArticulationRootPropertiesCfg
-    RigidBodyPropertiesCfg
-    CollisionPropertiesCfg
+    ArticulationRootBaseCfg
+    RigidBodyBaseCfg
+    CollisionBaseCfg
+    JointDriveBaseCfg
+    MeshCollisionBaseCfg
     MassPropertiesCfg
     JointDrivePropertiesCfg
     FixedTendonPropertiesCfg
-    DeformableBodyPropertiesCfg
+    DeformableBodyPropertiesBaseCfg
+
+  .. rubric:: Mesh collision approximations (USD-only, no PhysX schema)
+
+  .. autosummary::
+
+    BoundingCubePropertiesCfg
+    BoundingSpherePropertiesCfg
+
+  .. rubric:: Schema fragments
+
+  A fragment mirrors exactly one USD applied schema and writes into a single attribute
+  namespace. The family writers below dispatch lists of fragments to the prims matched by
+  a target expression. See :ref:`schema-fragments` for the concept and the spawner-level
+  usage. Backend fragments live in :mod:`isaaclab_physx.sim.schemas` and
+  :mod:`isaaclab_newton.sim.schemas`.
+
+  .. autosummary::
+
+    SchemaFragment
+    RigidBodyFragment
+    CollisionFragment
+    MassFragment
+    ArticulationRootFragment
+    JointDriveFragment
+    MeshCollisionFragment
+    FixedTendonFragment
+    SpatialTendonFragment
+    UsdPhysicsRigidBodyCfg
+    UsdPhysicsCollisionCfg
+    UsdPhysicsDriveCfg
+    UsdPhysicsMeshCollisionCfg
+    MassCfg
+
+  .. rubric:: Fragment writers
+
+  .. autosummary::
+
+    apply_rigid_body_properties
+    apply_collision_properties
+    apply_mass_properties
+    apply_articulation_root_properties
+    apply_joint_drive_properties
+    apply_mesh_collision_properties
+    apply_fixed_tendon_properties
+    apply_spatial_tendon_properties
+    apply_namespaced
+    apply_drive
+    apply_mesh_collision
 
   .. rubric:: Functions
 
@@ -29,24 +85,117 @@
     define_mass_properties
     modify_mass_properties
     modify_joint_drive_properties
+    define_mesh_collision_properties
+    modify_mesh_collision_properties
     modify_fixed_tendon_properties
     define_deformable_body_properties
+    define_deformable_curve_properties
     modify_deformable_body_properties
+
+Schema Fragments
+----------------
+
+.. autoclass:: SchemaFragment
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: RigidBodyFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: CollisionFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MassFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: ArticulationRootFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: JointDriveFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MeshCollisionFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: FixedTendonFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: SpatialTendonFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsRigidBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsCollisionCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsDriveCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: UsdPhysicsMeshCollisionCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MassCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autofunction:: apply_rigid_body_properties
+.. autofunction:: apply_collision_properties
+.. autofunction:: apply_mass_properties
+.. autofunction:: apply_articulation_root_properties
+.. autofunction:: apply_joint_drive_properties
+.. autofunction:: apply_mesh_collision_properties
+.. autofunction:: apply_fixed_tendon_properties
+.. autofunction:: apply_spatial_tendon_properties
+.. autofunction:: apply_namespaced
+.. autofunction:: apply_drive
+.. autofunction:: apply_mesh_collision
 
 Articulation Root
 -----------------
 
-.. autoclass:: ArticulationRootPropertiesCfg
+.. autoclass:: ArticulationRootBaseCfg
     :members:
     :exclude-members: __init__
 
 .. autofunction:: define_articulation_root_properties
 .. autofunction:: modify_articulation_root_properties
 
+For PhysX-specific articulation properties (self-collisions, TGS solver iterations,
+sleep/stabilization thresholds), see
+:class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`. For
+Newton-native self-collisions, see
+:class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg`.
+
 Rigid Body
 ----------
 
-.. autoclass:: RigidBodyPropertiesCfg
+.. autoclass:: RigidBodyBaseCfg
     :members:
     :exclude-members: __init__
 
@@ -54,15 +203,27 @@ Rigid Body
 .. autofunction:: modify_rigid_body_properties
 .. autofunction:: activate_contact_sensors
 
+For PhysX-specific rigid body properties (damping, max velocities, solver iterations,
+sleep/stabilization), see :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`.
+For MuJoCo-specific gravity compensation, see
+:class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg`.
+
 Collision
 ---------
 
-.. autoclass:: CollisionPropertiesCfg
+.. autoclass:: CollisionBaseCfg
     :members:
     :exclude-members: __init__
 
 .. autofunction:: define_collision_properties
 .. autofunction:: modify_collision_properties
+
+For PhysX torsional patch friction, see
+:class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`. For Newton-native
+contact margin/gap, see
+:class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg`. For Newton SDF
+and hydroelastic collision configuration, see
+:class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg`.
 
 Mass
 ----
@@ -77,27 +238,61 @@ Mass
 Joint Drive
 -----------
 
-.. autoclass:: JointDrivePropertiesCfg
+.. autoclass:: JointDriveBaseCfg
     :members:
     :exclude-members: __init__
 
 .. autofunction:: modify_joint_drive_properties
 
-Fixed Tendon
-------------
+For PhysX-specific drive properties, see
+:class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`. For MuJoCo
+actuator gravity compensation, see
+:class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg`.
 
-.. autoclass:: FixedTendonPropertiesCfg
+Mesh Collision
+--------------
+
+.. autoclass:: MeshCollisionBaseCfg
     :members:
     :exclude-members: __init__
 
+.. autoclass:: BoundingCubePropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: BoundingSpherePropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autofunction:: define_mesh_collision_properties
+.. autofunction:: modify_mesh_collision_properties
+
+For PhysX cooking schemas (convex hull / decomposition / triangle mesh / SDF),
+see the ``Physx*PropertiesCfg`` family in :mod:`isaaclab_physx.sim.schemas`.
+For Newton hull-vertex limit, see
+:class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg`.
+
+Tendon
+------
+
 .. autofunction:: modify_fixed_tendon_properties
+.. autofunction:: modify_spatial_tendon_properties
+
+Tendon cfg classes are PhysX-only and live in
+:mod:`isaaclab_physx.sim.schemas`
+(:class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`,
+:class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`).
 
 Deformable Body
 ---------------
 
-.. autoclass:: DeformableBodyPropertiesCfg
+.. autoclass:: DeformableBodyPropertiesBaseCfg
     :members:
+    :show-inheritance:
     :exclude-members: __init__
 
 .. autofunction:: define_deformable_body_properties
+.. autofunction:: define_deformable_curve_properties
 .. autofunction:: modify_deformable_body_properties

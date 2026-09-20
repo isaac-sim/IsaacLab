@@ -1,0 +1,89 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import math
+
+import isaaclab.sim as sim_utils
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
+from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+
+@configclass
+class CartpoleTiledCameraCfg(PresetCfg):
+    @configclass
+    class BaseCartpoleTiledCameraCfg(CameraCfg):
+        prim_path: str = "{ENV_REGEX_NS}/Camera"
+        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
+            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
+        )
+        data_types: list[str] = []
+        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        )
+        width: int = 96
+        height: int = 96
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+
+    default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
+    depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
+    albedo = BaseCartpoleTiledCameraCfg(data_types=["albedo"])
+    semantic_segmentation = BaseCartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
+    simple_shading_constant_diffuse = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    simple_shading_diffuse_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    simple_shading_full_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
+    rgb = default
+
+
+@configclass
+class CartpoleCameraSceneCfg(CartpoleSceneCfg):
+    """Cartpole scene with a selectable camera and no view-obstructing ground plane."""
+
+    ground = None
+    tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
+
+
+@configclass
+class CartpoleCameraEnvCfg(PresetCfg):
+    @configclass
+    class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
+        """Camera variant of :class:`CartpoleEnvCfg` — only the fields that differ are overridden."""
+
+        write_image_to_file = False
+
+        frame_stack: int = 2
+        """Number of frames to stack along the channel dimension.
+
+        Values less than two disable stacking.
+        """
+
+        # spaces: single-frame channels + default spatial size. At env init, height/width
+        # are replaced with the tiled camera size and channels are expanded by frame_stack.
+        # Only the channel count must stay in sync with the camera data type (presets set this).
+        observation_space = [3, 96, 96]
+        state_space = 4
+
+        # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
+        scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+
+        # reset: smaller initial pole angle than the proprioceptive task
+        initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
+
+        def __post_init__(self):
+            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
+
+    default = BaseCartpoleCameraEnvCfg()
+    depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])
+    albedo = BaseCartpoleCameraEnvCfg()
+    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 96, 96])
+    simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg()
+    simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg()
+    simple_shading_full_mdl = BaseCartpoleCameraEnvCfg()

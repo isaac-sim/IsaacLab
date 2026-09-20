@@ -21,6 +21,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.string import to_camel_case
 
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+
 
 @pytest.fixture(autouse=True)
 def sim():
@@ -39,8 +41,6 @@ def sim():
 
     # Teardown: Stop simulation
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

@@ -188,3 +188,23 @@ Warp operations
    :members:
    :imported-members:
    :show-inheritance:
+
+.. rubric:: Particle sampling functions
+
+.. autosummary::
+
+   sample_particles_in_mesh
+   sample_particles_in_cavity
+
+Warp Fabric kernels
+^^^^^^^^^^^^^^^^^^^
+
+Warp kernels for reading and writing Fabric ``Matrix4d`` attributes
+(``omni:fabric:worldMatrix`` / ``omni:fabric:localMatrix``) via
+:class:`wp.fabricarray` and :class:`wp.indexedfabricarray`. Used by
+:class:`~isaaclab_physx.sim.views.FabricFrameView` to keep child world and
+local matrices consistent without round-tripping through USD.
+
+.. automodule:: isaaclab.utils.warp.fabric
+   :members:
+   :show-inheritance:

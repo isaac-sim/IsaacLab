@@ -34,7 +34,6 @@ class EnvArgs:
     def __init__(self, args_cli):
         self.task = args_cli.task
         self.seed = args_cli.seed if args_cli.seed is not None else -1
-        self.headless = args_cli.headless
         self.num_envs = args_cli.num_envs
 
     def get_args_list(self) -> list[str]:
@@ -42,22 +41,17 @@ class EnvArgs:
         list.append(f"--task={self.task}")
         list.append(f"--seed={self.seed}")
         list.append(f"--num_envs={self.num_envs}")
-        if self.headless:
-            list.append("--headless")
         return list
 
 
 class RenderingArgs:
     def __init__(self, args_cli):
-        self.camera_enabled = args_cli.enable_cameras
         self.video = args_cli.video
         self.video_length = args_cli.video_length
         self.video_interval = args_cli.video_interval
 
     def get_args_list(self) -> list[str]:
         args = []
-        if self.camera_enabled:
-            args.append("--enable_cameras")
         if self.video:
             args.extend(["--video", f"--video_length={self.video_length}", f"--video_interval={self.video_interval}"])
         return args

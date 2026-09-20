@@ -12,7 +12,7 @@ mass matricescomputed by PhysX.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py
+    uv run python scripts/tutorials/05_controllers/run_osc.py
 
 """
 
@@ -86,7 +86,7 @@ class SceneCfg(InteractiveSceneCfg):
             activate_contact_sensors=True,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.9238795325, 0.0, -0.3826834324, 0.0)
+            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.0, -0.3826834324, 0.0, 0.9238795325)
         ),
     )
 
@@ -144,12 +144,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
     goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
-    # Define targets for the arm
+    # Define targets for the arm (x,y,z,qx,qy,qz,qw)
     ee_goal_pose_set_tilted_b = torch.tensor(
         [
-            [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
+            [0.6, 0.15, 0.3, 0.92387953, 0.0, 0.38268343, 0.0],
+            [0.6, -0.3, 0.3, 0.92387953, 0.0, 0.38268343, 0.0],
+            [0.8, 0.0, 0.5, 0.92387953, 0.0, 0.38268343, 0.0],
         ],
         device=sim.device,
     )
@@ -179,7 +179,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     robot.update(dt=sim_dt)
 
     # Get the center of the robot soft joint limits
-    joint_centers = torch.mean(robot.data.soft_joint_pos_limits[:, arm_joint_ids, :], dim=-1)
+    joint_centers = torch.mean(robot.data.soft_joint_pos_limits.torch[:, arm_joint_ids, :], dim=-1)
 
     # get the updated states
     (
@@ -213,10 +213,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # reset every 500 steps
         if count % 500 == 0:
             # reset joint state to default
-            default_joint_pos = robot.data.default_joint_pos.clone()
-            default_joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(default_joint_pos, default_joint_vel)
-            robot.set_joint_effort_target(zero_joint_efforts)  # Set zero torques in the initial step
+            default_joint_pos = robot.data.default_joint_pos.torch.clone()
+            default_joint_vel = robot.data.default_joint_vel.torch.clone()
+            robot.write_joint_position_to_sim_index(position=default_joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=default_joint_vel)
+            robot.set_joint_effort_target_index(target=zero_joint_efforts)  # Set zero torques in the initial step
             robot.write_data_to_sim()
             robot.reset()
             # reset contact sensor
@@ -260,7 +261,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 nullspace_joint_pos_target=joint_centers,
             )
             # apply actions
-            robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+            robot.set_joint_effort_target_index(target=joint_efforts, joint_ids=arm_joint_ids)
             robot.write_data_to_sim()
 
         # update marker positions
@@ -313,31 +314,35 @@ def update_states(
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
-    jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-    mass_matrix = robot.root_physx_view.get_generalized_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
-    gravity = robot.root_physx_view.get_gravity_compensation_forces()[:, arm_joint_ids]
+    # The J / M / g DoF axis prepends ``num_base_dofs`` floating-base columns
+    # (0 for fixed-base, 6 for floating-base); shift the actuated-joint ids by
+    # ``num_base_dofs`` to address the actuated-joint columns directly.
+    jacobi_joint_ids = [j + robot.num_base_dofs for j in arm_joint_ids]
+    jacobian_w = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, jacobi_joint_ids]
+    mass_matrix = robot.data.mass_matrix.torch[:, jacobi_joint_ids, :][:, :, jacobi_joint_ids]
+    gravity = robot.data.gravity_compensation_forces.torch[:, jacobi_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
-    root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w))
+    root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w.torch))
     jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, jacobian_b[:, :3, :])
     jacobian_b[:, 3:, :] = torch.bmm(root_rot_matrix, jacobian_b[:, 3:, :])
 
     # Compute current pose of the end-effector
-    root_pos_w = robot.data.root_pos_w
-    root_quat_w = robot.data.root_quat_w
-    ee_pos_w = robot.data.body_pos_w[:, ee_frame_idx]
-    ee_quat_w = robot.data.body_quat_w[:, ee_frame_idx]
+    root_pos_w = robot.data.root_pos_w.torch
+    root_quat_w = robot.data.root_quat_w.torch
+    ee_pos_w = robot.data.body_pos_w.torch[:, ee_frame_idx]
+    ee_quat_w = robot.data.body_quat_w.torch[:, ee_frame_idx]
     ee_pos_b, ee_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
     root_pose_w = torch.cat([root_pos_w, root_quat_w], dim=-1)
     ee_pose_w = torch.cat([ee_pos_w, ee_quat_w], dim=-1)
     ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
     # Compute the current velocity of the end-effector
-    ee_vel_w = robot.data.body_vel_w[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
-    root_vel_w = robot.data.root_vel_w  # Extract root velocity in the world frame
+    ee_vel_w = robot.data.body_vel_w.torch[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
+    root_vel_w = robot.data.root_vel_w.torch  # Extract root velocity in the world frame
     relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
-    ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w, relative_vel_w[:, 0:3])  # From world to root frame
-    ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w, relative_vel_w[:, 3:6])
+    ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 0:3])  # From world to root frame
+    ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 3:6])
     ee_vel_b = torch.cat([ee_lin_vel_b, ee_ang_vel_b], dim=-1)
 
     # Calculate the contact force
@@ -346,14 +351,14 @@ def update_states(
     contact_forces.update(sim_dt)  # update contact sensor
     # Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and
     # taking the max of three surfaces as only one should be the contact of interest
-    ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_forces_w_history, dim=1), dim=1)
+    ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_normal_forces_w_history, dim=1), dim=1)
 
     # This is a simplification, only for the sake of testing.
     ee_force_b = ee_force_w
 
     # Get joint positions and velocities
-    joint_pos = robot.data.joint_pos[:, arm_joint_ids]
-    joint_vel = robot.data.joint_vel[:, arm_joint_ids]
+    joint_pos = robot.data.joint_pos.torch[:, arm_joint_ids]
+    joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
 
     return (
         jacobian_b,

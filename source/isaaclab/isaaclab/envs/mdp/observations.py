@@ -16,14 +16,16 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
+from isaaclab.utils.buffers import CircularBuffer
+from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab.sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
 
 from isaaclab.envs.utils.io_descriptors import (
     generic_io_descriptor,
@@ -45,7 +47,7 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 2].unsqueeze(-1)
+    return asset.data.root_pos_w.torch[:, 2].unsqueeze(-1)
 
 
 @generic_io_descriptor(
@@ -55,7 +57,7 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_lin_vel_b
+    return asset.data.root_lin_vel_b.torch
 
 
 @generic_io_descriptor(
@@ -65,7 +67,7 @@ def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_ang_vel_b
+    return asset.data.root_ang_vel_b.torch
 
 
 @generic_io_descriptor(
@@ -75,7 +77,7 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.projected_gravity_b
+    return asset.data.projected_gravity_b.torch
 
 
 @generic_io_descriptor(
@@ -85,7 +87,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w - env.scene.env_origins
+    return asset.data.root_pos_w.torch - env.scene.env_origins
 
 
 @generic_io_descriptor(
@@ -94,7 +96,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
 def root_quat_w(
     env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Asset root orientation (w, x, y, z) in the environment frame.
+    """Asset root orientation (x, y, z, w) in the environment frame.
 
     If :attr:`make_quat_unique` is True, then returned quaternion is made unique by ensuring
     the quaternion has non-negative real component. This is because both ``q`` and ``-q`` represent
@@ -103,7 +105,7 @@ def root_quat_w(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    quat = asset.data.root_quat_w
+    quat = asset.data.root_quat_w.torch
     # make the quaternion real-part positive if configured
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
@@ -115,7 +117,7 @@ def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_lin_vel_w
+    return asset.data.root_lin_vel_w.torch
 
 
 @generic_io_descriptor(
@@ -125,7 +127,7 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_ang_vel_w
+    return asset.data.root_ang_vel_w.torch
 
 
 """
@@ -154,7 +156,7 @@ def body_pose_w(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # access the body poses in world frame
-    pose = asset.data.body_pose_w[:, asset_cfg.body_ids, :7]
+    pose = asset.data.body_pose_w.torch[:, asset_cfg.body_ids, :7]
     if isinstance(asset_cfg.body_ids, (slice, int)):
         pose = pose.clone()  # if slice or int, make a copy to avoid modifying original data
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
@@ -181,8 +183,11 @@ def body_projected_gravity_b(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
-    body_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]
-    gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
+    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids]
+    # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
+    # backend) or scene-wide gravity (PhysX backend).
+    gravity_w = asset.data.GRAVITY_VEC_W.torch
+    gravity_dir = torch.nn.functional.normalize(gravity_w, dim=-1).unsqueeze(1)
     return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
@@ -201,7 +206,7 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_pos[:, asset_cfg.joint_ids]
+    return asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
 
 
 @generic_io_descriptor(
@@ -216,7 +221,9 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    return (
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+    )
 
 
 @generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
@@ -230,9 +237,9 @@ def joint_pos_limit_normalized(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return math_utils.scale_transform(
-        asset.data.joint_pos[:, asset_cfg.joint_ids],
-        asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 0],
-        asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 1],
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids],
+        asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids, 0],
+        asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids, 1],
     )
 
 
@@ -246,7 +253,7 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_vel[:, asset_cfg.joint_ids]
+    return asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
 
 
 @generic_io_descriptor(
@@ -261,7 +268,9 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
+    return (
+        asset.data.joint_vel.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
+    )
 
 
 @generic_io_descriptor(
@@ -281,7 +290,7 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.applied_torque[:, asset_cfg.joint_ids]
+    return asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]
 
 
 """
@@ -297,80 +306,80 @@ def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float 
     # extract the used quantities (to enable type-hinting)
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
     # height scan: height = sensor_height - hit_point_z - offset
-    return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
+    return sensor.data.pos_w.torch[:, 2].unsqueeze(1) - sensor.data.ray_hits_w.torch[..., 2] - offset
 
 
-def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Incoming spatial wrench on bodies of an articulation in the simulation world frame.
+def body_incoming_wrench(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Incoming spatial wrench [N, N·m] on bodies of an articulation in the sensor convention.
 
-    This is the 6-D wrench (force and torque) applied to the body link by the incoming joint force.
+    This is the 6-D wrench (force followed by torque) applied to the body link by the incoming joint force.
     """
     # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # obtain the link incoming forces in world frame
-    body_incoming_joint_wrench_b = asset.data.body_incoming_joint_wrench_b[:, asset_cfg.body_ids]
-    return body_incoming_joint_wrench_b.view(env.num_envs, -1)
+    sensor: JointWrenchSensor = env.scene.sensors[sensor_cfg.name]
+    sensor_data = sensor.data
+    force_data = sensor_data.force
+    torque_data = sensor_data.torque
+    if force_data is None or torque_data is None:
+        raise RuntimeError("Joint wrench sensor data is not initialized. Call sim.reset() before reading observations.")
+    force = force_data.torch[:, sensor_cfg.body_ids]
+    torque = torque_data.torch[:, sensor_cfg.body_ids]
+    return torch.cat((force, torque), dim=-1).view(env.num_envs, -1)
 
 
-def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor orientation in the simulation world frame.
+def pva_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("pva")) -> torch.Tensor:
+    """PVA sensor orientation in the simulation world frame.
 
     Args:
         env: The environment.
-        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
+        asset_cfg: The SceneEntity associated with a PVA sensor. Defaults to SceneEntityCfg("pva").
 
     Returns:
-        Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).
+        Orientation in the world frame in (x, y, z, w) quaternion form. Shape is (num_envs, 4).
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: Imu = env.scene[asset_cfg.name]
-    # return the orientation quaternion
-    return asset.data.quat_w
+    asset: Pva = env.scene[asset_cfg.name]
+    return asset.data.quat_w.torch
 
 
-def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor orientation w.r.t the env.scene.origin.
+def pva_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("pva")) -> torch.Tensor:
+    """PVA sensor projected gravity in the sensor frame.
 
     Args:
         env: The environment.
-        asset_cfg: The SceneEntity associated with an Imu sensor.
+        asset_cfg: The SceneEntity associated with a PVA sensor. Defaults to SceneEntityCfg("pva").
 
     Returns:
-        Gravity projected on imu_frame, shape of torch.tensor is (num_env,3).
+        Gravity projected on sensor frame, shape of torch.tensor is (num_env, 3).
     """
-
-    asset: Imu = env.scene[asset_cfg.name]
-    return asset.data.projected_gravity_b
+    asset: Pva = env.scene[asset_cfg.name]
+    return asset.data.projected_gravity_b.torch
 
 
 def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.
+    """IMU sensor angular velocity w.r.t. environment origin expressed in the sensor frame [rad/s].
 
     Args:
         env: The environment.
         asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
 
     Returns:
-        The angular velocity (rad/s) in the sensor frame. Shape is (num_envs, 3).
+        The angular velocity [rad/s] in the sensor frame. Shape is (num_envs, 3).
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Imu = env.scene[asset_cfg.name]
-    # return the angular velocity
-    return asset.data.ang_vel_b
+    return asset.data.ang_vel_b.torch
 
 
 def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor linear acceleration w.r.t. the environment origin expressed in sensor frame.
+    """IMU sensor linear acceleration w.r.t. the environment origin expressed in sensor frame [m/s^2].
 
     Args:
         env: The environment.
         asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
 
     Returns:
-        The linear acceleration (m/s^2) in the sensor frame. Shape is (num_envs, 3).
+        The linear acceleration [m/s^2] in the sensor frame. Shape is (num_envs, 3).
     """
     asset: Imu = env.scene[asset_cfg.name]
-    return asset.data.lin_acc_b
+    return asset.data.lin_acc_b.torch
 
 
 def image(
@@ -379,6 +388,8 @@ def image(
     data_type: str = "rgb",
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
+    permute: bool = False,
+    clone: bool = True,
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -396,12 +407,17 @@ def image(
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
+        permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
+        clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
+            against downstream in-place mutation of the camera buffer). Callers that immediately
+            copy the result into their own storage (e.g. a frame-stack buffer) can pass ``False``
+            to skip the redundant allocation.
 
     Returns:
         The images produced at the last time-step
     """
     # extract the used quantities (to enable type-hinting)
-    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
     images = sensor.data.output[data_type]
@@ -410,18 +426,13 @@ def image(
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-    # rgb/depth/normals image normalization
     if normalize:
-        if data_type == "rgb":
-            images = images.float() / 255.0
-            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
-            images -= mean_tensor
-        elif "distance_to" in data_type or "depth" in data_type:
-            images[images == float("inf")] = 0
-        elif "normals" in data_type:
-            images = (images + 1.0) * 0.5
+        images = normalize_camera_image(images, data_type)
 
-    return images.clone()
+    if permute:
+        images = images.permute(0, 3, 1, 2)
+
+    return images.clone() if clone else images
 
 
 class image_features(ManagerTermBase):
@@ -546,8 +557,8 @@ class image_features(ManagerTermBase):
         # forward the images through the model
         features = self._inference_fn(self._model, image_data, **(inference_kwargs or {}))
 
-        # move the features back to the image device
-        return features.detach().to(image_device)
+        # observation terms must be flat after the environment batch dimension
+        return features.flatten(start_dim=1).detach().to(image_device)
 
     """
     Helper functions.
@@ -563,11 +574,39 @@ class image_features(ManagerTermBase):
         Returns:
             A dictionary containing the model and inference functions.
         """
-        from transformers import AutoModel
+        from transformers import AutoConfig
+        from transformers.dynamic_module_utils import get_class_from_dynamic_module
 
         def _load_model() -> torch.nn.Module:
             """Load the Theia transformer model."""
-            model = AutoModel.from_pretrained(f"theaiinstitute/{model_name}", trust_remote_code=True).eval()
+            pretrained_model_name = f"theaiinstitute/{model_name}"
+            config = AutoConfig.from_pretrained(pretrained_model_name, trust_remote_code=True)
+            model_class = get_class_from_dynamic_module(config.auto_map["AutoModel"], pretrained_model_name)
+
+            # Theia initializes a pretrained backbone inside its constructor. Transformers 5 constructs
+            # models on the meta device, where nested ``from_pretrained`` calls are prohibited. Limit the
+            # legacy initialization behavior to the trusted remote class and restore it after loading.
+            had_init_context = "get_init_context" in model_class.__dict__
+            original_init_context = model_class.__dict__.get("get_init_context")
+            had_tied_weight_keys = "all_tied_weights_keys" in model_class.__dict__
+            original_tied_weight_keys = model_class.__dict__.get("all_tied_weights_keys")
+
+            def _get_init_context(_cls, *_args, **_kwargs):
+                return []
+
+            model_class.get_init_context = classmethod(_get_init_context)
+            model_class.all_tied_weights_keys = {}
+            try:
+                model = model_class.from_pretrained(pretrained_model_name, config=config).eval()
+            finally:
+                if had_init_context:
+                    model_class.get_init_context = original_init_context
+                else:
+                    del model_class.get_init_context
+                if had_tied_weight_keys:
+                    model_class.all_tied_weights_keys = original_tied_weight_keys
+                else:
+                    del model_class.all_tied_weights_keys
             return model.to(model_device)
 
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
@@ -646,6 +685,100 @@ class image_features(ManagerTermBase):
 
         # return the model, preprocess and inference functions
         return {"model": _load_model, "inference": _inference}
+
+
+class stacked_image(ManagerTermBase):
+    """Channel-stacked observation of the last ``frame_stack`` camera frames.
+
+    Maintains a per-env rolling history of camera frames in a
+    :class:`~isaaclab.utils.buffers.CircularBuffer` and returns them concatenated along the
+    channel dimension in oldest-to-newest order. Useful for camera-based RL tasks whose
+    rendering backend does not supply implicit temporal information (e.g., the Newton Warp
+    renderer, which lacks temporal anti-aliasing).
+
+    On the first call after construction or per-env reset, all history slots for the affected
+    envs are filled with the current frame so the policy never sees zero-padded warmup data.
+
+    Args:
+        sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The sensor data type. Defaults to "rgb".
+        frame_stack: Number of frames to stack along the channel dim. Must be >= 1.
+            Defaults to 1 (single-frame passthrough).
+        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
+            Used only when ``data_type == "distance_to_camera"``. Defaults to False.
+        normalize: Whether to normalize the images. See :func:`image` for per-data-type
+            behavior. Defaults to True.
+
+    Returns:
+        Stacked image tensor. Shape is ``(num_envs, H, W, frame_stack * C)`` where the first
+        ``C`` channels are the oldest frame and the last ``C`` channels are the newest.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+        frame_stack: int = cfg.params.get("frame_stack", 1)
+        if frame_stack < 1:
+            raise ValueError(f"frame_stack must be >= 1, got {frame_stack}.")
+
+        # K=1 is a documented passthrough; no buffer needed.
+        self._buffer: CircularBuffer | None = None
+        if frame_stack > 1:
+            # Channel-stack: K frames concatenated along C; .stacked is a free contiguous view.
+            self._buffer = CircularBuffer(
+                max_len=frame_stack,
+                batch_size=env.num_envs,
+                device=env.device,
+                stack_dim=-1,
+            )
+
+    def reset(self, env_ids: torch.Tensor | None = None):
+        if self._buffer is not None:
+            self._buffer.reset(env_ids)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "rgb",
+        frame_stack: int = 1,
+        convert_perspective_to_orthogonal: bool = False,
+        normalize: bool = True,
+    ) -> torch.Tensor:
+        if self._buffer is None:
+            return image(
+                env=env,
+                sensor_cfg=sensor_cfg,
+                data_type=data_type,
+                convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+                normalize=normalize,
+            )
+
+        # RGB-like camera output is uint8; defer normalize so the buffer can hold it raw.
+        # Depth / normals output is float32 — leave normalize per-frame in image().
+        defer_normalize = normalize and is_rgb_like(data_type)
+        single_frame = image(
+            env=env,
+            sensor_cfg=sensor_cfg,
+            data_type=data_type,
+            convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+            normalize=normalize and not defer_normalize,
+            clone=False,
+        )
+        self._buffer.append(single_frame)
+        stacked = self._buffer.stacked
+
+        if defer_normalize:
+            # No ``out=`` -- a fresh float32 tensor is allocated per call. The caching
+            # allocator returns a different block than the previous step's (still
+            # referenced by the trainer), so the previous-iteration ``observations``
+            # is not overwritten before ``record_transition`` reads it. See
+            # :func:`isaaclab.utils.warp.ops.normalize_image_uint8` for the aliasing
+            # hazard documentation.
+            return normalize_camera_image(stacked, data_type)
+        # ``stacked`` is a view of the ring buffer storage which is overwritten on the next
+        # ``env.step``; clone so the returned tensor outlives the next step.
+        return stacked.clone()
 
 
 """

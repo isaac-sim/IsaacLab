@@ -1,74 +1,53 @@
-Configuring Rendering Settings
-==============================
+:orphan:
 
-Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
-You can select a mode via a command line argument or from within a script, and customize settings as needed.
-Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
+Configuring RTX Rendering Settings
+====================================
 
-Selecting a Rendering Mode
---------------------------
+.. note::
 
-Rendering modes can be selected in 2 ways.
+   This guide covers the **RTX renderer** settings, which are used when running Isaac Lab with
+   Isaac Sim. The RTX renderer is based on NVIDIA's Omniverse RTX rendering pipeline and is
+   available for all camera sensors in the PhysX backend.
 
-1. using the ``rendering_mode`` input class argument in :class:`~sim.RenderCfg`
+   For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
+   :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
 
-   .. code-block:: python
+Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults automatically.
+Override individual settings to tune the
+renderer for your workflow, as described below. For camera-heavy workloads that
+need higher throughput, switch to the RTX Minimal renderer instead.
 
-     # for an example of how this can be used, checkout the tutorial script
-     # scripts/tutorials/00_sim/set_rendering_mode.py
-     render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
+.. note::
 
-2. using the ``--rendering_mode`` CLI argument, which takes precedence over the ``rendering_mode`` argument in :class:`~sim.RenderCfg`.
+   Requesting one of the ``simple_shading_*`` camera data types without a regular color output
+   switches that camera's render product to RTX Minimal mode; the data type selects the shading
+   level. The switch applies per render product, so other cameras and the Kit viewport keep their
+   configured render mode. RTX Minimal uses only the first ``DistantLight`` prim, ignores
+   ``DomeLight`` prims, and may also use configured ambient lighting. When ``rgb``, ``rgba``, or
+   ``rgb_hdr`` is requested from the same render product, it retains its configured render mode to
+   preserve the color output; the ``simple_shading_*`` output remains available but does not receive
+   the RTX Minimal performance improvement.
 
-   .. code-block:: bash
+Overriding Specific Rendering Settings
+--------------------------------------
 
-     ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+RTX rendering settings can be overridden via
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
+There are 2 ways to provide settings that override the defaults.
 
-Note, the ``rendering_mode`` defaults to ``balanced``.
-However, in the case where the launcher argument ``--enable_cameras`` is not set, then
-the default ``rendering_mode`` is not applied and, instead, the default kit rendering settings are used.
-
-
-Example renders from the ``set_rendering_mode.py`` script.
-To help assess rendering, the example scene includes some reflections, translucency, direct and ambient lighting, and several material types.
-
--  Quality Mode
-
-   .. image:: ../_static/how-to/howto_rendering_example_quality.jpg
-      :width: 100%
-      :alt: Quality Rendering Mode Example
-
--  Balanced Mode
-
-   .. image:: ../_static/how-to/howto_rendering_example_balanced.jpg
-      :width: 100%
-      :alt: Balanced Rendering Mode Example
-
--  Performance Mode
-
-   .. image:: ../_static/how-to/howto_rendering_example_performance.jpg
-      :width: 100%
-      :alt: Performance Rendering Mode Example
-
-Overwriting Specific Rendering Settings
----------------------------------------
-
-Preset rendering settings can be overwritten via the :class:`~sim.RenderCfg` class.
-
-There are 2 ways to provide settings that overwrite presets.
-
-1. :class:`~sim.RenderCfg` supports overwriting specific settings via user-friendly setting names that map to underlying RTX settings.
+1. :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   supports overriding specific settings via user-friendly setting names that
+   map to underlying RTX settings.
    For example:
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="performance",
-         # user friendly setting overwrites
-         enable_translucency=True, # defaults to False in performance mode
-         enable_reflections=True, # defaults to False in performance mode
-         dlss_mode="3", # defaults to 1 in performance mode
+      global_settings = IsaacRtxRendererGlobalSettingsCfg(
+         # user-friendly setting overrides
+         enable_translucency=True,  # render glass / transmissive surfaces
+         enable_reflections=True,  # render reflections
+         dlss_mode=3,  # 0 (Performance), 1 (Balanced), 2 (Quality, the default), 3 (Auto)
       )
 
    List of user-friendly settings.
@@ -119,19 +98,20 @@ There are 2 ways to provide settings that overwrite presets.
       +----------------------------+--------------------------------------------------------------------------+
 
 
-2. For more control, :class:`~sim.RenderCfg` allows you to overwrite any RTX setting by using the ``carb_settings`` argument.
+2. For more control,
+   :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   allows you to override any RTX setting by using the ``carb_settings``
+   argument.
 
-   Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
-
-   In addition, the RTX documentation can be found here - https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
+   The full NVIDIA RTX renderer documentation can be found at
+   https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
 
    An example usage of ``carb_settings``.
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="quality",
-         # carb setting overwrites
+      global_settings = IsaacRtxRendererGlobalSettingsCfg(
+         # raw carb setting overrides
          carb_settings={
             "rtx.translucency.enabled": False,
             "rtx.reflections.enabled": False,
@@ -146,6 +126,48 @@ Current Limitations
 For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
+For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
-quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+
+
+If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
+adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
+areas that become newly visible between frames:
+
+.. code-block:: python
+
+   global_settings = IsaacRtxRendererGlobalSettingsCfg(
+      carb_settings={
+         "/rtx/aovConverter/disocclusionScale": 10000,
+      }
+   )
+
+.. note::
+
+   This parameter is not commonly exposed as it may have side effects in certain scenarios.
+   Only use it as a last resort if other quality settings do not resolve the visual artifacts.
+   The value can be adjusted to a very high value to reduce disocclusion artifacts.
+
+
+Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
+------------------------------------------------------------
+
+When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
+`3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
+in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
+
+.. code-block:: python
+
+   global_settings = IsaacRtxRendererGlobalSettingsCfg(
+      carb_settings={
+         "omni.rtx.nre.compositing.rendererHints": 3,
+      }
+   )
+
+.. warning::
+
+   With multiple environments, each environment holds its own copy of the scene, increasing device memory use,
+   and environments are rendered one after another, which can substantially slow down rendering.

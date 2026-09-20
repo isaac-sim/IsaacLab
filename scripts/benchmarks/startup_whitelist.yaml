@@ -1,0 +1,36 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Patterns are matched against profile labels, which are built relative to each installed
+# package root. In-repo functions therefore carry no package prefix ("utils.assets:..." for
+# isaaclab, "cloner.replicate:..." for isaaclab_physx); only external packages keep their
+# full dotted path ("warp._src.context:launch"). Patterns matching nothing are reported as
+# zero and logged as a warning, so check the log after editing this file.
+
+task_config:
+  - "utils.configclass:_wrap_resolvable_strings"
+  - "utils.configclass:_custom_post_init"
+  - "utils.configclass:_field_module_dir"
+
+env_creation:
+  - "scene.interactive_scene:__init__"
+  - "envs.*:reset"
+  - "physics.mjwarp_manager:_create_solver"
+  - "cloner.*:replicate"
+  - "cloner.*:usd_replicate"
+  - "cloner.*:filter_collisions"
+  - "cloner.*:attach_end_fn"
+  - "utils.string:string_to_callable"
+  - "warp.*:kernel"
+  - "envs.mdp.observations:*"
+  - "utils.assets:_find_asset_dependencies"
+
+first_step:
+  - "envs.mdp.rewards:*"
+  - "envs.mdp.terminations:*"
+  - "envs.mdp.observations:*"
+  - "actuators.*:compute"
+  - "warp.*:launch"
+  - "warp.*:to_torch"

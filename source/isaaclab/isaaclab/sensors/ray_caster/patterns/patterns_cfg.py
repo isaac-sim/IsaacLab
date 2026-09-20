@@ -92,7 +92,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
 
     Emulates sensor/film width on a camera.
 
-    Note:
+    .. note::
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
     vertical_aperture: float | None = None
@@ -194,7 +194,7 @@ class BpearlPatternCfg(PatternBaseCfg):
     # fmt: on
     """Vertical ray angles (in degrees). Defaults to a list of 32 angles.
 
-    Note:
+    .. note::
         We manually set the vertical ray angles to match the Bpearl sensor. The ray-angles
         are not evenly spaced.
     """

@@ -19,98 +19,133 @@ Guidelines for modifications:
 
 ---
 
+* Antoine Richard
 * Antonio Serrano-Muñoz
 * Ben Johnston
 * Brian McCann
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
+* Gavriel State
+* Greg Attra
 * Hunter Hansen
 * James Smith
 * James Tigue
 * Kelly (Yunrong) Guo
 * Matthew Trepte
+* Maximilian Krause
 * Mayank Mittal
+* Mike Yan Michelis
+* Mikhail Yurasov
+* Mustafa Haiderbhai
 * Nikita Rudin
 * Octi (Zhengyu) Zhang
+* Ossama Ahmed
 * Pascal Roth
 * Sheikh Dawood
-* Ossama Ahmed
-* Greg Attra
 
 ## Contributors
 
+* Advait Jayant
+* Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
+* Alexander Millane
 * Alice Zhou
 * Amr Mousa
+* Andrei Aristarkhov
 * Andrej Orsula
+* Anke Zhao
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
+* Bocheng Zou
 * Brayden Zhang
 * Brian Bingham
+* Brian Dilinila
 * Brian McCann
 * Caelan Garrett
 * Calvin Yu
 * Cameron Upright
 * Cathy Y. Li
 * Cheng-Rong Lai
+* Chenyu Cao
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* David Cao-Mueller
+* David Leon
 * David Yang
+* Daniela Hasenbring
 * Dhananjay Shendre
+* Dhyan Thakkar
+* Diego Ferigo
 * Dongxuan Fan
 * Dorsa Rohani
+* Ege Sekkin
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fatima Anes
 * Felipe Mohr
 * Felix Yu
+* Frank Lai
 * Gary Lvov
 * Giulio Romualdi
 * Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
+* Henry Hu
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
+* HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
+* Jessica Martinez
+* Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
+* Jichuan Hu
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
 * Jinyeob Kim
+* Jiwen Cai
 * Johnson Sun
 * Juana Du
+* Kai Pei
 * Kaixi Bao
-* Kris Wilson
-* Krishna Lakhi
 * Kourosh Darvish
 * Kousheek Chakraborty
+* Kris Wilson
+* Krishna Lakhi
+* Lin He
 * Lionel Gulich
+* Lior Ben Horin
+* Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
-* Lorenz Wellhausen
 * Lukas Fröhlich
 * Manuel Schweiger
+* Marco Alesiani
 * Masoud Moghani
 * Mateo Guaman Castro
+* Matthew Taylor
 * Maurice Rahme
 * Michael Gussert
-* Michael Noseworthy
 * Michael Lin
+* Michael Noseworthy
+* Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni
 * Mingxue Gu
@@ -119,6 +154,8 @@ Guidelines for modifications:
 * Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
+* Nicholas Blauch
+* Nicolas Moenne-Loccoz
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
@@ -126,18 +163,28 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Paul Reeves
 * Peter Du
+* Peter Verswyvelen
 * Philipp Reist
+* Piotr Barejko
+* Pranav Shirgur
 * Pulkit Goyal
+* Qian Lin
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
+* Rebecca (Rui) Zhang
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Lei
+* Richard Schmitt
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise
+* Ruben D'Sa
+* Ruben Grandia
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
@@ -146,44 +193,47 @@ Guidelines for modifications:
 * Shane Reetz
 * Shaoshu Su
 * Shaurya Dewan
-* Sixiang Chen
 * Shundo Kishi
+* Sixiang Chen
+* Song Yi
 * Stefan Van de Mosselaer
 * Stephan Pleines
 * Tiffany Chen
 * Trushant Adeshara
+* Tsz Ki GAO
 * Tyler Lum
 * Victor Khaustov
+* Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
+* Wang Ke
 * Wei Yang
+* Weihua Zhang
 * Welf Rehberg
 * Xavier Nal
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xu Li
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yize Wang
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* YuTeh Shen
 * Zehao Wang
+* Zeng Qingcheng
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
-* David Leon
-* Song Yi
-* Weihua Zhang
-* Tsz Ki GAO
-* Anke Zhao
 
 ## Acknowledgements
 
 * Ajay Mandlekar
 * Animesh Garg
 * Buck Babich
-* Gavriel State
 * Hammad Mazhar
 * Marco Hutter
 * Yan Chang

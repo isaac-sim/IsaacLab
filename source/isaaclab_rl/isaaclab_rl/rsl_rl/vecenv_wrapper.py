@@ -2,13 +2,24 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
+import contextlib
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+if TYPE_CHECKING:
+    from isaaclab.envs import (
+        DirectRLEnv,
+        ManagerBasedRLEnv,
+    )
+
+    with contextlib.suppress(ImportError):
+        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 
 class RslRlVecEnvWrapper(VecEnv):
@@ -36,12 +47,30 @@ class RslRlVecEnvWrapper(VecEnv):
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
-
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
+        from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv
+
+        try:
+            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
+        except ImportError:
+            DirectRLEnvWarp = None
+            ManagerBasedEnvWarp = None
+            ManagerBasedRLEnvWarp = None
+
+        allowed_types = (ManagerBasedRLEnv, ManagerBasedEnv, DirectRLEnv)
+        if DirectRLEnvWarp is not None:
+            allowed_types += (DirectRLEnvWarp,)
+        if ManagerBasedEnvWarp is not None:
+            allowed_types += (ManagerBasedEnvWarp,)
+        if ManagerBasedRLEnvWarp is not None:
+            allowed_types += (ManagerBasedRLEnvWarp,)
+
+        if not isinstance(env.unwrapped, allowed_types):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
-                f" {type(env)}"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
+                f" {type(env.unwrapped)}"
             )
 
         # initialize the wrapper
@@ -103,7 +132,7 @@ class RslRlVecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
@@ -142,11 +171,7 @@ class RslRlVecEnvWrapper(VecEnv):
 
     def get_observations(self) -> TensorDict:
         """Returns the current observations of the environment."""
-        if hasattr(self.unwrapped, "observation_manager"):
-            obs_dict = self.unwrapped.observation_manager.compute()
-        else:
-            obs_dict = self.unwrapped._get_observations()
-        return TensorDict(obs_dict, batch_size=[self.num_envs])
+        return TensorDict(self.unwrapped.obs_buf, batch_size=[self.num_envs])
 
     def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:
         # clip actions

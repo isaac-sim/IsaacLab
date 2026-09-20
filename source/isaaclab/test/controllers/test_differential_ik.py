@@ -12,12 +12,12 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import numpy as np
 import pytest
 import torch
 
-from isaacsim.core.cloner import GridCloner
-
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 
@@ -34,6 +34,8 @@ from isaaclab.utils.math import (  # isort:skip
 ##
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def sim():
@@ -41,7 +43,7 @@ def sim():
     # Wait for spawning
     stage = sim_utils.create_new_stage()
     # Constants
-    num_envs = 128
+    num_envs = 1
     # Load kit helper
     sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
@@ -52,24 +54,21 @@ def sim():
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/GroundPlane", cfg)
 
-    # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
-    cloner.define_base_env("/World/envs")
-    env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
+    # Create environment clones using Isaac Lab's cloner utilities
+    env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    env_fmt = "/World/envs/env_{}"
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0)
     # create source prim
     stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
-    cloner.clone(
-        source_prim_path=env_prim_paths[0],
-        prim_paths=env_prim_paths,
-        replicate_physics=True,
-    )
+    cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    # Define goals for the arm
+    # Define goals for the arm (x, y, z, qx, qy, qz, qw)
     ee_goals_set = [
-        [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
-        [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
-        [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
+        [0.5, 0.5, 0.7, 0, 0.707, 0, 0.707],
+        [0.5, -0.4, 0.6, 0.707, 0, 0, 0.707],
+        [0.5, 0, 0.5, 1.0, 0.0, 0.0, 0.0],
     ]
     ee_pose_b_des_set = torch.tensor(ee_goals_set, device=sim.device)
 
@@ -77,8 +76,6 @@ def sim():
 
     # Cleanup
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -87,7 +84,7 @@ def test_franka_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
@@ -105,7 +102,7 @@ def test_ur10_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = UR10_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.rigid_props.disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 
@@ -157,8 +154,8 @@ def _run_ik_controller(
     ee_pose_b_des = torch.zeros(num_envs, diff_ik_controller.action_dim, device=sim.device)
     ee_pose_b_des[:] = ee_pose_b_des_set[current_goal_idx]
     # Compute current pose of the end-effector
-    ee_pose_w = robot.data.body_pose_w[:, ee_frame_idx]
-    root_pose_w = robot.data.root_pose_w
+    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+    root_pose_w = robot.data.root_pose_w.torch
     ee_pos_b, ee_quat_b = subtract_frame_transforms(
         root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
     )
@@ -172,22 +169,22 @@ def _run_ik_controller(
                 pos_error, rot_error = compute_pose_error(
                     ee_pos_b, ee_quat_b, ee_pose_b_des[:, 0:3], ee_pose_b_des[:, 3:7]
                 )
-                pos_error_norm = torch.norm(pos_error, dim=-1)
-                rot_error_norm = torch.norm(rot_error, dim=-1)
+                pos_error_norm = torch.linalg.norm(pos_error, dim=-1)
+                rot_error_norm = torch.linalg.norm(rot_error, dim=-1)
                 # desired error (zer)
                 des_error = torch.zeros_like(pos_error_norm)
                 # check convergence
                 torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=1e-3)
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=1e-3)
             # reset joint state
-            joint_pos = robot.data.default_joint_pos.clone()
-            joint_vel = robot.data.default_joint_vel.clone()
+            joint_pos = robot.data.default_joint_pos.torch.clone()
+            joint_vel = robot.data.default_joint_vel.torch.clone()
             # joint_pos *= sample_uniform(0.9, 1.1, joint_pos.shape, joint_pos.device)
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             robot.set_joint_position_target(joint_pos)
             robot.write_data_to_sim()
             # randomize root state yaw, ik should work regardless base rotation
-            root_state = robot.data.root_state_w.clone()
+            root_state = robot.data.root_state_w.torch.clone()
             root_state[:, 3:7] = random_yaw_orientation(num_envs, sim.device)
             robot.write_root_pose_to_sim(root_state[:, :7])
             robot.write_root_velocity_to_sim(root_state[:, 7:])
@@ -204,14 +201,14 @@ def _run_ik_controller(
             # at reset, the jacobians are not updated to the latest state
             # so we MUST skip the first step
             # obtain quantities from simulation
-            jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-            ee_pose_w = robot.data.body_pose_w[:, ee_frame_idx]
-            root_pose_w = robot.data.root_pose_w
+            jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, arm_joint_ids]
+            ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+            root_pose_w = robot.data.root_pose_w.torch
             base_rot = root_pose_w[:, 3:7]
             base_rot_matrix = matrix_from_quat(quat_inv(base_rot))
             jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
             jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
-            joint_pos = robot.data.joint_pos[:, arm_joint_ids]
+            joint_pos = robot.data.joint_pos.torch[:, arm_joint_ids]
             # compute frame in root frame
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
                 root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]

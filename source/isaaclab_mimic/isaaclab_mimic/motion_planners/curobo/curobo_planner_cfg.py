@@ -12,8 +12,8 @@ from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
 
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -29,7 +29,7 @@ class CuroboPlannerCfg:
         >>> config = CuroboPlannerCfg.franka_config()
         >>>
         >>> # Or create from task name
-        >>> config = CuroboPlannerCfg.from_task_name("Isaac-Stack-Cube-Franka-v0")
+        >>> config = CuroboPlannerCfg.from_task_name("IsaacContrib-Stack-Cube-Franka")
         >>>
         >>> # Initialize planner with config
         >>> planner = CuroboPlanner(env, robot, config)

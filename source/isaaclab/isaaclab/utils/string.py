@@ -6,6 +6,7 @@
 """Sub-module containing utilities for transforming strings and regular expressions."""
 
 import ast
+import functools
 import importlib
 import inspect
 import re
@@ -88,6 +89,8 @@ def string_to_slice(s: str):
 String <-> Callable operations.
 """
 
+_FORBIDDEN_LAMBDA_NODES = (ast.Call, ast.Attribute, ast.NamedExpr)
+
 
 def is_lambda_expression(name: str) -> bool:
     """Checks if the input string is a lambda expression.
@@ -99,17 +102,28 @@ def is_lambda_expression(name: str) -> bool:
         Whether the input string is a lambda expression.
     """
     try:
-        ast.parse(name)
-        return isinstance(ast.parse(name).body[0], ast.Expr) and isinstance(ast.parse(name).body[0].value, ast.Lambda)
+        tree = ast.parse(name, mode="eval")
+        return isinstance(tree.body, ast.Lambda)
     except SyntaxError:
         return False
 
 
-def callable_to_string(value: Callable) -> str:
+def _validate_lambda_expression(name: str) -> None:
+    """Validate that a lambda expression string cannot execute arbitrary code."""
+    tree = ast.parse(name, mode="eval")
+    for node in ast.walk(tree):
+        if isinstance(node, _FORBIDDEN_LAMBDA_NODES):
+            raise ValueError(f"Unsafe lambda expression '{name}': disallowed syntax '{type(node).__name__}'.")
+        if isinstance(node, ast.Name) and node.id.startswith("__"):
+            raise ValueError(f"Unsafe lambda expression '{name}': dunder name '{node.id}' is not allowed.")
+
+
+def callable_to_string(value: Callable, separator: str = ":") -> str:
     """Converts a callable object to a string.
 
     Args:
         value: A callable object.
+        separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
         ValueError: When the input argument is not a callable object.
@@ -132,15 +146,16 @@ def callable_to_string(value: Callable) -> str:
         module_name = value.__module__
         function_name = value.__name__
         # return the string
-        return f"{module_name}:{function_name}"
+        return f"{module_name}{separator}{function_name}"
 
 
-def string_to_callable(name: str) -> Callable:
+def string_to_callable(name: str, separator: str = ":") -> Callable:
     """Resolves the module and function names to return the function.
 
     Args:
         name: The function name. The format should be 'module:attribute_name' or a
             lambda expression of format: 'lambda x: x'.
+        separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
         ValueError: When the resolved attribute is not a function.
@@ -149,11 +164,15 @@ def string_to_callable(name: str) -> Callable:
     Returns:
         Callable: The function loaded from the module.
     """
+    name_is_lambda = is_lambda_expression(name)
+    if name_is_lambda:
+        _validate_lambda_expression(name)
+
     try:
-        if is_lambda_expression(name):
-            callable_object = eval(name)
+        if name_is_lambda:
+            callable_object = eval(name, {"__builtins__": {}}, {})
         else:
-            mod_name, attr_name = name.split(":")
+            mod_name, attr_name = name.rsplit(separator, 1)
             mod = importlib.import_module(mod_name)
             callable_object = getattr(mod, attr_name)
         # check if attribute is callable
@@ -170,50 +189,94 @@ def string_to_callable(name: str) -> Callable:
         raise ValueError(msg)
 
 
+class ResolvableString(str):
+    """String subtype that lazily resolves ``module.path:Callable`` values.
+
+    The object stays string-compatible for serialization and display, while also allowing callable
+    use and attribute access on the resolved callable/class.
+    """
+
+    __slots__ = ("_resolved_callable", "_resolve_error")
+
+    def __new__(cls, value: str):
+        obj = super().__new__(cls, value)
+        obj._resolved_callable = None
+        obj._resolve_error = None
+        return obj
+
+    def _resolve(self) -> Callable:
+        if self._resolved_callable is not None:
+            return self._resolved_callable
+        if self._resolve_error is not None:
+            raise self._resolve_error
+        try:
+            resolved = string_to_callable(str(self))
+        except (ImportError, AttributeError, ValueError) as error:
+            self._resolve_error = error
+            raise
+        self._resolved_callable = resolved
+        return resolved
+
+    def __call__(self, *args, **kwargs):
+        return self._resolve()(*args, **kwargs)
+
+    def _split_ref(self) -> tuple[str | None, str]:
+        """Parse ``module:attribute`` reference without importing."""
+        value = str(self)
+        if ":" not in value:
+            return None, value
+        module_name, attr_path = value.split(":", 1)
+        return module_name, attr_path
+
+    def __getattribute__(self, item: str):
+        # Provide callable metadata without forcing import/resolution.
+        if item == "__name__":
+            _, attr_path = object.__getattribute__(self, "_split_ref")()
+            return attr_path.rsplit(".", 1)[-1]
+        if item == "__qualname__":
+            _, attr_path = object.__getattribute__(self, "_split_ref")()
+            return attr_path
+        if item == "__module__":
+            module_name, _ = object.__getattribute__(self, "_split_ref")()
+            if module_name is None:
+                return str.__module__
+            return module_name
+        return super().__getattribute__(item)
+
+    def __getattr__(self, item: str):
+        # Keep generic dunder probing (e.g. hasattr(..., "__dataclass_fields__"))
+        # lazy and side-effect free. Metadata dunders are handled in __getattribute__.
+        if item.startswith("__") and item.endswith("__"):
+            raise AttributeError(item)
+        return getattr(self._resolve(), item)
+
+    def __copy__(self):
+        """Return self because strings are immutable."""
+        return self
+
+    def __deepcopy__(self, memo):
+        """Return self so deepcopy doesn't trigger lazy resolution."""
+        return self
+
+
 """
 Regex operations.
 """
 
 
-def resolve_matching_names(
-    keys: str | Sequence[str], list_of_strings: Sequence[str], preserve_order: bool = False
-) -> tuple[list[int], list[str]]:
-    """Match a list of query regular expressions against a list of strings and return the matched indices and names.
+@functools.cache
+def _resolve_matching_names_impl(
+    keys: tuple[str, ...],
+    list_of_strings: tuple[str, ...],
+    preserve_order: bool,
+    raise_when_no_match: bool,
+) -> tuple[tuple[int, ...], tuple[str, ...]]:
+    """Cached implementation of :func:`resolve_matching_names`.
 
-    When a list of query regular expressions is provided, the function checks each target string against each
-    query regular expression and returns the indices of the matched strings and the matched strings.
-
-    If the :attr:`preserve_order` is False (default), the ordering of the matched indices and names follows
-    the order of the provided list of strings. This means that the ordering is dictated by the order of the
-    target strings and not the order of the query regular expressions.
-
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names follows the order
-    of the query regular expressions.
-
-    For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
-    If :attr:`preserve_order` is False (default), then the function will return the indices of the matched strings and
-    the strings as: ([0, 1, 2], ['a', 'b', 'c']) - following the order of list_of_strings. When
-    :attr:`preserve_order` is True, it will return them as:
-    ([0, 2, 1], ['a', 'c', 'b']) - following the order of the regex keys.
-
-    Note:
-        The function does not sort the indices. It returns the indices in the order they are found.
-
-    Args:
-        keys: A regular expression or a list of regular expressions to match the strings in the list.
-        list_of_strings: A list of strings to match.
-        preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
-
-    Returns:
-        A tuple of lists containing the matched indices and names.
-
-    Raises:
-        ValueError: When multiple matches are found for a string in the list.
-        ValueError: When not all regular expressions are matched.
+    All arguments are hashable so that ``functools.cache`` can store results.
+    Returns tuples (immutable) to protect the cached data from mutation;
+    the public wrapper converts these back to fresh lists for each caller.
     """
-    # resolve name keys
-    if isinstance(keys, str):
-        keys = [keys]
     # find matching patterns
     index_list = []
     names_list = []
@@ -259,6 +322,8 @@ def resolve_matching_names(
         names_list = names_list_reorder
     # check that all regular expressions are matched
     if not all(keys_match_found):
+        if not raise_when_no_match:
+            return (), ()
         # make this print nicely aligned for debugging
         msg = "\n"
         for key, value in zip(keys, keys_match_found):
@@ -268,8 +333,66 @@ def resolve_matching_names(
         raise ValueError(
             f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
         )
-    # return
-    return index_list, names_list
+    # return immutable tuples for safe caching
+    return tuple(index_list), tuple(names_list)
+
+
+def resolve_matching_names(
+    keys: str | Sequence[str],
+    list_of_strings: Sequence[str],
+    preserve_order: bool = False,
+    *,
+    raise_when_no_match: bool = True,
+) -> tuple[list[int], list[str]]:
+    """Match a list of query regular expressions against a list of strings and return the matched indices and names.
+
+    When a list of query regular expressions is provided, the function checks each target string against each
+    query regular expression and returns the indices of the matched strings and the matched strings.
+
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    of the provided list of strings. This means that the ordering is dictated by the order of the target strings
+    and not the order of the query regular expressions.
+
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    of the provided list of query regular expressions.
+
+    For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
+    If :attr:`preserve_order` is False, then the function will return the indices of the matched strings and the
+    strings as: ([0, 1, 2], ['a', 'b', 'c']). When :attr:`preserve_order` is True, it will return them as:
+    ([0, 2, 1], ['a', 'c', 'b']).
+
+    Results are cached internally — repeated calls with the same arguments avoid redundant regex matching.
+
+    Note:
+        The function does not sort the indices. It returns the indices in the order they are found.
+
+    Args:
+        keys: A regular expression or a list of regular expressions to match the strings in the list.
+        list_of_strings: A list of strings to match.
+        preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
+        raise_when_no_match: Whether to raise a ``ValueError`` when not all regular expressions are matched.
+            Defaults to True. When False, returns empty lists instead of raising.
+
+    Returns:
+        A tuple of lists containing the matched indices and names.
+
+    Raises:
+        ValueError: When multiple matches are found for a string in the list.
+        ValueError: When not all regular expressions are matched and :attr:`raise_when_no_match` is True.
+    """
+    _keys = (keys,) if isinstance(keys, str) else tuple(keys)
+    idx, names = _resolve_matching_names_impl(_keys, tuple(list_of_strings), preserve_order, raise_when_no_match)
+    return list(idx), list(names)
+
+
+def clear_resolve_matching_names_cache() -> None:
+    """Discard all cached results from :func:`resolve_matching_names`.
+
+    Call this when the simulation scene is torn down so that cached
+    name-resolution entries from destroyed assets do not accumulate
+    across scene rebuilds in long-lived processes.
+    """
+    _resolve_matching_names_impl.cache_clear()
 
 
 def resolve_matching_names_values(
@@ -281,11 +404,16 @@ def resolve_matching_names_values(
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
 
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    Note:
+        Unlike :func:`resolve_matching_names`, this function is not cached. Current callers
+        use it during initialization only (e.g. action/actuator config resolution), so caching
+        would add complexity without a measurable benefit.
+
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
     and not the order of the query regular expressions.
 
-    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of query regular expressions.
 
     For example, consider the dictionary is {"a|d|e": 1, "b|c": 2}, the list of strings is ['a', 'b', 'c', 'd', 'e'].
@@ -374,6 +502,24 @@ def resolve_matching_names_values(
     return index_list, names_list, values_list
 
 
+def _resolve_matching_values_dense(value: dict[str, float | int] | float | int, names: list[str]) -> tuple[float, ...]:
+    """Expand a scalar or regex-keyed mapping into dense per-name float values.
+
+    Scalars broadcast to every name. Mapping entries resolve through
+    :func:`resolve_matching_names_values`; names not matched by any pattern
+    resolve to zero. This zero fill is the shared contract for actuator
+    configuration values across model parsing, alias comparison, and USD
+    authoring.
+    """
+    if isinstance(value, (float, int)):
+        return (float(value),) * len(names)
+    indices, _, values = resolve_matching_names_values(value, names)
+    resolved_values = [0.0] * len(names)
+    for index, resolved_value in zip(indices, values, strict=True):
+        resolved_values[index] = float(resolved_value)
+    return tuple(resolved_values)
+
+
 def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], bool]) -> str:
     """Find a unique string name based on the predicate function provided.
     The string is appended with "_N", where N is a natural number till the resultant string
@@ -415,3 +561,22 @@ def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
         root_prim_path = "/".join(prim_paths_list[:root_idx])
         tree_level = root_idx
     return root_prim_path, tree_level
+
+
+def list_intersection(list1: list[Any], list2: list[Any] | None) -> list[Any]:
+    """Return the intersection of two lists.
+
+    The returned list has elements that are in both input lists.
+
+    Args:
+        list1: The first list.
+        list2: The second list.
+
+    Returns:
+        A new list containing elements that are in both input lists.
+
+    """
+    if list2 is None:
+        return list1
+    set2 = set(list2)
+    return [x for x in list1 if x in set2]

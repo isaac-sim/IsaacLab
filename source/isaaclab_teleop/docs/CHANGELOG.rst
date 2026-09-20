@@ -1,0 +1,628 @@
+Changelog
+---------
+
+0.9.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAACLAB_CXR_ACCEPT_EULA=1`` environment variable, which accepts the NVIDIA
+  CloudXR license up front wherever Isaac Lab launches the CloudXR runtime -- both the teleop
+  session lifecycle and the process-scoped launcher in ``teleop_replay_agent.py``, which share
+  one :func:`~isaaclab_teleop.cloudxr_eula_accepted` helper. The license is separate from the
+  Omniverse one and was otherwise only ever prompted for on stdin, so headless, container and
+  CI runs aborted with
+  ``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``.
+
+
+0.8.4 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed demonstration recording for tasks whose rewards reference the ``success``
+  termination term.
+
+
+0.8.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``from isaaclab_teleop import IsaacTeleopDevice`` raising ``ModuleNotFoundError: No module named 'carb'``
+  on hosts without Isaac Sim installed. :mod:`~isaaclab_teleop.xr_anchor_manager` now imports ``carb`` with the
+  same optional fallback it already used for ``omni.kit.xr.core``, so headless sessions that never start an XR
+  runtime can import the device. The XR render and anchor settings are skipped when Kit is absent; behavior with
+  Kit present is unchanged.
+
+
+0.8.2 (2026-09-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the XR headset receiving noise instead of the rendered scene on multi-GPU hosts.
+  The auto-launched CloudXR runtime selected its own device, and because Vulkan's physical
+  device enumeration is unrelated to the CUDA ordering Isaac Lab picks the simulation and
+  renderer devices with, the compositor could end up on a different GPU than the one holding
+  the rendered swapchain. The runtime is now pinned to the renderer's CUDA device via
+  ``NV_CXR_GPU_INDEX_CUDA``; an index already set in the environment or in the
+  ``--cloudxr_env`` profile is left untouched.
+
+
+0.8.1 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab teleop run``, ``record``, and ``replay`` workflows rejecting Hydra-style
+  task selectors such as ``physics=isaacsim_physx presets=diffik``. The workflows now resolve task
+  configurations through the shared preset-aware path and expose the selector syntax in ``--help``.
+
+
+0.8.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added XR camera feedback to ``teleop_se3_agent.py`` and ``record_demos.py``, with task-configured
+  existing-camera selection, declarative layouts, and viewer-start, head-locked, or explicit-world
+  placement.
+* Added a PiP-owned CUDA Replicator source with staged camera-buffer fallback so camera feedback works
+  with CPU physics without changing the core camera output device.
+* Added optional feed-local DLSS Ray Reconstruction and execution-mode settings, applied by the
+  PiP adapter without extending the core camera or renderer configuration APIs.
+* Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
+* Added :class:`~isaaclab_teleop.XrCameraFeedSession` as the supported camera-feedback lifecycle
+  API for teleoperation entry points.
+
+Changed
+^^^^^^^
+
+* Changed ``--disable_external_cameras`` into the master camera-rendering and PiP gate for
+  ``teleop_se3_agent.py`` and ``record_demos.py``. To keep task cameras enabled without PiP, leave
+  this flag unset and configure ``xr_camera_feeds`` as an empty list or with every feed disabled.
+
+Fixed
+^^^^^
+
+* Fixed camera feedback so it refreshes immediately after environment resets.
+* Fixed pre-6.1 PiP compatibility by falling back to classic DLSS when a selected feed requests
+  Ray Reconstruction on a runtime without responsive denoising.
+
+
+0.7.1 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a spurious warning during ``./isaaclab.sh -i teleop`` by removing the
+  ``[tool.isaaclab] pip_upgrade_dependencies`` entry for ``isaacteleop``. The dependency is
+  declared by the root ``teleop`` extra rather than by this package, so the targeted upgrade
+  could never resolve it from the installed package metadata.
+
+
+0.7.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_teleop.check_system_requirements`, which measures the workstation against
+  the recommended teleoperation spec (CPU single-thread throughput, frequency governor, GPU memory
+  and architecture, driver, and system memory) and reports any unmet requirement. The check runs
+  automatically when a teleop session starts, is advisory only, and never blocks a session.
+
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_client_message` for sending JSON messages
+  from Isaac Lab to the connected XR client over the teleop control channel. Workstation warnings
+  use it to surface in the headset, where the operator can see them.
+
+
+0.6.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional tracking debug visualization for IsaacTeleop sessions. Red sphere markers
+  are rendered at each OpenXR hand joint and RGB axis markers at the controller aim poses
+  when the ``enable_debug_visualization`` argument of
+  :func:`~isaaclab_teleop.create_isaac_teleop_device` is set (exposed as the
+  ``--enable_debug_visualization`` CLI flag on the teleoperation scripts).
+* Added controller haptic feedback to the IsaacTeleop stack. A new
+  :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol, ``HapticFeedbackCfg``, and
+  ``HapticFeedbackDriver`` let an environment vibrate the XR motion controller from a
+  sim-side contact force (e.g. a gripper pressing on an object). When
+  :meth:`~isaaclab_teleop.create_isaac_teleop_device` receives a ``haptic_cfg``, the device
+  builds an ``isaacteleop`` ``HapticSink`` (fed by ``TactileVectorToControllerPulse``) and
+  renders per-hand forces pushed via
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_haptic`.
+* Added haptic glove feedback and generalized the haptic-feedback seam to be device-agnostic.
+  :class:`~isaaclab_teleop.HapticFeedbackReceiver` now carries a per-hand vector payload, and
+  ``HapticFeedbackCfg`` is a base with :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg`
+  (controller vibration) and :class:`~isaaclab_teleop.GloveHapticFeedbackCfg` (per-finger glove
+  power) backends. The device selects the backend via
+  :meth:`~isaaclab_teleop.HapticFeedbackCfg.build_sink`, and the signal source is pluggable
+  (``contact_force_magnitude`` and ``per_finger_object_grip``).
+* Added a standalone (non-Kit-XR) session mode to
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`, selected via the new
+  ``use_kit_xr_bridge`` argument on
+  :func:`~isaaclab_teleop.create_isaac_teleop_device`. When ``False`` the
+  device bypasses the ``isaacsim.kit.xr.teleop.bridge`` extension and lets
+  ``isaacteleop`` own its own OpenXR session through the CloudXR runtime, so
+  teleop input/output works headless without Kit XR rendering. The
+  ``record_demos.py`` and ``teleop_se3_agent.py`` teleop scripts wire this to
+  the ``--xr`` flag: omitting ``--xr`` now runs IsaacTeleop for I/O only, while
+  passing ``--xr`` keeps the full Kit XR rendering path unchanged.
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start` and
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop` (backed by a new
+  ``inject_command`` on the teleop message processor) to drive the teleop state
+  machine to RUNNING / PAUSED without an XR client. Without ``--xr`` the
+  ``record_demos.py`` and ``teleop_se3_agent.py`` scripts call ``request_start``
+  at startup so a headless session begins with no headset UI, and (when a Kit
+  window is present) bind ``B`` / ``P`` / ``R`` to start-resume / pause / reset.
+* Added :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV`, a ``cloudxr-standalone.env``
+  CloudXR profile that emulates a Quest 3 device so a clientless runtime advertises
+  an OpenXR system (working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE``). The teleop
+  scripts default ``--cloudxr_env`` to this profile when ``--xr`` is omitted (and to
+  ``cloudxrjs`` when it is passed); the new ``standalone`` shorthand selects it
+  explicitly.
+
+Changed
+^^^^^^^
+
+* **Breaking:** ``HapticFeedbackCfg`` is now an abstract base; use
+  :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg` for controller vibration. The
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_haptic` payload changed from a scalar force to a
+  per-hand vector.
+
+* Bumped the Isaac Teleop pin to ``isaacteleop~=1.4.0`` (``teleop`` extra), which delivers the
+  per-endpoint haptic-glove fix so left- and right-hand glove feedback are driven independently.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed teleop session restart churn when the retargeting pipeline raises during a step
+  (e.g. on degenerate tracking data): the failure is now diagnosed against the actual Kit
+  XR session state instead of always being reported as an external XR teardown, and session
+  re-creation is rate-limited to once per second. External Stop-AR/Start-AR recovery latency
+  is unchanged.
+* Fixed the deprecated Manus/Vive integration importing a removed Isaac Sim extension helper.
+
+
+0.5.3 (2026-06-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_teleop.IsaacTeleopCfg` requiring the optional ``isaacteleop``
+  package at import and construction time. Environments that reference it (e.g. the GR1T2
+  and Unitree G1 pick-place and locomanipulation tasks) failed to parse with
+  ``No module named 'isaacteleop'`` on systems where ``isaacteleop`` is not installed
+  (e.g. DGX Spark). The ``isaacteleop`` import is now deferred, and
+  :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` defaults to ``None`` and is
+  resolved to IsaacTeleop's pipelined, deadline-paced default when a teleop session starts.
+
+
+0.5.2 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``teleop_replay_agent.py``'s ``cpu_frame_time_ms`` and ``fps``
+  percentiles, which previously projected per-``env.step`` CPU samples
+  onto per-render units by dividing by ``decimation / render_interval``.
+  Because each ``env.step`` folds multiple physics substeps and rendered
+  frames into a single measurement, those sums are CLT-smoothed and
+  underreport per-frame hitches the headset wearer / spectator actually
+  sees. The agent now wraps
+  :meth:`~isaaclab.sim.SimulationContext.render` and records the
+  wall-clock interval between successive calls produced from inside
+  ``env.step`` during the active window; that per-rendered-frame series
+  is the new source for ``cpu_frame_time_ms`` and ``fps``. The run
+  dict's ``active_iterations`` field is backed by a dedicated counter.
+  Each interval is the wall-clock delta between successive
+  ``env.sim.render`` calls, so at least two calls are required per
+  run; runs that stepped the env but produced 0 or 1 renders during
+  the active window raise ``RuntimeError`` from
+  ``_run_single_replay`` (the agent aborts the batch without writing
+  a stdout summary or JSON report, so "no JSON output" is an
+  unambiguous measurement-failure signal for CI).
+* Fixed the shipped CloudXR ``.env`` profiles to disable pose wait by default,
+  preventing CloudXR frame pacing from throttling teleoperation sessions after
+  frame-time spikes.
+
+
+0.5.1 (2026-05-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``env_cfg`` block to ``teleop_replay_agent.py``'s stats output
+  capturing the performance- and frame-timing-relevant env config inputs
+  (``sim.dt``, ``sim.render_interval``, ``decimation``, ``episode_length_s``,
+  ``scene.num_envs``, ``sim.device``, ``sim.use_fabric``,
+  ``sim.render.antialiasing_mode``) along with precomputed ``policy_dt_s``,
+  ``render_dt_s``, ``renders_per_step``, ``target_policy_hz``, and
+  ``target_render_hz`` rates. The same fields are echoed in a compact
+  ``Env timing:`` line in the stdout summary so the measured
+  ``cpu_frame_time_ms`` / ``fps`` numbers are self-interpreting across
+  machines and configs without cross-referencing the env definition.
+
+Changed
+^^^^^^^
+
+* Changed ``teleop_replay_agent.py``'s ``cpu_frame_time_ms`` and ``fps``
+  blocks (both per-run and aggregate) to report on a **per-render** basis
+  rather than per-``env.step``: each captured ``env.step`` CPU sample is
+  divided by ``decimation / render_interval`` (the number of Kit renders
+  per ``env.step``) before stats are computed. ``cpu_frame_time_ms.mean``
+  now reads as the wall time between rendered frames and ``fps.mean``
+  reads as the render rate -- the same number Kit's HUD shows, which is
+  what the headset wearer / spectator actually perceives during real-time
+  teleop. Field shapes and ``schema_version`` are unchanged. Falls back
+  to the raw per-``env.step`` units when ``decimation`` or
+  ``render_interval`` are unavailable from the env config.
+
+
+0.5.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MCAP record/replay support to :class:`~isaaclab_teleop.IsaacTeleopDevice` via new
+  ``mcap_record_path`` and ``mcap_replay_path`` parameters on
+  :func:`~isaaclab_teleop.create_isaac_teleop_device` (mutually exclusive). ``mcap_replay_path``
+  switches the underlying :class:`isacteleop.teleop_session_manager.TeleopSession` into
+  :class:`SessionMode.REPLAY` and feeds the recorded tracker stream through the configured
+  retargeting pipeline; ``mcap_record_path`` is a debug-grade knob that writes the live session
+  to a single continuous MCAP file for pairing with the replay agent in CI. It is **not** a
+  data-generation format -- the produced MCAP has no per-episode segmentation, no world-frame
+  anchor state, no env reset state, and no public Python decoder.
+* Added a ``--mcap_record_path`` (debug-only) flag to ``scripts/tools/record_demos.py`` that
+  forwards into :func:`~isaaclab_teleop.create_isaac_teleop_device` when the IsaacTeleop stack
+  is in use.
+* Added ``scripts/environments/teleoperation/teleop_replay_agent.py``, a non-interactive entry
+  point used by CI to replay captured Isaac Teleop sessions against an Isaac Lab environment.
+  The agent gates env stepping on :func:`~isaaclab_teleop.poll_control_events` so the recorded
+  START / STOP / RESET boundaries reproduce the original recording's pacing, and asks Kit to
+  ``post_quit`` on the first STOP-edge after teleop has been active so the host process exits
+  deterministically.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_teleop.automation`` subpackage, including
+  ``XcrReplayConfig`` and ``start_xcr_replay``. The XCR backend was a transitional Kit-level
+  OpenXR capture/replay path that pre-dated Isaac Teleop's native MCAP record/replay. Replays
+  now go through ``teleop_replay_agent.py`` against an MCAP capture produced by Isaac Teleop.
+* **Breaking:** Removed the lazy legacy ``teleop_devices`` (``handtracking`` / ``manusvive``)
+  accessor on
+  :class:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.PickPlaceGR1T2EnvCfg`.
+  All in-tree scripts (``teleop_se3_agent.py``, ``record_demos.py``, ``teleop_replay_agent.py``)
+  prefer ``env_cfg.isaac_teleop``; consumers that built the legacy
+  :class:`~isaaclab.devices.openxr.OpenXRDevice` directly from the env config should construct
+  it themselves or migrate to :class:`~isaaclab_teleop.IsaacTeleopDevice`.
+
+
+0.4.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``scripts/environments/teleoperation/teleop_replay_agent.py``, a
+  non-interactive entry point used by CI to replay captured teleop sessions
+  against an Isaac Lab environment, plus a small internal
+  ``isaaclab_teleop.automation`` subpackage backing it. Replaces the runtime
+  patch the ``teleop-cicd`` pipeline previously applied to
+  ``teleop_se3_agent.py``.
+* Expanded the **Optimize XR Performance** documentation with guidance for
+  lower-spec GPUs and complex scenes: a walkthrough for switching the
+  Isaac Lab viewport to the RTX - Minimal renderer (including the
+  ``DistantLight``-only lighting limitation), notes on the
+  ``sim.dt`` / ``sim.render_interval`` trade-off, a description of the
+  XR **Resolution Multiplier** slider for trading image sharpness for GPU
+  headroom, guidance on ``RetargetingExecutionConfig`` (sync vs pipelined
+  modes and ``DeadlinePacingConfig.safety_margin_s``), and a CloudXR
+  frame-pacing diagnostic note. See :ref:`isaac-teleop-performance`.
+
+Changed
+^^^^^^^
+
+* Added :paramref:`~isaaclab_teleop.automation.XcrReplayConfig.max_replay_duration_s`
+  (default: ``3600``) so the completion-poll loop in
+  :func:`~isaaclab_teleop.automation.start_xcr_replay` is bounded. If
+  Kit's :mod:`xcr_player` ever fails to clear its private playback
+  subscription, the coroutine now returns instead of spinning forever.
+* Stored the :class:`omni.kit.xr.core.recorder._xr_xcr.XCRReplayAPI`
+  instance in a local variable inside
+  :func:`~isaaclab_teleop.automation.start_xcr_replay` so it stays alive
+  for the lifetime of the replay coroutine.
+
+Fixed
+^^^^^
+
+* Fixed ``teleop_replay_agent.py`` driving the robot toward the world origin
+  for the duration of ``--replay_start_delay_s``. The legacy
+  :class:`~isaaclab.devices.openxr.OpenXRDevice` returns a default zero pose
+  while the OpenXR runtime is silent, so calling ``env.step()`` during the
+  start-delay window fed the Pink IK garbage targets and corrupted the robot
+  pose long before real hand-tracking data flowed. The agent now registers
+  ``"START"`` / ``"STOP"`` callbacks on the device -- the same path
+  ``record_demos.py`` uses -- and only steps the env once the XCR replay
+  dispatches the recorded ``"start"`` message through Kit's OpenXR message
+  bus.
+* Fixed ``teleop_replay_agent.py`` hanging the CI process when the XCR
+  replay driver coroutine raised before reaching ``post_quit``. The
+  previously discarded :class:`asyncio.Future` is now retained and a done
+  callback logs the failure with traceback and asks Kit to quit so the
+  host process exits cleanly.
+* Fixed ``teleop_replay_agent.py`` leaking the USD stage when device
+  construction or environment setup raised. ``env.close()`` now runs from a
+  ``try/finally`` block so cleanup happens on every exit path.
+* Fixed ``teleop_replay_agent.py`` producing a frozen-arms / hands-only
+  symptom during replay. Kit's ``teleop_command`` message bus drains
+  queued events as a batch when the AR profile is enabled, so the
+  recorded user's STOP gesture would fire within milliseconds of START
+  and gate ``env.step()`` off again before Pink IK had time to converge.
+  The replay agent now subscribes only to ``"START"``: replay is one-shot
+  and the only valid termination is the driver's ``post_quit``.
+* Aligned ``teleop_replay_agent.py``'s pre-loop reset sequence with
+  ``record_demos.py`` -- ``env.sim.reset()`` then ``env.reset()`` then
+  ``teleop_interface.reset()`` -- so the hard physics reinit re-binds the
+  articulation tensor views that
+  :meth:`~isaaclab.controllers.pink_ik.PinkIKController.compute` reads
+  from each step.
+* Cleared :attr:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.TerminationsCfg.success`
+  in the replay env config so a successful replay does not snap the robot
+  back to its initial pose mid-loop.
+
+
+0.3.11 (2026-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` for
+  configuring IsaacTeleop retargeting execution mode from Isaac Lab.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_teleop.IsaacTeleopCfg` to enable IsaacTeleop
+  deadline-paced pipelined retargeting by default. This returns the latest
+  completed retargeting output while the current frame is submitted, using
+  ``DeadlinePacingConfig(safety_margin_s=0.025)`` to sample close to the next
+  simulation consumption point and stagger IsaacTeleop's Python work behind
+  Isaac Lab's step Python. Set
+  ``retargeting_execution=RetargetingExecutionConfig(mode="sync")`` to restore
+  exact current-frame retargeting.
+
+Fixed
+^^^^^
+
+* Fixed installation to upgrade to the latest compatible ``isaacteleop``
+  package when installing ``isaaclab_teleop``.
+
+
+0.3.10 (2026-05-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``--teleop_device`` default to ``None`` in ``teleop_se3_agent.py``
+  and ``record_demos.py``. When omitted, the IsaacTeleop pipeline is used if
+  the env configures ``isaac_teleop``; otherwise keyboard is used as fallback.
+  When explicitly provided, the scripts use the legacy ``teleop_devices`` path
+  and error out if no matching entry exists.
+* Removed automatic ``--xr`` detection from ``--teleop_device`` containing
+  ``"handtracking"``. Users who need XR with the legacy path should pass
+  ``--xr`` explicitly.
+
+
+0.3.9 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed installation failure on Windows by adding ``platform_system == 'Linux'``
+  marker to the ``isaacteleop`` dependency, which is only available on Linux.
+
+
+0.3.8 (2026-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched :class:`~isaaclab_teleop.xr_anchor_utils.XrAnchorSynchronizer` to import
+  ``get_current_stage`` from :mod:`isaaclab.sim.utils.stage` instead of
+  ``isaacsim.core.experimental.utils.stage``, aligning with the Isaac Lab API.
+
+
+0.3.7 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated XR anchor prim creation to use :func:`isaaclab.sim.utils.prims.create_prim`
+  instead of ``isaacsim.core.experimental.prims.XformPrim``.
+
+
+0.3.6 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.control_channel_uuid` for
+  receiving teleop control commands (start/stop/reset) from the headset via
+  an OpenXR message channel.  The channel is managed by TeleopCore's native
+  ``teleop_control_pipeline`` mechanism.
+
+* Added :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+  retargeter that converts raw message-channel payloads into boolean control
+  signals for :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+
+* Added :func:`~isaaclab_teleop.poll_control_events` helper,
+  :class:`~isaaclab_teleop.ControlEvents` dataclass, and
+  :class:`~isaaclab_teleop.SupportsControlEvents` protocol for polling
+  start/stop/reset signals from any teleop device in a single call.
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopDevice.last_control_events`
+  property exposing the most recent control events from the message channel.
+  Control events are automatically bridged to legacy
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback` callbacks.
+
+Changed
+^^^^^^^
+
+* :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` now injects a
+  ``reset`` :class:`ExecutionEvents` into TeleopCore's ``ComputeContext``
+  on the next pipeline step, resetting retargeter cross-step state.
+  Previously only the XR anchor was reset.
+
+Fixed
+^^^^^
+
+* Fixed ``record_demos.py`` not resetting the teleop device when a
+  success condition triggers an environment reset.  Retargeters now
+  reinitialize their state on success-triggered resets.
+
+* Fixed shutdown hang caused by Kit's pre-shutdown callback calling
+  ``stop()`` while the simulation loop was still running.  The callback
+  now uses the same graceful teardown path as the XR-disabled handler.
+
+0.3.5 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``cloudxr_env_file`` and ``auto_launch_cloudxr`` parameters to
+  :func:`~isaaclab_teleop.create_isaac_teleop_device`,
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`, and
+  :class:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle` for
+  auto-launching the CloudXR runtime and WSS proxy during session startup.
+  When a ``.env`` file path is provided via ``--cloudxr_env``, users no
+  longer need to run ``python -m isaacteleop.cloudxr`` in a separate
+  terminal.
+* Added device-specific CloudXR ``.env`` profiles:
+  :data:`~isaaclab_teleop.CLOUDXR_JS_ENV` (Quest/Pico, ``auto-webrtc``) and
+  :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV` (Apple Vision Pro, ``auto-native``).
+* Added ``dex-retargeting==0.5.0`` as a required dependency on Linux x86_64.
+
+Changed
+^^^^^^^
+
+* Made ``isaacteleop[retargeters,ui,cloudxr]~=1.2.0`` a required dependency of
+  ``isaaclab_teleop`` (previously an optional extra via
+  ``isaaclab_teleop[teleop]``).
+
+
+0.3.4 (2026-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.target_frame_prim_path` for
+  config-driven frame rebasing.  When set to a USD prim path, the device
+  automatically reads the prim's world transform each frame and uses its
+  inverse as the ``target_T_world`` rebase matrix, so all output poses are
+  expressed in the target frame (e.g. robot base link for IK).
+
+* Added ``target_T_world`` parameter to
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance` for rebasing all output
+  poses into an arbitrary target coordinate frame (e.g. robot base link for
+  IK).  Accepts :class:`numpy.ndarray`, :class:`torch.Tensor`, or
+  ``wp.array``.
+
+
+0.3.3 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed race condition in headless XR where ``xr.profile.ar.enabled`` was set
+  in the ``.kit`` file before the teleop bridge extension finished loading,
+  causing ``BridgeComponent`` to miss its lifecycle callbacks.  The setting is
+  now deferred to
+  :meth:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle._ensure_xr_ar_profile_enabled`
+  after all extensions have loaded.
+
+
+0.3.2 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add nvidia-srl-usd-to-urdf dependency to isaaclab_teleop extension.
+
+
+0.3.1 (2026-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Add cleanup for Isaac Teleop session when Stop XR button is clicked and when Kit is closed.
+
+
+0.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Update Isaac Teleop API usage for querying controller button states.
+
+
+0.2.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle._on_request_required_extensions` to request required
+  OpenXR extensions at runtime based on Teleop devices needed for the specified environment.
+
+0.1.0 (2026-02-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Initial release of the ``isaaclab_teleop`` extension.
+
+* Added :class:`~isaaclab_teleop.IsaacTeleopDevice` providing a unified teleoperation interface
+  that manages IsaacTeleop sessions, XR anchor synchronization, and retargeting pipelines within
+  Isaac Lab environments.
+
+* Added :class:`~isaaclab_teleop.IsaacTeleopCfg` for pipeline-based configuration of
+  retargeting, XR anchors, and device settings directly in environment configs.

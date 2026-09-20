@@ -26,6 +26,8 @@ import pytest
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -58,7 +60,10 @@ def test_build_simulation_context_ground_plane(add_ground_plane):
 def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_lighting):
     """Test that the simulation context is built with the correct lighting."""
     with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as sim:
-        if auto_add_lighting or add_lighting:
+        has_gui = sim.get_setting("/isaaclab/has_gui")
+        # Dome light is added if add_lighting=True OR (auto_add_lighting=True AND has_gui)
+        should_have_light = add_lighting or (auto_add_lighting and has_gui)
+        if should_have_light:
             # Ensure that dome light got added
             assert sim.stage.GetPrimAtPath("/World/defaultDomeLight").IsValid()
         else:
@@ -67,7 +72,14 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
 
 
 def test_build_simulation_context_cfg():
-    """Test that the simulation context is built with the correct cfg and values don't get overridden."""
+    """Test that the simulation context honors sim_cfg's values, with an explicit
+    device override winning when both ``sim_cfg`` and ``device`` are passed.
+
+    Most test callers pass both kwargs together expecting the device kwarg to
+    win; the override branch in :func:`build_simulation_context` exists for
+    that case. ``gravity`` and ``dt`` are not overridable by the helper's
+    kwargs (only sim_cfg's values are used).
+    """
     dt = 0.001
     # Non-standard gravity
     gravity = (0.0, 0.0, -1.81)
@@ -79,7 +91,14 @@ def test_build_simulation_context_cfg():
         dt=dt,
     )
 
-    with build_simulation_context(sim_cfg=cfg, gravity_enabled=False, dt=0.01, device="cpu") as sim:
+    # Pass only sim_cfg: gravity, device, dt all come from sim_cfg (kwargs ignored).
+    with build_simulation_context(sim_cfg=cfg, gravity_enabled=False, dt=0.01) as sim:
         assert sim.cfg.gravity == gravity
         assert sim.cfg.device == device
+        assert sim.cfg.dt == dt
+
+    # Pass sim_cfg and an explicit device override: device kwarg wins.
+    with build_simulation_context(sim_cfg=cfg, device="cpu") as sim:
+        assert sim.cfg.gravity == gravity
+        assert sim.cfg.device == "cpu"
         assert sim.cfg.dt == dt

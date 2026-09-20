@@ -1,0 +1,1292 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import warnings
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+import numpy as np
+import torch
+import warp as wp
+
+from pxr import UsdPhysics
+
+import isaaclab.utils.string as string_utils
+from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.wrench_composer import WrenchComposer
+
+from isaaclab_physx.assets import kernels as shared_kernels
+from isaaclab_physx.physics import PhysxManager as SimulationManager
+
+from .rigid_object_data import RigidObjectData
+
+if TYPE_CHECKING:
+    import omni.physics.tensors as physx
+
+    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+
+
+class RigidObject(BaseRigidObject):
+    """A rigid object asset class.
+
+    Rigid objects are assets comprising of rigid bodies. They can be used to represent dynamic objects
+    such as boxes, spheres, etc. A rigid body is described by its pose, velocity and mass distribution.
+
+    For an asset to be considered a rigid object, the root prim of the asset must have the `USD RigidBodyAPI`_
+    applied to it. This API is used to define the simulation properties of the rigid body. On playing the
+    simulation, the physics engine will automatically register the rigid body and create a corresponding
+    rigid body handle. This handle can be accessed using the :attr:`root_view` attribute.
+
+    .. note::
+
+        For users familiar with Isaac Sim, the PhysX view class API is not the exactly same as Isaac Sim view
+        class API. Similar to Isaac Lab, Isaac Sim wraps around the PhysX view API. However, as of now (2023.1 release),
+        we see a large difference in initializing the view classes in Isaac Sim. This is because the view classes
+        in Isaac Sim perform additional USD-related operations which are slow and also not required.
+
+    .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
+    """
+
+    cfg: RigidObjectCfg
+    """Configuration instance for the rigid object."""
+
+    __backend_name__: str = "physx"
+    """The name of the backend for the rigid object."""
+
+    def __init__(self, cfg: RigidObjectCfg):
+        """Initialize the rigid object.
+
+        Args:
+            cfg: A configuration instance.
+        """
+        super().__init__(cfg)
+
+    """
+    Properties
+    """
+
+    @property
+    def data(self) -> RigidObjectData:
+        return self._data
+
+    @property
+    def num_instances(self) -> int:
+        return self.root_view.count
+
+    @property
+    def num_bodies(self) -> int:
+        """Number of bodies in the asset.
+
+        This is always 1 since each object is a single rigid body.
+        """
+        return 1
+
+    @property
+    def body_names(self) -> list[str]:
+        """Ordered names of bodies in the rigid object."""
+        prim_paths = self.root_view.prim_paths[: self.num_bodies]
+        return [path.split("/")[-1] for path in prim_paths]
+
+    @property
+    def root_view(self):
+        """Root view for the asset.
+
+        .. note::
+            Use this view with caution. It requires handling of tensors in a specific way.
+        """
+        return self._root_view
+
+    @property
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
+        return self._instantaneous_wrench_composer
+
+    @property
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
+        return self._permanent_wrench_composer
+
+    """
+    Operations.
+    """
+
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+        """Reset the rigid object.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        # resolve all indices
+        if (env_ids is None) or (env_ids == slice(None)):
+            env_ids = slice(None)
+        # reset external wrench
+        self._instantaneous_wrench_composer.reset(env_ids)
+        self._permanent_wrench_composer.reset(env_ids)
+
+    def write_data_to_sim(self) -> None:
+        """Write external wrench to the simulation.
+
+        .. note::
+            We write external wrench to the simulation here since this function is called before the simulation step.
+            This ensures that the external wrench is applied at every simulation step.
+        """
+        # write external wrench
+        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
+            if self._instantaneous_wrench_composer.active:
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
+                get_force_data = self._get_inst_wrench_force_f32
+                get_torque_data = self._get_inst_wrench_torque_f32
+            else:
+                composer = self._permanent_wrench_composer
+                get_force_data = self._get_perm_wrench_force_f32
+                get_torque_data = self._get_perm_wrench_torque_f32
+            composer.compose_to_body_frame()
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=get_force_data(),
+                torque_data=get_torque_data(),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=False,
+            )
+        self._instantaneous_wrench_composer.reset()
+
+    def update(self, dt: float) -> None:
+        """Updates the simulation data.
+
+        Args:
+            dt: The time step size in seconds.
+        """
+        self.data.update(dt)
+
+    """
+    Operations - Finders.
+    """
+
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
+        """Find bodies in the rigid body based on the name keys.
+
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
+        information on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached proxy indices. Defaults to False.
+
+        Returns:
+            Matched body indices and names.
+        """
+        body_ids, body_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        resolved_ids = self._resolve_finder_indices(body_ids, domain="body", as_proxy=as_proxy, legacy_type="list")
+        return resolved_ids, body_names
+
+    """
+    Operations - Write to simulation.
+    """
+
+    def write_root_pose_to_sim_index(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
+
+    def write_root_pose_to_sim_mask(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root pose over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
+
+    def write_root_velocity_to_sim_index(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        self.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, skip_forward=skip_forward
+        )
+
+    def write_root_velocity_to_sim_mask(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        self.write_root_com_velocity_to_sim_mask(
+            root_velocity=root_velocity, env_mask=env_mask, skip_forward=skip_forward
+        )
+
+    def write_root_link_pose_to_sim_index(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root link pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
+                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                root_pose, (self.num_instances,), wp.transformf, "root_pose", axis_sizes=(env_ids.shape[0],)
+            )
+        else:
+            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        wp.launch(
+            shared_kernels.set_root_link_pose_to_sim_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[
+                root_pose,
+                env_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data.root_link_pose_w,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+        # Let the data class handle invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose()
+        # set into simulation
+        self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
+
+    def write_root_link_pose_to_sim_mask(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root link pose over selected environment mask into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_root_link_pose_to_sim_index(
+            root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
+
+    def write_root_com_pose_to_sim_index(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
+                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                root_pose, (self.num_instances,), wp.transformf, "root_pose", axis_sizes=(env_ids.shape[0],)
+            )
+        else:
+            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        wp.launch(
+            shared_kernels.set_root_com_pose_to_sim_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[
+                root_pose,
+                self.data.body_com_pose_b,
+                env_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+        # Let the data class handle invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
+        # set into simulation
+        self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
+
+    def write_root_com_pose_to_sim_mask(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root center of mass pose over selected environment mask into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_root_com_pose_to_sim_index(
+            root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
+
+    def write_root_com_velocity_to_sim_index(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (num_instances, 6),
+                or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                root_velocity,
+                (self.num_instances,),
+                wp.spatial_vectorf,
+                "root_velocity",
+                axis_sizes=(env_ids.shape[0],),
+            )
+        else:
+            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        wp.launch(
+            shared_kernels.set_root_com_velocity_to_sim_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[
+                root_velocity,
+                env_ids,
+                1,  # num_bodies is always 1 for RigidObject
+                full_data,
+            ],
+            outputs=[
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+        # Let the data class handle invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity()
+        # set into simulation
+        self.root_view.set_velocities(self._get_root_com_vel_w_f32(), indices=sim_env_ids)
+
+    def write_root_com_velocity_to_sim_mask(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
+
+    def write_root_link_velocity_to_sim_index(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root link velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (num_instances, 6),
+                or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                root_velocity,
+                (self.num_instances,),
+                wp.spatial_vectorf,
+                "root_velocity",
+                axis_sizes=(env_ids.shape[0],),
+            )
+        else:
+            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        # Access body_com_pose_b and root_link_pose_w properties to ensure they are current.
+        wp.launch(
+            shared_kernels.set_root_link_velocity_to_sim_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[
+                root_velocity,
+                self.data.body_com_pose_b,
+                self.data.root_link_pose_w,
+                env_ids,
+                1,  # num_bodies is always 1 for RigidObject
+                full_data,
+            ],
+            outputs=[
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+        # Let the data class handle invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
+        # set into simulation
+        self.root_view.set_velocities(self._get_root_com_vel_w_f32(), indices=sim_env_ids)
+
+    def write_root_link_velocity_to_sim_mask(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set the root link velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_root_link_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
+
+    """
+    Operations - Setters.
+    """
+
+    def set_masses_index(
+        self,
+        *,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set masses of all bodies using indices.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies)
+                if full_data.
+            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                masses, (self.num_instances, self.num_bodies), wp.float32, "masses", axis_sizes=(env_ids.shape[0],)
+            )
+        else:
+            self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, body_ids),
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                masses,
+                env_ids,
+                body_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._body_mass,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        wp.copy(self._cpu_body_mass, self.data._body_mass)
+        self.root_view.set_masses(self._cpu_body_mass, indices=cpu_env_ids)
+
+    def set_masses_mask(
+        self,
+        *,
+        masses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set masses of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if body_mask is not None:
+            body_ids = self._resolve_body_mask(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
+
+    def set_coms_index(
+        self,
+        *,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set center of mass pose of all bodies using indices.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or
+                (num_instances, num_bodies, 7) if full_data.
+            body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                coms, (self.num_instances, self.num_bodies), wp.transformf, "coms", axis_sizes=(env_ids.shape[0],)
+            )
+        else:
+            self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_body_com_pose_to_buffer_with_sim_ids_kernel(env_ids, body_ids),
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                coms,
+                env_ids,
+                body_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._body_com_pose_b.data,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+        self.data._reset_body_com_pose_b_dependents()
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        self.root_view.set_coms(self._cpu_body_coms, indices=cpu_env_ids)
+
+    def set_coms_mask(
+        self,
+        *,
+        coms: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set center of mass pose of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if body_mask is not None:
+            body_ids = self._resolve_body_mask(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
+
+    def set_inertias_index(
+        self,
+        *,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set inertias of all bodies using indices.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
+                (num_instances, num_bodies, 9) if full_data.
+            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        body_ids = self._resolve_body_ids(body_ids)
+        if full_data:
+            self.assert_shape_and_dtype(
+                inertias,
+                (self.num_instances, self.num_bodies, 9),
+                wp.float32,
+                "inertias",
+                axis_sizes=(env_ids.shape[0],),
+            )
+        else:
+            self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_body_inertia_to_buffer_with_sim_ids_kernel(env_ids, body_ids),
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                inertias,
+                env_ids,
+                body_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._body_inertia,
+                sim_env_ids,
+            ],
+            device=self.device,
+        )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        self.root_view.set_inertias(self._cpu_body_inertia.flatten(), indices=cpu_env_ids)
+
+    def set_inertias_mask(
+        self,
+        *,
+        inertias: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set inertias of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = self._resolve_env_mask(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if body_mask is not None:
+            body_ids = self._resolve_body_mask(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
+
+    """
+    Internal helper.
+    """
+
+    def _initialize_impl(self):
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
+        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
+        # -- object view
+        self._root_view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(root_prim_path_expr))
+
+        # check if the rigid body was created
+        if self.root_view._backend is None:
+            raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
+
+        # container for data access
+        self._data = RigidObjectData(self.root_view, self.device)
+
+        # create buffers
+        self._create_buffers()
+        # process configuration
+        self._process_cfg()
+        # update the rigid body data
+        self.update(0.0)
+        # Let the rigid object data know that it is fully instantiated and ready to use.
+        self.data.is_primed = True
+
+    def _create_buffers(self):
+        """Create buffers for storing data."""
+        # constants
+        self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
+        self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
+
+        # external wrench composer
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
+
+        # set information about rigid body into data
+        self._data.body_names = self.body_names
+
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # These avoid per-call wp.array metadata allocation in writers.
+        # Reset to None each time _create_buffers runs (during initialization).
+        self._root_link_pose_w_f32: wp.array | None = None
+        self._root_com_vel_w_f32: wp.array | None = None
+        # Cached wrench views for write_data_to_sim
+        self._inst_wrench_force_f32: wp.array | None = None
+        self._inst_wrench_torque_f32: wp.array | None = None
+        self._perm_wrench_force_f32: wp.array | None = None
+        self._perm_wrench_torque_f32: wp.array | None = None
+
+        # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
+        # PhysX requires CPU arrays for "model" property updates (masses, coms, inertias).
+        # Pinned memory enables DMA fast path and avoids per-call malloc.
+        N, B = self.num_instances, self.num_bodies
+        self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=self.device)
+        self._sim_env_ids_views: dict[int, wp.array] = {}
+        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_env_ids = wp.empty(N, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_env_ids_views: dict[int, wp.array] = {}
+        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
+
+    def _process_cfg(self) -> None:
+        """Post processing of configuration parameters."""
+        # default state
+        # -- root state
+        # note: we cast to tuple to avoid torch/numpy type mismatch.
+        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
+        default_root_vel = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
+        default_root_pose = np.tile(np.array(default_root_pose, dtype=np.float32), (self.num_instances, 1))
+        default_root_vel = np.tile(np.array(default_root_vel, dtype=np.float32), (self.num_instances, 1))
+        self._data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self.device)
+        self._data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
+
+    def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
+        """Resolve environment mask to a torch tensor.
+
+        Args:
+            env_mask: Environment mask. If None, then all indices are used.
+
+        Returns:
+            A torch tensor of environment indices.
+        """
+        if env_mask is not None:
+            if isinstance(env_mask, wp.array):
+                env_mask = wp.to_torch(env_mask)
+            env_ids = torch.nonzero(env_mask)[:, 0]
+        else:
+            env_ids = self._ALL_INDICES
+        return env_ids
+
+    def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
+        """Resolve body mask to a torch tensor.
+
+        Args:
+            body_mask: Body mask. If None, then all indices are used.
+
+        Returns:
+            A torch tensor of body indices.
+        """
+        if body_mask is not None:
+            if isinstance(body_mask, wp.array):
+                body_mask = wp.to_torch(body_mask)
+            body_ids = torch.nonzero(body_mask)[:, 0]
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        return body_ids
+
+    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
+        """Get CPU environment indices. Uses pre-allocated pinned buffer for full-index case.
+
+        Args:
+            env_ids: Environment indices.
+
+        Returns:
+            A warp array of environment indices on CPU.
+        """
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64 and sim_env_ids is None:
+                return wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids)
+        # Fast path: if these are all indices, use pre-allocated pinned buffer
+        if env_ids.ptr == self._ALL_INDICES.ptr:
+            return self._cpu_env_ids_all
+        if env_ids.dtype == wp.int64:
+            if sim_env_ids is None:
+                return wp.from_torch(wp.to_torch(env_ids).to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+            env_ids = sim_env_ids
+        if str(env_ids.device) == "cpu":
+            return env_ids
+        cpu_env_ids = self._cpu_env_ids_view(env_ids.shape[0])
+        wp.copy(cpu_env_ids, env_ids)
+        return cpu_env_ids
+
+    def _cpu_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU simulator-index scratch buffer."""
+        if count not in self._cpu_env_ids_views:
+            self._cpu_env_ids_views[count] = wp.array(
+                ptr=self._cpu_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_env_ids_views[count]
+
+    def _get_root_link_pose_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_link_pose_w_f32 is None:
+            self._root_link_pose_w_f32 = self.data._root_link_pose_w.data.view(wp.float32)
+        return self._root_link_pose_w_f32
+
+    def _get_root_com_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_com_vel_w_f32 is None:
+            self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
+        return self._root_com_vel_w_f32
+
+    def _get_inst_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
+        if self._inst_wrench_force_f32 is None:
+            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.out_force_b.warp.flatten().view(
+                wp.float32
+            )
+        return self._inst_wrench_force_f32
+
+    def _get_inst_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
+        if self._inst_wrench_torque_f32 is None:
+            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.out_torque_b.warp.flatten().view(
+                wp.float32
+            )
+        return self._inst_wrench_torque_f32
+
+    def _get_perm_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
+        if self._perm_wrench_force_f32 is None:
+            self._perm_wrench_force_f32 = self._permanent_wrench_composer.out_force_b.warp.flatten().view(wp.float32)
+        return self._perm_wrench_force_f32
+
+    def _get_perm_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
+        if self._perm_wrench_torque_f32 is None:
+            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.out_torque_b.warp.flatten().view(wp.float32)
+        return self._perm_wrench_torque_f32
+
+    def _sim_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the simulator-index scratch buffer."""
+        if count not in self._sim_env_ids_views:
+            self._sim_env_ids_views[count] = wp.array(
+                ptr=self._sim_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self.device,
+                copy=False,
+            )
+        return self._sim_env_ids_views[count]
+
+    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+        """Resolve environment indices to a warp array or tensor.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices or a tensor of environment indices.
+        """
+        if (env_ids is None) or (env_ids == slice(None)):
+            return self._ALL_INDICES
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
+        return env_ids
+
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+        """Resolve body indices to a warp array or tensor.
+
+        Args:
+            body_ids: Body indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of body indices or a tensor of body indices.
+        """
+        if isinstance(body_ids, ProxyArray):
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
+        if isinstance(body_ids, list):
+            return wp.array(body_ids, dtype=wp.int32, device=self.device)
+        if (body_ids is None) or (body_ids == slice(None)):
+            return self._ALL_BODY_INDICES
+        return body_ids
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._root_view = None
+
+    @property
+    def root_physx_view(self) -> physx.RigidBodyView:
+        """Deprecated property. Please use :attr:`root_view` instead."""
+        warnings.warn(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.root_view
+
+    def write_root_state_to_sim(
+        self, root_state: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    ):
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_com_state_to_sim(
+        self, root_state: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    ):
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_com_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_link_state_to_sim(
+        self, root_state: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    ):
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' and 'write_root_link_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)

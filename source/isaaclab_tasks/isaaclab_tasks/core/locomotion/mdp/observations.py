@@ -1,0 +1,79 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import torch
+
+import isaaclab.utils.math as math_utils
+from isaaclab.managers import SceneEntityCfg
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
+    from isaaclab.envs import ManagerBasedEnv
+
+
+def base_yaw_roll(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Yaw and roll [rad] of the base in the simulation world frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # extract euler angles (in world frame)
+    roll, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w.torch)
+    # normalize angle to [-pi, pi]
+    return torch.cat((math_utils.wrap_to_pi(yaw).unsqueeze(-1), math_utils.wrap_to_pi(roll).unsqueeze(-1)), dim=-1)
+
+
+def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Projection of the base up vector onto the world up vector."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute base up vector
+    base_up_vec = -asset.data.projected_gravity_b.torch
+
+    return base_up_vec[:, 2].unsqueeze(-1)
+
+
+def walk_target_w(env: ManagerBasedEnv, target_pos: tuple[float, float, float]) -> torch.Tensor:
+    """World-frame walk target [m], offset by each environment's origin.
+
+    The target is specified relative to the environment origin so that every robot walks along the
+    same direction in its own frame, independently of where its environment sits in the grid.
+    """
+    return env.scene.env_origins + torch.tensor(target_pos, device=env.device)
+
+
+def base_heading_proj(
+    env: ManagerBasedEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Projection of the base forward vector onto the world forward vector."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute desired heading direction
+    to_target_pos = walk_target_w(env, target_pos) - asset.data.root_pos_w.torch[:, :3]
+    to_target_pos = torch.cat((to_target_pos[:, :2], torch.zeros_like(to_target_pos[:, 2:3])), dim=-1)
+    to_target_dir = math_utils.normalize(to_target_pos)
+    # compute base forward vector
+    heading_vec = math_utils.quat_apply(asset.data.root_quat_w.torch, asset.data.FORWARD_VEC_B.torch)
+    # compute dot product between heading and target direction
+    heading_proj = torch.bmm(heading_vec.view(env.num_envs, 1, 3), to_target_dir.view(env.num_envs, 3, 1))
+
+    return heading_proj.view(env.num_envs, 1)
+
+
+def base_angle_to_target(
+    env: ManagerBasedEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Angle [rad] between the base forward vector and the vector to the target."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute desired heading direction
+    to_target_pos = walk_target_w(env, target_pos) - asset.data.root_pos_w.torch[:, :3]
+    walk_target_angle = torch.atan2(to_target_pos[:, 1], to_target_pos[:, 0])
+    # compute base forward vector
+    _, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w.torch)
+    # normalize angle to target to [-pi, pi]
+    return math_utils.wrap_to_pi(walk_target_angle - yaw).unsqueeze(-1)

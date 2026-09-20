@@ -33,9 +33,11 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
 
-from isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
+import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+
+from isaaclab_tasks.utils import parse_env_cfg
 
 GRIPPER_OPEN_CMD: float = 1.0
 GRIPPER_CLOSE_CMD: float = -1.0
@@ -84,7 +86,7 @@ def _execute_gripper_action(
         _env_step_with_action(env, action)
 
 
-DOWN_FACING_QUAT = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float32)
+DOWN_FACING_QUAT = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 
 
 @pytest.fixture(scope="class")
@@ -93,8 +95,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     random.seed(SEED)
     torch.manual_seed(SEED)
 
-    env_cfg = FrankaCubeStackIKRelMimicEnvCfg()
-    env_cfg.scene.num_envs = 1
+    env_cfg = parse_env_cfg("Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0", num_envs=1)
     for frame in env_cfg.scene.ee_frame.target_frames:
         if frame.name == "end_effector":
             print(f"Setting end effector offset from {frame.offset.pos} to (0.0, 0.0, 0.0) for SkillGen parity")
@@ -164,7 +165,7 @@ class TestCubeStackPlanner:
     def _get_cube_pos(self, cube_name: str) -> torch.Tensor:
         """Return the current world position of a cube's root (x, y, z)."""
         obj: RigidObject = self.env.scene[cube_name]
-        return obj.data.root_pos_w[0, :3].clone().detach()
+        return obj.data.root_pos_w.torch[0, :3].clone().detach()
 
     def _place_pose_over_cube(self, cube_name: str, height_offset: float) -> torch.Tensor:
         """Compute a goal pose directly above the named cube using the latest pose."""

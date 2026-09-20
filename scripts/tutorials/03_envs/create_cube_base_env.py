@@ -22,7 +22,7 @@ The rest of the environment is similar to the previous tutorials.
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
 """
 
@@ -63,6 +63,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 ##
 # Custom action term
@@ -128,11 +129,11 @@ class CubeActionTerm(ActionTerm):
 
     def apply_actions(self):
         # implement a PD controller to track the target position
-        pos_error = self._processed_actions - (self._asset.data.root_pos_w - self._env.scene.env_origins)
-        vel_error = -self._asset.data.root_lin_vel_w
+        pos_error = self._processed_actions - (self._asset.data.root_pos_w.torch - self._env.scene.env_origins)
+        vel_error = -self._asset.data.root_lin_vel_w.torch
         # set velocity targets
         self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
-        self._asset.write_root_velocity_to_sim(self._vel_command)
+        self._asset.write_root_velocity_to_sim_index(root_velocity=self._vel_command)
 
 
 @configclass
@@ -157,7 +158,7 @@ def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tens
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w - env.scene.env_origins
+    return asset.data.root_pos_w.torch - env.scene.env_origins
 
 
 ##
@@ -305,8 +306,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
         self.sim.device = args_cli.device
         # viewer settings
-        self.viewer.eye = (5.0, 5.0, 5.0)
-        self.viewer.lookat = (0.0, 0.0, 2.0)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
 
 
 def main():
@@ -336,7 +336,7 @@ def main():
             # step env
             obs, _ = env.step(target_position)
             # print mean squared position error between target and current position
-            error = torch.norm(obs["policy"] - target_position).mean().item()
+            error = torch.linalg.norm(obs["policy"] - target_position).mean().item()
             print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
             # update counter
             count += 1

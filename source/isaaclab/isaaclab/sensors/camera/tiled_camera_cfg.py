@@ -3,14 +3,38 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
 
 from .camera_cfg import CameraCfg
-from .tiled_camera import TiledCamera
+
+if TYPE_CHECKING:
+    from .tiled_camera import TiledCamera
 
 
 @configclass
 class TiledCameraCfg(CameraCfg):
-    """Configuration for a tiled rendering-based camera sensor."""
+    """Configuration for a tiled rendering-based camera sensor.
 
-    class_type: type = TiledCamera
+    .. deprecated:: 4.6.0
+        :class:`TiledCameraCfg` is deprecated. Use :class:`CameraCfg` directly —
+        :class:`~isaaclab.sensors.camera.Camera` now includes TiledCamera's vectorized
+        rendering optimizations via the same renderer abstraction.
+    """
+
+    class_type: type["TiledCamera"] | str = "{DIR}.tiled_camera:TiledCamera"
+
+    def __post_init__(self):
+        renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
+        if renderer_type == "default":
+            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+
+            self.renderer_cfg = get_default_renderer_cfg()
+        warnings.warn(
+            "TiledCameraCfg is deprecated. Use CameraCfg directly — "
+            "Camera now includes TiledCamera's vectorized rendering optimizations.",
+            DeprecationWarning,
+            stacklevel=2,
+        )

@@ -12,24 +12,27 @@ import inspect
 import logging
 import re
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ParamSpec, overload
 
 import torch
 
-import omni.kit.commands
-import omni.usd
-from isaacsim.core.cloner import Cloner
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
-
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
-from isaaclab.utils.version import get_isaac_sim_version
 
-from .queries import find_matching_prim_paths
+from .queries import (
+    find_matching_prim_paths,
+    has_deformable_body_api,
+    has_deformable_curve_api,
+    path_expr_to_glob,
+    split_path_expr,
+)
 from .semantics import add_labels
-from .stage import get_current_stage, get_current_stage_id
+from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils  # noqa: F401
+
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 
 # import logger
@@ -88,7 +91,7 @@ def create_prim(
             any coordinate transformation. Cannot be used with ``position``. Defaults to None,
             in which case no translation is applied.
         orientation:
-            Prim rotation as a quaternion (w, x, y, z). When used with ``position``, the
+            Prim rotation as a quaternion (x, y, z, w). When used with ``position``, the
             orientation is also converted from world space to local space. When used with ``translation``,
             it is applied directly as local orientation. Defaults to None.
         scale:
@@ -133,6 +136,8 @@ def create_prim(
         ... )
         Usd.Prim(</World/Parent/Sphere>)
     """
+    from pxr import UsdGeom  # noqa: PLC0415
+
     # Ensure that user doesn't provide both position and translation
     if position is not None and translation is not None:
         raise ValueError("Cannot provide both position and translation. Please provide only one.")
@@ -202,6 +207,8 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         >>>
         >>> sim_utils.delete_prim("/World/Cube")
     """
+    from pxr import UsdUtils  # noqa: PLC0415
+
     # convert prim_path to list if it is a string
     if isinstance(prim_path, str):
         prim_path = [prim_path]
@@ -215,52 +222,12 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     stage_id = stage_cache.GetId(stage).ToLongInt()
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
-    # delete prims
-    success, _ = omni.kit.commands.execute(
-        "DeletePrimsCommand",
-        paths=prim_path,
-        stage=stage,
-    )
-    return success
 
-
-def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> bool:
-    """Moves a prim from one path to another within a USD stage.
-
-    This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`
-    is set to True, the world transform of the prim is kept. This implies that the prim's local transform is reset
-    such that the prim's world transform is the same as the source path's world transform. If it is set to False,
-    the prim's local transform is preserved.
-
-    .. warning::
-        Reparenting or moving prims in USD is an expensive operation that may trigger
-        significant recomposition costs, especially in large or deeply layered stages.
-
-    Args:
-        path_from: Path of the USD Prim you wish to move
-        path_to: Final destination of the prim
-        keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.
-        stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
-
-    Returns:
-        True if the prim was moved successfully, False otherwise.
-
-    Example:
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
-        >>> sim_utils.move_prim("/World/Cube", "/Cube")
-    """
-    # get stage handle
-    stage = get_current_stage() if stage is None else stage
-    # move prim
-    success, _ = omni.kit.commands.execute(
-        "MovePrimCommand",
-        path_from=path_from,
-        path_to=path_to,
-        keep_world_transform=keep_world_transform,
-        stage_or_context=stage,
-    )
+    # delete prims via the Sdf API directly
+    success = True
+    for path in prim_path:
+        if not stage.RemovePrim(path):
+            success = False
     return success
 
 
@@ -285,6 +252,8 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -330,6 +299,8 @@ def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
         >>> prim = sim_utils.get_prim_at_path("/World/Cube")
         >>> sim_utils.set_prim_visibility(prim, False)
     """
+    from pxr import UsdGeom  # noqa: PLC0415
+
     imageable = UsdGeom.Imageable(prim)
     if visible:
         imageable.MakeVisible()
@@ -387,6 +358,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         value: The value to set the attribute to.
         camel_case: Whether to convert the attribute name to camel case.
     """
+    from pxr import Sdf  # noqa: PLC0415
+
     # if value is None, do nothing
     if value is None:
         return
@@ -400,6 +373,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         sdf_type = Sdf.ValueTypeNames.Int
     elif isinstance(value, float):
         sdf_type = Sdf.ValueTypeNames.Float
+    elif isinstance(value, str):
+        sdf_type = Sdf.ValueTypeNames.String
     elif isinstance(value, (tuple, list)) and len(value) == 3 and any(isinstance(v, float) for v in value):
         sdf_type = Sdf.ValueTypeNames.Float3
     elif isinstance(value, (tuple, list)) and len(value) == 2 and any(isinstance(v, float) for v in value):
@@ -471,6 +446,8 @@ def change_prim_property(
         ... )
         True
     """
+    from pxr import Sdf, Usd  # noqa: PLC0415
+
     # get stage handle
     stage = get_current_stage() if stage is None else stage
 
@@ -533,6 +510,8 @@ def export_prim_to_file(
     Raises:
         ValueError: If the prim paths are not global (i.e: do not start with '/').
     """
+    from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -573,8 +552,8 @@ def export_prim_to_file(
     Sdf.CopySpec(source_layer, source_prim_path, target_layer, target_prim_path)
     # set the default prim
     target_layer.defaultPrim = Sdf.Path(target_prim_path).name
-    # resolve all paths relative to layer path
-    omni.usd.resolve_paths(source_layer.identifier, target_layer.identifier)
+    # resolve paths so asset references remain valid from the new location
+    resolve_paths(source_layer.identifier, target_layer.identifier)
     # save the stage
     target_layer.Save()
 
@@ -583,17 +562,34 @@ def export_prim_to_file(
 Decorators
 """
 
+# defined to help with type hinting: preserves the wrapped function's signature through decorators
+P = ParamSpec("P")
 
-def apply_nested(func: Callable) -> Callable:
+
+# typing overloads for the two decorator forms: bare ``@apply_nested`` and ``@apply_nested(stop_on_success=...)``
+@overload
+def apply_nested(func: Callable[P, bool]) -> Callable[P, None]: ...
+
+
+@overload
+def apply_nested(*, stop_on_success: bool = ...) -> Callable[[Callable[P, bool]], Callable[P, None]]: ...
+
+
+def apply_nested(func: Callable[..., bool] | None = None, *, stop_on_success: bool = True) -> Callable:
     """Decorator to apply a function to all prims under a specified prim-path.
 
     The function iterates over the provided prim path and all its children to apply input function
     to all prims under the specified prim path.
 
-    If the function succeeds to apply to a prim, it will not look at the children of that prim.
-    This is based on the physics behavior that nested schemas are not allowed. For example, a parent prim
-    and its child prim cannot both have a rigid-body schema applied on them, or it is not possible to
-    have nested articulations.
+    If the function succeeds to apply to a prim and :paramref:`stop_on_success` is True (the default),
+    it will not look at the children of that prim. This is based on the physics behavior that most
+    nested schemas are not allowed. For example, it is not possible to have nested articulations.
+
+    However, some schemas may legitimately nest. For instance, rigid bodies nest when an articulation
+    is authored with child link prims under their parent link prim (as done by the URDF importer
+    shipped with Isaac Sim 6.0 and later). Functions that write such schemas should be decorated with
+    ``@apply_nested(stop_on_success=False)`` so that the traversal continues into the children of a
+    prim even after the function succeeded on it.
 
     While traversing the prims under the specified prim path, the function will throw a warning if it
     does not succeed to apply the function to any prim. This is because the user may have intended to
@@ -603,62 +599,74 @@ def apply_nested(func: Callable) -> Callable:
         func: The function to apply to all prims under a specified prim-path. The function
             must take the prim-path and other arguments. It should return a boolean indicating whether
             the function succeeded or not.
+        stop_on_success: Whether to skip the children of a prim once the function succeeds on it.
+            Defaults to True, which is correct for schemas that cannot nest. Set to False for schemas
+            that may nest (e.g. rigid bodies inside an articulation) so every matching descendant is
+            visited.
 
     Returns:
-        The wrapped function that applies the function to all prims under a specified prim-path.
+        The wrapped function that applies the function to all prims under a specified prim-path and
+        returns None. When called without :paramref:`func`, returns a decorator producing such a
+        wrapped function.
 
     Raises:
         ValueError: If the prim-path does not exist on the stage.
     """
 
-    @functools.wraps(func)
-    def wrapper(prim_path: str | Sdf.Path, *args, **kwargs):
-        # map args and kwargs to function signature so we can get the stage
-        # note: we do this to check if stage is given in arg or kwarg
-        sig = inspect.signature(func)
-        bound_args = sig.bind(prim_path, *args, **kwargs)
-        # get current stage
-        stage = bound_args.arguments.get("stage")
-        if stage is None:
-            stage = get_current_stage()
+    def decorator(func: Callable[..., bool]) -> Callable[..., None]:
+        @functools.wraps(func)
+        def wrapper(prim_path: str | Sdf.Path, *args, **kwargs) -> None:
+            # map args and kwargs to function signature so we can get the stage
+            # note: we do this to check if stage is given in arg or kwarg
+            sig = inspect.signature(func)
+            bound_args = sig.bind(prim_path, *args, **kwargs)
+            # get current stage
+            stage = bound_args.arguments.get("stage")
+            if stage is None:
+                stage = get_current_stage()
 
-        # get USD prim
-        prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
-        # check if prim is valid
-        if not prim.IsValid():
-            raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-        # add iterable to check if property was applied on any of the prims
-        count_success = 0
-        instanced_prim_paths = []
-        # iterate over all prims under prim-path
-        all_prims = [prim]
-        while len(all_prims) > 0:
-            # get current prim
-            child_prim = all_prims.pop(0)
-            child_prim_path = child_prim.GetPath().pathString  # type: ignore
-            # check if prim is a prototype
-            if child_prim.IsInstance():
-                instanced_prim_paths.append(child_prim_path)
-                continue
-            # set properties
-            success = func(child_prim_path, *args, **kwargs)
-            # if successful, do not look at children
-            # this is based on the physics behavior that nested schemas are not allowed
-            if not success:
-                all_prims += child_prim.GetChildren()
-            else:
-                count_success += 1
-        # check if we were successful in applying the function to any prim
-        if count_success == 0:
-            logger.warning(
-                f"Could not perform '{func.__name__}' on any prims under: '{prim_path}'."
-                " This might be because of the following reasons:"
-                "\n\t(1) The desired attribute does not exist on any of the prims."
-                "\n\t(2) The desired attribute exists on an instanced prim."
-                f"\n\t\tDiscovered list of instanced prim paths: {instanced_prim_paths}"
-            )
+            # get USD prim
+            prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
+            # check if prim is valid
+            if not prim.IsValid():
+                raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+            # add iterable to check if property was applied on any of the prims
+            count_success = 0
+            instanced_prim_paths = []
+            # iterate over all prims under prim-path
+            all_prims = [prim]
+            while len(all_prims) > 0:
+                # get current prim
+                child_prim = all_prims.pop(0)
+                child_prim_path = child_prim.GetPath().pathString  # type: ignore
+                # check if prim is a prototype
+                if child_prim.IsInstance():
+                    instanced_prim_paths.append(child_prim_path)
+                    continue
+                # set properties
+                success = func(child_prim_path, *args, **kwargs)
+                if success:
+                    count_success += 1
+                # on success, skip children only for schemas that cannot nest; otherwise keep
+                # descending so nested occurrences (e.g. rigid bodies under a parent link) are visited
+                if not success or not stop_on_success:
+                    all_prims += child_prim.GetChildren()
+            # check if we were successful in applying the function to any prim
+            if count_success == 0:
+                logger.warning(
+                    f"Could not perform '{func.__name__}' on any prims under: '{prim_path}'."
+                    " This might be because of the following reasons:"
+                    "\n\t(1) The desired attribute does not exist on any of the prims."
+                    "\n\t(2) The desired attribute exists on an instanced prim."
+                    f"\n\t\tDiscovered list of instanced prim paths: {instanced_prim_paths}"
+                )
 
-    return wrapper
+        return wrapper
+
+    # support both ``@apply_nested`` and ``@apply_nested(stop_on_success=...)`` usages
+    if func is None:
+        return decorator
+    return decorator(func)
 
 
 def clone(func: Callable) -> Callable:
@@ -683,6 +691,8 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
+        from pxr import Sdf, UsdGeom  # noqa: PLC0415
+
         # get stage handle
         stage = get_current_stage()
 
@@ -693,7 +703,10 @@ def clone(func: Callable) -> Callable:
             raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
         # resolve: {SPAWN_NS}/AssetName
         # note: this assumes that the spawn namespace already exists in the stage
-        root_path, asset_path = prim_path.rsplit("/", 1)
+        # split on separators only: a segment wildcard is written as a character class whose
+        # text contains a '/' that is not a separator.
+        *root_segments, asset_path = split_path_expr(prim_path)
+        root_path = "/".join(root_segments)
         # check if input is a regex expression
         # note: a valid prim path can only contain alphanumeric characters, underscores, and forward slashes
         is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
@@ -709,10 +722,23 @@ def clone(func: Callable) -> Callable:
         else:
             source_prim_paths = [root_path]
 
-        # resolve prim paths for spawning and cloning
-        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # Build a prototype prim path to spawn once, then copy to ALL matching parents.
+        #
+        # Octi: Leaf note wild card and root not wild card should be treated differently:
+        #   (A) ".*" in root_path  e.g. /World/Origin_0.*/CameraSensor
+        #       source_prim_paths holds ALL matching parent prims already in the stage.
+        #       We spawn the child once at source_prim_paths[0] as the prototype, then
+        #       Sdf.CopySpec it to every remaining parent so every parent ends up with
+        #       the child prim.
+        #
+        #   (B) ".*" in asset_path only  e.g. /World/template/Object/proto_asset_.*
+        #       No matching prims exist yet; source_prim_paths == [root_path] (one entry).
+        #       Replacing ".*" → "0" in asset_path gives the intended name proto_asset_0.
+        #       No copy step runs because there is only one parent.
+        #
+        prim_spawn_path = f"{source_prim_paths[0]}/{asset_path.replace('.*', '0')}"
         # spawn single instance
-        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        prim = func(prim_spawn_path, cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
@@ -722,7 +748,6 @@ def clone(func: Callable) -> Callable:
                 imageable.MakeInvisible()
         # set the semantic annotations
         if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
-            # note: taken from replicator scripts.utils.utils.py
             for semantic_type, semantic_value in cfg.semantic_tags:
                 # deal with spaces by replacing them with underscores
                 semantic_type_sanitized = semantic_type.replace(" ", "_")
@@ -732,30 +757,21 @@ def clone(func: Callable) -> Callable:
                     prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized, overwrite=False
                 )
         # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
-        if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:  # type: ignore
+        if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             from ..schemas import schemas as _schemas
 
-            _schemas.activate_contact_sensors(prim_paths[0])
+            _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
-        if len(prim_paths) > 1:
-            cloner = Cloner(stage=stage)
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            if get_isaac_sim_version().major < 5:
-                # clone the prim
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
-            else:
-                # clone the prim
-                clone_in_fabric = kwargs.get("clone_in_fabric", False)
-                replicate_physics = kwargs.get("replicate_physics", False)
-                cloner.clone(
-                    prim_paths[0],
-                    prim_paths[1:],
-                    replicate_physics=replicate_physics,
-                    copy_from_source=cfg.copy_from_source,
-                    clone_in_fabric=clone_in_fabric,
-                )
+        if len(source_prim_paths) > 1:
+            # the leaf may carry an index slot as a segment wildcard; normalizing to glob
+            # collapses its spellings to the single '*' that the index replaces.
+            sanitized_asset = path_expr_to_glob(asset_path).replace("*", "0")
+            rl = stage.GetRootLayer()
+            with Sdf.ChangeBlock():
+                for src_parent in source_prim_paths[1:]:
+                    dest_path = f"{src_parent}/{sanitized_asset}"
+                    Sdf.CreatePrimInLayer(rl, dest_path)
+                    Sdf.CopySpec(rl, Sdf.Path(prim_spawn_path), rl, Sdf.Path(dest_path))
         # return the source prim
         return prim
 
@@ -776,13 +792,11 @@ def bind_visual_material(
 ):
     """Bind a visual material to a prim.
 
-    This function is a wrapper around the USD command `BindMaterialCommand`_.
+    The binding is authored using the standard OpenUSD :class:`UsdShade.MaterialBindingAPI`.
 
     .. note::
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
         and all its descendants.
-
-    .. _BindMaterialCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.BindMaterialCommand.html
 
     Args:
         prim_path: The prim path where to apply the material.
@@ -795,33 +809,28 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
+    from pxr import UsdShade  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
 
     # check if prim and material exists
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"Target prim '{material_path}' does not exist.")
-    if not stage.GetPrimAtPath(material_path).IsValid():
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Target prim '{prim_path}' does not exist.")
+    material_prim = stage.GetPrimAtPath(material_path)
+    if not material_prim.IsValid():
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
     # resolve token for weaker than descendants
-    # bind material command expects a string token
     if stronger_than_descendants:
-        binding_strength = "strongerThanDescendants"
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
     else:
-        binding_strength = "weakerThanDescendants"
-    # obtain material binding API
-    # note: we prefer using the command here as it is more robust than the USD API
-    success, _ = omni.kit.commands.execute(
-        "BindMaterialCommand",
-        prim_path=prim_path,
-        material_path=material_path,
-        strength=binding_strength,
-        stage=stage,
-    )
-    # return success
-    return success
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    material = UsdShade.Material(material_prim)
+    return binding_api.Bind(material, bindingStrength=binding_strength)
 
 
 @apply_nested
@@ -833,8 +842,8 @@ def bind_physics_material(
 ):
     """Bind a physics material to a prim.
 
-    `Physics material`_ can be applied only to a prim with physics-enabled on them. This includes having
-    collision APIs, or deformable body APIs, or being a particle system. In case the prim does not have
+    `Physics material`_ can be applied only to a prim with physics-enabled on them. This includes collision APIs,
+    deformable APIs, and particle systems. In case the prim does not have
     any of these APIs, the function will not apply the material and return False.
 
     .. note::
@@ -854,6 +863,8 @@ def bind_physics_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
+    from pxr import UsdPhysics, UsdShade  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -866,14 +877,18 @@ def bind_physics_material(
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
-    has_physics_scene_api = prim.HasAPI(PhysxSchema.PhysxSceneAPI)
+    applied = prim.GetAppliedSchemas()
+    has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
-    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
-    if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
+    has_deformable_body = has_deformable_body_api(prim)
+    has_deformable_curve = has_deformable_curve_api(prim)
+    has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
+    if not (
+        has_physics_scene_api or has_collider or has_deformable_body or has_deformable_curve or has_particle_system
+    ):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
-            " PhysX scene, collider, a deformable body, nor a particle system."
+            " PhysX scene, collider, deformable, or particle system."
         )
         return False
 
@@ -883,7 +898,6 @@ def bind_physics_material(
     else:
         material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
     # obtain the material prim
-
     material = UsdShade.Material(stage.GetPrimAtPath(material_path))
     # resolve token for weaker than descendants
     if stronger_than_descendants:
@@ -925,6 +939,16 @@ def add_usd_reference(
     Raises:
         FileNotFoundError: When the input USD file is not found at the specified path.
     """
+    # resolve remote USD paths to local (same as Newton / add_reference_to_stage)
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
+    if file_status == 2:
+        try:
+            usd_path = retrieve_file_path(usd_path, force_download=False)
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
+
     # get current stage
     stage = get_current_stage() if stage is None else stage
     # get prim at path
@@ -941,32 +965,6 @@ def add_usd_reference(
             )
         return prim
 
-    # Compatibility with Isaac Sim 4.5 where omni.metrics is not available
-    if get_isaac_sim_version().major < 5:
-        return _add_reference_to_prim(prim)
-
-    # check if the USD file is valid and add reference to the prim
-    sdf_layer = Sdf.Layer.FindOrOpen(usd_path)
-    if not sdf_layer:
-        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
-
-    # import metrics assembler interface
-    # note: this is only available in Isaac Sim 5.0 and above
-    from omni.metrics.assembler.core import get_metrics_assembler_interface
-
-    # obtain the stage ID
-    stage_id = get_current_stage_id()
-    # check if the layers are compatible (i.e. the same units)
-    ret_val = get_metrics_assembler_interface().check_layers(
-        stage.GetRootLayer().identifier, sdf_layer.identifier, stage_id
-    )
-    # log that metric assembler did not detect any issues
-    if ret_val["ret_val"]:
-        logger.info(
-            "Metric assembler detected no issues between the current stage and the referenced USD file at path:"
-            f" {usd_path}"
-        )
-    # add reference to the prim
     return _add_reference_to_prim(prim)
 
 
@@ -1039,8 +1037,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         variants: A dictionary or config class mapping variant set names to variant selections.
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
+    A variant set the prim does not have is skipped with a warning, so one configuration can spawn
+    assets that expose different options. A set that exists but does not offer the requested variant
+    is an error: USD accepts the selection and composes the prim as if nothing were selected, so the
+    asset would silently spawn without the description the variant carries.
+
     Raises:
-        ValueError: If the prim at the specified path is not valid.
+        ValueError: If the prim at the specified path is not valid, or if a variant set on the prim
+            does not offer the requested variant.
 
     .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
@@ -1064,6 +1068,15 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
+        # USD accepts a selection naming a variant the set does not offer, and the prim then
+        # composes as if nothing were selected, so reject it instead of spawning a silently
+        # incomplete asset.
+        available = variant_set.GetVariantNames()
+        if variant_selection not in available:
+            raise ValueError(
+                f"Variant set '{variant_set_name}' on prim '{prim_path}' does not offer variant"
+                f" '{variant_selection}'. Available variants: {available}."
+            )
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)

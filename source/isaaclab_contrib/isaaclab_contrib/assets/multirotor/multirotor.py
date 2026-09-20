@@ -13,9 +13,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
+from isaaclab_physx.assets.articulation import Articulation
+from isaaclab_physx.assets.kernels import split_state_to_root_pose_and_vel
 
 import isaaclab.utils.string as string_utils
-from isaaclab.assets.articulation import Articulation
 
 from isaaclab_contrib.actuators import Thruster
 from isaaclab_contrib.utils.types import MultiRotorActions
@@ -27,6 +29,26 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+class _ThrusterCollection(dict):
+    """Name-keyed mapping of :class:`~isaaclab_contrib.actuators.Thruster` actuators.
+
+    Multirotors are controlled through thrusters rather than joint actuators, so
+    :class:`Multirotor` stores its actuators in this lightweight ``dict`` subclass instead of a
+    joint-based :class:`~isaaclab.actuators.ActuatorCollection`. Behaving as a plain ``dict`` keeps
+    the existing name-based access (``self.actuators["thrusters"]``, iteration, ``.values()``) while
+    exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
+    """
+
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+        """Reset every thruster actuator for the given environments.
+
+        Args:
+            env_ids: Environment indices to reset. Defaults to None (all environments).
+        """
+        for actuator in self.values():
+            actuator.reset(env_ids)
 
 
 class Multirotor(Articulation):
@@ -68,7 +90,7 @@ class Multirotor(Articulation):
 
             # Create multirotor configuration
             multirotor_cfg = MultirotorCfg(
-                prim_path="/World/envs/env_.*/Robot",
+                prim_path="{ENV_REGEX_NS}/Robot",
                 spawn=sim_utils.UsdFileCfg(usd_path="path/to/quadcopter.usd"),
                 actuators={"thrusters": thruster_cfg},
                 allocation_matrix=[  # 6x4 matrix for quadcopter (6 DOF, 4 thrusters)
@@ -286,7 +308,7 @@ class Multirotor(Articulation):
         super()._initialize_impl()
 
         # Replace data container with MultirotorData
-        self._data = MultirotorData(self.root_physx_view, self.device)
+        self._data = MultirotorData(self.root_view, self.device)
 
         # Create thruster buffers with correct size (SINGLE PHASE)
         self._create_thruster_buffers()
@@ -370,7 +392,24 @@ class Multirotor(Articulation):
             + tuple(self.cfg.init_state.ang_vel)
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
-        self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+        # Repeat for all instances
+        default_root_state_repeated = default_root_state.repeat(self.num_instances, 1)
+        # Convert to warp array and split into pose and vel using kernel
+        default_root_state_wp = wp.from_torch(default_root_state_repeated, dtype=wp.float32)
+        # Create temporary output arrays
+        pose_output = wp.zeros(self.num_instances, dtype=wp.transformf, device=self.device)
+        vel_output = wp.zeros(self.num_instances, dtype=wp.spatial_vectorf, device=self.device)
+        # Split state into pose and vel
+        wp.launch(
+            split_state_to_root_pose_and_vel,
+            dim=self.num_instances,
+            inputs=[default_root_state_wp],
+            outputs=[pose_output, vel_output],
+            device=self.device,
+        )
+        # Set using public setters
+        self._data.default_root_pose = pose_output
+        self._data.default_root_vel = vel_output
 
         # Handle thruster-specific initial state
         if hasattr(self._data, "default_thruster_rps") and hasattr(self.cfg.init_state, "rps"):
@@ -386,7 +425,7 @@ class Multirotor(Articulation):
     def _process_thruster_cfg(self):
         """Process and apply multirotor thruster properties."""
         # create actuators
-        self.actuators = dict()
+        self.actuators = _ThrusterCollection()
         self._has_implicit_actuators = False
 
         # Check for mixed configurations (same as before)
@@ -508,9 +547,13 @@ class Multirotor(Articulation):
         # Combine individual thrusts into a wrench vector
         self._combine_thrusts()
 
-        self.root_physx_view.apply_forces_and_torques_at_position(
-            force_data=self._internal_force_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
-            torque_data=self._internal_torque_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
+        # Convert torch tensors to Warp arrays for PhysX API
+        force_data_wp = wp.from_torch(self._internal_force_target_sim.view(-1, 3), dtype=wp.float32)
+        torque_data_wp = wp.from_torch(self._internal_torque_target_sim.view(-1, 3), dtype=wp.float32)
+
+        self.root_view.apply_forces_and_torques_at_position(
+            force_data=force_data_wp,  # Shape: (num_envs * num_bodies, 3)
+            torque_data=torque_data_wp,  # Shape: (num_envs * num_bodies, 3)
             position_data=None,  # Apply at center of mass
             indices=self._ALL_INDICES,
             is_global=False,  # Forces are in local frame
