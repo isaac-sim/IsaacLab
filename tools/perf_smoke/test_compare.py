@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from . import cli, compare
 from .contract import Contract
-from .metrics import PerfSmokeError
+from .metrics import METRICS, PerfSmokeError
 from .store import BaselineRow
 
 
@@ -84,6 +84,17 @@ class TestAsvComparison(unittest.TestCase):
         self.assertEqual(result.verdict, compare.FAIL)
         self.assertIn("hard floor", result.metrics[0].note)
         self.assertIn("hard floor", result.message)
+
+    def test_hard_floor_respects_metric_direction(self):
+        thresholds = compare.Thresholds(warn_pct=5, fail_pct=10, hard_floor=15, gating=False)
+        breached = compare._evaluate(METRICS[1], [10, 20, 10], [], thresholds, min_samples=3)
+        within_limit = compare._evaluate(METRICS[1], [10, 10, 10], [], thresholds, min_samples=3)
+
+        self.assertEqual(breached.verdict, compare.FAIL)
+        self.assertTrue(breached.gating)
+        self.assertEqual(breached.note, "above hard floor 15")
+        self.assertEqual(within_limit.verdict, compare.SKIP)
+        self.assertFalse(within_limit.gating)
 
     def test_advisory_task_does_not_gate(self):
         self.policy["per_task_regression_pct"] = {"task": {"advisory_only": True}}

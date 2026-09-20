@@ -168,8 +168,17 @@ def _evaluate(
         sample_count=len(history),
         gating=thresholds.gating,
     )
-    if thresholds.hard_floor is not None and min(candidates) < thresholds.hard_floor:
-        return replace(result, verdict=FAIL, gating=True, note=f"below hard floor {thresholds.hard_floor:g}")
+    if thresholds.hard_floor is not None:
+        worst = max(candidates) if metric.higher_is_worse else min(candidates)
+        breached = worst > thresholds.hard_floor if metric.higher_is_worse else worst < thresholds.hard_floor
+        if breached:
+            direction = "above" if metric.higher_is_worse else "below"
+            return replace(
+                result,
+                verdict=FAIL,
+                gating=True,
+                note=f"{direction} hard floor {thresholds.hard_floor:g}",
+            )
 
     if len(history) < min_samples or len(candidates) < 2:
         return replace(result, note="insufficient independent runs for ASV significance testing")
