@@ -1,3 +1,9 @@
+Added
+^^^^^
+
+* Added ``OvPhysxBackendCfg`` for cfg-only native runtime acquisition through the simulation registry.
+  ``OvPhysxCfg`` continued to configure the physics manager and its scene policy.
+
 Changed
 ^^^^^^^
 

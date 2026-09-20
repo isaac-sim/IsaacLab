@@ -7,13 +7,26 @@
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
+from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .physx_manager import PhysxManager
+    from .physx_manager import PhysxBackend, PhysxManager
+
+
+@configclass
+class PhysxBackendCfg(BackendCfg):
+    """Construction settings for one native PhysX simulation view."""
+
+    class_type: type[PhysxBackend] | str = "{DIR}.physx_manager:PhysxBackend"
+    """Native simulation-view owner."""
+
+    stage_id: int = MISSING
+    """USD stage cache identifier bound to the native view."""
 
 
 @configclass

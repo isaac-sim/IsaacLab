@@ -45,7 +45,7 @@ from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
-from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
+from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
     from .ovphysx_manager_cfg import OvPhysxCfg
@@ -394,9 +394,11 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 class OvPhysxBackend:
     """Own the native OVPhysX runtime and its attached OVStage for one simulation."""
 
-    def __init__(self, cfg: OvPhysxCfg, ovphysx_device: str, gpu_index: int):
+    def __init__(self, cfg: OvPhysxBackendCfg):
+        self.cfg = cfg
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
+        is_gpu = cfg.device.startswith("cuda:")
         cache_dir = cfg.cooked_collider_cache_dir
         if cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR:
             cache_dir = _prepare_default_cache_dir(cache_dir)
@@ -406,16 +408,16 @@ class OvPhysxBackend:
             "/physics/updateVelocitiesToUsd": False,
             "/physics/updateParticlesToUsd": False,
         }
-        if ovphysx_device == "gpu":
+        if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
-        ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
+        ovphysx.PhysX.set_cpu_mode(not is_gpu)
         physx_kwargs = {
             "config": ovphysx.PhysXConfig(
                 num_threads=8, cooked_collider_cache_dir=cache_dir, carbonite_overrides=carbonite_overrides
             ),
         }
-        if ovphysx_device == "gpu":
-            physx_kwargs["active_cuda_gpus"] = str(gpu_index)
+        if is_gpu:
+            physx_kwargs["active_cuda_gpus"] = cfg.device.removeprefix("cuda:")
         self.physx = ovphysx.PhysX(**physx_kwargs)
         self.stage: Any = None
 
@@ -608,7 +610,7 @@ class OvPhysxManager(PhysicsManager):
         ``cls._locked_device`` carries the process-wide first-device policy.
         """
         super().initialize(sim_context)
-        sim_context.get_or_create_backend(cls.clone_context_type, sim_context)
+        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
@@ -687,7 +689,7 @@ class OvPhysxManager(PhysicsManager):
         finally:
             try:
                 if cls._backend is not None:
-                    sim.clear_backend(OvPhysxBackend, cfg=sim.cfg.physics)
+                    sim.clear_backend(cls._backend.cfg)
                     cls._backend = None
             finally:
                 cls._stage_usda = None
@@ -992,14 +994,7 @@ class OvPhysxManager(PhysicsManager):
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
-        device_str = PhysicsManager._device
-        if "cuda" in device_str:
-            parts = device_str.split(":")
-            gpu_index = int(parts[1]) if len(parts) > 1 else 0
-            ovphysx_device = "gpu"
-        else:
-            gpu_index = 0
-            ovphysx_device = "cpu"
+        ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 
         if cls._locked_device is not None and ovphysx_device != cls._locked_device:
             raise RuntimeError(
@@ -1040,7 +1035,10 @@ class OvPhysxManager(PhysicsManager):
 
         previous_backend = cls._backend
         cls._backend = sim.get_or_create_backend(
-            OvPhysxBackend, sim.cfg.physics, ovphysx_device, gpu_index, cfg=sim.cfg.physics
+            OvPhysxBackendCfg(
+                device=PhysicsManager._device,
+                cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
+            )
         )
         cls._locked_device = ovphysx_device
         if not cls._atexit_registered:

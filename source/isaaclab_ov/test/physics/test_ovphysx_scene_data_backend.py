@@ -24,8 +24,10 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 @pytest.fixture(autouse=True)
 def _native_backend(monkeypatch):
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
 
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
+    backend.cfg = OvPhysxBackendCfg(device="cpu")
     backend.physx = None
     backend.stage = None
     monkeypatch.setattr(OvPhysxManager, "_backend", backend)
@@ -377,15 +379,15 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("device", "gpu_index", "expected_cpu_mode", "expected_active_cuda_gpus"),
-    [("cpu", 0, True, None), ("gpu", 2, False, "2")],
+    ("device", "expected_cpu_mode", "expected_active_cuda_gpus"),
+    [("cpu", True, None), ("cuda:2", False, "2")],
 )
 def test_manager_supports_pinned_runtime_api(
-    monkeypatch, tmp_path, device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus
+    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus
 ):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     import isaaclab_ov.physics.ovphysx_manager as module
-    from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
+    from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
 
     cache_dir = str(tmp_path / "cooked_colliders")
 
@@ -421,7 +423,7 @@ def test_manager_supports_pinned_runtime_api(
     runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
     monkeypatch.setattr(module, "import_ovphysx", lambda: runtime)
 
-    backend = module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=cache_dir), device, gpu_index)
+    backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
     physx = backend.physx
     OvPhysxManager._step_physx(physx, dt=0.02)
     OvPhysxManager._backend.physx = physx
@@ -657,8 +659,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     OvPhysxManager._backend.stage = stage
     backend = OvPhysxManager._backend
     sim = SimpleNamespace(
-        _backend_registry={om_mod.OvPhysxBackend: [(None, backend)]},
-        cfg=SimpleNamespace(physics=None),
+        _backend_registry=[(backend.cfg, backend)],
         physics_manager=OvPhysxManager,
     )
     sim.clear_backend = SimulationContext.clear_backend.__get__(sim)
@@ -673,7 +674,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
         OvPhysxManager.close()
 
     assert PhysicsManager._sim is None
-    assert sim._backend_registry[om_mod.OvPhysxBackend][0][1] is backend
+    assert sim._backend_registry == [(backend.cfg, backend)]
     assert backend.physx is (physx if retryable else None)
     assert backend.stage is (stage if retryable else None)
 
@@ -684,7 +685,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     OvPhysxManager.close()
 
     assert OvPhysxManager._backend is None
-    assert om_mod.OvPhysxBackend not in sim._backend_registry
+    assert not sim._backend_registry
     assert backend.physx is None and backend.stage is None
     assert events == teardown * (2 if retryable else 1) + ["destroy_stage"]
 

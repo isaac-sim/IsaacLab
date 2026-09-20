@@ -25,6 +25,7 @@ def test_backend_registry_identity_and_lifecycle():
 
     @dataclass
     class Cfg:
+        class_type: type
         values: list[int]
 
         def __deepcopy__(self, memo):
@@ -35,44 +36,44 @@ def test_backend_registry_identity_and_lifecycle():
         pass
 
     class Backend:
-        def __init__(self, value):
-            if value == 0:
+        def __init__(self, cfg):
+            if not cfg.values:
                 raise ValueError("construction failed")
+            self.cfg = cfg
             self.clear = Mock()
 
     class OtherBackend(Backend):
         pass
 
     context = object.__new__(SimulationContext)
-    context._backend_registry = {}
-    cfg = Cfg([1])
+    context._backend_registry = []
+    cfg = Cfg(Backend, [1])
     with pytest.raises(ValueError, match="construction failed"):
-        context.get_or_create_backend(Backend, 0, cfg=cfg)
+        context.get_or_create_backend(replace(cfg, values=[]))
     assert not context._backend_registry
 
-    default = context.get_or_create_backend(Backend, 1)
-    first = context.get_or_create_backend(Backend, 1, cfg=cfg)
+    first = context.get_or_create_backend(cfg)
+    assert first.cfg is cfg
     different_cfg = replace(cfg, values=[1, 2])
-    second = context.get_or_create_backend(Backend, 1, cfg=different_cfg)
-    other_cfg = context.get_or_create_backend(Backend, 1, cfg=OtherCfg([1]))
-    other_type = context.get_or_create_backend(OtherBackend, 1, cfg=cfg)
-    assert len({id(resource) for resource in (default, first, second, other_cfg, other_type)}) == 5
-    assert context.get_or_create_backend(Backend, 0) is default
-    assert context.get_or_create_backend(Backend, 0, cfg=Cfg([1])) is first
+    second = context.get_or_create_backend(different_cfg)
+    other_cfg = context.get_or_create_backend(OtherCfg(Backend, [1]))
+    other_type = context.get_or_create_backend(replace(cfg, class_type=OtherBackend))
+    assert len({id(resource) for resource in (first, second, other_cfg, other_type)}) == 4
+    assert context.get_or_create_backend(Cfg(Backend, [1])) is first
 
-    context.clear_backend(Backend, cfg=Cfg([1]))
+    context.clear_backend(Cfg(Backend, [1]))
     first.clear.assert_called_once_with()
-    assert all(resource.clear.call_count == 0 for resource in (default, second, other_cfg, other_type))
+    assert all(resource.clear.call_count == 0 for resource in (second, other_cfg, other_type))
     with pytest.raises(KeyError):
-        context.clear_backend(Backend, cfg=Cfg([1]))
-    assert context.get_or_create_backend(Backend, 1, cfg=Cfg([1])) is not first
+        context.clear_backend(cfg)
+    assert context.get_or_create_backend(cfg) is not first
 
     second.clear.side_effect = RuntimeError("release failed")
     with pytest.raises(RuntimeError, match="release failed"):
-        context.clear_backend(Backend, cfg=different_cfg)
-    assert context.get_or_create_backend(Backend, 0, cfg=different_cfg) is second
+        context.clear_backend(different_cfg)
+    assert context.get_or_create_backend(different_cfg) is second
     second.clear.side_effect = None
-    context.clear_backend(Backend, cfg=different_cfg)
+    context.clear_backend(different_cfg)
     assert second.clear.call_count == 2
 
 
@@ -85,7 +86,7 @@ def test_backend_ownership_has_no_service_locator_or_resource_keys():
     sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
     assert not (sim_package / "service_locator.py").exists()
     assert not hasattr(SimulationContext, "services")
-    assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
+    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
     cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
     assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
 
@@ -240,9 +241,6 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
     class OtherBackend(Backend):
         pass
 
-    class InvalidBackend:
-        pass
-
     class RenderContext:
         def close(self):
             events.append("renderers")
@@ -254,11 +252,12 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             Visualizer("visualizer_failed", ValueError("visualizer failed")),
             Visualizer("visualizer_last"),
         ],
-        _backend_registry={
-            Backend: [(0, Backend("backend_failed", LookupError("backend failed"))), (1, Backend("same_type"))],
-            OtherBackend: [(None, OtherBackend("backend_last"))],
-            InvalidBackend: [(None, InvalidBackend())],
-        },
+        clone_contexts={object: object()},
+        _backend_registry=[
+            (0, Backend("backend_failed", LookupError("backend failed"))),
+            (1, Backend("same_type")),
+            (2, OtherBackend("backend_last")),
+        ],
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
@@ -286,7 +285,8 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "gc",
     ]
     assert context._visualizers == []
-    assert context._backend_registry == {}
+    assert context._backend_registry == []
+    assert context.clone_contexts == {}
     assert SimulationContext.instance() is None
 
 
@@ -311,7 +311,8 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context.physics_manager = Manager
     context._render_context = RenderContext()
     context._visualizers = []
-    context._backend_registry = {}
+    context._backend_registry = []
+    context.clone_contexts = {}
     context_ref = weakref.ref(context)
     context_alive_during_gc = []
 

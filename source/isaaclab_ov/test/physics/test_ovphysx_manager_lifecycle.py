@@ -40,18 +40,18 @@ class _FakePhysX:
 def manager_module(monkeypatch):
     """Import the manager and restore its class-global state after each test."""
     import isaaclab_ov.physics.ovphysx_manager as module
-    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxBackendCfg
 
     from isaaclab.physics import PhysicsManager
     from isaaclab.sim import SimulationContext
 
-    cfg = OvPhysxCfg()
-    sim = SimpleNamespace(_backend_registry={}, cfg=SimpleNamespace(physics=cfg), physics_manager=module.OvPhysxManager)
+    cfg = OvPhysxBackendCfg(device="cpu")
+    sim = SimpleNamespace(_backend_registry=[], physics_manager=module.OvPhysxManager)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.clear_backend = SimulationContext.clear_backend.__get__(sim)
     with monkeypatch.context() as construction:
         construction.setattr(module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
-        backend = sim.get_or_create_backend(module.OvPhysxBackend, cfg, "cpu", 0, cfg=cfg)
+        backend = sim.get_or_create_backend(cfg)
     monkeypatch.setattr(PhysicsManager, "_sim", sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
     monkeypatch.setattr(module.atexit, "register", lambda callback: None)
@@ -86,15 +86,14 @@ def _fake_ovphysx_module(bootstrap):
 
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
     from isaaclab.physics import PhysicsManager
-    from isaaclab.sim import SimulationContext
 
     manager = manager_module.OvPhysxManager
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=None, device="cpu", gravity=(0.0, 0.0, -9.81)),
         stage=object(),
-        _backend_registry={},
+        _backend_registry=[],
+        clone_contexts={},
     )
-    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     for name in ("_sim", "_cfg", "_device", "_sim_time"):
         monkeypatch.setattr(PhysicsManager, name, getattr(PhysicsManager, name))
     monkeypatch.setattr(manager, "_ensure_physx_schemas_registered", lambda: None)
@@ -102,7 +101,7 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
 
     manager.initialize(sim)
 
-    assert manager_module.OvPhysxBackend not in sim._backend_registry
+    assert not sim._backend_registry
     assert manager.get_physx_instance() is None
     assert not any(hasattr(manager, name) for name in ("_physx", "_ovstage"))
 
@@ -165,8 +164,8 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
-def test_registry_constructs_each_runtime_once_without_replacing_pxr(monkeypatch, manager_module):
-    from isaaclab_ov.physics import OvPhysxCfg
+def test_registry_shares_native_cfg_without_replacing_pxr(monkeypatch, manager_module):
+    from isaaclab_ov.physics import OvPhysxBackendCfg
 
     from isaaclab.sim import SimulationContext
 
@@ -184,19 +183,17 @@ def test_registry_constructs_each_runtime_once_without_replacing_pxr(monkeypatch
 
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(bootstrap))
 
-    sim = SimpleNamespace(_backend_registry={})
+    sim = SimpleNamespace(_backend_registry=[])
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
-    cfg = OvPhysxCfg()
-    first = sim.get_or_create_backend(manager_module.OvPhysxBackend, cfg, "cpu", 0, cfg=cfg)
-    shared = sim.get_or_create_backend(manager_module.OvPhysxBackend, cfg, "cpu", 0, cfg=cfg.copy())
-    different = cfg.replace(enable_enhanced_determinism=True)
-    second = sim.get_or_create_backend(manager_module.OvPhysxBackend, different, "cpu", 0, cfg=different)
+    cfg = OvPhysxBackendCfg(device="cpu")
+    first = sim.get_or_create_backend(cfg)
+    shared = sim.get_or_create_backend(OvPhysxBackendCfg(device="cpu"))
 
     assert sys.modules["pxr"] is host_pxr
     assert sys.modules["pxr.Usd"] is host_usd
-    assert bootstrap_calls == [None, None]
+    assert bootstrap_calls == [None]
     assert shared is first
-    assert first.physx is not second.physx
+    assert first.cfg is cfg
 
 
 @pytest.mark.parametrize("stop_fails", [False, True])
@@ -488,13 +485,13 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
 
 def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
     """Configured, default, and unset cache directories reach ``PhysXConfig`` unchanged."""
-    from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxCfg
+    from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg, OvPhysxCfg
 
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
 
     assert OvPhysxCfg().cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
     for cache_dir in (DEFAULT_COOKED_COLLIDER_CACHE_DIR, str(tmp_path / "configured_cache"), None):
-        backend = manager_module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=cache_dir), "cpu", 0)
+        backend = manager_module.OvPhysxBackend(OvPhysxBackendCfg(device="cpu", cooked_collider_cache_dir=cache_dir))
         assert backend.physx.config.cooked_collider_cache_dir == cache_dir
 
 

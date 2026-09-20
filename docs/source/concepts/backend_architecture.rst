@@ -74,16 +74,19 @@ cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
 ``PHYSICS_READY`` after physics initialization, and ``STOP`` during shutdown.
 The concrete ``close()`` implementation dispatches the ``STOP`` event.
 
-``SimulationContext.get_or_create_backend(Backend, *args, cfg=cfg)`` owns native
-resources by backend type and configuration values. Equal configurations of the
-same concrete type share one resource; omitting ``cfg`` retains one resource per
-backend type. Finalize configurations before registration and treat them,
-including nested values, as read-only afterward. Use a new configuration for
-different settings. Constructor arguments apply only on creation; pass a
-constructor's own configuration positionally.
-``clear_backend(Backend, cfg=cfg)`` releases one resource after its consumers
-have invalidated their bindings. If release fails, the entry remains available
-for retry. Simulation teardown releases the remaining registered resources.
+``SimulationContext.get_or_create_backend(backend_cfg)`` owns native resources
+by configuration values. Equal configurations of the same concrete type share
+one resource; a cache miss constructs ``backend_cfg.class_type(backend_cfg)``.
+:class:`~isaaclab.sim.BackendCfg` describes native construction inputs, while
+``PhysicsCfg`` selects a physics manager. Finalize configurations before
+registration and treat them, including nested values, as read-only afterward.
+Use a new configuration for different settings. ``clear_backend(backend_cfg)``
+releases one resource after its consumers have invalidated their bindings.
+Resources implement ``clear()``; failed release retains the entry for retry.
+Simulation teardown releases all remaining resources.
+
+Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
+before plan dispatch. They apply the plan but do not own native runtime resources.
 
 Portable asset and sensor interfaces
 ------------------------------------

@@ -43,12 +43,12 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     context_types = tuple(
         context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
     )
-    missing = [context_type for context_type in context_types if context_type not in sim._backend_registry]
+    missing = [context_type for context_type in context_types if context_type not in sim.clone_contexts]
     if missing:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
-    contexts = [context for context_type in context_types for _, context in sim._backend_registry[context_type]]
+    contexts = [sim.clone_contexts[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
 

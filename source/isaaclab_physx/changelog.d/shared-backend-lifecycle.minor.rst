@@ -1,3 +1,9 @@
+Added
+^^^^^
+
+* Added ``PhysxBackendCfg`` to share a native simulation view by its stage identifier through
+  ``SimulationContext.get_or_create_backend(cfg)``.
+
 Changed
 ^^^^^^^
 

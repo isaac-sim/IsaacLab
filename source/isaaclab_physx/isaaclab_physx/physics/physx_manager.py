@@ -47,10 +47,12 @@ from isaaclab.utils.string import to_camel_case
 
 from isaaclab_physx.cloner import PhysxReplicateContext
 
+from .physx_manager_cfg import PhysxBackendCfg
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
-    from .physx_cfg import PhysxCfg
+    from .physx_manager_cfg import PhysxCfg
 
 __all__ = ["IsaacEvents", "PhysxManager"]
 
@@ -169,8 +171,9 @@ class AnimationRecorder:
 class PhysxBackend:
     """Own the native PhysX tensor view shared by physics and scene data."""
 
-    def __init__(self, stage_id: int):
-        self.simulation_view = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
+    def __init__(self, cfg: PhysxBackendCfg):
+        self.cfg = cfg
+        self.simulation_view = omni.physics.tensors.create_simulation_view("warp", stage_id=cfg.stage_id)
         self.simulation_view.set_subspace_roots("/")
 
     def clear(self) -> None:
@@ -434,7 +437,7 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
-        sim_context.get_or_create_backend(cls.clone_context_type, sim_context.stage)
+        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
@@ -975,7 +978,7 @@ class PhysxManager(PhysicsManager):
 
         # Register the complete tensor view only after PhysX has loaded the stage.
         sim = PhysicsManager._sim
-        cls._backend = sim.get_or_create_backend(PhysxBackend, stage_id, cfg=sim.cfg.physics)
+        cls._backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend._backend = cls._backend
 
         # Final update after view creation
@@ -995,7 +998,7 @@ class PhysxManager(PhysicsManager):
             cls._scene_data_backend.clear()
         if cls._backend is not None:
             sim = PhysicsManager._sim
-            sim.clear_backend(PhysxBackend, cfg=sim.cfg.physics)
+            sim.clear_backend(cls._backend.cfg)
             cls._backend = None
         cls._view_created = False
 
