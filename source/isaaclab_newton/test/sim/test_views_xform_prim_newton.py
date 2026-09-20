@@ -109,8 +109,8 @@ def view_factory():
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_reject_body_path(device):
-    """FrameView rejects prim paths that resolve to a Newton physics body."""
+def test_reject_body_and_shape_paths(device):
+    """FrameView rejects prim paths that resolve to a Newton physics body or collision shape."""
     ctx = _sim_context(device, num_envs=2)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
@@ -119,22 +119,9 @@ def test_reject_body_path(device):
 
     with pytest.raises(ValueError, match="physics body"):
         FrameView("/World/envs/env_[^/]+/Cube", device=device)
-    ctx.__exit__(None, None, None)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_reject_shape_path(device):
-    """FrameView rejects prim paths that resolve to a Newton collision shape."""
-    ctx = _sim_context(device, num_envs=2)
-    sim = ctx.__enter__()
-    sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
-    sim.reset()
 
     shape_labels = list(NewtonManager.get_model().shape_label)
-    if not shape_labels:
-        pytest.skip("No shapes in model")
-
+    assert shape_labels, "scene must contribute at least one collision shape"
     with pytest.raises(ValueError, match="collision shape"):
         FrameView(shape_labels[0], device=device)
     ctx.__exit__(None, None, None)
@@ -170,8 +157,13 @@ def test_non_colliding_shapes_after_finalize(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_clone_plan_view_uses_source_child_without_destination_usd(device):
-    """FrameView expands a registered body-local site through the ClonePlan."""
+def test_body_local_frame_resolves_before_and_after_reset(device):
+    """A body-local site resolves through the ClonePlan before reset and from Newton body labels after it.
+
+    Only the prototype env authors the child prim on the stage; the view created before ``sim.reset``
+    expands it through the ClonePlan, while the view created afterwards resolves the same frame directly
+    from the finalized Newton body labels. Both must agree with the parent body poses.
+    """
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
     sim = ctx.__enter__()
@@ -183,33 +175,16 @@ def test_clone_plan_view_uses_source_child_without_destination_usd(device):
     assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
-    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
+    clone_plan_view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
     sim.reset()
+    label_view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
-    assert view.count == num_envs
+    assert clone_plan_view.count == num_envs
+    assert label_view.count == num_envs
     assert not stage.GetPrimAtPath("/World/envs/env_1/Cube/CameraMount").IsValid()
-    pos = view.get_world_poses()[0].torch
     expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
-    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
-    ctx.__exit__(None, None, None)
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_view_can_resolve_from_body_labels_after_reset(device):
-    """FrameView can resolve a body-local frame directly from Newton body labels."""
-    num_envs = 3
-    ctx = _sim_context(device, num_envs=num_envs)
-    sim = ctx.__enter__()
-    sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
-    sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
-
-    sim.reset()
-    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
-
-    pos = view.get_world_poses()[0].torch
-    expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
-    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
+    torch.testing.assert_close(clone_plan_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
+    torch.testing.assert_close(label_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
 
 
@@ -219,8 +194,8 @@ def test_view_can_resolve_from_body_labels_after_reset(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_world_attached_returns_initial_pose(device):
-    """A world-rooted frame returns its configured position."""
+def test_world_attached_pose_read_and_write(device):
+    """A world-rooted frame returns its configured position and can be repositioned via set_world_poses."""
     ctx = _sim_context(device, num_envs=2)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
@@ -233,20 +208,6 @@ def test_world_attached_returns_initial_pose(device):
     pos = view.get_world_poses()[0].torch
     expected = torch.tensor([list(WORLD_MARKER_POS)], device=device)
     torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
-    ctx.__exit__(None, None, None)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_world_attached_set_world_roundtrip(device):
-    """A world-attached prim can be repositioned via set_world_poses."""
-    ctx = _sim_context(device, num_envs=2)
-    sim = ctx.__enter__()
-    sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
-
-    sim.reset()
-    sim_utils.create_prim("/World/StaticMarker", translation=WORLD_MARKER_POS)
-    view = FrameView("/World/StaticMarker", device=device)
 
     new_pos = _wp_vec3f([[10.0, 20.0, 30.0]], device=device)
     new_quat = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]], device=device)
