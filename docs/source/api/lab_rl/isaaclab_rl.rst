@@ -38,6 +38,13 @@ Unified Entrypoints
 
 .. autofunction:: isaaclab_rl.entrypoints.run_random_agent_cli
 
+RL Utilities
+------------
+
+.. automodule:: isaaclab_rl.utils.wandb
+   :members:
+   :show-inheritance:
+
 RL-Games Wrapper
 ----------------
 

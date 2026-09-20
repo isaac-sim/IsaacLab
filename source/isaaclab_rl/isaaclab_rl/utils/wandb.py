@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for resolving RL checkpoints stored on Weights & Biases (wandb)."""
+"""Utilities for resolving RSL-RL checkpoints stored on Weights & Biases (wandb)."""
 
 from __future__ import annotations
 
@@ -139,13 +139,18 @@ def get_model_checkpoint(
 
     Raises:
         ImportError: If the ``wandb`` package is not installed.
-        ValueError: If no matching checkpoint is found on the run.
+        ValueError: If the wandb entity cannot be resolved or no matching checkpoint is found on the run.
     """
     if "wandb" not in globals():
         raise ImportError(
             "The 'wandb' package is required to resolve wandb checkpoints. Install it with 'pip install wandb'."
         )
     wandb_entity = resolve_wandb_entity(wandb_entity)
+    if wandb_entity is None:
+        raise ValueError(
+            "A wandb entity is required to resolve a checkpoint. Pass 'wandb_entity' or set the "
+            "WANDB_ENTITY or WANDB_USERNAME environment variable."
+        )
 
     print(f"[INFO] Downloading model checkpoint from wandb run: {wandb_entity}/{project}/{run_id}")
     api = wandb.Api()

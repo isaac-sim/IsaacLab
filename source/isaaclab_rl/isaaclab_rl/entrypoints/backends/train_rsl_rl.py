@@ -18,12 +18,6 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
-from isaaclab.utils.wandb import (
-    announce_new_run,
-    is_wandb_checkpoint,
-    resolve_wandb_checkpoint,
-    resolve_wandb_entity,
-)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
@@ -35,6 +29,7 @@ from ...rsl_rl import (
     create_rsl_rl_runner,
     handle_deprecated_rsl_rl_cfg,
 )
+from ...utils.wandb import announce_new_run, is_wandb_checkpoint, resolve_wandb_checkpoint, resolve_wandb_entity
 from ..common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,

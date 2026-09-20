@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import isaaclab.utils.wandb as wandb_utils
+import isaaclab_rl.utils.wandb as wandb_utils
 
 pytestmark = pytest.mark.unit
 
@@ -240,6 +240,16 @@ def test_get_model_checkpoint_uses_wandb_entity_env_var(monkeypatch: pytest.Monk
     wandb_utils.get_model_checkpoint(run_id="abc123", project="my_project", download_dir=str(tmp_path))
 
     assert api.requested_path == "env_entity/my_project/abc123"
+
+
+def test_get_model_checkpoint_requires_resolvable_entity(monkeypatch: pytest.MonkeyPatch):
+    """Test that a missing wandb entity raises an actionable error before querying the API."""
+    monkeypatch.delenv("WANDB_ENTITY", raising=False)
+    monkeypatch.delenv("WANDB_USERNAME", raising=False)
+    monkeypatch.setattr(wandb_utils, "wandb", SimpleNamespace(), raising=False)
+
+    with pytest.raises(ValueError, match="wandb entity is required"):
+        wandb_utils.get_model_checkpoint(run_id="abc123", project="my_project")
 
 
 def test_get_model_checkpoint_raises_on_missing_iteration(monkeypatch: pytest.MonkeyPatch, tmp_path):
