@@ -145,6 +145,22 @@ def test_torchrl_actor_uses_unbatched_action_bounds() -> None:
     assert actor(batch)["action"].shape == (6, 1)
 
 
+@pytest.mark.parametrize("library", ["sb3"])
+@pytest.mark.parametrize("finite_horizon", [False])
+@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
+def test_sb3_normalizes_unbounded_action_space(raw_env: Any) -> None:
+    """Expose normalized bounds to SB3 without modifying the underlying environment."""
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
+
+    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
+
+    env = Sb3VecEnvWrapper(raw_env)
+
+    np.testing.assert_array_equal(env.action_space.low, -1.0)
+    np.testing.assert_array_equal(env.action_space.high, 1.0)
+    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
+
+
 def _assert_observation_buffer(env: Any) -> None:
     observations = env.get_observations()
     assert isinstance(observations, TensorDict)

@@ -53,6 +53,7 @@ Guidelines for modifications:
 * Alex Omar
 * Alexander Millane
 * Alice Zhou
+* alltheseas
 * Amr Mousa
 * Andrei Aristarkhov
 * Andrej Orsula
@@ -85,6 +86,7 @@ Guidelines for modifications:
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Diego Ferigo
+* Donguk Kim
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin

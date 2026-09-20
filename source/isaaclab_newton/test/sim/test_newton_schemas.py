@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
+
 import pytest
 from isaaclab_newton.sim.schemas import (
     MujocoJointDrivePropertiesCfg,
@@ -58,8 +60,17 @@ def _has_authored_api_schema(prim, schema_name: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# MuJoCo rigid body gravity compensation
+# Rigid body properties
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_rigid_body_inherits_field_routing(setup_sim):
+    """Inherited disable_gravity must use the PhysX namespace consumed by Newton."""
+    prim = sim_utils.create_prim("/World/newton_body", prim_type="Cube")
+    schemas.define_rigid_body_properties("/World/newton_body", NewtonRigidBodyPropertiesCfg(disable_gravity=True))
+    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
+    assert not prim.GetAttribute("physics:disableGravity").IsValid()
 
 
 @pytest.mark.isaacsim_ci
@@ -67,8 +78,13 @@ def test_mujoco_gravcomp_authored_only_when_set(setup_sim):
     """gravcomp=0.5 writes mjc:gravcomp=0.5; gravcomp=None leaves the attribute unauthored."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/body_gc", prim_type="Cube", translation=(0.0, 0.0, 0.5))
-    schemas.define_rigid_body_properties("/World/body_gc", MujocoRigidBodyPropertiesCfg(gravcomp=0.5))
-    attr = stage.GetPrimAtPath("/World/body_gc").GetAttribute("mjc:gravcomp")
+    schemas.define_rigid_body_properties(
+        "/World/body_gc", MujocoRigidBodyPropertiesCfg(disable_gravity=True, gravcomp=0.5)
+    )
+    prim = stage.GetPrimAtPath("/World/body_gc")
+    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
+    assert not prim.GetAttribute("physics:disableGravity").IsValid()
+    attr = prim.GetAttribute("mjc:gravcomp")
     assert attr.IsValid(), "mjc:gravcomp was not authored"
     assert attr.Get() == pytest.approx(0.5)
 
@@ -103,6 +119,15 @@ def test_mujoco_actuatorgravcomp_authored_only_when_set(setup_sim):
     assert not attr.IsValid(), "mjc:actuatorgravcomp should not be authored when None"
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("cfg_type", [NewtonJointDrivePropertiesCfg, MujocoJointDrivePropertiesCfg])
+def test_joint_drive_max_velocity_routes_to_physx_namespace(setup_sim, cfg_type):
+    """Inherited angular velocity limits must use the PhysX namespace and degrees/s."""
+    joint = UsdPhysics.RevoluteJoint.Define(sim_utils.get_current_stage(), "/World/joint")
+    schemas.modify_joint_drive_properties("/World/joint", cfg_type(max_joint_velocity=5.0))
+    assert joint.GetPrim().GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(math.degrees(5.0))
+
+
 # ---------------------------------------------------------------------------
 # Newton collision
 # ---------------------------------------------------------------------------
@@ -113,8 +138,14 @@ def test_newton_collision_schema_applied_only_when_set(setup_sim):
     """contact_margin=0.01 writes newton:contactMargin and applies NewtonCollisionAPI; all-None applies nothing."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/col_newton", prim_type="Cube", translation=(2.0, 0.0, 0.5))
-    schemas.define_collision_properties("/World/col_newton", NewtonCollisionPropertiesCfg(contact_margin=0.01))
+    schemas.define_collision_properties(
+        "/World/col_newton", NewtonCollisionPropertiesCfg(contact_margin=0.01, contact_offset=0.02, rest_offset=0.01)
+    )
     prim = stage.GetPrimAtPath("/World/col_newton")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
+    assert not prim.GetAttribute("physics:contactOffset").IsValid()
+    assert not prim.GetAttribute("physics:restOffset").IsValid()
     assert prim.GetAttribute("newton:contactMargin").Get() == pytest.approx(0.01)
     assert "NewtonCollisionAPI" in prim.GetAppliedSchemas()
 
@@ -272,6 +303,7 @@ def test_newton_sdf_collision_properties_written(setup_sim):
     schemas.define_collision_properties(
         "/World/sdf_col",
         NewtonSDFCollisionPropertiesCfg(
+            contact_offset=0.02,
             sdf_max_resolution=64,
             sdf_narrow_band_inner=-0.02,
             sdf_narrow_band_outer=0.03,
@@ -283,6 +315,8 @@ def test_newton_sdf_collision_properties_written(setup_sim):
         ),
     )
     prim = stage.GetPrimAtPath("/World/sdf_col")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+    assert not prim.GetAttribute("physics:contactOffset").IsValid()
     assert prim.GetAttribute("newton:sdfMaxResolution").Get() == 64
     assert prim.GetAttribute("newton:sdfNarrowBandInner").Get() == pytest.approx(-0.02)
     assert prim.GetAttribute("newton:sdfNarrowBandOuter").Get() == pytest.approx(0.03)
@@ -343,11 +377,7 @@ def test_mujoco_isinstance_newton():
 
 @pytest.mark.isaacsim_ci
 def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
-    """A NewtonMeshCollisionPropertiesCfg with both contact_margin (declared on
-    NewtonCollisionPropertiesCfg) and max_hull_vertices (declared on
-    NewtonMeshCollisionPropertiesCfg) must write each under its declaring class's
-    namespace and apply both schemas.
-    """
+    """Mesh cfgs route inherited PhysX fields alongside both Newton collision schemas."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/mesh_mixed", prim_type="Cube", translation=(9.0, 0.0, 0.5))
     schemas.define_mesh_collision_properties(
@@ -356,9 +386,15 @@ def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
             mesh_approximation_name="convexHull",
             max_hull_vertices=32,
             contact_margin=0.005,
+            contact_offset=0.02,
+            rest_offset=0.01,
         ),
     )
     prim = stage.GetPrimAtPath("/World/mesh_mixed")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
+    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
+    assert not prim.GetAttribute("physics:contactOffset").IsValid()
+    assert not prim.GetAttribute("physics:restOffset").IsValid()
     # Both attributes share the newton namespace but are gated on different applied
     # schemas (NewtonCollisionAPI for contact_margin, NewtonMeshCollisionAPI for
     # max_hull_vertices); per-declaring-class routing applies the right schema for each.
