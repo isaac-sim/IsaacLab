@@ -23,3 +23,17 @@ rendering-correctness-kitless-ovstage = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx_renderer-static]",
 ]
+
+# Nodes the shader-cache warmer runs: the RTX-renderer subset of the lists above,
+# which are the only ones that compile PSO blobs. isaacsim_rtx fills kit/ and ovrtx
+# fills kitless/; the newton_renderer nodes drive the Warp rasterizer and populate
+# neither tree. Exact node IDs rather than a -k expression so a parametrize-ID
+# rename fails collection instead of silently selecting nothing.
+ovrtx-cache-warm = [
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx_renderer-static]",
+]

@@ -5,12 +5,13 @@
 
 """
 Setup:
-    - bash tools/wheel_builder/build.sh
+    - uv build --wheel tools/wheel_builder --out-dir tools/wheel_builder/build/dist
     - ./isaaclab.sh -u
     - uv pip install <wheel>[sb3,skrl,rsl-rl]
 Tests:
     - import isaaclab -> verify importable
     - from isaaclab import __version__ -> verify version matches wheel filename
+    - inspect the wheel and isaaclab.__path__ -> verify the core package has a flat layout
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
     - from isaaclab.envs import VideoRecorderCfg -> verify importable
@@ -21,12 +22,17 @@ Tests:
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
         -> verify the RL extras omit tetrahedralization dependencies
+    - python -c "import isaaclab_rl" -> verify isaaclab_rl importable
+    - python -c "import isaaclab_tasks" -> verify isaaclab_tasks importable
+    - python -c "import importlib.metadata as m; m.version('isaacsim')"
+        -> verify isaacsim NOT installed (extra not requested)
 """
 
 from __future__ import annotations
 
 import glob
 import shutil
+import zipfile
 
 import pytest
 from utils import UV_Mixin, run_cmd
@@ -49,13 +55,20 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Build the wheel and install it in a uv environment once for all tests."""
 
         cls = self.__class__
-        build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
-        dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
+        builder_dir = isaaclab_root / "tools" / "wheel_builder"
+        dist_dir = builder_dir / "build" / "dist"
+        shutil.rmtree(dist_dir, ignore_errors=True)
+        dist_dir.mkdir(parents=True)
 
-        # Build the wheel (capture output silently to avoid spamming the test log with 10k+
+        # Build through the PEP 517 entry point used by Git-source consumers. Capture output
+        # silently to avoid spamming the test log with 10k+
         # setuptools/pip lines; the captured output is included in the assertion if it fails).
-        result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, stream=False)
-        assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
+        result = run_cmd(
+            ["uv", "build", "--wheel", str(builder_dir), "--out-dir", str(dist_dir)],
+            cwd=isaaclab_root,
+            stream=False,
+        )
+        assert result.returncode == 0, f"PEP 517 wheel build failed:\n{result.stdout}\n{result.stderr}"
 
         # Find the built wheel
         wheels = glob.glob(str(dist_dir / "isaaclab-*.whl"))
@@ -91,6 +104,27 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert imported_version == expected_version, (
             f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
         )
+
+    def test_isaaclab_package_has_flat_layout(self):
+        """Verify core modules are installed directly under the top-level package."""
+        with zipfile.ZipFile(self._wheel) as wheel:
+            names = set(wheel.namelist())
+
+        assert "isaaclab/app/__init__.py" in names
+        assert "isaaclab/apps/isaaclab.python.kit" in names
+        nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
+        assert not any(name.startswith(nested_prefix) for name in names)
+
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "import isaaclab; "
+                "from pathlib import Path; "
+                "assert list(isaaclab.__path__) == [str(Path(isaaclab.__file__).parent)]",
+            ]
+        )
+        assert result.returncode == 0, f"isaaclab has multiple package roots:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab import _deprioritize_prebundle_paths
     def test_isaaclab_prebundle_path_sanitizer_exported(self):
@@ -160,3 +194,21 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert result.returncode == 0, (
             f"pytetwild should not be installed by {self._extras}:\n{result.stdout}\n{result.stderr}"
         )
+
+    def test_install_rl_tasks_makes_isaaclab_rl_importable(self):
+        """``import isaaclab_rl`` succeeds with the RL extras installed."""
+        result = self.run_in_uv_env(["python", "-c", "import isaaclab_rl"])
+        assert result.returncode == 0, f"import isaaclab_rl failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_tasks_makes_isaaclab_tasks_importable(self):
+        """``import isaaclab_tasks`` succeeds with the RL extras installed."""
+        result = self.run_in_uv_env(["python", "-c", "import isaaclab_tasks"])
+        assert result.returncode == 0, f"import isaaclab_tasks failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_tasks_omits_isaacsim(self):
+        """The Isaac Sim runtime is absent when the isaacsim extra is not requested.
+
+        Ask the distribution directly so this remains independent of namespace-package behavior.
+        """
+        result = self.run_in_uv_env(["python", "-c", "import importlib.metadata as m; m.version('isaacsim')"])
+        assert result.returncode != 0, f"isaacsim should not be installed by the {self._extras} extras"

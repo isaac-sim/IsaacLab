@@ -15,6 +15,8 @@ Reference: https://www.fftai.com/products-gr1
 """
 
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -32,7 +34,7 @@ GR1T2_CFG = ArticulationCfg(
             f"{ISAAC_NUCLEUS_DIR}/Robots/FourierIntelligence/GR-1/GR1T2_fourier_hand_6dof/GR1T2_fourier_hand_6dof.usd"
         ),
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=True,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -41,9 +43,12 @@ GR1T2_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.95),

@@ -26,7 +26,7 @@ from ..utils import (
     print_warning,
     run_command,
 )
-from .misc import command_vscode_settings
+from .misc import command_editor
 
 _PACKAGE_INDEX_RETRIES = "12"
 _PACKAGE_INSTALL_RETRY_ATTEMPTS = 3
@@ -302,12 +302,7 @@ def _ensure_cuda_torch() -> None:
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
 
-    if is_arm():
-        cuda_ver = "130"
-    else:
-        cuda_ver = "128"
-
-    cuda_tag = f"cu{cuda_ver}"
+    cuda_tag = "cu130"
     index_url = f"{base_index}/{cuda_tag}"
 
     want_torch = f"{torch_ver}+{cuda_tag}"
@@ -1062,10 +1057,14 @@ def _repoint_prebundle_packages() -> None:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
 
+    # Extras are expanded as wheel trees nested below pip_prebundle.
+    package_roots = prebundle_dirs | {
+        path for prebundle_dir in prebundle_dirs for path in prebundle_dir.glob("*[[]*[]]/*") if path.is_dir()
+    }
     repointed = 0
-    for prebundle_dir in prebundle_dirs:
+    for package_root in package_roots:
         for pkg_name in _PREBUNDLE_REPOINT_PACKAGES:
-            prebundled = prebundle_dir / pkg_name
+            prebundled = package_root / pkg_name
             venv_pkg = site_packages / pkg_name
 
             if not venv_pkg.exists():
@@ -1118,9 +1117,9 @@ def _repoint_prebundle_packages() -> None:
     # env package into the prebundle, which is a real directory by design.
     if use_symlinks and (site_packages / "torch").exists():
         shadowing = [
-            prebundle_dir / "torch"
-            for prebundle_dir in prebundle_dirs
-            if (prebundle_dir / "torch").is_dir() and not (prebundle_dir / "torch").is_symlink()
+            package_root / "torch"
+            for package_root in package_roots
+            if (package_root / "torch").is_dir() and not (package_root / "torch").is_symlink()
         ]
         if shadowing:
             raise RuntimeError(
@@ -1294,7 +1293,7 @@ def command_install(install_type: str = "all") -> None:
             if install_isaacsim:
                 _install_isaacsim()
 
-            # Install pytorch (version based on arch).
+            # Install the pinned PyTorch CUDA build.
             _ensure_cuda_torch()
 
             # Install all submodules (core set + any explicitly requested optional ones).
@@ -1352,6 +1351,6 @@ def command_install(install_type: str = "all") -> None:
             if saved_pythonpath is not None:
                 os.environ["PYTHONPATH"] = saved_pythonpath
 
-    # Install vscode update unless we're in docker.
+    # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
-        command_vscode_settings()
+        command_editor([], project_dir=ISAACLAB_ROOT)

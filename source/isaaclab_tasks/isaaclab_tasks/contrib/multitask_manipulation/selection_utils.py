@@ -14,7 +14,7 @@ import torch
 
 from isaaclab.cloner.path import match
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection

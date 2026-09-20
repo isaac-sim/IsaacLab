@@ -114,7 +114,9 @@ def test_process_tendons_scopes_to_articulation_root():
     finally:
         OvPhysxManager._stage_usda = old_stage_usda
 
-    assert articulation.fixed_tendon_names == ["fixed_joint"]
+    # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
+    # add the identically-named instance from /World/unrelated, giving two entries
+    assert articulation.fixed_tendon_names == ["inst0"]
     assert articulation.spatial_tendon_names == ["spatial_joint"]
 
 

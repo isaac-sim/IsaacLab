@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+0.9.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAACLAB_CXR_ACCEPT_EULA=1`` environment variable, which accepts the NVIDIA
+  CloudXR license up front wherever Isaac Lab launches the CloudXR runtime -- both the teleop
+  session lifecycle and the process-scoped launcher in ``teleop_replay_agent.py``, which share
+  one :func:`~isaaclab_teleop.cloudxr_eula_accepted` helper. The license is separate from the
+  Omniverse one and was otherwise only ever prompted for on stdin, so headless, container and
+  CI runs aborted with
+  ``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``.
+
+
+0.8.4 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed demonstration recording for tasks whose rewards reference the ``success``
+  termination term.
+
+
+0.8.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``from isaaclab_teleop import IsaacTeleopDevice`` raising ``ModuleNotFoundError: No module named 'carb'``
+  on hosts without Isaac Sim installed. :mod:`~isaaclab_teleop.xr_anchor_manager` now imports ``carb`` with the
+  same optional fallback it already used for ``omni.kit.xr.core``, so headless sessions that never start an XR
+  runtime can import the device. The XR render and anchor settings are skipped when Kit is absent; behavior with
+  Kit present is unchanged.
+
+
 0.8.2 (2026-09-01)
 ~~~~~~~~~~~~~~~~~~
 

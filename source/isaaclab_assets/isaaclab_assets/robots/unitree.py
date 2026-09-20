@@ -20,6 +20,9 @@ The following configurations are available:
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -39,9 +42,11 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     torque_scale=1.0,
     input_order="pos_vel",
     input_idx=[0, 1, 2],
-    actuator_effort_limit=23.7,  # taken from spec sheet
-    actuator_velocity_limit=30.0,  # taken from spec sheet
-    saturation_effort=23.7,  # same as effort limit
+    # the calf sits behind an extra 1.5:1 knee reduction, so its joint-side torque is higher
+    # and its joint-side speed lower than the hip and thigh. Values match ``go1.usd``.
+    actuator_effort_limit={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 35.55},
+    actuator_velocity_limit={".*_hip_joint": 30.1, ".*_thigh_joint": 30.1, ".*_calf_joint": 20.06},
+    saturation_effort={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 35.55},
 )
 """Configuration of Go1 actuators using MLP model.
 
@@ -60,7 +65,7 @@ UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -69,9 +74,12 @@ UNITREE_A1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.42),
@@ -107,7 +115,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -116,9 +124,12 @@ UNITREE_GO1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.4),
@@ -143,7 +154,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -152,9 +163,12 @@ UNITREE_GO2_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.4),
@@ -171,9 +185,11 @@ UNITREE_GO2_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
-            actuator_effort_limit=23.5,
-            saturation_effort=23.5,
-            actuator_velocity_limit=30.0,
+            # the calf sits behind an extra 1.92:1 knee reduction, so its joint-side torque is
+            # higher and its joint-side speed lower than the hip and thigh. Values match ``go2.usd``.
+            actuator_effort_limit={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 45.43},
+            saturation_effort={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 45.43},
+            actuator_velocity_limit={".*_hip_joint": 30.1, ".*_thigh_joint": 30.1, ".*_calf_joint": 15.70},
             stiffness=25.0,
             damping=0.5,
             friction=0.0,
@@ -187,7 +203,7 @@ H1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -196,9 +212,12 @@ H1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=4
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.05),
@@ -275,7 +294,7 @@ G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -284,9 +303,12 @@ G1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.74),
@@ -391,7 +413,7 @@ G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -400,12 +422,15 @@ G1_29DOF_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            fix_root_link=False,  # Configurable - can be set to True for fixed base
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=4,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=4,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+        fix_root_link=False,  # Configurable - can be set to True for fixed base
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.75),
@@ -550,11 +575,11 @@ Key features:
 Usage examples:
     # For fixed base scenarios (upper body manipulation only)
     fixed_base_cfg = G1_29DOF_CFG.copy()
-    fixed_base_cfg.spawn.articulation_props.fix_root_link = True
+    fixed_base_cfg.spawn.fix_root_link = True
 
     # For mobile scenarios (locomotion + manipulation)
     mobile_cfg = G1_29DOF_CFG.copy()
-    mobile_cfg.spawn.articulation_props.fix_root_link = False
+    mobile_cfg.spawn.fix_root_link = False
 """
 
 """
@@ -569,7 +594,7 @@ G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
 G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd"
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True
-G1_INSPIRE_FTP_CFG.spawn.articulation_props.fix_root_link = True
+G1_INSPIRE_FTP_CFG.spawn.fix_root_link = True
 G1_INSPIRE_FTP_CFG.init_state = ArticulationCfg.InitialStateCfg(
     pos=(0.0, 0.0, 1.0),
     joint_pos={".*": 0.0},
@@ -617,7 +642,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{HEALTHCARE_S3}/Robots/UnitreeG1/g1_29dof_with_dex3_base_fix/g1_29dof_with_dex3_base_fix.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -628,9 +653,12 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     prim_path="{ENV_REGEX_NS}/Robot",
     init_state=ArticulationCfg.InitialStateCfg(

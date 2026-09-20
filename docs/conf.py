@@ -61,6 +61,8 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
 
 # Latest release branch referenced by installation documentation.
 isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "develop")
+isaaclab_wheel_version = "3.0.0rc1"
+isaaclab_wheel_source_tag = "v3.0.0-EA"
 
 
 def _read_pinned_versions() -> dict:
@@ -86,13 +88,14 @@ ovphysx_version = _pinned_versions["ovphysx"]
 
 # Short version strings used in external documentation URLs and badges.
 torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
-isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.0.0"
+isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.1.0"
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
 
 rst_prolog = f"""
 .. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
+.. |isaaclab_wheel_version| replace:: {isaaclab_wheel_version}
 .. |isaacsim_version| replace:: {isaacsim_version}
 .. |torch_version| replace:: {torch_version}
 .. |torchvision_version| replace:: {torchvision_version}
@@ -188,7 +191,8 @@ intersphinx_mapping = {
     "trimesh": ("https://trimesh.org/", None),
     # pinned to the release version because /docs/stable/objects.inv currently 404s
     "torch": (f"https://docs.pytorch.org/docs/{torch_docs_version}/", None),
-    "isaacsim": (f"https://docs.isaacsim.omniverse.nvidia.com/{isaacsim_docs_version}/py/", None),
+    # Versioned documentation can lag a newly published Isaac Sim package release.
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/latest/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
@@ -211,7 +215,6 @@ exclude_patterns = [
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
-    "source/setup/installation/include/*",
     "source/migration/include/*",
 ]
 
@@ -327,17 +330,22 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = [
-    "source/_static/css",
-    "source/_static/how-to",
-    "source/_static/tasks/previews",
-    "source/_static/benchmarks",
+html_static_path = ["source/_static"]
+html_css_files = [
+    "css/custom.css",
+    "css/environment-browser.css",
+    "css/demo-browser.css",
+    "css/guide-browser.css",
 ]
-html_css_files = ["custom.css", "environment-browser.css"]
-html_js_files = ["environment-browser.js"]
+html_js_files = [
+    "css/environment-browser.js",
+    "css/demo-browser.js",
+    "css/guide-browser.js",
+]
 
 html_theme_options = {
     "path_to_docs": "docs/",
+    "navbar_persistent": [],
     "collapse_navigation": True,
     "repository_url": "https://github.com/isaac-sim/IsaacLab",
     "use_repository_button": True,
@@ -389,6 +397,43 @@ html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
 
+
+# Keep published links working after guide consolidation.
+isaaclab_doc_redirects = {
+    "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/how-to/robots": "source/how-to/write_articulation_cfg",
+    "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
+    "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
+    "source/tutorials/00_sim/spawn_prims": "source/how-to/spawn_prims",
+    "source/tutorials/01_assets/add_new_robot": "source/how-to/write_articulation_cfg",
+    "source/tutorials/01_assets/run_articulation": "source/how-to/run_articulation",
+    "source/tutorials/01_assets/run_deformable_object": "source/how-to/run_deformable_object",
+    "source/tutorials/01_assets/run_rigid_object": "source/how-to/run_rigid_object",
+    "source/tutorials/01_assets/run_surface_gripper": "source/how-to/run_surface_gripper",
+    "source/tutorials/02_scene/create_scene": "source/how-to/create_scene",
+    "source/tutorials/03_envs/configuring_rl_training": "source/how-to/configuring_rl_training",
+    "source/tutorials/03_envs/create_direct_rl_env": "source/how-to/create_direct_rl_env",
+    "source/tutorials/03_envs/create_manager_base_env": "source/how-to/create_manager_base_env",
+    "source/tutorials/03_envs/create_manager_rl_env": "source/how-to/create_manager_rl_env",
+    "source/tutorials/03_envs/modify_direct_rl_env": "source/how-to/modify_direct_rl_env",
+    "source/tutorials/03_envs/policy_inference_in_usd": "source/how-to/policy_inference_in_usd",
+    "source/tutorials/03_envs/register_rl_env_gym": "source/how-to/register_rl_env_gym",
+    "source/tutorials/03_envs/run_rl_training": "source/how-to/run_rl_training",
+    "source/tutorials/04_sensors/add_sensors_on_robot": "source/how-to/add_sensors_on_robot",
+    "source/tutorials/05_controllers/run_diff_ik": "source/how-to/run_diff_ik",
+    "source/tutorials/05_controllers/run_osc": "source/how-to/run_osc",
+    "source/tutorials/index": "source/how-to/index",
+}
+
+# Sections of the former combined Docker page now live on separate pages.
+isaaclab_doc_redirect_fragments = {
+    "source/features/docker_cloud": {
+        "clusters": "source/workflows/docker/cluster#deployment-cluster",
+        "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
+        "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
+        "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+    },
+}
 
 # -- Advanced configuration -------------------------------------------------
 

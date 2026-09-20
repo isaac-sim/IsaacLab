@@ -46,10 +46,13 @@ class CameraImageStack(ManagerTermBase):
         camera_data = camera.data.output[data_type]
 
         rgb_like = is_rgb_like(data_type)
-        defer_normalize = self._stack is not None and rgb_like
+        segmentation = data_type == "semantic_segmentation"
+        # Colorized segmentation is uint8 RGBA, so it can ride the same deferred-normalize path as
+        # the RGB-like types; non-colorized segmentation is an int32 label map that cannot.
+        defer_normalize = self._stack is not None and (rgb_like or (segmentation and camera_data.dtype == torch.uint8))
         if data_type == "albedo":
             camera_data = camera_data[..., :3]
-        if rgb_like and not defer_normalize:
+        if (rgb_like or segmentation) and not defer_normalize:
             camera_data = normalize_camera_image(camera_data, data_type)
         elif data_type == "depth":
             camera_data[camera_data == float("inf")] = 0

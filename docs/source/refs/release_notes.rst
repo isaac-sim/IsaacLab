@@ -271,6 +271,11 @@ Known Limitations
   release. We anticipate the branch will stabilize towards a final Isaac Lab 3.0 release in the coming 1-2 months.
 * Newton remains under active development. Some features, task presets, and surface gripper workflows remain
   backend-specific or unsupported.
+* Surface grippers require CPU simulation with ``physics=isaacsim_physx``, including the UR10 Long/Short Suction
+  and Galbot Right Arm Suction stacking tasks and the Galbot Mimic variants. Pass ``--device cpu`` for teleoperation;
+  zero and random agents preserve the tasks' CPU defaults when ``--device`` is omitted.
+* Pink IK dependencies are provided by the standard installation only on Linux x86_64 and aarch64. The Windows
+  uv/pip installation does not provide Pinocchio, so Pink IK tasks cannot run with that installation.
 * OVRTX and OVPhysX require their optional runtime wheels. Isaac Lab now reports clearer install guidance when those
   wheels are missing, but those backends are still optional installs.
 
@@ -2170,7 +2175,7 @@ New Features
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
 * Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11
 * Adds results for the benchmarks in the documentation
-  :ref:`here <testing_benchmarks>`
+  :ref:`here <developer_tools_benchmarking_run>`
   for different types of hardware by @kellyguo11
 * Adds the direct workflow Allegro hand environment by @kellyguo11
 * Adds video recording to the play scripts in RL workflows by @j3soon

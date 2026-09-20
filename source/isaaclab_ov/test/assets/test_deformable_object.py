@@ -23,7 +23,7 @@ import warp as wp
 from flaky import flaky
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
@@ -33,7 +33,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
@@ -67,8 +67,8 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
     )
@@ -90,8 +90,8 @@ class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
                 sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
                 sim_utils.SphereCfg(radius=0.05),
             ],
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             random_choice=False,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
@@ -727,19 +727,8 @@ def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets(
-    monkeypatch: pytest.MonkeyPatch,
-):
+def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets():
     """Materialize missing rigid targets beside full-stage deformable clones without duplicates."""
-    from isaaclab import cloner
-
-    clone_cfg_type = cloner.CloneCfg
-    monkeypatch.setattr(
-        cloner,
-        "CloneCfg",
-        lambda device: clone_cfg_type(device=device, clone_strategy=cloner.sequential),
-    )
-
     with _ovphysx_sim_context(device="cuda:0") as sim:
         num_envs = 4
         scene = InteractiveScene(
@@ -753,8 +742,8 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         assert plan is not None
         shape_rows = plan.cfg_rows[id(scene.cfg.shape)]
         shape_mask = plan.clone_mask[list(shape_rows)]
-        assert shape_mask.sum(dim=1).tolist() == [2, 2]
-        assert shape_mask.sum(dim=0).tolist() == [1, 1, 1, 1]
+        assert shape_mask.sum(axis=1).tolist() == [2, 2]
+        assert shape_mask.sum(axis=0).tolist() == [1, 1, 1, 1]
 
         expected_paths = {f"/World/envs/env_{index}/Shape" for index in range(num_envs)}
         source_paths = {plan.sources[row] for row in shape_rows}

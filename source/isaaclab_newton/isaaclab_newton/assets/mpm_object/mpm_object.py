@@ -54,8 +54,8 @@ def add_mpm_entry_to_builder(
     builder,
     entry: MPMObjectRegistryEntry,
     env_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Emit one registered MPM object into one Newton builder world."""
     if env_idx == 0:
@@ -80,8 +80,8 @@ def add_mpm_entry_to_builder(
 def add_registered_mpm_objects_to_builder(
     builder,
     world_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Emit all registered MPM objects into one Newton builder world."""
     for entry in SimulationManager._mpm_object_registry:
@@ -432,8 +432,8 @@ class MPMObject(BaseDeformableObject):
 
 def _compose_env_asset_pose(
     cfg: MPMObjectCfg,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
     """Compose the environment transform with the asset's initial pose (both ``xyzw``)."""
     env_pos = wp.vec3(*env_position)
@@ -457,7 +457,7 @@ def _resolve_particle_asset_paths(prim_path: str, num_instances: int) -> list[st
             matched = cloner_path.match(prim_path, template)
             if matched is not None:
                 paths_by_env_id.update((env_id, f"{template.format(env_id)}{matched.suffix}") for env_id in env_ids)
-        env_ids = [int(env_id) for env_id in clone_plan.env_ids.tolist()]
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids]
         if len(env_ids) == num_instances and all(env_id in paths_by_env_id for env_id in env_ids):
             return [paths_by_env_id[env_id] for env_id in env_ids]
 

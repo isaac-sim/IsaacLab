@@ -37,7 +37,7 @@ your project does not use that feature.
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
    When you change it, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 Installation
@@ -106,7 +106,7 @@ Understand the new package boundaries first, then make environment configuration
 
       .. code-block:: python
 
-         from isaaclab.utils.configclass import configclass
+         from isaaclab.utils import configclass
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
@@ -142,8 +142,9 @@ The concrete default remains task-specific so launching without an override stay
 Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/developer-tools/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
@@ -264,8 +265,16 @@ For the full design, see :ref:`schema-cfgs`.
 
 **Class moves and renames**
 
+.. important::
+
+   The ``*BaseCfg`` / ``*PropertiesCfg`` classes in this subsection are themselves
+   now deprecated in favor of schema fragments, and will be removed in 3.2. Read
+   this subsection to understand where a 2.x name went, then migrate to the
+   fragments as described in :ref:`schema fragments <schema-fragments-migration>`. The code samples
+   below show the intermediate step, not the recommended end state.
+
 The following 2.x class names are kept as deprecated aliases. They forward to
-the new location and will be removed in 4.0.
+the new location and will be removed in 3.2.
 
 .. list-table::
    :header-rows: 1
@@ -300,7 +309,7 @@ the new location and will be removed in 4.0.
 **Code migration**
 
 Existing 2.x code continues to work via the deprecation aliases (with a
-``DeprecationWarning``; removed in 4.0):
+``DeprecationWarning``; removed in 3.2):
 
 .. code-block:: python
 
@@ -349,7 +358,7 @@ scheduled for removal in 4.0.
      - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
-Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 3.2):
 
 .. code-block:: python
 
@@ -397,6 +406,224 @@ available under :mod:`isaaclab_newton.sim.schemas`:
 The MuJoCo cfgs subclass their Newton parent because MuJoCo is one of Newton's
 solver options.
 
+.. _schema-fragments-migration:
+
+**Schema fragments supersede the whole** ``*PropertiesCfg`` / ``*BaseCfg`` **layer**
+
+The split above kept the inheritance-based shape of the 2.x cfgs: one class per
+backend, each carrying fields from several USD namespaces. Isaac Lab now
+replaces that layer with **schema fragments** — one ``@configclass`` per USD
+applied schema, each writing exactly one attribute namespace. A spawner slot
+takes a *list* of fragments, so you compose the namespaces you actually want
+instead of picking a class that bundles them.
+
+Every class in the table below is deprecated: instantiating one emits a
+``DeprecationWarning`` naming its replacement, and the class will be removed in
+3.2. Nothing is removed in 3.0 — both APIs work side by side.
+
+The replacement column lists **every** fragment needed to cover the deprecated
+class's fields, including the fields it inherits from a legacy base. A legacy
+class usually bundles more than one USD namespace, so replacing it with only the
+backend-specific fragment silently drops the inherited properties.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Deprecated class
+     - Fragment replacement (complete set)
+   * - ``MassPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.MassCfg`
+   * - ``RigidBodyBaseCfg``, ``PhysxRigidBodyPropertiesCfg``,
+       ``RigidBodyPropertiesCfg``, ``NewtonRigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`
+   * - ``MujocoRigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` +
+       :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`
+   * - ``CollisionBaseCfg``, ``PhysxCollisionPropertiesCfg``,
+       ``CollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
+   * - ``JointDriveBaseCfg``, ``PhysxJointDrivePropertiesCfg``,
+       ``JointDrivePropertiesCfg``, ``NewtonJointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg`
+   * - ``MujocoJointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` +
+       :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`
+   * - ``ArticulationRootBaseCfg``, ``PhysxArticulationRootPropertiesCfg``,
+       ``ArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`
+   * - ``NewtonArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
+   * - ``MeshCollisionBaseCfg``, ``MeshCollisionPropertiesCfg``,
+       ``BoundingCubePropertiesCfg``, ``BoundingSpherePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`
+   * - ``Physx*MeshPropertiesCfg`` cooking family (``PhysxConvexHullPropertiesCfg``,
+       ``PhysxConvexDecompositionPropertiesCfg``, ``PhysxTriangleMeshPropertiesCfg``,
+       ``PhysxTriangleMeshSimplificationPropertiesCfg``, ``PhysxSDFMeshPropertiesCfg``)
+     - ``Physx*Cfg`` cooking fragments (:class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`)
+   * - ``NewtonCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+   * - ``NewtonMeshCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
+       :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`
+   * - ``NewtonSDFCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+
+.. note::
+
+   PhysX fragments appear in the Newton rows because several universally honored
+   properties have no other USD home today: ``disable_gravity`` is only
+   ``physxRigidBody:disableGravity``, ``max_joint_velocity`` only
+   ``physxJoint:maxJointVelocity``, ``contact_offset`` / ``rest_offset`` only
+   ``physxCollision:*``, and ``articulation_enabled`` only
+   ``physxArticulation:articulationEnabled``. Newton's USD importer reads those
+   attributes, so the fragment that writes them is the PhysX one regardless of
+   which backend consumes it.
+
+.. note::
+
+   The deformable cfgs (``DeformableBodyPropertiesBaseCfg`` and its backend
+   subclasses) are **not** deprecated: their fragment families do not exist yet.
+
+**Code migration**
+
+.. code-block:: python
+
+   # Deprecated: one class bundling the physics:* and physxRigidBody:* namespaces
+   import isaaclab.sim as sim_utils
+   rigid_props = sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=False, linear_damping=0.1)
+
+.. code-block:: python
+
+   # Recommended: one fragment per USD namespace, composed in the spawner slot
+   from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+   from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
+   rigid_props = [
+       UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+       PhysxRigidBodyCfg(linear_damping=0.1),
+   ]
+
+A slot also accepts a mapping from a prim-path pattern to a fragment list, which
+lets one spawner cfg target different prims with different properties:
+
+.. code-block:: python
+
+   rigid_props = {"/.*": [UsdPhysicsRigidBodyCfg(kinematic_enabled=False)]}
+
+Three legacy fields are not USD attributes and therefore have no fragment. They
+move to the spawner cfg instead — no fragment covers them, so a migration that
+only swaps cfg classes drops them:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Deprecated cfg field
+     - Fragment-API replacement
+   * - ``ArticulationRootBaseCfg.fix_root_link``
+     - ``fix_root_link`` on the spawner cfg, forwarded as the ``fix_root_link``
+       argument of
+       :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+   * - ``JointDriveBaseCfg.ensure_drives_exist``
+     - ``ensure_drives_exist`` on the spawner cfg, forwarded as the
+       ``ensure_drives_exist`` argument of
+       :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+   * - ``CollisionBaseCfg.mesh_collision_property``
+     - the spawner's ``mesh_collision_props`` slot, which takes the
+       mesh-collision fragments directly
+
+The renamed joint-drive fields keep working on the fragments as well:
+``max_effort`` is a deprecated alias of
+:attr:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg.max_force`, and ``max_velocity``
+of :attr:`~isaaclab_physx.sim.schemas.PhysxJointCfg.max_joint_velocity`.
+
+**Schema writers**
+
+The ``define_*`` and ``modify_*`` writers are deprecated alongside the cfgs and
+will be removed in 3.2. Each has an ``apply_*`` counterpart that takes a
+prim-path *expression* (a regular expression over whole prim paths) and a list
+of fragments, so one call can author a whole subtree:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 55 45
+
+   * - Deprecated writer
+     - Replacement
+   * - ``define_rigid_body_properties``, ``modify_rigid_body_properties``
+     - :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`
+   * - ``define_collision_properties``, ``modify_collision_properties``
+     - :func:`~isaaclab.sim.schemas.apply_collision_properties`
+   * - ``define_mass_properties``, ``modify_mass_properties``
+     - :func:`~isaaclab.sim.schemas.apply_mass_properties`
+   * - ``define_articulation_root_properties``, ``modify_articulation_root_properties``
+     - :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+   * - ``modify_joint_drive_properties``
+     - :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+   * - ``define_mesh_collision_properties``, ``modify_mesh_collision_properties``
+     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`
+   * - ``modify_fixed_tendon_properties``, ``modify_spatial_tendon_properties``
+     - :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`,
+       :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`
+
+.. code-block:: python
+
+   # Deprecated: authors one prim, takes a single bundled cfg
+   sim_utils.modify_rigid_body_properties("/World/Robot/base", RigidBodyPropertiesCfg(linear_damping=0.1))
+
+   # Recommended: authors every matching prim, takes a fragment list
+   sim_utils.apply_rigid_body_properties("/World/Robot/.*", [PhysxRigidBodyCfg(linear_damping=0.1)])
+
+The deformable writers (``define_deformable_body_properties``,
+``modify_deformable_body_properties``, ``define_deformable_curve_properties``)
+are not deprecated.
+
+**Silencing the warnings while you migrate**
+
+The warnings are standard ``DeprecationWarning``\ s. Filter them by *message*
+while a migration is in progress:
+
+.. code-block:: python
+
+   import warnings
+
+   # Silence one legacy symbol.
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"RigidBodyPropertiesCfg is deprecated")
+
+   # Silence every legacy schema cfg and writer at once.
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"\w+ is deprecated\. Use ")
+
+   # Silence the renamed joint-drive field aliases (``max_effort``, ``max_velocity``).
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"'\w+' is deprecated; use ")
+
+.. warning::
+
+   Do not filter these with ``module="isaaclab.sim.schemas.*"``. ``module`` is
+   matched against the ``__name__`` of the frame selected by the warning's
+   ``stacklevel``, and these warnings deliberately point at *your* call site, so
+   they are attributed to the module that constructed the cfg or called the
+   writer — never ``isaaclab.sim.schemas``. A ``module=`` filter silences
+   nothing here.
+
 .. note::
 
    Spawners auto-enable body-level gravity compensation when joint-level
@@ -427,7 +654,7 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab.physics import PhysxAutoCfg
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
@@ -823,7 +1050,7 @@ removed in a future release.
 
 Actuator configurations now use joint-qualified names for solver limits. Update active
 configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` through the 3.x release line and will be removed in 4.0.
+``DeprecationWarning`` through the 3.x release line and will be removed in 3.1.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
@@ -1205,32 +1432,14 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/concepts/native-physics-api/index`
 before using ``root_view`` in backend-portable code.
 
 
 .. rubric:: Deformable Object API Changes
 
-Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
-release. The old soft body API has been deprecated and replaced by two distinct deformable
-types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
-triangle cloth meshes). The deformable type is determined by the physics material assigned:
-
-- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
-- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface
-  deformables.
-
-Deformable property and material cfgs are backend-specific. Several properties on
-:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` have been removed or added to
-match the new Omni Physics schema. The common
-:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; OmniPhysics
-deformable body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
-
-For a comprehensive guide covering the full deformable API migration — including removed and
-added properties, material changes, code examples for both volume and surface deformables, and
-current limitations — see :ref:`migrating-deformables`.
+The deformable body API is split by backend and follows the new Omni Physics volume and surface
+deformable model. See :ref:`migrating-deformables`.
 
 
 .. _imu-to-pva-migration:
@@ -1333,6 +1542,51 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    ))
    sensor_pos = frame_transformer.data.target_pos_w
    sensor_quat = frame_transformer.data.target_quat_w
+
+
+.. rubric:: Contact force property names
+
+Contact sensor force properties now state whether they contain aggregate or filtered normal and
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton reports
+this quantity directly. PhysX and OVPhysX cannot compute a total force, so they return the
+corresponding normal-force quantity and warn. ``friction_forces_w`` is the aggregate friction
+force. Newton reports it as ``net_friction_forces_w``; PhysX and OVPhysX only provide filtered
+friction, so they return ``friction_force_matrix_w`` and warn.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Property
+     - Meaning
+     - PhysX / OVPhysX
+     - Newton
+   * - ``net_forces_w``
+     - Total contact force
+     - Returns ``net_normal_forces_w`` (cannot compute total force)
+     - Total force (``normal + friction``)
+   * - ``net_forces_w_history``
+     - Total contact-force history
+     - Returns ``net_normal_forces_w_history``
+     - Total-force history
+   * - ``force_matrix_w``
+     - Total filtered force matrix
+     - Returns ``normal_force_matrix_w``
+     - Total filtered matrix
+   * - ``force_matrix_w_history``
+     - Total filtered force history
+     - Returns ``normal_force_matrix_w_history``
+     - Total filtered-matrix history
+   * - ``friction_forces_w``
+     - Aggregate friction force
+     - Returns ``friction_force_matrix_w`` (filtered friction only)
+     - Aggregate friction (``net_friction_forces_w``)
+
+Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
+``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
+when the normal / friction split matters. Newton also exposes ``net_friction_forces_w_history``
+and ``friction_force_matrix_w_history``. PhysX cannot report an unfiltered aggregate friction
+force and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
+``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
 
 
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
@@ -1890,12 +2144,12 @@ To use a data property as a ``torch.Tensor``, append ``.torch``:
    # After (Isaac Lab 3.x)
    root_pos = robot.data.root_pos_w              # ProxyArray
    joint_pos = robot.data.joint_pos              # ProxyArray
-   contact_forces = sensor.data.net_forces_w     # ProxyArray
+   contact_forces = sensor.data.net_normal_forces_w     # ProxyArray
 
    # To use with torch operations, access .torch
    root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
    joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
-   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
+   contact_torch = sensor.data.net_normal_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
@@ -2275,7 +2529,7 @@ In Isaac Lab 3.0, use ``--visualizer`` / ``--viz`` to determine whether viewer a
 with an Isaac Lab command. Without a visualizer, commands run headless by default.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/overview/core-concepts/visualization`).
+(see :doc:`/source/concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.

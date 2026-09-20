@@ -106,10 +106,12 @@ def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
     # Create camera configuration
     sim, camera_cfg, dt = setup_sim_camera
+    sim.set_setting("/physics/fabricUpdateTransformations", False)
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    assert sim.get_setting("/physics/fabricUpdateTransformations")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1272,6 +1274,6 @@ def _populate_scene():
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid body and collision properties using Isaac Lab schemas
         prim_path = f"/World/Objects/Obj_{i:02d}"
-        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
-        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
-        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())
+        sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
+        sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
+        sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)

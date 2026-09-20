@@ -9,7 +9,7 @@ Contribution Guidelines
    `skills/developer/pr-workflow/ <../../../skills/developer/pr-workflow/SKILL.md>`__,
    `skills/developer/changelog-fragments/ <../../../skills/developer/changelog-fragments/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 We wholeheartedly welcome contributions to the project to make the framework more mature
 and useful for everyone. These may happen in forms of:
@@ -514,7 +514,7 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
 
    if typing.TYPE_CHECKING:
        from .sensor import Sensor

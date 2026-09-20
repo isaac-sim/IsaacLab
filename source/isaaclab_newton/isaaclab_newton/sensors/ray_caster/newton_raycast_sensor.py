@@ -166,7 +166,8 @@ class _NewtonRayCasterPoseMixin:
         )
 
     def get_world_poses(self: Any, indices=None) -> tuple[ProxyArray, ProxyArray]:
-        """Return world poses for legacy camera helpers."""
+        """Return current world poses after resolving pending FK."""
+        NewtonManager.get_state()
         self._update_newton_site_transforms(
             self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
         )
@@ -192,7 +193,7 @@ class _NewtonRayCasterPoseMixin:
         pos_buf: wp.array,
         quat_buf: wp.array,
     ) -> None:
-        """Update site transforms using the manager-bound model and state."""
+        """Update site transforms from manager state already refreshed by the caller."""
         model = NewtonManager.get_model()
         state = NewtonManager.get_state_0()
         wp.launch(

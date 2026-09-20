@@ -81,7 +81,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
     robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
-    robot_cfg.spawn.articulation_props.fix_root_link = True
+    robot_cfg.spawn.fix_root_link = True
     anymal_c = Articulation(robot_cfg)
 
     # return the scene information

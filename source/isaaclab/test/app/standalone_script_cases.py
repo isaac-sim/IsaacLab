@@ -146,6 +146,7 @@ _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "exa
 
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
+    "scripts/demos/arms.py": ScriptOverride(startup_timeout=420.0),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
@@ -265,9 +266,7 @@ OVERRIDES = {
     "scripts/tutorials/03_envs/run_cartpole_rl_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
     "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(args=("--enable_cameras",)),
     "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(
-        args=("--enable_cameras",), visualizers=("none", "kit")
-    ),
+    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
@@ -491,7 +490,7 @@ def run_until_ready(
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
-            if now - start_time >= startup_timeout:
+            if ready_at is None and now - start_time >= startup_timeout:
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break

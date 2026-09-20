@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import omni.kit.app
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
@@ -79,7 +80,7 @@ def test_spawn_usd_make_uninstanceable_applies_material_to_instance_colliders(si
     cfg = sim_utils.UsdFileCfg(
         usd_path=str(asset_path),
         make_uninstanceable=True,
-        physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.73)],
+        physics_material=UsdPhysicsRigidBodyMaterialCfg(static_friction=0.73),
     )
     prim = cfg.func("/World/Asset", cfg)
 
@@ -133,12 +134,23 @@ def test_spawn_urdf(sim):
 def test_spawn_ground_plane(sim):
     """Test loading prim for the ground plane from grid world USD."""
     # Spawn ground plane
-    cfg = sim_utils.GroundPlaneCfg(color=(0.1, 0.1, 0.1), size=(10.0, 10.0))
+    cfg = sim_utils.GroundPlaneCfg(color=(0.1, 0.1, 0.1), size=(10.0, 20.0))
     prim = cfg.func("/World/ground_plane", cfg)
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/World/ground_plane").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+    mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath("/World/ground_plane/Environment/Geometry"))
+    assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()] == [
+        (-2.5, -5.0),
+        (2.5, -5.0),
+        (2.5, 5.0),
+        (-2.5, 5.0),
+    ]
+
+    shader = UsdShade.Shader.Get(sim.stage, "/World/ground_plane/Looks/theGrid/Shader")
+    assert tuple(shader.GetInput("diffuse_tint").Get()) == pytest.approx((0.1, 0.1, 0.1))
 
 
 @pytest.mark.isaacsim_ci
@@ -150,7 +162,7 @@ def test_spawn_usd_with_compliant_contact_material(sim):
     # Create spawn configuration
     spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
         usd_path=usd_file_path,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
         compliant_contact_stiffness=1000.0,
         compliant_contact_damping=100.0,
         physics_material_prim_path="elastomer",
@@ -184,7 +196,7 @@ def test_spawn_usd_with_compliant_contact_material_on_multiple_prims(sim):
     # Create spawn configuration
     spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
         usd_path=usd_file_path,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
         compliant_contact_stiffness=1000.0,
         compliant_contact_damping=100.0,
         physics_material_prim_path=["elastomer", "gelsight_finger"],
@@ -220,7 +232,7 @@ def test_spawn_usd_with_compliant_contact_material_no_prim_path(sim):
     # Create spawn configuration without physics material prim path
     spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
         usd_path=usd_file_path,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
         compliant_contact_stiffness=1000.0,
         compliant_contact_damping=100.0,
         physics_material_prim_path=None,

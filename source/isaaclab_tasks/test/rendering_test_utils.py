@@ -1538,6 +1538,7 @@ def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
 
             super(CartpoleCameraEnv, self).__init__(cfg)
 
+            self._tiled_camera = self.scene["tiled_camera"]
             self._stack = None
             if frame_stack > 1:
                 self._stack = CircularBuffer(
@@ -1556,11 +1557,12 @@ def rendering_test_shadow_hand(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
+        ShadowHandCameraSceneCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
     )
@@ -1575,8 +1577,12 @@ def rendering_test_shadow_hand(
         motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
-    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+    class _ShadowHandCameraTestSceneCfg(ShadowHandCameraSceneCfg):
         tiled_camera = _ShadowHandTiledCameraTestCfg()
+
+    @configclass
+    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+        scene = _ShadowHandCameraTestSceneCfg()
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_types[0]}"]
 
@@ -1584,7 +1590,7 @@ def rendering_test_shadow_hand(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.tiled_camera.data_types = data_types
+    env_cfg.scene.tiled_camera.data_types = data_types
 
     motion_data_type = _motion_data_type(data_types)
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
@@ -1650,11 +1656,12 @@ def rendering_test_shadow_hand_yellow_bg(
     comparison_scores: list[dict],
 ) -> None:
     """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
+        ShadowHandCameraSceneCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
     )
@@ -1672,8 +1679,12 @@ def rendering_test_shadow_hand_yellow_bg(
         rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
 
     @configclass
-    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+    class _YellowBgSceneCfg(ShadowHandCameraSceneCfg):
         tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
+
+    @configclass
+    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+        scene: _YellowBgSceneCfg = _YellowBgSceneCfg()
 
     env_cfg = _YellowBgEnvCfg()
     env_cfg.feature_extractor.enabled = False
@@ -1708,9 +1719,13 @@ def rendering_test_cartpole(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import (
+        CartpoleCameraEnvCfg,
+        CartpoleCameraSceneCfg,
+        CartpoleTiledCameraCfg,
+    )
 
     from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -1728,37 +1743,28 @@ def rendering_test_cartpole(
         motion_vectors = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
-    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
-        robot_cfg = CARTPOLE_CFG.replace(
+    class _CartpoleCameraTestSceneCfg(CartpoleCameraSceneCfg):
+        cartpole = CARTPOLE_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
+        tiled_camera = _CartpoleTiledCameraTestCfg()
+
+    @configclass
+    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
+        scene = _CartpoleCameraTestSceneCfg(num_envs=4, env_spacing=20.0, replicate_physics=True)
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
-        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
+        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96])
+        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96])
+        normals = _BaseCartpoleCameraEnvTestCfg(observation_space=[3, 96, 96])
+        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        motion_vectors = _BaseCartpoleCameraEnvTestCfg(observation_space=[2, 96, 96])
 
     preset_data_type = "semantic_segmentation" if "semantic_segmentation" in data_types else data_types[0]
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -1767,9 +1773,9 @@ def rendering_test_cartpole(
     )
 
     env_cfg.scene.num_envs = 4
-    env_cfg.tiled_camera.data_types = data_types
-    if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
-        env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
+    env_cfg.scene.tiled_camera.data_types = data_types
+    if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
+        env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
     motion_data_type = _motion_data_type(data_types)
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
@@ -1857,7 +1863,7 @@ def rendering_test_lift_kuka(
 
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
         BASE_CAMERA_CFG,
@@ -2120,7 +2126,7 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     @configclass
     class TestFrankaCameraObservationsCfg:
@@ -2145,12 +2151,29 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
     env_cfg.observations = TestFrankaCameraObservationsCfg()
 
 
-def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_types: list[str]) -> None:
-    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
+def _configure_franka_camera_test_env_cfg(
+    env_cfg: Any,
+    data_types: list[str],
+    command_name: str = "deformable_pose",
+    reset_event_name: str = "reset_deformable",
+) -> None:
+    """Apply deterministic golden rendering test overrides to a resolved Franka camera config.
+
+    Args:
+        env_cfg: Resolved Franka camera environment config to mutate in place.
+        data_types: Camera data types the golden capture requests.
+        command_name: Name of the pose command term whose success visualizer is disabled.
+        reset_event_name: Name of the reset event term whose position range is pinned to zero.
+    """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
-    env_cfg.commands.deformable_pose.debug_vis = False
-    env_cfg.events.reset_deformable.params["position_range"] = {
+    command_cfg = getattr(env_cfg.commands, command_name)
+    # The table spawns invisible because the success visualizer normally draws it; the goldens hide
+    # that visualizer, so paint the table itself with the marker material instead of replacing the
+    # spawn, which would drop task-specific physics overrides.
+    env_cfg.scene.table.spawn.visual_material = command_cfg.success_visualizer_cfg.markers["failure"].visual_material
+    env_cfg.scene.table.spawn.visible = True
+    command_cfg.debug_vis = False
+    getattr(env_cfg.events, reset_event_name).params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
         "z": (0.0, 0.0),
@@ -2340,7 +2363,7 @@ def rendering_test_mpm_particles(
 
     import isaaclab.sim as sim_utils
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     # The reset event calls back into UR10ParticlePushEnv.randomize_push_scene, which places the
     # pile, so the task's own env class is required here rather than a plain ManagerBasedRLEnv.
@@ -2468,18 +2491,14 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    env_cfg.events.reset_cable.params["position_range"] = {
-        "x": (0.0, 0.0),
-        "y": (0.0, 0.0),
-        "z": (0.0, 0.0),
-    }
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, command_name="cable_pose", reset_event_name="reset_cable"
+    )
 
     # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
     # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
     if env_cfg.curriculum is not None:
         env_cfg.curriculum.gravity = None
-
-    _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 

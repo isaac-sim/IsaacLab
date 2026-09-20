@@ -10,8 +10,8 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.sim.views import FrameView
+from isaaclab.assets import Asset, AssetBase
+from isaaclab.sim.views import UsdFrameView
 
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
 from .transform_utils import transform_mul
@@ -101,36 +101,40 @@ class SceneAsset(HasPose):
     def __init__(self, scene, entity_name: str):
         self.scene = scene
         self.entity_name = entity_name
-        self._xform_view: FrameView | None = None
+        self._xform_view: UsdFrameView | None = None
+        self._cached_pose: torch.Tensor | None = None
 
-    def _get_xform_view(self) -> FrameView:
-        """Return the FrameView for this asset, building it on demand.
+    def _get_xform_view(self) -> UsdFrameView:
+        """Return the USD transform view for this asset, building it on demand.
 
-        Static scene assets carry no runtime view (``scene[name]`` returns the spawned
-        configuration), so the pose view is created lazily here and cached on this
+        Static scene assets carry no runtime view, so the pose view is created lazily here and cached on this
         wrapper. A cached view created before environment cloning is rebuilt once the
         cloned prims exist.
         """
         if self._xform_view is None or self._xform_view.count == 0:
             if self._xform_view is not None:
                 self._xform_view.close()
+            self._cached_pose = None
             entity = self.scene[self.entity_name]
             prim_path = (
-                entity.prim_path
-                if isinstance(entity, AssetBaseCfg)
+                entity.cfg.prim_path
+                if isinstance(entity, Asset) and not isinstance(entity, AssetBase)
                 else getattr(entity, "_usd_view", entity)._prim_path
             )
-            self._xform_view = FrameView(prim_path, device=self.scene.device)
+            self._xform_view = UsdFrameView(prim_path, device=self.scene.device)
         return self._xform_view
 
     def get_pose(self):
         """Get the 3D pose of the entity."""
+        if self._cached_pose is not None:
+            return self._cached_pose.clone()
         xform_prim = self._get_xform_view()
         pos_w, quat_w = xform_prim.get_world_poses()
         position = pos_w.torch
         orientation = quat_w.torch
         pose = torch.cat([position, orientation], dim=-1)
-        return pose
+        self._cached_pose = pose.detach().clone()
+        return self._cached_pose.clone()
 
     def set_pose(self, pose: torch.Tensor):
         """Set the 3D pose of the entity."""
@@ -139,6 +143,16 @@ class SceneAsset(HasPose):
         orientation = pose[..., 3:]
         with xform_prim.xform_world_space_writer() as writer:
             writer.set_poses(wp.from_torch(position.contiguous()), wp.from_torch(orientation.contiguous()), None)
+        self._cached_pose = pose.detach().clone()
+        entity = self.scene[self.entity_name]
+        if isinstance(entity, Asset) and not isinstance(entity, AssetBase):
+            # Static assets have no runtime data object, so keep their config pose aligned.
+            pose_cfg = pose[0] if pose.ndim > 1 else pose
+            env_origin = self.scene.env_origins[0].to(pose_cfg.device)
+            pos = (pose_cfg[:3] - env_origin).detach().cpu().tolist()
+            rot = pose_cfg[3:].detach().cpu().tolist()
+            entity.cfg.init_state.pos = tuple(float(value) for value in pos)
+            entity.cfg.init_state.rot = tuple(float(value) for value in rot)
 
 
 class RelativePose(HasPose):

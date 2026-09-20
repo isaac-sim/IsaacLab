@@ -264,6 +264,6 @@ def illegal_contact(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg: S
     wp.launch(
         kernel=_illegal_contact_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
         device=env.device,
     )

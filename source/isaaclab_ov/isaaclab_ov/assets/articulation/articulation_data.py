@@ -314,6 +314,8 @@ class ArticulationData(BaseArticulationData):
                 self._body_state_w_buf,
                 self._body_link_state_w_buf,
                 self._body_com_state_w_buf,
+                self._body_inertia,
+                self._body_inertia_backend,
             ]
         )
         self._reset_dynamics(body_com_jacobian=True, mass_matrix=True, gravity_compensation=True)
@@ -872,12 +874,15 @@ class ArticulationData(BaseArticulationData):
         tensor_type: int,
         *,
         component_count: int | None = None,
+        static: bool = False,
     ) -> None:
         """Refresh a body buffer from its binding, gathering into public order under body ordering.
 
         Under identity body ordering the binding is read straight into the public buffer;
         otherwise it is staged in backend order and gathered into public order when the
-        public buffer is stale for the current step.
+        public buffer is stale. State buffers go stale every simulation step; static
+        property buffers (mass, inertia) only after explicit invalidation, since stepping
+        never changes them and their setters update the buffers in place.
 
         Args:
             buf: Owned public-order buffer to refresh in place.
@@ -885,13 +890,16 @@ class ArticulationData(BaseArticulationData):
             tensor_type: ``TensorType`` key of the source binding.
             component_count: Trailing components per body for a three-dimensional buffer,
                 or ``None`` for a two-dimensional buffer.
+            static: Whether the binding is a static property that is read once after
+                invalidation instead of once per simulation step.
         """
+        read_binding = self._read_static_binding_into_buf if static else self._read_binding_into_buf
         if self.body_ordering is None:
-            self._read_binding_into_buf(tensor_type, buf)
+            read_binding(tensor_type, buf)
             return
-        if buf.timestamp >= self._sim_timestamp:
+        if buf.timestamp >= (0.0 if static else self._sim_timestamp):
             return
-        self._read_binding_into_buf(tensor_type, backend_buffer)
+        read_binding(tensor_type, backend_buffer)
         if component_count is None:
             self._read_launch_cache.launch(
                 (id(buf), "body_2d"),
@@ -919,7 +927,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because the underlying OVPhysX
         binding is CPU-only (``ARTICULATION_BODY_MASS``).
         """
-        self._refresh_reordered_body_buffer(self._body_mass, self._body_mass_backend, TT.BODY_MASS)
+        self._refresh_reordered_body_buffer(self._body_mass, self._body_mass_backend, TT.BODY_MASS, static=True)
         if self._body_mass_ta is None:
             self._body_mass_ta = ProxyArray(self._body_mass.data)
         return self._body_mass_ta
@@ -935,7 +943,7 @@ class ArticulationData(BaseArticulationData):
         a CPU-only binding).
         """
         self._refresh_reordered_body_buffer(
-            self._body_inertia, self._body_inertia_backend, TT.BODY_INERTIA, component_count=9
+            self._body_inertia, self._body_inertia_backend, TT.BODY_INERTIA, component_count=9, static=True
         )
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia.data)
@@ -1107,12 +1115,18 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_jacobian_w_ta
 
     def _refresh_generalized_dynamics_buffer(
-        self, buffer: TimestampedBuffer, backend_buffer: wp.array, tensor_type: int, reorder_kernel: wp.Kernel
+        self,
+        buffer: TimestampedBuffer,
+        backend_buffer: wp.array,
+        tensor_type: int,
+        reorder_kernel: wp.Kernel,
+        *,
+        correct_joint_signs: bool = True,
     ) -> None:
         """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
         if buffer.timestamp >= self._sim_timestamp:
             return
-        if self.has_joint_ordering or self._has_reversed_joints:
+        if self.has_joint_ordering or (correct_joint_signs and self._has_reversed_joints):
             self._binding_read(tensor_type, backend_buffer)
             self._read_launch_cache.launch(
                 (id(buffer), "generalized_dynamics"),
@@ -1121,7 +1135,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[
                     backend_buffer,
                     self._jacobian_joint_user_to_backend,
-                    self._joint_dof_signs,
+                    self._joint_dof_signs if correct_joint_signs else None,
                     self._num_base_dofs,
                     self.has_joint_ordering,
                 ],
@@ -1145,11 +1159,13 @@ class ArticulationData(BaseArticulationData):
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
+        # Gravity forces already use the public joint basis on both 0.5.11 and 0.6.
         self._refresh_generalized_dynamics_buffer(
             self._gravity_compensation_forces,
             self._gravity_compensation_forces_backend,
             TT.GRAVITY_FORCE,
             ordering_kernels.reorder_generalized_vector_backend_to_user,
+            correct_joint_signs=False,
         )
         return self._gravity_compensation_forces_ta
 
@@ -1780,6 +1796,8 @@ class ArticulationData(BaseArticulationData):
         self._fixed_tendon_offset = TimestampedBuffer((N, T_fix), dev, wp.float32)
         # Legacy alias kept for any internal callers that used the old vec2f buffer.
         self._fixed_tendon_pos_limits = TimestampedBuffer((N, T_fix), dev, wp.vec2f)
+        # scratch for the tendon target setters: rest_length - target before the masked/indexed write
+        self._fixed_tendon_offset_scratch = wp.zeros((N, T_fix), dtype=wp.float32, device=dev)
         self._spatial_tendon_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_damping = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_limit_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)
@@ -2384,14 +2402,23 @@ class ArticulationData(BaseArticulationData):
         backend_buffer: TimestampedBuffer | None,
         component_count: int | None = None,
     ) -> None:
-        """Refresh a joint property binding into a public user-order buffer."""
+        """Refresh a joint property binding into a public user-order buffer.
+
+        Joint properties (gains, limits, armature, friction) are static bindings: stepping
+        the simulation never changes them, and the ``write_*`` setters update these buffers
+        in place before pushing to the wheel. They are therefore read once after explicit
+        invalidation rather than once per simulation step. On OVPhysX these bindings are
+        CPU-only, so every read is a blocking host round-trip whose cost scales with the
+        number of environments; re-reading them per physics step dominated the step time
+        of any hot path touching them (for example the native actuator telemetry sync).
+        """
         if not self.has_joint_ordering:
-            self._read_scalar_binding(tensor_type, user_buffer)
+            self._read_static_binding_into_buf(tensor_type, user_buffer)
             return
 
-        if user_buffer.timestamp >= self._sim_timestamp:
+        if user_buffer.timestamp >= 0.0:
             return
-        self._read_scalar_binding(tensor_type, backend_buffer)
+        self._read_static_binding_into_buf(tensor_type, backend_buffer)
         if component_count is None:
             self._read_launch_cache.launch(
                 (id(user_buffer), "joint_property_2d"),

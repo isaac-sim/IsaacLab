@@ -8,19 +8,17 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-import torch
+import numpy as np
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
-from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
-    rename_builder_labels,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
@@ -108,27 +106,29 @@ def build_visualization_builder_from_stage_envs(
             stage,
             schema_resolvers=schema_resolvers,
             ignore_paths=deformable_ignore_paths or None,
+            skip_mesh_approximation=True,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         import_builder_visual_material_paths(builder, stage)
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
             builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
         )
+        builder.shape_collision_filter_pairs = []
+        builder.shape_collision_group[:] = [0] * builder.shape_count
         return builder, (shadow_entities, registry_groups)
 
     if not env_paths:
         raise ValueError("clone plan requires at least one environment path")
 
-    env_path_by_id = dict(env_paths)
-
     sources = tuple(clone_plan.sources)
     destinations = tuple(clone_plan.destinations)
-    env_ids = clone_plan.env_ids.detach().cpu()
-    mapping = clone_plan.clone_mask.detach().cpu()
-
-    poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids.tolist()]
-    positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
-    quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
+    env_ids = clone_plan.env_ids
+    mapping = clone_plan.clone_mask
+    if env_ids is None or clone_plan.positions is None:
+        raise ValueError("clone plan requires environment ids and positions for visualization")
+    positions = clone_plan.positions.astype(np.float32, copy=False)
+    quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
+    quaternions[:, 3] = 1.0
     # Ignore every deformable on the stage for the world import — not only those under
     # clone sources. Otherwise a non-env deformable (e.g. ``/World/Assets/Cloth``) is
     # imported here and added again by ``add_shadow_deformables_to_builder``.
@@ -137,6 +137,7 @@ def build_visualization_builder_from_stage_envs(
         stage,
         ignore_paths=["/World/envs", *sources, *deformable_ignore_paths],
         schema_resolvers=schema_resolvers,
+        skip_mesh_approximation=True,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
     import_builder_visual_material_paths(builder, stage)
@@ -147,9 +148,24 @@ def build_visualization_builder_from_stage_envs(
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
         ignore_paths=source_deformable_ignore_paths or None,
+        skip_mesh_approximation=True,
     )
-    replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
-    rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+    global_builder = builder
+    builder = ModelBuilder(up_axis=up_axis)  # Preserve Newton's compact empty filter store.
+    for visual_builder in (global_builder, *source_builders.values()):
+        visual_builder.shape_collision_filter_pairs = []
+        visual_builder.shape_collision_group[:] = [0] * visual_builder.shape_count
+    builder.add_builder(global_builder)
+    replicate_builder_mapping(
+        builder=builder,
+        sources=sources,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        source_builders=source_builders,
+        destinations=destinations,
+        env_ids=env_ids,
+    )
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
         builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
     )

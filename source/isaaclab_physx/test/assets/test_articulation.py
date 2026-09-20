@@ -34,6 +34,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 from pxr import UsdPhysics
 
@@ -62,8 +63,8 @@ from isaaclab_assets import (  # isort:skip
     ANYMAL_C_CFG,
     FRANKA_PANDA_CFG,
     FRANKA_PANDA_HIGH_PD_CFG,
-    SHADOW_HAND_CFG,
 )
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG
 
 
 def generate_articulation_cfg(
@@ -111,13 +112,13 @@ def generate_articulation_cfg(
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
-        articulation_cfg = SHADOW_HAND_CFG
+        articulation_cfg = SHADOW_HAND_PHYSX_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -140,7 +141,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -498,9 +499,7 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
     """Keep floating-base root writes invariant when public body order moves the root."""
-    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(
-        articulation_props=FRANKA_PANDA_CFG.spawn.articulation_props.replace(fix_root_link=False)
-    )
+    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(fix_root_link=False)
     identity = Articulation(
         FRANKA_PANDA_CFG.replace(
             prim_path="/World/IdentityRobot",
@@ -724,7 +723,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -781,7 +780,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -837,7 +836,7 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -902,7 +901,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -963,7 +962,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -971,6 +970,49 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
         sim.step()
         # update articulation
         articulation.update(sim.cfg.dt)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices())
+def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device):
+    """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
+
+    The index form commands every tendon of environment 0; the mask form commands tendon 0 of
+    environment 1. Every other cell must keep its initial offset.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+    num_tendons = articulation.num_fixed_tendons
+    assert num_tendons > 0
+    rest_length = articulation.data.fixed_tendon_rest_length.torch.clone()
+    initial_offset = articulation.data.fixed_tendon_offset.torch.clone()
+
+    index_target = torch.full((1, num_tendons), 0.3, dtype=torch.float32, device=device)
+    articulation.set_fixed_tendon_position_target_index(target=index_target, env_ids=[0])
+    # Distinct per-cell values: a uniform target cannot catch the mask form reading the wrong
+    # cell, because every wrong read returns the same number.
+    mask_target = (
+        0.7
+        + 0.1 * torch.arange(num_articulations, dtype=torch.float32, device=device).unsqueeze(1)
+        + 0.01 * torch.arange(num_tendons, dtype=torch.float32, device=device).unsqueeze(0)
+    )
+    env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+    tendon_mask = wp.array([i == 0 for i in range(num_tendons)], dtype=wp.bool, device=device)
+    articulation.set_fixed_tendon_position_target_mask(
+        target=mask_target, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+    )
+
+    articulation.write_data_to_sim()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    expected = initial_offset.clone()
+    expected[0] = rest_length[0] - 0.3
+    expected[1, 0] = rest_length[1, 0] - mask_target[1, 0]
+    torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, expected)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -991,7 +1033,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = True
+    articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1051,7 +1093,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
     # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = False
+    articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1630,8 +1672,8 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             articulation.update(sim.cfg.dt)
         # check condition
         for i in range(num_articulations):
-            # since there is a moment applied on the articulation, the articulation should rotate
-            assert torch.abs(articulation.data.root_ang_vel_w.torch[i, 2]).item() > 0.1
+            # the response axis depends on the link frames, so check that the articulation rotates
+            assert torch.linalg.vector_norm(articulation.data.root_ang_vel_w.torch[i]).item() > 0.1
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1790,7 +1832,9 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
@@ -1826,7 +1870,9 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)

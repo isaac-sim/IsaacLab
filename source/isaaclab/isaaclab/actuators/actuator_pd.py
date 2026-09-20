@@ -86,7 +86,7 @@ class ImplicitActuator(ActuatorBase):
         if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
-                "effort_limit will be removed in 4.0.",
+                "effort_limit will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -405,7 +405,9 @@ class DCMotor(IdealPDActuator):
         # parse configuration
         if self.cfg.saturation_effort is None:
             raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
-        self._saturation_effort = self.cfg.saturation_effort
+        self._saturation_effort = resolve_joint_parameter(
+            self.cfg.saturation_effort, None, self._joint_names, self._num_envs, self._device
+        )
         # check that quantities are provided
         if self.cfg.actuator_velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")

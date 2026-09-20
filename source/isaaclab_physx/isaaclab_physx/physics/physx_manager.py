@@ -45,6 +45,8 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.utils.string import to_camel_case
 
+from isaaclab_physx.cloner import PhysxReplicateContext
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -374,7 +376,11 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = PhysxReplicateContext
+
     _cfg: ClassVar[PhysxCfg | None] = None
+
+    supports_anim_recording: ClassVar[bool] = True
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
@@ -424,6 +430,7 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
@@ -797,8 +804,15 @@ class PhysxManager(PhysicsManager):
         if bool(sim.get_setting("/isaaclab/has_gui")):
             cfg.enable_scene_query_support = True
 
+        # PhysX answers the backend-agnostic determinism request with enhanced determinism. An
+        # explicitly enabled flag stays enabled.
+        if cfg.deterministic:
+            cfg.enable_enhanced_determinism = True
+
         # apply remaining cfg attributes to scene (physxScene:*)
         skip = {
+            # generic request, translated above; PhysX has no physxScene:deterministic attribute
+            "deterministic",
             "solver_type",
             "enable_ccd",
             "solve_articulation_contact_last",
@@ -995,6 +1009,15 @@ class PhysxManager(PhysicsManager):
     def _on_stop(cls, event: Any) -> None:
         cls._warmup_needed = True
         cls._invalidate_views()
+        # Detach the stage `_warmup_and_create_views` attached (GPU pipeline only, matching its own
+        # is_gpu guard) so the next play() can reattach cleanly. Without this, a second
+        # `_warmup_and_create_views` (e.g. play() -> stop() -> play() with no reset() in between)
+        # calls attach_stage() on a stage that is still attached ("Stage already attached") and
+        # corrupts PhysX's native view registry (SIGSEGV inside omni.physx.tensors). Guarded by
+        # get_attached_stage() so this is a no-op when close() already detached it.
+        if "cuda" in PhysicsManager.get_device() and (physx_sim := omni.physx.get_physx_simulation_interface()):
+            if physx_sim.get_attached_stage():
+                physx_sim.detach_stage()
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:

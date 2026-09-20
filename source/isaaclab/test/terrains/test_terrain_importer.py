@@ -53,10 +53,10 @@ def test_terrain_importer_env_origins(device, env_spacing, num_envs):
         terrain_importer_origins = terrain_importer.env_origins
 
         # obtain env origins using Lab's grid_transforms
-        lab_grid_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=env_spacing, device=sim.device)
+        lab_grid_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=env_spacing)
 
         # check if the env origins are the same
-        torch.testing.assert_close(terrain_importer_origins, lab_grid_origins, rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(terrain_importer_origins.cpu().numpy(), lab_grid_origins, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -96,6 +96,21 @@ def test_terrain_generation(device):
         assert actualSize[1] == pytest.approx(expectedSizeY)
 
 
+def test_visual_material_defaults():
+    """Resolves omitted visual materials by terrain type while preserving an explicit None."""
+    generator_cfg = TerrainImporterCfg(prim_path="/World/generated")
+    assert isinstance(generator_cfg.visual_material, PreviewSurfaceCfg)
+    assert generator_cfg.visual_material.diffuse_color == (0.0, 0.0, 0.0)
+
+    plane_cfg = TerrainImporterCfg(prim_path="/World/plane", terrain_type="plane")
+    assert plane_cfg.visual_material is None
+
+    unmaterialized_generator_cfg = TerrainImporterCfg(
+        prim_path="/World/unmaterialized", terrain_type="generator", visual_material=None
+    )
+    assert unmaterialized_generator_cfg.visual_material is None
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("use_custom_material", [True, False])
 def test_plane(device, use_custom_material):
@@ -109,8 +124,8 @@ def test_plane(device, use_custom_material):
         terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
-            num_envs=1,
-            env_spacing=1.0,
+            num_envs=4096,
+            env_spacing=4.0,
             visual_material=visual_material,
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
@@ -118,6 +133,31 @@ def test_plane(device, use_custom_material):
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
         assert mesh_prim_path in terrain_importer.terrain_prim_paths
+
+        # The visual mesh is bounded to the environment grid while the collision Plane stays infinite.
+        environment = sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment")
+        assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
+        visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
+        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
+            (-65.0, -65.0),
+            (65.0, -65.0),
+            (65.0, 65.0),
+            (-65.0, 65.0),
+        ]
+
+        # Direct imports use the same bounded default instead of the legacy 2,000 km visual mesh.
+        terrain_importer.import_ground_plane("direct")
+        direct_environment = sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment")
+        assert tuple(direct_environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
+        direct_mesh = UsdGeom.Mesh(
+            sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment/Geometry")
+        )
+        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get()] == [
+            (-65.0, -65.0),
+            (65.0, -65.0),
+            (65.0, 65.0),
+            (-65.0, 65.0),
+        ]
 
         # obtain underling mesh
         mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
@@ -260,8 +300,8 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
 
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_balls, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_balls, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
 
@@ -283,9 +323,9 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # Spawn a geom sphere with rigid body properties
         sphere_cfg = sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )
@@ -294,9 +334,9 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # Spawn a mesh sphere with rigid body properties
         mesh_sphere_cfg = sim_utils.MeshSphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )

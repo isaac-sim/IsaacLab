@@ -35,6 +35,7 @@ from pxr import Gf, UsdPhysics
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
@@ -43,9 +44,9 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils import math as math_utils  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
@@ -108,7 +109,10 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+            joint_drive_props=[
+                sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                PhysxJointCfg(max_joint_velocity=5.0),
+            ],
         ),
         actuators={
             "joint": ImplicitActuatorCfg(

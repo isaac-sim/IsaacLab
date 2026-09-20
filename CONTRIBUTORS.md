@@ -84,6 +84,7 @@ Guidelines for modifications:
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
+* Diego Ferigo
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
@@ -123,6 +124,7 @@ Guidelines for modifications:
 * Jiwen Cai
 * Johnson Sun
 * Juana Du
+* Kai Pei
 * Kaixi Bao
 * Kourosh Darvish
 * Kousheek Chakraborty
@@ -167,7 +169,9 @@ Guidelines for modifications:
 * Peter Verswyvelen
 * Philipp Reist
 * Piotr Barejko
+* Pranav Shirgur
 * Pulkit Goyal
+* Qian Lin
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu

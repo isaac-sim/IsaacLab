@@ -19,10 +19,10 @@ def test_reset_contact_sensor_kernel_clears_selected_force_matrix_history():
     device = "cpu"
     env_mask = wp.array([True, False], dtype=wp.bool, device=device)
 
-    net_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
-    net_forces_w_history = wp.zeros((num_envs, history_length, num_sensors), dtype=wp.vec3f, device=device)
-    force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device)
-    force_matrix_w_history = wp.array(
+    net_normal_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
+    net_normal_forces_w_history = wp.zeros((num_envs, history_length, num_sensors), dtype=wp.vec3f, device=device)
+    normal_force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device)
+    normal_force_matrix_w_history = wp.array(
         np.ones((num_envs, history_length, num_sensors, num_filter_shapes, 3), dtype=np.float32),
         dtype=wp.vec3f,
         device=device,
@@ -39,10 +39,10 @@ def test_reset_contact_sensor_kernel_clears_selected_force_matrix_history():
             history_length,
             num_filter_shapes,
             env_mask,
-            net_forces_w,
-            net_forces_w_history,
-            force_matrix_w,
-            force_matrix_w_history,
+            net_normal_forces_w,
+            net_normal_forces_w_history,
+            normal_force_matrix_w,
+            normal_force_matrix_w_history,
         ],
         outputs=[
             current_air_time,
@@ -51,9 +51,10 @@ def test_reset_contact_sensor_kernel_clears_selected_force_matrix_history():
             last_contact_time,
             None,
             None,
+            None,
         ],
         device=device,
     )
 
-    np.testing.assert_array_equal(force_matrix_w_history.numpy()[0], 0.0)
-    np.testing.assert_array_equal(force_matrix_w_history.numpy()[1], 1.0)
+    np.testing.assert_array_equal(normal_force_matrix_w_history.numpy()[0], 0.0)
+    np.testing.assert_array_equal(normal_force_matrix_w_history.numpy()[1], 1.0)

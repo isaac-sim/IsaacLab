@@ -132,8 +132,6 @@ def _expand_clone_plan_deformable_entries(
     env_ids = clone_plan.env_ids
     if env_ids is None:
         env_ids = range(clone_plan.clone_mask.shape[1])
-    else:
-        env_ids = env_ids.detach().cpu().tolist()
 
     expanded: dict[str, DeformableStageEntry] = {entry.root_path: entry for entry in entries}
     for entry in entries:
@@ -144,7 +142,7 @@ def _expand_clone_plan_deformable_entries(
             if entry.root_path != source and not entry.root_path.startswith(f"{source}/"):
                 continue
 
-            selected_env_ids = clone_plan.clone_mask[source_idx].detach().cpu().tolist()
+            selected_env_ids = clone_plan.clone_mask[source_idx]
             for env_id, selected in zip(env_ids, selected_env_ids, strict=True):
                 if not selected:
                     continue
