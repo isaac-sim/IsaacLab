@@ -339,5 +339,5 @@ A runnable camera example is available in ``scripts/demos/sensors/cameras.py``:
 
    uv run --extra isaacsim python scripts/demos/sensors/cameras.py
 
-For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For camera-capacity
-estimation, see :doc:`/source/how-to/estimate_how_many_cameras_can_run`.
+For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
+and customization, see :doc:`/source/how-to/configure_rendering`.

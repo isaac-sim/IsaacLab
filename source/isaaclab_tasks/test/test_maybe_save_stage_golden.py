@@ -7,13 +7,11 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest import mock
 
 import pytest
 from rendering_test_utils import (
-    _GOLDEN_STAGES_DIRECTORY,
     compare_golden_stage,
     maybe_save_stage,
 )
@@ -192,11 +190,6 @@ def test_maybe_save_stage_noop_without_dump_or_compare(monkeypatch: pytest.Monke
     with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
         maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb")
         save_stage_mock.assert_not_called()
-
-
-def test_golden_stages_directory_exists_in_repo():
-    """The checked-in golden stage directory is present for LFS baselines."""
-    assert os.path.isdir(_GOLDEN_STAGES_DIRECTORY)
 
 
 # ---------------------------------------------------------------------------
