@@ -161,6 +161,23 @@ class CouplerProxyCfg(CouplerCfg):
 class CouplerAdmmCfg(CouplerCfg):
     """Configuration for Newton's linearized ADMM coupling."""
 
+    contact_max_triangle_pairs: int | None = None
+    """Triangle-pair capacity of the internal ADMM collision pipeline.
+
+    This budget covers all environments in one process. It is independent of
+    :attr:`isaaclab_newton.physics.NewtonCfg.collision_cfg`, which configures outer contacts.
+    ``None`` preserves Newton's default. Increase it for internal triangle-pair overflows.
+    With rigid contact matching enabled, Newton 1.6 requires this capacity to be below
+    ``2**20``. Increase the hashtable size factor instead for reduction-table warnings.
+    """
+
+    contact_reduction_hashtable_size_factor: float | None = None
+    """Multiplier of the internal ADMM triangle-pair capacity used for contact reduction.
+
+    Newton rounds the resulting table capacity up to a power of two. ``None`` preserves
+    Newton's default. Increase it for contact-reduction hashtable fill or insertion warnings.
+    """
+
     contact_pairs: list[tuple[str, str]] | None = None
     """Symmetric contact interfaces as ``(entry_name, entry_name)`` pairs.
 
