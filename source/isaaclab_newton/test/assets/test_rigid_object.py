@@ -27,6 +27,7 @@ from flaky import flaky
 from isaaclab_newton.assets import RigidObject
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
@@ -93,17 +94,18 @@ def generate_cubes_scene(
         # since no rigid body properties defined, this is just a static collider
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
     elif api == "rigid_body":
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled),
         )
     elif api == "articulation_root":
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/RigidObject/Cube/dex_cube_instanceable_with_articulation_root.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            # Only tune existing bodies; do not create one on this invalid articulation fixture.
+            rigid_props={"(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled)]},
         )
     else:
         raise ValueError(f"Unknown api: {api}")
@@ -563,9 +565,9 @@ def test_rigid_body_set_mass(num_cubes, device):
                 prim_path="/World/Env_[^/]*/Object",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.2, 0.2, 0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                    rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
+                    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 ),
             )
         )

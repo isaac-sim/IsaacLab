@@ -24,6 +24,7 @@ import warp as wp
 from flaky import flaky
 from isaaclab_physx.sensors.contact_sensor import contact_sensor as contact_sensor_module
 from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Gf, UsdGeom, UsdPhysics
 
@@ -101,12 +102,8 @@ CUBE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         activate_contact_sensors=True,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.6, 0.4)),
     ),
@@ -120,12 +117,8 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         activate_contact_sensors=True,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.4, 0.6)),
     ),
@@ -141,12 +134,8 @@ CYLINDER_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.01,
         axis="Y",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         activate_contact_sensors=True,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.4, 0.4)),
     ),
@@ -162,12 +151,8 @@ CAPSULE_CFG = ContactSensorRigidObjectCfg(
         radius=0.25,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         activate_contact_sensors=True,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.4, 0.4)),
     ),
@@ -183,12 +168,8 @@ CONE_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            collision_enabled=True,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         activate_contact_sensors=True,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.2, 0.4)),
     ),
