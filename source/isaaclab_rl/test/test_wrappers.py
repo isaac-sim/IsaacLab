@@ -1,0 +1,188 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Integration tests for reinforcement learning environment wrappers."""
+
+from collections.abc import Iterator, Mapping
+from typing import Any
+
+import numpy as np
+import pytest
+import torch
+from tensordict import TensorDict
+
+pytestmark = pytest.mark.integration
+
+_NUM_ENVS = 2
+_EPISODE_STEPS = 3
+
+
+def _wrap_env(library: str, env: Any) -> Any:
+    if library == "rsl_rl":
+        from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+        return RslRlVecEnvWrapper(env)
+    if library == "rl_games":
+        from isaaclab_rl.rl_games import RlGamesVecEnvWrapper
+
+        return RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
+    if library == "sb3":
+        from isaaclab_rl.sb3 import Sb3VecEnvWrapper
+
+        return Sb3VecEnvWrapper(env)
+    if library == "skrl":
+        from isaaclab_rl.skrl import SkrlVecEnvWrapper
+
+        return SkrlVecEnvWrapper(env)
+    raise ValueError(f"Unsupported RL library: {library}")
+
+
+@pytest.fixture
+def raw_env(task: str, finite_horizon: bool) -> Iterator[Any]:
+    import gymnasium as gym
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+    from isaaclab.app import launch_simulation
+
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+    cfg = parse_env_cfg(task, device="cuda:0", num_envs=_NUM_ENVS)
+    cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    cfg.episode_length_s = _EPISODE_STEPS * cfg.decimation * cfg.sim.dt
+    cfg.seed = 42
+    cfg.is_finite_horizon = finite_horizon
+    with launch_simulation(cfg, {"headless": True, "visualizer": None, "visualizer_explicit": True}):
+        env = gym.make(task, cfg=cfg)
+        try:
+            yield env
+        finally:
+            env.close()
+
+
+@pytest.mark.parametrize(
+    ("library", "finite_horizon"),
+    [("rsl_rl", False), ("rsl_rl", True), ("rl_games", False), ("sb3", False), ("skrl", False)],
+)
+@pytest.mark.parametrize("task", ["Isaac-Cartpole", "Isaac-Cartpole-Direct"])
+def test_wrapper_reset_step_and_timeout(library: str, finite_horizon: bool, raw_env: Any) -> None:
+    env = _wrap_env(library, raw_env)
+    _assert_finite(env.reset())
+    if library == "rsl_rl":
+        _assert_observation_buffer(env)
+    saw_done = False
+    with torch.inference_mode():
+        for _ in range(_EPISODE_STEPS + 1):
+            actions = torch.zeros((_NUM_ENVS, 1), device=raw_env.unwrapped.device)
+            transition = env.step(actions.cpu().numpy() if library == "sb3" else actions)
+            _assert_finite(transition)
+            _, rewards, dones, *extras = transition
+            assert rewards.shape[0] == dones.shape[0] == _NUM_ENVS
+            if library == "skrl":
+                dones = dones | extras[0]
+            saw_done |= bool(dones.any())
+            if library == "rsl_rl":
+                _assert_observation_buffer(env)
+                assert ("time_outs" in extras[0]) is not finite_horizon
+                if not finite_horizon:
+                    torch.testing.assert_close(extras[0]["time_outs"], raw_env.unwrapped.reset_time_outs)
+            elif library == "sb3" and bool(dones.any()):
+                for index in np.flatnonzero(dones):
+                    assert extras[0][index]["terminal_observation"] is not None
+    assert saw_done, "The short episode must exercise automatic reset"
+
+
+@pytest.mark.parametrize("finite_horizon", [False])
+@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
+def test_sb3_unbounded_action_space_uses_normalized_wrapper_bounds(raw_env: Any) -> None:
+    """Expose normalized bounds to SB3 without modifying the underlying environment."""
+    import gymnasium as gym
+
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
+
+    assert isinstance(raw_env.unwrapped.single_action_space, gym.spaces.Box)
+    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
+
+    env = Sb3VecEnvWrapper(raw_env)
+
+    np.testing.assert_array_equal(env.action_space.low, -1.0)
+    np.testing.assert_array_equal(env.action_space.high, 1.0)
+    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
+
+
+@pytest.mark.parametrize("finite_horizon", [False])
+@pytest.mark.parametrize("task", ["Isaac-Cartpole-Direct"])
+def test_sb3_bounds_do_not_change_direct_environment_actions(raw_env: Any) -> None:
+    """Do not impose the SB3 compatibility bounds on the underlying direct environment."""
+    import gymnasium as gym
+
+    assert isinstance(raw_env.unwrapped.single_action_space, gym.spaces.Box)
+    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
+
+    raw_env.reset()
+    actions = torch.full((_NUM_ENVS, 1), 2.0, device=raw_env.unwrapped.device)
+    raw_env.step(actions)
+
+    torch.testing.assert_close(raw_env.unwrapped.actions, torch.full_like(actions, 200.0))
+
+
+@pytest.mark.parametrize("finite_horizon", [False])
+@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
+def test_sb3_custom_unbounded_action_bounds(raw_env: Any) -> None:
+    """Allow policies to select a different finite domain for an unbounded environment."""
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
+
+    env = Sb3VecEnvWrapper(raw_env, unbounded_action_bounds=(-2.0, 3.0))
+
+    np.testing.assert_array_equal(env.action_space.low, -2.0)
+    np.testing.assert_array_equal(env.action_space.high, 3.0)
+
+
+@pytest.mark.parametrize("finite_horizon", [False])
+@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
+def test_sb3_invalid_unbounded_action_bounds_are_rejected(raw_env: Any) -> None:
+    """Reject invalid compatibility bounds before constructing the SB3 wrapper."""
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
+
+    for bounds in ((1.0, -1.0), (0.0, 0.0), (-np.inf, 1.0), (-1.0, np.inf)):
+        with pytest.raises(ValueError, match="Invalid unbounded action bounds"):
+            Sb3VecEnvWrapper(raw_env, unbounded_action_bounds=bounds)
+
+
+def _assert_observation_buffer(env: Any) -> None:
+    observations = env.get_observations()
+    assert isinstance(observations, TensorDict)
+    assert set(observations.keys()) == set(env.unwrapped.obs_buf)
+    for key, value in env.unwrapped.obs_buf.items():
+        torch.testing.assert_close(observations[key], value)
+
+
+def test_rsl_rl_wrapper_reports_invalid_unwrapped_type() -> None:
+    """Validation errors identify the unsupported unwrapped environment."""
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+    class UnsupportedEnv:
+        pass
+
+    class OuterEnv:
+        unwrapped = UnsupportedEnv()
+
+    with pytest.raises(ValueError, match="UnsupportedEnv") as exc_info:
+        RslRlVecEnvWrapper(OuterEnv())
+
+    assert "OuterEnv" not in str(exc_info.value)
+
+
+def _assert_finite(data: Any) -> None:
+    if isinstance(data, torch.Tensor):
+        assert torch.isfinite(data).all()
+    elif isinstance(data, np.ndarray):
+        assert np.isfinite(data).all()
+    elif isinstance(data, (Mapping, TensorDict)):
+        for value in data.values():
+            _assert_finite(value)
+    elif isinstance(data, (list, tuple)):
+        for value in data:
+            _assert_finite(value)

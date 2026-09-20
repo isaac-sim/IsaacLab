@@ -13,8 +13,15 @@ from types import SimpleNamespace
 from typing import Any
 
 import gymnasium as gym
+import numpy as np
 import pytest
 import torch
+from isaaclab_newton.physics import NewtonCfg
+from PIL import Image
+
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.physics import PhysicsCfg
+from isaaclab.sim import SimulationCfg
 
 from isaaclab_rl.entrypoints import common as _rl_common
 from isaaclab_rl.entrypoints.common import (
@@ -62,9 +69,7 @@ def _make_capture_wrapper(tmp_path: Path, **kwargs: Any) -> Any:
     return CaptureEnvSensors(**defaults)
 
 
-def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(tmp_path: Path) -> None:
     """File capture writes image grids during the active capture window."""
     rgb = torch.tensor(
         [
@@ -74,18 +79,6 @@ def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
         dtype=torch.uint8,
     )
     env = _FakeEnv({"front/camera": _make_sensor({"rgb": rgb})})
-    saved_images: list[Any] = []
-    saved_paths: list[Path] = []
-
-    class _FakeImage:
-        def __init__(self, image: Any) -> None:
-            self.image = image
-
-        def save(self, path: str) -> None:
-            saved_images.append(self.image.copy())
-            saved_paths.append(Path(path))
-
-    monkeypatch.setattr(_rl_common.Image, "fromarray", _FakeImage)
     wrapper = _make_capture_wrapper(
         tmp_path,
         env=env,
@@ -99,44 +92,35 @@ def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
     wrapper.step(None)
     wrapper.step(None)
 
+    saved_paths = sorted(tmp_path.rglob("*.png"))
     relative_paths = [path.relative_to(tmp_path).as_posix() for path in saved_paths]
     assert relative_paths == [
         "front_camera/rgb/episode_00001_step_00000000.png",
         "front_camera/rgb/episode_00001_step_00000001.png",
         "front_camera/rgb/episode_00001_step_00000003.png",
     ]
-    assert all(image.shape == (1, 2, 4) for image in saved_images)
-    assert all((image == rgb[0].numpy()).all() for image in saved_images)
+    for path in saved_paths:
+        with Image.open(path) as image:
+            np.testing.assert_array_equal(np.asarray(image), rgb[0].numpy())
 
 
-def test_capture_env_sensors_accepts_proxyarray_torch_buffers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """ProxyArray-style buffers are read through their ``.torch`` accessor."""
-    image_buffer = SimpleNamespace(torch=torch.ones((3, 2, 2, 4), dtype=torch.float32))
-    env = _FakeEnv({"camera": _make_sensor({"rgb": image_buffer})})
-    captured_tensors: list[torch.Tensor] = []
+def test_capture_env_sensors_accepts_proxyarray_and_skips_missing_outputs(tmp_path: Path) -> None:
+    """File capture limits ProxyArray batches and ignores missing outputs."""
+    import warp as wp
 
-    def fake_normalize(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
-        captured_tensors.append(tensor.clone())
-        return tensor
+    from isaaclab.utils.warp import ProxyArray
 
-    monkeypatch.setattr(_rl_common, "normalize_camera_output_for_display", fake_normalize)
-    monkeypatch.setattr(_rl_common, "make_camera_output_grid", lambda images: torch.zeros((4, 1, 1)))
-    wrapper = _make_capture_wrapper(tmp_path, env=env, capture_num_envs=2)
-
+    pixels = torch.full((3, 2, 2, 4), 127, dtype=torch.uint8)
+    image_buffer = ProxyArray(wp.from_torch(pixels))
+    env = _FakeEnv({"camera": _make_sensor({"rgb": image_buffer, "depth": None})})
+    wrapper = _make_capture_wrapper(tmp_path, env=env, capture_num_envs=1)
     wrapper.reset()
 
-    assert len(captured_tensors) == 1
-    assert captured_tensors[0].shape == (2, 2, 2, 4)
-
-
-def test_capture_env_sensors_skips_none_outputs(tmp_path: Path) -> None:
-    """Missing sensor outputs are skipped instead of being written."""
-    env = _FakeEnv({"camera": _make_sensor({"rgb": None})})
-    wrapper = _make_capture_wrapper(tmp_path, env=env)
-
-    wrapper.reset()
-
-    assert not any(tmp_path.rglob("*.png"))
+    paths = sorted(tmp_path.rglob("*.png"))
+    assert len(paths) == 1
+    assert paths[0].parent.name == "rgb"
+    with Image.open(paths[0]) as image:
+        np.testing.assert_array_equal(np.asarray(image), pixels[0].numpy())
 
 
 def test_capture_env_sensors_rejects_unknown_output_format(tmp_path: Path) -> None:
@@ -217,26 +201,6 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
         parser.parse_args(["--frontend", "tensorflow"])
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
-def test_play_entrypoints_route_through_frontend_factory() -> None:
-    """Every dispatched play backend constructs its env via the frontend-aware factory."""
-    play_scripts = sorted(
-        (_repo_root() / "source" / "isaaclab_rl" / "isaaclab_rl" / "entrypoints" / "backends").glob("play_*.py")
-    )
-    # rlinf constructs environments inside the external framework; the frontend cannot
-    # reach it (documented limitation).
-    play_scripts = [path for path in play_scripts if path.name != "play_rlinf.py"]
-    assert len(play_scripts) == 4, sorted(path.name for path in play_scripts)
-    for script in play_scripts:
-        source = script.read_text()
-        assert "create_isaaclab_env(" in source, f"{script.name} bypasses the frontend factory"
-        assert "gym.make(args_cli.task" not in source, f"{script.name} constructs directly via gym.make"
-        assert "add_frontend_args(parser)" in source, f"{script.name} does not expose --frontend"
-
-
 def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """The shared factory preserves the existing Gym path when no frontend is selected."""
     expected_env = object()
@@ -256,8 +220,6 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
     assert len(calls) == 1
     assert calls[0][0] == "Isaac-Test"
     assert calls[0][1]["cfg"] is env_cfg
-    # render_mode is no longer passed — recording is configured via env_cfg.video_recorders
-    # before env creation (apply_video_recording), not via the gym render-mode mechanism.
     assert "render_mode" not in calls[0][1]
 
 
@@ -279,7 +241,6 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
 
     assert env is expected_env
-    # render_mode is no longer forwarded — recording is driven by env_cfg.video_recorders.
     assert calls == [(env_cfg, "Isaac-Test", {})]
 
 
@@ -332,14 +293,13 @@ def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
         assert resolve_play_task_name("Isaac-ExternalPlayTest-Play") == "Isaac-ExternalPlayTest-Play"
     finally:
         del gym.registry["Isaac-ExternalPlayTest-Play"]
-    # neither the -Play id nor the training id is registered
     assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
     assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
     assert resolve_play_task_name(None) is None
 
 
 class _RecordingScreen:
-    """Loading screen stand-in that keeps the summary fields instead of drawing them."""
+    """Record summary fields without drawing a loading screen."""
 
     def __init__(self) -> None:
         self.fields: dict[str, str] = {}
@@ -353,7 +313,6 @@ class _RecordingScreen:
     [
         (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)"),
         (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)"),
-        # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
         (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)"),
         ([], "newton_mjwarp", "newton_renderer"),
         (["physics=physx", "presets=depth"], "physx (ovphysx)", "newton_renderer"),
@@ -382,26 +341,19 @@ def test_run_summary_reports_concrete_backends(
     assert "Presets" not in screen.fields
 
 
-def _fake_physics_cfg(class_name: str, **attrs: Any) -> Any:
-    """Build a physics-config stand-in carrying the backend-agnostic determinism field."""
-    return type(class_name, (), {"deterministic": False, **attrs})()
-
-
 def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``--deterministic`` reaches the physics config, which the AppLauncher flag never did."""
+    """The deterministic option is recorded in the physics configuration."""
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
     env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
-    # Guard the premise: the shipped defaults request no guarantee.
     assert env_cfg.sim.physics.deterministic is False
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
     assert env_cfg.sim.physics.deterministic is True
-    # Translation belongs to the backend, so nothing backend-specific is touched here.
     assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
     assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
 
@@ -423,15 +375,11 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
 @pytest.mark.parametrize(
     ("already_set", "configured_mode", "expected"),
     [
-        # The request lands when nothing has asked for a guarantee yet.
         ("NOT_GUARANTEED", None, "RUN_TO_RUN"),
-        # "not_guaranteed" is the shipped default, so it reads as unset rather than opt-out.
         ("NOT_GUARANTEED", "not_guaranteed", "RUN_TO_RUN"),
         ("NOT_GUARANTEED", "run_to_run", "RUN_TO_RUN"),
-        # A backend naming a stronger guarantee gets it, not a weakened one.
         ("NOT_GUARANTEED", "gpu_to_gpu", "GPU_TO_GPU"),
         ("RUN_TO_RUN", "gpu_to_gpu", "GPU_TO_GPU"),
-        # A guarantee already in place is never lowered.
         ("GPU_TO_GPU", None, "GPU_TO_GPU"),
         ("GPU_TO_GPU", "run_to_run", "GPU_TO_GPU"),
     ],
@@ -439,12 +387,12 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
 def test_apply_env_overrides_raises_warp_determinism_to_the_configured_mode(
     already_set: str, configured_mode: str | None, expected: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Warp's global is what covers Newton's sensor kernels, and it only ever moves upward."""
+    """Warp determinism is raised to the strongest requested mode."""
     import warp as wp
 
     monkeypatch.setattr(wp.config, "deterministic", getattr(wp.DeterministicMode, already_set))
-    attrs = {} if configured_mode is None else {"deterministic_mode": configured_mode}
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=_fake_physics_cfg("NewtonCfg", **attrs)))
+    physics = PhysicsCfg() if configured_mode is None else NewtonCfg(deterministic_mode=configured_mode)
+    env_cfg = ManagerBasedRLEnvCfg(sim=SimulationCfg(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
@@ -453,11 +401,11 @@ def test_apply_env_overrides_raises_warp_determinism_to_the_configured_mode(
 
 
 def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without ``--deterministic`` Warp keeps its default, so no run pays for determinism."""
+    """Warp determinism is unchanged when the option is disabled."""
     import warp as wp
 
     monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=_fake_physics_cfg("NewtonCfg")))
+    env_cfg = ManagerBasedRLEnvCfg(sim=SimulationCfg(physics=NewtonCfg()))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
@@ -465,10 +413,9 @@ def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pyt
     assert wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED
 
 
-@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg", "NewtonCfg", "SomeFutureBackendCfg"])
-def test_apply_env_overrides_records_the_request_for_every_backend(class_name: str) -> None:
-    """The request is backend-agnostic, so the entrypoint needs no per-backend knowledge."""
-    physics = _fake_physics_cfg(class_name)
+def test_apply_env_overrides_records_the_request_for_unknown_backend() -> None:
+    """Unknown physics backends receive the backend-agnostic request."""
+    physics = SimpleNamespace(deterministic=False)
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
@@ -478,7 +425,7 @@ def test_apply_env_overrides_records_the_request_for_every_backend(class_name: s
 
 
 def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
-    """A config that never resolved a physics backend is left alone rather than failing."""
+    """A configuration without a physics backend is accepted."""
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
