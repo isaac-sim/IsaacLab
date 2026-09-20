@@ -409,6 +409,16 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     assert args.max_iterations == 10
 
 
+def test_torchrl_parser_accepts_run_name(monkeypatch) -> None:
+    """TorchRL accepts the same run-name option exposed by the other training frontends."""
+    from isaaclab_rl.entrypoints.backends import train_torchrl
+
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+    args = train_torchrl._parse_args(["--task", "Isaac-Cartpole", "--run_name", "named-run"])
+
+    assert args.run_name == "named-run"
+
+
 def test_rlinf_rejects_pretrained_checkpoint() -> None:
     """RLinf has no published pre-trained checkpoint."""
     from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
