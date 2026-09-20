@@ -395,8 +395,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                     high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
                     term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)
                 self.single_observation_space[group_name] = gym.spaces.Dict(term_dict)
-        # action space
-        self.single_action_space = self.action_manager.action_space
+        # action space (unbounded since we don't impose any limits)
+        action_dim = sum(self.action_manager.action_term_dim)
+        self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
 
         # batch the spaces for vectorized environments
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)

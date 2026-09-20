@@ -94,16 +94,6 @@ class ActionTermCfg:
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
-    raw_action_bounds: tuple[float, float] | None = None
-    """Valid bounds for the raw policy action before term-specific processing. Defaults to None.
-
-    When specified, the action manager exposes these bounds through the environment's Gymnasium
-    action space and clips the raw action to them before applying scaling, offsets, or other
-    term-specific processing. A single pair applies to every dimension of the action term.
-
-    Leave this as None only when the raw action is genuinely unbounded.
-    """
-
     clip: dict[str, tuple] | None = None
     """Clip range for the action (dict of regex expressions). Defaults to None."""
 

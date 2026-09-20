@@ -399,8 +399,6 @@ class DirectRLEnv(gym.Env):
         # add action noise
         if self.cfg.action_noise_model:
             action = self._action_noise_model(action)
-        if self._has_bounded_actions:
-            action = torch.clamp(action, min=self._action_low, max=self._action_high)
 
         # process actions
         self._pre_physics_step(action)
@@ -680,12 +678,6 @@ class DirectRLEnv(gym.Env):
         self.single_observation_space = gym.spaces.Dict()
         self.single_observation_space["policy"] = spec_to_gym_space(self.cfg.observation_space)
         self.single_action_space = spec_to_gym_space(self.cfg.action_space)
-        self._has_bounded_actions = isinstance(self.single_action_space, gym.spaces.Box) and (
-            np.any(np.isfinite(self.single_action_space.low)) or np.any(np.isfinite(self.single_action_space.high))
-        )
-        if self._has_bounded_actions:
-            self._action_low = torch.tensor(self.single_action_space.low, device=self.device)
-            self._action_high = torch.tensor(self.single_action_space.high, device=self.device)
 
         # batch the spaces for vectorized environments
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space["policy"], self.num_envs)

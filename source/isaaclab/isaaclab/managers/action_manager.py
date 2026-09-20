@@ -13,8 +13,6 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import gymnasium as gym
-import numpy as np
 import torch
 from prettytable import PrettyTable
 
@@ -218,13 +216,6 @@ class ActionManager(ManagerBase):
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
-        self._action_space = self._build_action_space()
-        self._has_bounded_actions = np.any(np.isfinite(self._action_space.low)) or np.any(
-            np.isfinite(self._action_space.high)
-        )
-        if self._has_bounded_actions:
-            self._action_low = torch.tensor(self._action_space.low, device=self.device)
-            self._action_high = torch.tensor(self._action_space.high, device=self.device)
 
         # check if any term has debug visualization implemented
         self.cfg.debug_vis = False
@@ -269,11 +260,6 @@ class ActionManager(ManagerBase):
     def action_term_dim(self) -> list[int]:
         """Shape of each action term."""
         return [term.action_dim for term in self._terms.values()]
-
-    @property
-    def action_space(self) -> gym.spaces.Box:
-        """Gymnasium space describing the valid raw actions."""
-        return self._action_space
 
     @property
     def action(self) -> torch.Tensor:
@@ -404,18 +390,14 @@ class ActionManager(ManagerBase):
         # check if action dimension is valid
         if self.total_action_dim != action.shape[1]:
             raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}.")
-        # store the bounded input actions
+        # store the input actions
         self._prev_action[:] = self._action
-        action = action.to(device=self.device, dtype=self._action.dtype)
-        if self._has_bounded_actions:
-            torch.clamp(action, min=self._action_low, max=self._action_high, out=self._action)
-        else:
-            self._action[:] = action
+        self._action[:] = action.to(self.device)
 
         # split the actions and apply to each tensor
         idx = 0
         for term in self._terms.values():
-            term_actions = self._action[:, idx : idx + term.action_dim]
+            term_actions = action[:, idx : idx + term.action_dim]
             term.process_actions(term_actions)
             idx += term.action_dim
 
@@ -450,27 +432,6 @@ class ActionManager(ManagerBase):
     """
     Helper functions.
     """
-
-    def _build_action_space(self) -> gym.spaces.Box:
-        """Build the raw action space by concatenating the configured term bounds."""
-        low = []
-        high = []
-        for term_name, term in self._terms.items():
-            bounds = term.cfg.raw_action_bounds
-            if bounds is None:
-                term_low, term_high = -np.inf, np.inf
-            else:
-                term_low, term_high = bounds
-                if np.isnan(term_low) or np.isnan(term_high) or term_low >= term_high:
-                    raise ValueError(
-                        f"Invalid raw action bounds for term '{term_name}': {bounds}. "
-                        "Expected finite or infinite numeric bounds with low < high."
-                    )
-            low.extend([term_low] * term.action_dim)
-            high.extend([term_high] * term.action_dim)
-        return gym.spaces.Box(
-            low=np.asarray(low, dtype=np.float32), high=np.asarray(high, dtype=np.float32), dtype=np.float32
-        )
 
     def _prepare_terms(self):
         # create buffers to parse and store terms

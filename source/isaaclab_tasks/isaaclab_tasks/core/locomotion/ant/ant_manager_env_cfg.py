@@ -99,13 +99,7 @@ class ActionsCfg:
 
     # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
     # drive the solver to NaN
-    joint_effort = mdp.JointEffortActionCfg(
-        asset_name="robot",
-        joint_names=[".*"],
-        scale=7.5,
-        raw_action_bounds=(-1.0, 1.0),
-        clip={".*": (-7.5, 7.5)},
-    )
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5, clip={".*": (-7.5, 7.5)})
 
 
 @configclass

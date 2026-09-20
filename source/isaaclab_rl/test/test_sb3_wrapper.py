@@ -102,59 +102,60 @@ def test_random_actions(registered_tasks):
         env.close()
 
 
-def test_declared_action_bounds_are_preserved():
-    """Preserve the normalized action contract declared by the environment."""
+def test_unbounded_action_space_uses_normalized_wrapper_bounds():
+    """Expose normalized bounds to SB3 without modifying the underlying environment."""
     env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
     env = gym.make("Isaac-Cartpole", cfg=env_cfg)
     try:
         assert isinstance(env.unwrapped.single_action_space, gym.spaces.Box)
-        assert env.unwrapped.single_action_space.is_bounded("both")
+        assert not env.unwrapped.single_action_space.is_bounded("both")
 
         wrapped_env = Sb3VecEnvWrapper(env)
 
         np.testing.assert_array_equal(wrapped_env.action_space.low, -1.0)
         np.testing.assert_array_equal(wrapped_env.action_space.high, 1.0)
+        assert not env.unwrapped.single_action_space.is_bounded("both")
     finally:
         env.close()
 
 
-def test_direct_environment_enforces_declared_action_bounds():
-    """Clip raw actions to a direct environment's declared policy domain."""
+def test_direct_environment_remains_unbounded():
+    """Do not impose the SB3 compatibility bounds on the underlying direct environment."""
     env_cfg = parse_env_cfg("Isaac-Cartpole-Direct", device="cuda", num_envs=1)
     env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
     try:
+        assert isinstance(env.unwrapped.single_action_space, gym.spaces.Box)
+        assert not env.unwrapped.single_action_space.is_bounded("both")
+
         env.reset()
         env.step(torch.tensor([[2.0]], device="cuda"))
 
-        torch.testing.assert_close(env.unwrapped.actions, torch.tensor([[100.0]], device="cuda"))
+        torch.testing.assert_close(env.unwrapped.actions, torch.tensor([[200.0]], device="cuda"))
     finally:
         env.close()
 
 
-def test_partially_bounded_action_space_is_rejected():
-    """Reject action spaces whose finite bounds cannot be preserved for SB3."""
+def test_custom_unbounded_action_bounds():
+    """Allow policies to select a different finite domain for an unbounded environment."""
     env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
     env = gym.make("Isaac-Cartpole", cfg=env_cfg)
     try:
-        env.unwrapped.single_action_space = gym.spaces.Box(
-            low=np.array([-1.0], dtype=np.float32), high=np.array([np.inf], dtype=np.float32)
-        )
+        wrapped_env = Sb3VecEnvWrapper(env, unbounded_action_bounds=(-2.0, 3.0))
 
-        with pytest.raises(ValueError, match="finite lower and upper bounds"):
-            Sb3VecEnvWrapper(env)
+        np.testing.assert_array_equal(wrapped_env.action_space.low, -2.0)
+        np.testing.assert_array_equal(wrapped_env.action_space.high, 3.0)
     finally:
         env.close()
 
 
-def test_unbounded_action_space_is_rejected():
-    """Do not guess a normalized policy domain for an environment with no action contract."""
+def test_invalid_unbounded_action_bounds_are_rejected():
+    """Reject invalid compatibility bounds before constructing the SB3 wrapper."""
     env_cfg = parse_env_cfg("Isaac-Cartpole", device="cuda", num_envs=1)
     env = gym.make("Isaac-Cartpole", cfg=env_cfg)
     try:
-        env.unwrapped.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32)
-
-        with pytest.raises(ValueError, match="raw_action_bounds"):
-            Sb3VecEnvWrapper(env)
+        for bounds in ((1.0, -1.0), (0.0, 0.0), (-np.inf, 1.0), (-1.0, np.inf)):
+            with pytest.raises(ValueError, match="Invalid unbounded action bounds"):
+                Sb3VecEnvWrapper(env, unbounded_action_bounds=bounds)
     finally:
         env.close()
 

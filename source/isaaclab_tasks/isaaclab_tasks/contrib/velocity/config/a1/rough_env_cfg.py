@@ -28,7 +28,6 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_step = 0.01
         # actions
         self.actions.joint_pos.scale = 0.25
-        self.actions.joint_pos.raw_action_bounds = (-1.0, 1.0)
         # rewards
         self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*_foot"
         self.rewards.feet_air_time.weight = 0.01
