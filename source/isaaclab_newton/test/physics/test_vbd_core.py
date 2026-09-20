@@ -213,12 +213,9 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
     [
         pytest.param({}, id="newton-defaults"),
         pytest.param(
-            {"rigid_compliant_alm": False, "rigid_avbd_alpha": 0.0, "rigid_body_contact_buffer_size": 256},
-            id="legacy-cable-controls",
+            {"rigid_avbd_alpha": 0.0, "rigid_body_contact_buffer_size": 256},
+            id="shoelace-controls",
         ),
-        pytest.param({"rigid_compliant_alm": False, "rigid_contact_hard": False}, id="legacy-penalty-contacts"),
-        pytest.param({"rigid_compliant_alm": True}, id="compliant-mode-defaults"),
-        pytest.param({"rigid_compliant_alm": True, "rigid_avbd_alpha": 0.25}, id="compliant-alpha-override"),
     ],
 )
 def test_vbd_rigid_solver_controls(overrides):
@@ -226,7 +223,7 @@ def test_vbd_rigid_solver_controls(overrides):
     physics = importlib.import_module("isaaclab_newton.physics")
     solver_cfg = physics.VBDSolverCfg(**overrides)
     parameters = inspect.signature(SolverVBD).parameters
-    for name in ("rigid_compliant_alm", "rigid_avbd_alpha", "rigid_contact_hard", "rigid_body_contact_buffer_size"):
+    for name in ("rigid_avbd_alpha", "rigid_body_contact_buffer_size"):
         assert getattr(solver_cfg, name) == overrides.get(name, parameters[name].default)
 
     builder = ModelBuilder()

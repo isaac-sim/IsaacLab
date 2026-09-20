@@ -58,31 +58,10 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
-    rigid_compliant_alm: bool | None = None
-    """Whether to use compliant ALM for rigid contacts, joints, drives, and limits.
-
-    ``None`` preserves Newton's default, which selects the legacy path in Newton 1.6
-    and emits a deprecation warning when VBD integrates rigid bodies. Set ``True`` to
-    adopt compliant ALM with finite authored stiffness, or ``False`` to retain the legacy
-    path explicitly during migration. Material parameters may need retuning.
-    """
-
     rigid_avbd_alpha: float | None = None
     """Shared C0 stabilization strength for rigid joints and body-body contacts.
 
-    Values must be in ``[0, 1]``. ``None`` preserves Newton's mode defaults: ``0.95``
-    for the legacy path and ``0.0`` for compliant ALM. Newton's joint-specific and
-    contact-specific alpha overrides take precedence when supplied by a config subclass.
-    """
-
-    rigid_contact_hard: bool = True
-    """Whether to use hard body-body contacts on the legacy VBD path.
-
-    ``False`` selects legacy penalty-only contacts. This setting does not select the
-    contact mode when :attr:`rigid_compliant_alm` is ``True``.
-
-    .. deprecated:: Newton 1.6
-        Set :attr:`rigid_compliant_alm` to ``True`` and author finite contact stiffness.
+    Values must be in ``[0, 1]``. ``None`` preserves Newton's mode-dependent default.
     """
 
     rigid_contact_k_start: float = 1.0e2

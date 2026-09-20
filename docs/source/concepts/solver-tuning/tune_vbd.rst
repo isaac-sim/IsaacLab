@@ -181,46 +181,14 @@ Core Solve
       - Description
     * - ``iterations``
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
+    * - ``rigid_avbd_alpha``
+      - Default: ``None``. Shared C0 stabilization strength in ``[0, 1]`` for rigid joints and body-body contacts. Leaving it unset preserves Newton's mode-dependent default.
+    * - ``rigid_body_contact_buffer_size``
+      - Default: ``64``. Per-body capacity for body-body contacts when VBD integrates rigid bodies. Increase it if Newton reports a per-body body-body contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
       - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
-
-
-Rigid Joints and Body-Body Contacts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-These controls apply when VBD integrates rigid bodies, including rigid cable
-segments in a coupled solver entry. They use the same configuration for standalone
-and coupled VBD solvers.
-
-.. list-table::
-    :header-rows: 1
-    :widths: 30 70
-
-    * - Parameter
-      - Description
-    * - ``rigid_compliant_alm``
-      - Default: ``None``. Preserves Newton's mode default. Newton 1.6 selects the legacy path and emits a deprecation warning when VBD integrates rigid bodies. Set ``True`` to adopt compliant ALM, or ``False`` to retain legacy behavior explicitly during migration.
-    * - ``rigid_avbd_alpha``
-      - Default: ``None``. Shared C0 stabilization strength in ``[0, 1]`` for rigid joints and body-body contacts. Newton uses ``0.95`` on the legacy path and ``0.0`` with compliant ALM when unset. Joint-specific or contact-specific alpha overrides take precedence if a config subclass supplies them.
-    * - ``rigid_contact_hard``
-      - Default: ``True``. Selects hard contacts on the legacy path; ``False`` selects penalty-only contacts. Deprecated by Newton 1.6. With compliant ALM enabled, contacts use the ALM path regardless of this setting.
-    * - ``rigid_body_contact_buffer_size``
-      - Default: ``64``. Maximum body-body contact entries per rigid body. Increase it for per-body body-body contact buffer overflow warnings. This is separate from ``rigid_body_particle_contact_buffer_size`` and collision-pipeline capacities.
-
-Existing configurations keep their previous solver behavior. To migrate to
-compliant ALM, set ``rigid_compliant_alm=True`` and author finite contact and joint
-stiffness. Recheck deformation and contact response: values tuned for legacy hard
-constraints may need retuning. Leaving ``rigid_avbd_alpha=None`` allows each mode
-to select its own stabilization default. For example:
-
-.. code-block:: python
-
-    vbd_cfg = VBDSolverCfg(
-        rigid_compliant_alm=True,
-        rigid_body_contact_buffer_size=256,
-    )
 
 
 Self-Contact
