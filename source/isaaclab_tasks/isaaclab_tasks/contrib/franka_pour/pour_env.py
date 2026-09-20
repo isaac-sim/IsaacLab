@@ -41,7 +41,7 @@ from .geometry import (
     TARGET_CUP_GEOMETRY,
     points_inside_box,
 )
-from .pour_env_cfg import _configure_mpm_capacities
+from .pour_env_cfg import configure_mpm_capacities
 from .reset_dataset_io import RESET_DATASET_STATE_NAMES, reset_dataset_validate_runtime
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     cfg: FrankaPourResetDatasetEnvCfg
 
     def __init__(self, cfg: FrankaPourResetDatasetEnvCfg, render_mode: str | None = None, **kwargs):
-        _configure_mpm_capacities(cfg)
+        configure_mpm_capacities(cfg)
         self._prepare_newton_extras(cfg)
         with newton_builder_world_hook(self._add_pour_world_to_builder):
             super().__init__(cfg, render_mode, **kwargs)

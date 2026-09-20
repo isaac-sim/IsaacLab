@@ -10,10 +10,10 @@ from collections import deque
 import pytest
 import torch
 
-from isaaclab_tasks.contrib.franka_pour.reset_sampler import ResetDatasetSamplerCfg, _ResetDatasetSampler
+from isaaclab_tasks.contrib.franka_pour.reset_sampler import ResetDatasetSampler, ResetDatasetSamplerCfg
 
 
-def _ring_values(sampler: _ResetDatasetSampler, row: int) -> list[bool]:
+def _ring_values(sampler: ResetDatasetSampler, row: int) -> list[bool]:
     """Read one sampler ring in oldest-to-newest order."""
     size = int(sampler._history_sizes[row])
     pointer = int(sampler._history_pointers[row])
@@ -26,7 +26,7 @@ def test_rolling_history_matches_per_row_deques():
     """Duplicate IDs, wraparound, and oversized batches match sequential deque updates."""
     capacity = 5
     row_count = 4
-    sampler = _ResetDatasetSampler(
+    sampler = ResetDatasetSampler(
         row_count,
         "cpu",
         ResetDatasetSamplerCfg(monitored_history_len=capacity),
@@ -53,7 +53,7 @@ def test_rolling_history_matches_per_row_deques():
 
 def test_uniform_replay_covers_every_row_before_repeating(monkeypatch: pytest.MonkeyPatch):
     """The configured replay fraction draws one complete shuffled cycle without replacement."""
-    sampler = _ResetDatasetSampler(
+    sampler = ResetDatasetSampler(
         5,
         "cpu",
         ResetDatasetSamplerCfg(uniform_fraction=0.5),

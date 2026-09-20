@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Robot-neutral event functions shared by the cube-stacking tasks.
-
-These were previously defined in ``franka_stack_events.py``; they are robot-agnostic and are used
-by every stack robot config, so they live here and ``franka_stack_events`` re-exports them for
-backward compatibility.
-"""
+"""Robot-neutral event terms shared by the cube-stacking tasks."""
 
 from __future__ import annotations
 
@@ -317,7 +312,6 @@ def randomize_visual_texture_material(
         not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
     ):
         return
-        # textures = [default_texture]
 
     # enable replicator extension if not already enabled
     from isaaclab.sim.utils import enable_extension
@@ -354,7 +348,7 @@ def randomize_visual_texture_material(
     if not hasattr(asset, "cfg"):
         # Static assets carry no runtime view; 'asset' is the spawned cfg. Resolve the prim from
         # the stage by its spawned path. Local import: keep USD out of module load for pure cfg loading.
-        from isaaclab.sim.utils import find_matching_prims  # noqa: PLC0415
+        from isaaclab.sim.utils import find_matching_prims
 
         asset_prim_path = find_matching_prims(asset.prim_path)[0].GetPath().pathString
         prims_group = rep.get.prims(path_pattern=f"{asset_prim_path}/visuals")
