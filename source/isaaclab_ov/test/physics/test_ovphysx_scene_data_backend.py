@@ -605,43 +605,16 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
             OvPhysxManager._backend.clear()
 
 
-def test_manager_releases_legacy_owners_after_release_error(monkeypatch):
-    """The 0.5.11 path preserves its unconditional owner cleanup on failure."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
-
-    class FakePhysX:
-        def reset_stage(self):
-            events.append("reset")
-            return 23
-
-        def wait_op(self, operation):
-            events.append(("wait", operation))
-
-        def release(self):
-            events.append("release")
-            raise RuntimeError("legacy release failed")
-
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
-
-    OvPhysxManager._backend.physx = FakePhysX()
-    OvPhysxManager._backend.stage = FakeStage()
-    monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: events.append("close_views"))
-    with pytest.raises(RuntimeError, match="legacy release failed"):
-        OvPhysxManager._backend.clear()
-
-    assert OvPhysxManager._backend.physx is None
-    assert OvPhysxManager._backend.stage is None
-    assert events == ["close_views", "reset", ("wait", 23), "release", "destroy_stage"]
-
-
-def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
-    """A pre-teardown destroy failure preserves the runtime and stage for retry."""
+@pytest.mark.parametrize(
+    ("entry_points", "retryable"),
+    [
+        pytest.param(_LEGACY_LIFECYCLE_ENTRY_POINTS, False, id="legacy-release-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, False, id="terminal-destroy-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, True, id="retryable-destroy-error"),
+    ],
+)
+def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry_points, retryable):
+    """Terminal errors free native owners; pre-teardown errors retain them for the next close."""
     from isaaclab_ov.physics import OvPhysxManager
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
@@ -649,13 +622,16 @@ def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
     from isaaclab.sim import SimulationContext
 
     events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
     class FakePhysX:
         fail_destroy = True
+        terminal = False
 
         @property
         def handle(self):
+            if self.terminal:
+                raise RuntimeError("PhysX instance has been destroyed")
             return 17
 
         def reset_stage(self):
@@ -668,14 +644,15 @@ def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
         def destroy(self):
             events.append("destroy")
             if self.fail_destroy:
-                raise RuntimeError("destroy did not reach native teardown")
+                self.terminal = not retryable
+                raise RuntimeError("native teardown failed")
 
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
+        def release(self):
+            events.append("release")
+            raise RuntimeError("native teardown failed")
 
     physx = FakePhysX()
-    stage = FakeStage()
+    stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
     OvPhysxManager._backend.physx = physx
     OvPhysxManager._backend.stage = stage
     backend = OvPhysxManager._backend
@@ -692,12 +669,16 @@ def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
     monkeypatch.setattr(PhysicsManager, "_callbacks", {})
     monkeypatch.setattr(PhysicsManager, "views", {})
     monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: events.append("close_views"))
-    with pytest.raises(RuntimeError, match="did not reach native teardown"):
+    with pytest.raises(RuntimeError, match="native teardown failed"):
         OvPhysxManager.close()
 
     assert PhysicsManager._sim is None
     assert sim._backend_registry[om_mod.OvPhysxBackend][0][1] is backend
-    assert backend.physx is physx and backend.stage is stage
+    assert backend.physx is (physx if retryable else None)
+    assert backend.stage is (stage if retryable else None)
+
+    teardown = ["close_views", "reset", ("wait", 23), entry_points["destroy"]]
+    assert events == teardown + ([] if retryable else ["destroy_stage"])
 
     physx.fail_destroy = False
     OvPhysxManager.close()
@@ -705,59 +686,7 @@ def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
     assert OvPhysxManager._backend is None
     assert om_mod.OvPhysxBackend not in sim._backend_registry
     assert backend.physx is None and backend.stage is None
-    assert events == [
-        "close_views",
-        "reset",
-        ("wait", 23),
-        "destroy",
-        "close_views",
-        "reset",
-        ("wait", 23),
-        "destroy",
-        "destroy_stage",
-    ]
-
-
-def test_manager_releases_owners_after_terminal_destroy_error(monkeypatch):
-    """A destroy error after terminal teardown does not retain dead owners."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
-
-    class FakePhysX:
-        terminal = False
-
-        @property
-        def handle(self):
-            if self.terminal:
-                raise RuntimeError("PhysX instance has been destroyed")
-            return 17
-
-        def reset_stage(self):
-            return 23
-
-        def wait_op(self, operation):
-            pass
-
-        def destroy(self):
-            self.terminal = True
-            raise RuntimeError("native teardown reported a terminal failure")
-
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
-
-    OvPhysxManager._backend.physx = FakePhysX()
-    OvPhysxManager._backend.stage = FakeStage()
-    monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: None)
-    with pytest.raises(RuntimeError, match="terminal failure"):
-        OvPhysxManager._backend.clear()
-
-    assert OvPhysxManager._backend.physx is None
-    assert OvPhysxManager._backend.stage is None
-    assert events == ["destroy_stage"]
+    assert events == teardown * (2 if retryable else 1) + ["destroy_stage"]
 
 
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):

@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import weakref
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -21,6 +22,7 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 
+import omni.physics.tensors
 import omni.timeline
 
 import isaaclab.sim as sim_utils
@@ -210,9 +212,19 @@ Timeline Operations Tests.
 
 
 @pytest.mark.isaacsim_ci
-def test_timeline_play_stop():
-    """Test timeline play and stop operations."""
+def test_timeline_play_stop(monkeypatch):
+    """Playing shares one native view; stopping releases it before the next play."""
+    create_view = Mock(wraps=omni.physics.tensors.create_simulation_view)
+    monkeypatch.setattr(omni.physics.tensors, "create_simulation_view", create_view)
     sim = SimulationContext()
+    scene_data = sim.physics_manager.get_scene_data_backend()
+    publication = scene_data.transforms
+    cube_cfg = sim_utils.CuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    )
+    cube_cfg.func("/World/Cube", cube_cfg)
 
     # initially simulation should be stopped
     assert sim.is_stopped()
@@ -222,6 +234,13 @@ def test_timeline_play_stop():
     sim.play()
     assert sim.is_playing()
     assert not sim.is_stopped()
+    resource = scene_data._backend
+    view = sim.physics_sim_view
+    assert resource.simulation_view is view
+    assert scene_data.transforms.transforms is not None
+    assert create_view.call_count == 1
+    invalidate = Mock(wraps=view.invalidate)
+    monkeypatch.setattr(view, "invalidate", invalidate)
 
     # disable callback to prevent app from continuing
     sim._disable_app_control_on_stop_handle = True  # type: ignore
@@ -229,6 +248,18 @@ def test_timeline_play_stop():
     sim.stop()
     assert sim.is_stopped()
     assert not sim.is_playing()
+    assert sim.physics_sim_view is scene_data.get_rigid_body_view() is None
+    assert resource.simulation_view is publication.transforms is None
+    assert scene_data.transforms is publication
+    resource.clear()
+    invalidate.assert_called_once_with()
+
+    sim.play()
+    assert create_view.call_count == 2
+    assert sim.physics_sim_view is not view
+    assert scene_data._backend.simulation_view is sim.physics_sim_view
+    sim._disable_app_control_on_stop_handle = True
+    sim.stop()
 
 
 @pytest.mark.isaacsim_ci

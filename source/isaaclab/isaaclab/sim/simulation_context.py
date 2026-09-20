@@ -10,7 +10,6 @@ import logging
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from copy import deepcopy
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -987,8 +986,8 @@ class SimulationContext:
     ) -> _BackendT:
         """Return the simulation-scoped native backend for a configuration.
 
-        Equal configurations of the same concrete type share a resource. Configuration values
-        are copied on registration so later edits cannot change an existing identity.
+        Equal configurations of the same concrete type share a resource. Finalize configurations
+        before registration and treat them as read-only afterward; use a new cfg for new settings.
 
         Args:
             backend_type: Backend class to construct when the resource does not exist.
@@ -1003,9 +1002,8 @@ class SimulationContext:
         for registered_cfg, resource in self._backend_registry.get(backend_type, ()):
             if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
                 return cast(_BackendT, resource)
-        registered_cfg = deepcopy(cfg)
         resource = backend_type(*args, **kwargs)
-        self._backend_registry.setdefault(backend_type, []).append((registered_cfg, resource))
+        self._backend_registry.setdefault(backend_type, []).append((cfg, resource))
         return resource
 
     def clear_backend(self, backend_type: type[object], *, cfg: object = None) -> None:

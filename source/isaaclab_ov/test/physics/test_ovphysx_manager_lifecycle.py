@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
+from contextlib import nullcontext
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -198,35 +199,25 @@ def test_registry_constructs_each_runtime_once_without_replacing_pxr(monkeypatch
     assert first.physx is not second.physx
 
 
-def test_close_dispatches_stop_before_runtime_release(monkeypatch, manager_module):
-    from isaaclab.physics import PhysicsManager
-
-    manager = manager_module.OvPhysxManager
-    events = []
-    monkeypatch.setattr(PhysicsManager, "close", classmethod(lambda cls: events.append("stop")))
-    monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
-
-    manager.close()
-
-    assert events == ["stop", "release"]
-
-
-def test_close_releases_runtime_after_stop_listener_failure(monkeypatch, manager_module):
+@pytest.mark.parametrize("stop_fails", [False, True])
+def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch, manager_module, stop_fails):
     from isaaclab.physics import PhysicsManager
 
     manager = manager_module.OvPhysxManager
     events = []
 
-    def fail_stop(cls):
-        raise ValueError("listener failure")
+    def stop(cls):
+        events.append("stop")
+        if stop_fails:
+            raise ValueError("listener failure")
 
-    monkeypatch.setattr(PhysicsManager, "close", classmethod(fail_stop))
+    monkeypatch.setattr(PhysicsManager, "close", classmethod(stop))
     monkeypatch.setattr(manager._backend, "clear", lambda: events.append("release"))
 
-    with pytest.raises(ValueError, match="listener failure"):
+    with pytest.raises(ValueError, match="listener failure") if stop_fails else nullcontext():
         manager.close()
 
-    assert events == ["release"]
+    assert events == ["stop", "release"]
 
 
 def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager_module):
@@ -495,29 +486,16 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
-def test_construct_physx_passes_the_configured_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
-    """Configured and default cache directories reach ``PhysXConfig`` unchanged."""
+def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
+    """Configured, default, and unset cache directories reach ``PhysXConfig`` unchanged."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxCfg
 
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
 
-    configured = str(tmp_path / "configured_cache")
-    backend = manager_module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=configured), "cpu", 0)
-    assert backend.physx.config.cooked_collider_cache_dir == configured
-
-    backend = manager_module.OvPhysxBackend(OvPhysxCfg(), "cpu", 0)
-    assert backend.physx.config.cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
-
-
-def test_construct_physx_forwards_an_unset_cooked_collider_cache_dir(monkeypatch, manager_module):
-    """``None`` reaches ``PhysXConfig`` unchanged so OVPhysX applies its own resolution."""
-    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
-
-    monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
-
-    backend = manager_module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=None), "cpu", 0)
-
-    assert backend.physx.config.cooked_collider_cache_dir is None
+    assert OvPhysxCfg().cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
+    for cache_dir in (DEFAULT_COOKED_COLLIDER_CACHE_DIR, str(tmp_path / "configured_cache"), None):
+        backend = manager_module.OvPhysxBackend(OvPhysxCfg(cooked_collider_cache_dir=cache_dir), "cpu", 0)
+        assert backend.physx.config.cooked_collider_cache_dir == cache_dir
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")

@@ -6,9 +6,11 @@
 """Tests for shared physics-manager lifecycle behavior."""
 
 import gc
+import inspect
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -17,91 +19,65 @@ from isaaclab.renderers import RendererCfg
 from isaaclab.visualizers import VisualizerCfg
 
 
-def test_backend_registry_uses_only_backend_type():
-    """Omitting cfg retains one native resource per backend type."""
-    import inspect
-
-    from isaaclab.sim import SimulationContext
-
-    class Backend:
-        def __init__(self, value):
-            if value == 0:
-                raise ValueError("construction failed")
-            created.append(value)
-
-    class OtherBackend(Backend):
-        pass
-
-    context = object.__new__(SimulationContext)
-    context._backend_registry = {}
-    created = []
-
-    with pytest.raises(ValueError, match="construction failed"):
-        context.get_or_create_backend(Backend, 0)
-    assert not context._backend_registry
-    first = context.get_or_create_backend(Backend, 1)
-    same = context.get_or_create_backend(Backend, 2)
-    other_type = context.get_or_create_backend(OtherBackend, 4)
-
-    assert same is first
-    assert other_type is not first
-    assert created == [1, 4]
-    assert set(context._backend_registry) == {Backend, OtherBackend}
-    assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
-    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
-    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
-
-
-def test_backend_registry_uses_cfg_values_and_releases_only_the_selected_resource():
-    """Equal cfgs share, different types/values separate, and caller mutations do not rekey resources."""
+def test_backend_registry_identity_and_lifecycle():
+    """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
     from isaaclab.sim import SimulationContext
 
     @dataclass
     class Cfg:
         values: list[int]
 
+        def __deepcopy__(self, memo):
+            pytest.fail("Registering a finalized cfg must not copy it.")
+
     @dataclass
     class OtherCfg(Cfg):
         pass
 
     class Backend:
-        def __init__(self):
-            self.cleared = 0
-            self.fail_release = False
+        def __init__(self, value):
+            if value == 0:
+                raise ValueError("construction failed")
+            self.clear = Mock()
 
-        def clear(self):
-            self.cleared += 1
-            if self.fail_release:
-                raise RuntimeError("release failed")
+    class OtherBackend(Backend):
+        pass
 
     context = object.__new__(SimulationContext)
     context._backend_registry = {}
     cfg = Cfg([1])
-    first = context.get_or_create_backend(Backend, cfg=cfg)
-    assert context.get_or_create_backend(Backend, cfg=Cfg([1])) is first
-    cfg.values.append(2)
-    second = context.get_or_create_backend(Backend, cfg=cfg)
-    other = context.get_or_create_backend(Backend, cfg=OtherCfg([1]))
-    assert len({id(first), id(second), id(other)}) == 3
-    assert context.get_or_create_backend(Backend, cfg=Cfg([1])) is first
+    with pytest.raises(ValueError, match="construction failed"):
+        context.get_or_create_backend(Backend, 0, cfg=cfg)
+    assert not context._backend_registry
+
+    default = context.get_or_create_backend(Backend, 1)
+    first = context.get_or_create_backend(Backend, 1, cfg=cfg)
+    different_cfg = replace(cfg, values=[1, 2])
+    second = context.get_or_create_backend(Backend, 1, cfg=different_cfg)
+    other_cfg = context.get_or_create_backend(Backend, 1, cfg=OtherCfg([1]))
+    other_type = context.get_or_create_backend(OtherBackend, 1, cfg=cfg)
+    assert len({id(resource) for resource in (default, first, second, other_cfg, other_type)}) == 5
+    assert context.get_or_create_backend(Backend, 0) is default
+    assert context.get_or_create_backend(Backend, 0, cfg=Cfg([1])) is first
 
     context.clear_backend(Backend, cfg=Cfg([1]))
-    assert (first.cleared, second.cleared, other.cleared) == (1, 0, 0)
+    first.clear.assert_called_once_with()
+    assert all(resource.clear.call_count == 0 for resource in (default, second, other_cfg, other_type))
     with pytest.raises(KeyError):
         context.clear_backend(Backend, cfg=Cfg([1]))
-    assert context.get_or_create_backend(Backend, cfg=Cfg([1])) is not first
+    assert context.get_or_create_backend(Backend, 1, cfg=Cfg([1])) is not first
 
-    second.fail_release = True
+    second.clear.side_effect = RuntimeError("release failed")
     with pytest.raises(RuntimeError, match="release failed"):
-        context.clear_backend(Backend, cfg=cfg)
-    assert context.get_or_create_backend(Backend, cfg=cfg) is second
-    second.fail_release = False
-    context.clear_backend(Backend, cfg=cfg)
-    assert second.cleared == 2
+        context.clear_backend(Backend, cfg=different_cfg)
+    assert context.get_or_create_backend(Backend, 0, cfg=different_cfg) is second
+    second.clear.side_effect = None
+    context.clear_backend(Backend, cfg=different_cfg)
+    assert second.clear.call_count == 2
 
 
-def test_service_locator_abstraction_is_removed():
-    """Backend ownership stays directly on SimulationContext."""
+def test_backend_ownership_has_no_service_locator_or_resource_keys():
+    """Backend ownership stays directly on SimulationContext and uses cfg identity, not custom keys."""
     from pathlib import Path
 
     from isaaclab.sim import SimulationContext
@@ -109,6 +85,9 @@ def test_service_locator_abstraction_is_removed():
     sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
     assert not (sim_package / "service_locator.py").exists()
     assert not hasattr(SimulationContext, "services")
+    assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
+    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
+    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):

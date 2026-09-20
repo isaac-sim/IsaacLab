@@ -77,9 +77,10 @@ The concrete ``close()`` implementation dispatches the ``STOP`` event.
 ``SimulationContext.get_or_create_backend(Backend, *args, cfg=cfg)`` owns native
 resources by backend type and configuration values. Equal configurations of the
 same concrete type share one resource; omitting ``cfg`` retains one resource per
-backend type. The registry snapshots the configuration so later edits do not
-change an existing resource's identity. Constructor arguments apply only on
-creation; pass a constructor's own configuration positionally.
+backend type. Finalize configurations before registration and treat them,
+including nested values, as read-only afterward. Use a new configuration for
+different settings. Constructor arguments apply only on creation; pass a
+constructor's own configuration positionally.
 ``clear_backend(Backend, cfg=cfg)`` releases one resource after its consumers
 have invalidated their bindings. If release fails, the entry remains available
 for retry. Simulation teardown releases the remaining registered resources.
