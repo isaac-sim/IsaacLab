@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.2.2 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Warp-specific IO descriptor APIs. They remain available for
+  compatibility and will be removed in Isaac Lab 3.2. LEAPP is the recommended
+  alternative for supported RSL-RL/PyTorch deployments but does not currently
+  replace Warp-first descriptor export.
+
+
 0.2.1 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 
