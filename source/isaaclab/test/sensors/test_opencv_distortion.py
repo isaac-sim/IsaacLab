@@ -369,10 +369,11 @@ def test_intrinsic_batch_rejection_is_atomic(intrinsic_camera, env_ids, batch_de
 
 
 @pytest.mark.parametrize(
-    "input_kind", ["torch", "torch_strided", "torch_double", "host_torch", "warp", "warp_matrix", "warp_matrix_double"]
+    "input_kind",
+    ["numpy", "torch", "torch_strided", "torch_double", "host_torch", "warp", "warp_matrix", "warp_matrix_double"],
 )
 @pytest.mark.parametrize("focal_length", [None, 24.0])
-def test_intrinsic_batch_matches_runtime_projection(intrinsic_camera, input_kind, focal_length, caplog):
+def test_intrinsic_batch_matches_runtime_projection(intrinsic_camera, input_kind, focal_length, caplog, monkeypatch):
     """Float32/64 and strided batches preserve projection semantics and selected-camera order."""
     stage, camera = intrinsic_camera
     usd_before = stage.ExportToString()
@@ -382,13 +383,16 @@ def test_intrinsic_batch_matches_runtime_projection(intrinsic_camera, input_kind
         device=camera.device,
     )
     matrices = requested
-    if input_kind == "torch_strided":
+    if input_kind == "numpy":
+        matrices = requested.cpu().numpy()
+    elif input_kind == "torch_strided":
         matrices = requested.transpose(1, 2).contiguous().transpose(1, 2)
         assert not matrices.is_contiguous()
     elif input_kind == "torch_double":
         matrices = requested.double()
     elif input_kind == "host_torch":
         matrices = requested.cpu()
+        monkeypatch.setattr(wp, "launch", Mock(side_effect=AssertionError("Host calibration must not launch kernels")))
     elif input_kind == "warp":
         matrices = wp.from_torch(requested)
     elif input_kind == "warp_matrix":
@@ -451,20 +455,16 @@ def test_intrinsic_camera_selections(intrinsic_camera, selection):
     assert stage.ExportToString() == usd_before
 
 
-def test_intrinsic_setter_has_no_usd_or_batch_readback(intrinsic_camera, monkeypatch):
-    """Gate runtime ownership: only scalar validation status may cross to the host, and USD is unavailable."""
+def test_intrinsic_setter_has_no_usd_or_calibration_kernels(intrinsic_camera, monkeypatch):
+    """Preparation uses NumPy without compiling kernels or consulting USD; device buffers remain camera-owned."""
     _stage, camera = intrinsic_camera
     matrices = wp.from_torch(torch.eye(3, device=camera.device).repeat(3, 1, 1))
-    original_numpy = wp.array.numpy
-
-    def checked_numpy(array):
-        assert array.ptr == camera._intrinsic_status.ptr, "Only scalar validation status may reach the host"
-        return original_numpy(array)
+    before = camera._data.intrinsic_matrices.warp.ptr
 
     def reject_readback(*args, **kwargs):
         pytest.fail("The runtime setter tried to import USD calibration")
 
-    monkeypatch.setattr(wp.array, "numpy", checked_numpy)
+    monkeypatch.setattr(wp, "launch", Mock(side_effect=AssertionError("Calibration must not launch kernels")))
     monkeypatch.setattr(camera, "_initialize_intrinsics", reject_readback)
     # Runtime calibration must not even resolve a USD prim or layer.
     camera.stage = None
@@ -472,6 +472,7 @@ def test_intrinsic_setter_has_no_usd_or_batch_readback(intrinsic_camera, monkeyp
     indices = wp.array([2, 0, 1], dtype=wp.int32, device=camera.device)
     camera.set_intrinsic_matrices(matrices, env_ids=indices)
     wp.synchronize_device(camera.device)
+    assert camera._data.intrinsic_matrices.warp.ptr == before
 
 
 @pytest.mark.parametrize("bad_shape", [(3, 2, 2), (3, 9), (3, 3, 3, 1)])

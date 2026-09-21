@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import torch
@@ -35,71 +35,6 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@wp.kernel(enable_backward=False)
-def _camera_select_intrinsics_kernel(
-    matrices: wp.array3d(dtype=Any),
-    env_ids: wp.array(dtype=wp.int32),
-    fixed: wp.array(dtype=wp.bool),
-    width: int,
-    height: int,
-    rows: wp.array(dtype=wp.int32),
-    status: wp.array(dtype=wp.int32),
-):
-    """Validate a runtime device batch and select the last input row for each camera."""
-    row = wp.tid()
-    index = env_ids[row]
-    if index < 0:
-        index += rows.shape[0]
-    if index < 0 or index >= rows.shape[0]:
-        wp.atomic_or(status, 0, 1)
-        return
-    if fixed[index]:
-        wp.atomic_or(status, 0, 8)
-        return
-    wp.atomic_max(rows, index, row)
-    if wp.abs(wp.float64(matrices[row, 0, 0]) - wp.float64(matrices[row, 1, 1])) > wp.float64(1.0e-4):
-        wp.atomic_or(status, 0, 2)
-    if wp.abs(wp.float64(matrices[row, 0, 2]) - wp.float64(width) * wp.float64(0.5)) > wp.float64(1.0e-4) or wp.abs(
-        wp.float64(matrices[row, 1, 2]) - wp.float64(height) * wp.float64(0.5)
-    ) > wp.float64(1.0e-4):
-        wp.atomic_or(status, 0, 4)
-
-
-@wp.kernel(enable_backward=False)
-def _camera_set_intrinsics_kernel(
-    matrices: wp.array3d(dtype=Any),
-    rows: wp.array(dtype=wp.int32),
-    width: int,
-    height: int,
-    focal_length: wp.float64,
-    use_focal_length: bool,
-    current_matrices: wp.array(dtype=wp.mat33f),
-    current_parameters: wp.array2d(dtype=wp.float32),
-    output_matrices: wp.array(dtype=wp.mat33f),
-    output_parameters: wp.array2d(dtype=wp.float32),
-):
-    index = wp.tid()
-    row = rows[index]
-    output_matrices[index] = current_matrices[index]
-    for attribute in range(5):
-        output_parameters[attribute, index] = current_parameters[attribute, index]
-    if row < 0:
-        return
-    mean_focal = (wp.float64(matrices[row, 0, 0]) + wp.float64(matrices[row, 1, 1])) * wp.float64(0.5)
-    pixel_size = wp.float64(1.0) / wp.float64(width)
-    if use_focal_length:
-        pixel_size = focal_length / mean_focal
-    focal = wp.float32(pixel_size * mean_focal)
-    horizontal = wp.float32(pixel_size * wp.float64(width))
-    output_parameters[0, index] = focal
-    output_parameters[1, index] = horizontal
-    output_parameters[2, index] = wp.float32(pixel_size * wp.float64(height))
-    output_parameters[3, index] = 0.0
-    output_parameters[4, index] = 0.0
-    fx = wp.float32(wp.float64(width) * wp.float64(focal) / wp.float64(horizontal))
-    output_matrices[index] = wp.mat33f(fx, 0.0, float(width) * 0.5, 0.0, fx, float(height) * 0.5, 0.0, 0.0, 1.0)
 
 
 @wp.kernel
@@ -347,7 +282,7 @@ class Camera(SensorBase):
 
     def set_intrinsic_matrices(
         self,
-        matrices: torch.Tensor | wp.array,
+        matrices: np.ndarray | torch.Tensor | wp.array,
         focal_length: float | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
     ):
@@ -377,16 +312,16 @@ class Camera(SensorBase):
             Per-environment intrinsic randomization therefore requires additional renderer support;
             successful attribute updates alone do not establish correct independent projections.
 
-        Shape and batch cardinality are checked before any changes. Index validation and projection
-        warnings transfer one status integer to the host; matrix and index batches stay on device.
-        Consequently this method is not CUDA graph capturable.
+        Calibration preparation uses NumPy, including for one-off setup calls, without compiling
+        calibration kernels. Device inputs are copied to the host; the renderer receives the resulting
+        device buffers through its native runtime path. Partial updates also read the active calibration
+        to preserve unselected cameras. This method is not CUDA graph capturable.
 
-        This path targets repeated runtime updates from device arrays. Initialization imports USD
-        calibration on the CPU without these kernels. The first setter call may compile Warp kernels;
-        small or one-off host batches do not necessarily benefit from GPU execution.
+        Shape, batch cardinality, and indices are validated before any changes. Backend validation
+        completes before the public calibration buffers are committed.
 
         Args:
-            matrices: Intrinsic matrices [pixel], shape (N, 3, 3), or a Warp array of ``wp.mat33f`` /
+            matrices: NumPy or Torch intrinsic matrices [pixel], shape (N, 3, 3), or a Warp array of ``wp.mat33f`` /
                 ``wp.mat33d``. A single (3, 3) matrix is accepted for one selected camera.
             focal_length: Perspective focal length in the scene's camera length units. If None,
                 a pixel size of 1 / width is used to derive the focal length from the matrix.
@@ -400,18 +335,29 @@ class Camera(SensorBase):
             IndexError: If a selected camera index is out of range.
         """
         if isinstance(matrices, torch.Tensor):
-            if matrices.ndim == 2:
-                matrices = matrices.unsqueeze(0)
-            matrices = wp.from_torch(matrices)
-        elif not isinstance(matrices, wp.array):
-            raise TypeError(f"Unsupported type for matrices: {type(matrices)}. Expected torch.Tensor or wp.array.")
-        if matrices.dtype in (wp.mat33f, wp.mat33d):
-            matrices = matrices.view(wp.float32 if matrices.dtype == wp.mat33f else wp.float64)
+            matrices = matrices.detach().cpu().numpy()
+        elif isinstance(matrices, wp.array):
+            matrices = matrices.numpy()
+        elif not isinstance(matrices, np.ndarray):
+            raise TypeError(f"Unsupported matrices: {type(matrices)}. Expected np.ndarray, torch.Tensor or wp.array.")
         if matrices.ndim == 2:
-            matrices = matrices.contiguous().reshape((1, *matrices.shape))
+            matrices = matrices[None]
         if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
             raise ValueError(f"Expected intrinsic matrices with shape (N, 3, 3), got {matrices.shape}.")
-        indices = self._ALL_INDICES if env_ids is None else self._resolve_env_ids_wp(env_ids)
+        if env_ids is None or isinstance(env_ids, slice):
+            indices = np.arange(self._view.count, dtype=np.int32)
+            if env_ids is not None:
+                indices = indices[env_ids]
+        elif isinstance(env_ids, wp.array):
+            if env_ids.dtype != wp.int32:
+                raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
+            if env_ids.ndim != 1:
+                raise ValueError("Warp camera indices must be a one-dimensional array.")
+            indices = env_ids.numpy()
+        else:
+            if isinstance(env_ids, torch.Tensor):
+                env_ids = env_ids.detach().cpu().numpy()
+            indices = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         if matrices.shape[0] != indices.shape[0]:
             raise ValueError(
                 "The number of intrinsic matrices must match the number of selected cameras: "
@@ -419,51 +365,43 @@ class Camera(SensorBase):
             )
         if indices.shape[0] == 0:
             return
-        matrices = matrices.to(self._device)
-        height, width = self.image_shape
-        self._intrinsic_rows.fill_(-1)
-        self._intrinsic_status.zero_()
-        wp.launch(
-            _camera_select_intrinsics_kernel,
-            dim=indices.shape[0],
-            inputs=[
-                matrices,
-                indices,
-                self._intrinsic_fixed,
-                width,
-                height,
-                self._intrinsic_rows,
-                self._intrinsic_status,
-            ],
-            device=self._device,
-        )
-        # Synchronize to raise index errors before backend writes, without downloading the input batch.
-        status = int(self._intrinsic_status.numpy()[0])
-        if status & 1:
+        indices = np.where(indices < 0, indices + self._view.count, indices)
+        if np.any((indices < 0) | (indices >= self._view.count)):
             raise IndexError("Camera indices are out of range.")
-        if status & 2:
+        fixed = self._intrinsic_fixed[indices]
+        if np.any(fixed):
+            indices, matrices = indices[~fixed], matrices[~fixed]
+        height, width = self.image_shape
+        fx, fy = matrices[:, 0, 0].astype(np.float64), matrices[:, 1, 1].astype(np.float64)
+        if np.any(np.abs(fx - fy) > 1.0e-4):
             logger.warning("Camera non square pixels are not supported; the average of f_x and f_y is used.")
-        if status & 4:
+        if np.any(np.abs(matrices[:, 0, 2].astype(np.float64) - width * 0.5) > 1.0e-4) or np.any(
+            np.abs(matrices[:, 1, 2].astype(np.float64) - height * 0.5) > 1.0e-4
+        ):
             logger.warning("Camera aperture offsets are not supported; c_x and c_y are half of width and height.")
-        if status & 8:
+        if np.any(fixed):
             logger.warning("set_intrinsic_matrices() skipped cameras with an OpenCV lens-distortion model.")
-        wp.launch(
-            _camera_set_intrinsics_kernel,
-            dim=self._view.count,
-            inputs=[
-                matrices,
-                self._intrinsic_rows,
-                width,
-                height,
-                wp.float64(focal_length or 0.0),
-                focal_length is not None,
-                self._data.intrinsic_matrices.warp,
-                self._intrinsic_parameters,
-                self._intrinsic_pending,
-                self._intrinsic_parameters_pending,
-            ],
-            device=self._device,
-        )
+        mean_focal = (fx + fy) * 0.5
+        if env_ids is not None:
+            # Select the last input row explicitly; repeated indices must be deterministic.
+            indices, rows = np.unique(indices[::-1], return_index=True)
+            mean_focal = mean_focal[len(matrices) - 1 - rows]
+        parameters = np.zeros((5, len(indices)), dtype=np.float32)
+        output = np.zeros((len(indices), 3, 3), dtype=np.float32)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            pixel_size = 1.0 / width if focal_length is None else focal_length / mean_focal
+            parameters[0] = pixel_size * mean_focal
+            parameters[1], parameters[2] = pixel_size * width, pixel_size * height
+            effective_focal = width * parameters[0].astype(np.float64) / parameters[1].astype(np.float64)
+            output[:, 0, 0] = output[:, 1, 1] = effective_focal
+        output[:, 0, 2], output[:, 1, 2], output[:, 2, 2] = width * 0.5, height * 0.5, 1.0
+        if len(indices) != self._view.count:
+            current_matrices = self._data.intrinsic_matrices.warp.numpy().copy()
+            current_parameters = self._intrinsic_parameters.numpy().copy()
+            current_matrices[indices], current_parameters[:, indices] = output, parameters
+            output, parameters = current_matrices, current_parameters
+        wp.copy(self._intrinsic_pending, wp.array(output, dtype=wp.mat33f, device="cpu"))
+        wp.copy(self._intrinsic_parameters_pending, wp.array(parameters, dtype=wp.float32, device="cpu"))
         # Let the backend validate its constraints before committing the public calibration buffers.
         self._renderer.update_camera_intrinsics(
             self._render_data, self._intrinsic_pending, self._intrinsic_parameters_pending
@@ -871,9 +809,7 @@ class Camera(SensorBase):
         device = self._device
         wp.copy(self._data.intrinsic_matrices.warp, wp.array(matrices, dtype=wp.mat33f, device=device))
         self._intrinsic_parameters = wp.array(np.asarray(parameters, dtype=np.float32).T.copy(), device=device)
-        self._intrinsic_fixed = wp.array(fixed, dtype=wp.bool, device=device)
-        self._intrinsic_rows = wp.empty(self._view.count, dtype=wp.int32, device=device)
-        self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=device)
+        self._intrinsic_fixed = np.asarray(fixed, dtype=bool)
         self._intrinsic_pending = wp.empty_like(self._data.intrinsic_matrices.warp)
         self._intrinsic_parameters_pending = wp.empty_like(self._intrinsic_parameters)
 
