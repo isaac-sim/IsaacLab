@@ -92,6 +92,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         """Rebuild the VBD particle BVH before stepping physics."""
-        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
-            cls._solver.rebuild_bvh(cls._state_0)
+        if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
+            cls._solver.rebuild_bvh(cls.backend.state_0)
         super()._simulate_physics_only()

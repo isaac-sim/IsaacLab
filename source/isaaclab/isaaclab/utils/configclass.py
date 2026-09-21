@@ -48,6 +48,10 @@ def configclass(cls, **kwargs):
     the above two issues. It also provides additional helper functions for dictionary <-> class
     conversion and easily copying class instances.
 
+    Fields declared with ``field(metadata={"copy": False})`` retain their supplied value by reference
+    during construction, :meth:`copy`, and :meth:`replace`. Use this for borrowed native inputs that
+    must not be duplicated; ordinary configuration fields remain independently copied.
+
     Usage:
 
     .. code-block:: python
@@ -499,9 +503,10 @@ def _custom_post_init(obj):
     proxy type i.e. a read only proxy for mapping objects. The error is thrown when using hierarchical data-classes
     for configuration.
     """
+    borrowed = {name for name, field in obj.__dataclass_fields__.items() if field.metadata.get("copy") is False}
     for key in dir(obj):
         # skip dunder members
-        if key.startswith("__"):
+        if key.startswith("__") or key in borrowed:
             continue
         # get data member
         value = getattr(obj, key)
