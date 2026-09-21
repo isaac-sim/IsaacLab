@@ -5,8 +5,10 @@
 
 """Compare one runtime benchmark against the recent history of comparable runs.
 
-ASV decides relative regressions and statistical significance. Isaac Lab applies
-the warmup, advisory-metric, and absolute-floor policies around that comparison.
+ASV's statistics (Mann-Whitney U, confidence intervals) decide relative regressions;
+:func:`_is_significant` picks between them per comparison, since ASV's own selection
+doesn't hold for our fixed-size candidate runs. Isaac Lab applies the warmup,
+advisory-metric, and absolute-floor policies around that comparison.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from __future__ import annotations
 import statistics
 import sys
 from dataclasses import asdict, dataclass, field, replace
+from math import comb
 from typing import Any
 
 from .contract import Contract, backend_key, valid_backend_keys
@@ -24,6 +27,9 @@ WARN = "WARN"
 FAIL = "FAIL"
 SKIP = "SKIP"
 ERROR = "ERROR"
+
+#: ASV's own significance threshold matched for consistency.
+_SIGNIFICANCE_P = 0.002
 
 #: Comparable runs required before the gate will render a verdict.
 MIN_BASELINE_SAMPLES = 3
@@ -150,6 +156,25 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     return resolved
 
 
+def _is_significant(before: list[float], after: list[float], before_stats: dict, after_stats: dict, mann_whitney_u) -> bool:
+    """Return whether ``before`` and ``after`` differ significantly.
+
+    ASV picks Mann-Whitney U over a confidence-interval overlap check based on a
+    combinatorial lower bound (``p_min``) that does not always match what
+    Mann-Whitney can actually achieve for asymmetric sample sizes creating a dead zone
+    where Mann-Whitney is selected but cannot reach significance and can pass regressions.
+    """
+    m, n = len(before), len(after)
+    if 1 / comb(m + n, min(m, n)) < _SIGNIFICANCE_P:
+        _, best_case_p = mann_whitney_u([0.0] * m, [1.0] * n)
+        if best_case_p < _SIGNIFICANCE_P:
+            _, p = mann_whitney_u(before, after)
+            return p < _SIGNIFICANCE_P
+    ci_before = (before_stats["ci_99_a"], before_stats["ci_99_b"])
+    ci_after = (after_stats["ci_99_a"], after_stats["ci_99_b"])
+    return not (ci_before[1] >= ci_after[0] and ci_before[0] <= ci_after[1])
+
+
 def _evaluate(
     metric: Metric,
     candidates: list[float],
@@ -187,10 +212,10 @@ def _evaluate(
     if reference == 0:
         return replace(result, reference=reference, note="baseline median is zero")
 
-    # Lazy loading keeps aggregation dependency-free. The internal ASV helper is
-    # version-pinned and covered by the comparison tests.
+    # Lazy loading keeps aggregation dependency-free. ASV is version-pinned and
+    # covered by the comparison tests.
     try:
-        from asv.commands.compare import _is_result_better
+        from asv._stats import mann_whitney_u
         from asv_runner.statistics import compute_stats
     except ImportError as exc:
         raise PerfSmokeError("ASV is unavailable; install tools/perf_smoke/requirements.txt") from exc
@@ -200,14 +225,9 @@ def _evaluate(
     before, after = (history, candidates) if metric.higher_is_worse else (candidates, history)
     before_value, before_stats = compute_stats(before, 1)
     after_value, after_stats = compute_stats(after, 1)
+    significant = _is_significant(before, after, before_stats, after_stats, mann_whitney_u)
     warned, failed = (
-        _is_result_better(
-            before_value,
-            after_value,
-            (before_stats, before),
-            (after_stats, after),
-            factor=1 + pct / 100 if metric.higher_is_worse else 1 / (1 - pct / 100),
-        )
+        significant and before_value < after_value / (1 + pct / 100 if metric.higher_is_worse else 1 / (1 - pct / 100))
         for pct in (thresholds.warn_pct, thresholds.fail_pct)
     )
     change_pct = (result.measured - reference) / reference * 100.0
