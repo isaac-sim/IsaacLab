@@ -11,13 +11,15 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.test.utils import DeviceScope, test_devices
+
 pytestmark = pytest.mark.unit
 
 wp.config.quiet = True
 wp.init()
 
 
-@pytest.fixture(params=["cpu", "cuda:0"])
+@pytest.fixture(params=test_devices())
 def device(request):
     """Parametrize tests across CPU and CUDA devices."""
     return request.param
@@ -89,11 +91,12 @@ class TestProxyArrayBasic:
         second = ta.torch
         assert first is second
 
-    def test_cuda_array_interface(self):
+    @pytest.mark.parametrize("cuda_device", test_devices(DeviceScope.CUDA))
+    def test_cuda_array_interface(self, cuda_device):
         """Test that __cuda_array_interface__ delegates to the underlying warp array."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
-        arr = wp.zeros(10, dtype=wp.float32, device="cuda:0")
+        arr = wp.zeros(10, dtype=wp.float32, device=cuda_device)
         ta = ProxyArray(arr)
         cai = ta.__cuda_array_interface__
         assert isinstance(cai, dict)
@@ -110,7 +113,8 @@ class TestProxyArrayBasic:
         with pytest.raises(AttributeError):
             _ = ta.__cuda_array_interface__
 
-    def test_wp_launch_accepts_proxy_array(self):
+    @pytest.mark.parametrize("cuda_device", test_devices(DeviceScope.CUDA))
+    def test_wp_launch_accepts_proxy_array(self, cuda_device):
         """Test that wp.launch() can consume a ProxyArray via __cuda_array_interface__."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
@@ -119,10 +123,10 @@ class TestProxyArrayBasic:
             i = wp.tid()
             dst[i] = src[i] + 1.0
 
-        src = ProxyArray(wp.zeros(5, dtype=wp.float32, device="cuda:0"))
-        dst = ProxyArray(wp.zeros(5, dtype=wp.float32, device="cuda:0"))
-        wp.launch(_add_one, dim=5, inputs=[src], outputs=[dst], device="cuda:0")
-        wp.synchronize_device("cuda:0")
+        src = ProxyArray(wp.zeros(5, dtype=wp.float32, device=cuda_device))
+        dst = ProxyArray(wp.zeros(5, dtype=wp.float32, device=cuda_device))
+        wp.launch(_add_one, dim=5, inputs=[src], outputs=[dst], device=cuda_device)
+        wp.synchronize_device(cuda_device)
         assert dst.torch[0].item() == 1.0
         assert dst.torch[4].item() == 1.0
 

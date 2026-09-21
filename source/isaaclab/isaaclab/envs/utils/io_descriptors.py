@@ -3,8 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Deprecated IO descriptor data models and export helpers.
+
+.. deprecated:: 3.0
+   IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+   workflow for supported RSL-RL/PyTorch deployments.
+"""
+
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
@@ -21,9 +29,22 @@ import functools
 import inspect
 
 
+def _warn_io_descriptors_deprecated(*, stacklevel: int = 2) -> None:
+    """Warn that IO descriptors are deprecated."""
+    warnings.warn(
+        "IO descriptors are deprecated and will be removed in Isaac Lab 3.2. "
+        "Use the LEAPP export workflow for supported RSL-RL/PyTorch deployments.",
+        FutureWarning,
+        stacklevel=stacklevel,
+    )
+
+
 @configclass
 class GenericActionIODescriptor:
     """Generic action IO descriptor.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
 
     This descriptor is used to describe the action space of a policy.
     It can be extended as needed to add more information about the action term that is being described.
@@ -82,6 +103,9 @@ class GenericActionIODescriptor:
 class GenericObservationIODescriptor:
     """Generic observation IO descriptor.
 
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
+
     This descriptor is used to describe the observation space of a policy.
     It can be extended as needed to add more information about the observation term that is being described.
     """
@@ -122,6 +146,9 @@ def generic_io_descriptor(
     **descriptor_kwargs: Any,
 ) -> Callable[[Callable[Concatenate[ManagerBasedEnv, P], R]], Callable[Concatenate[ManagerBasedEnv, P], R]]:
     """Decorator factory for generic IO descriptors.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
 
     This decorator can be used in different ways:
 

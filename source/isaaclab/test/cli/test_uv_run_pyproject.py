@@ -44,6 +44,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "sb3",
         "skrl",
         "rl-games",
+        "wandb",
         "rsl-rl",
         "viser",
         "rerun",
@@ -88,6 +89,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "torchrl",
         "isaacsim",
         "importers",
         "mimic",
@@ -95,6 +97,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "tetrahedralization",
         "video",
         "leapp",
+        "wandb",
         "test",
         "dev",
     }
@@ -156,9 +159,9 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert ovrtx_install_lines
     assert all(spec("ovrtx") in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines)
 
-    # uv torch-stack overrides mirror the table.
+    # Direct torch-stack pins apply to both source and wheel installations.
     for package in ("torch", "torchvision", "torchaudio"):
-        assert f"{package}=={versions[package]}" in overrides
+        assert f"{package}=={versions[package]}" in dependencies
 
     # The Newton uv override is its single pin and may select a release or Git revision.
     newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))

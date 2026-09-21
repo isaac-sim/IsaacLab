@@ -15,7 +15,7 @@ from isaaclab.managers import ManagerTermBase, RewardTermCfg
 from isaaclab.utils import math as math_utils
 
 from ..selection_utils import SceneEntitySelectionCfg
-from .utils import _offset_body_pose
+from .utils import offset_body_pose
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -60,7 +60,7 @@ def lift_ee_object_distance(
     std: float,
 ) -> torch.Tensor:
     """Reward the lift OpenArm for bringing its TCP close to the object."""
-    env_ids, tcp_pos_w, _ = _offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.0))
+    env_ids, tcp_pos_w, _ = offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.0))
     object_asset: RigidObject = env.scene[object_cfg.name]
     distance = torch.linalg.norm(
         object_asset.data.root_pos_w.torch[object_cfg.instance_ids[env_ids]] - tcp_pos_w, dim=-1
@@ -158,10 +158,10 @@ def _cabinet_frames(
     cabinet_cfg: SceneEntitySelectionCfg,
 ) -> tuple[torch.Tensor, ...]:
     """Return aligned cabinet-task TCP, handle, and fingertip poses."""
-    env_ids, ee_pos, ee_quat = _offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.1034))
-    _, handle_pos, handle_quat = _offset_body_pose(env, cabinet_cfg, (0.305, 0.0, 0.01), (0.5, -0.5, -0.5, 0.5))
-    _, left_pos, _ = _offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.046), body_index=1)
-    _, right_pos, _ = _offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.046), body_index=2)
+    env_ids, ee_pos, ee_quat = offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.1034))
+    _, handle_pos, handle_quat = offset_body_pose(env, cabinet_cfg, (0.305, 0.0, 0.01), (0.5, -0.5, -0.5, 0.5))
+    _, left_pos, _ = offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.046), body_index=1)
+    _, right_pos, _ = offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.046), body_index=2)
     cabinet_rows = cabinet_cfg.instance_ids[env_ids]
     return env_ids, ee_pos, ee_quat, handle_pos[cabinet_rows], handle_quat[cabinet_rows], left_pos, right_pos
 

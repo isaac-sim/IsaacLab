@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""UR10 reach environment."""
+
 import gymnasium as gym
 
-from isaaclab_tasks.core.reach.config.ur_10 import agents
+from . import agents
 
 ##
 # Register Gym environments.

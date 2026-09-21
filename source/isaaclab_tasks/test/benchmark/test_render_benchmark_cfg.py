@@ -18,8 +18,10 @@ import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.benchmark.render_benchmark import render_benchmark_env_cfg
@@ -49,7 +51,8 @@ def test_default_scene_and_articulations():
     assert cfg.decimation == 2
     assert cfg.episode_length_s == pytest.approx(60.0)
     assert cfg.scene.num_envs == 4
-    assert set(cfg.articulations) == {"robot", "cabinet"}
+    assert cfg.scene.robot.prim_path == "{ENV_REGEX_NS}/Robot"
+    assert cfg.scene.cabinet.prim_path == "{ENV_REGEX_NS}/Cabinet"
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
     assert cfg.benchmark_mode == "render"
 
@@ -126,7 +129,7 @@ def _fake_env(mode: str, articulation, events: list[str]) -> SimpleNamespace:
         device="cpu",
         _anim_time=0.0,
         _anim_phases={"robot": torch.zeros(1, 2)},
-        _articulations={"robot": articulation},
+        scene=SimpleNamespace(articulations={"robot": articulation}),
         _tiled_camera=SimpleNamespace(data=_RecordingCameraData(events)),
     )
     # The hooks under test call these on ``self``; bind the real implementations to the stub so
@@ -215,7 +218,7 @@ def render_benchmark_presets():
 
 @pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
 def test_camera_presets_resolve_to_expected_data_types(render_benchmark_presets, preset_name, expected_data_types):
-    camera_presets = render_benchmark_presets["tiled_camera"]
+    camera_presets = render_benchmark_presets["scene.tiled_camera"]
     assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
     resolved = camera_presets[preset_name]
 
@@ -230,32 +233,17 @@ def test_camera_resolution_defaults_to_256():
     this documents the default a fresh process gets when the env var is unset."""
     cfg = resolve_presets(_load_cfg(), selected=())
 
-    assert cfg.tiled_camera.width == 256
-    assert cfg.tiled_camera.height == 256
+    assert cfg.scene.tiled_camera.width == 256
+    assert cfg.scene.tiled_camera.height == 256
 
 
-def _fake_env_for_ground_cfg(ground_size: tuple[float, float], env_spacing: float) -> SimpleNamespace:
-    return SimpleNamespace(
-        cfg=SimpleNamespace(
-            ground_size=ground_size, ground_thickness=0.1, ground_color=(0.5, 0.5, 0.5), ground_top_z=0.0
-        ),
-        scene=SimpleNamespace(cfg=SimpleNamespace(env_spacing=env_spacing)),
-    )
+def test_ground_tile_matches_default_env_spacing():
+    cfg = _load_cfg()
 
-
-def test_ground_cfg_clamps_size_to_env_spacing():
-    """An oversized ground tile must be clamped, or cloned environments' grounds overlap."""
-    fake_env = _fake_env_for_ground_cfg(ground_size=(50.0, 50.0), env_spacing=3.0)
-
-    ground_cfg = RenderBenchmarkEnv._ground_cfg(fake_env)
-
-    assert ground_cfg.spawn.size[:2] == (3.0, 3.0)
-
-
-def test_ground_cfg_keeps_size_smaller_than_env_spacing():
-    """A tile already smaller than the env spacing must not be inflated."""
-    fake_env = _fake_env_for_ground_cfg(ground_size=(2.0, 1.5), env_spacing=3.0)
-
-    ground_cfg = RenderBenchmarkEnv._ground_cfg(fake_env)
-
-    assert ground_cfg.spawn.size[:2] == (2.0, 1.5)
+    assert cfg.scene.ground.spawn.size[:2] == (cfg.scene.env_spacing, cfg.scene.env_spacing)
+    rigid_props = cfg.scene.ground.spawn.rigid_props
+    assert next(f for f in rigid_props if isinstance(f, UsdPhysicsRigidBodyCfg)).kinematic_enabled is True
+    assert next(f for f in rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity is True
+    assert isinstance(cfg.scene.ground.spawn.mass_props, MassCfg)
+    assert cfg.scene.ground.spawn.mass_props.mass == pytest.approx(1.0)
+    assert isinstance(cfg.scene.ground.spawn.collision_props, UsdPhysicsCollisionCfg)

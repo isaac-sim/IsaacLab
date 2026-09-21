@@ -165,7 +165,7 @@ class FrameTransformer(BaseFrameTransformer):
         # create unnecessary views.
         body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
-        target_offsets: dict[str, dict[str, torch.Tensor]] = {}
+        target_offsets: dict[tuple[str, str], dict[str, torch.Tensor]] = {}
         # The frames whose offsets are not identity (use set to avoid duplicates across envs)
         non_identity_offset_frames: set[str] = set()
 
@@ -226,7 +226,7 @@ class FrameTransformer(BaseFrameTransformer):
                     if not is_identity_pose(offset_pos, offset_quat):
                         non_identity_offset_frames.add(frame_name)
                         self._apply_target_frame_offset = True
-                    target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
+                    target_offsets[(body_name, frame_name)] = {"pos": offset_pos, "quat": offset_quat}
 
         if not self._apply_target_frame_offset:
             logger.info(
@@ -333,9 +333,9 @@ class FrameTransformer(BaseFrameTransformer):
         for i, body_name in enumerate(self._target_frame_body_names):
             for frame in body_names_to_frames[body_name]["frames"]:
                 # Only need to handle target frames here as source frame is handled separately
-                if frame in target_offsets:
-                    target_frame_offset_pos.append(target_offsets[frame]["pos"])
-                    target_frame_offset_quat.append(target_offsets[frame]["quat"])
+                if (body_name, frame) in target_offsets:
+                    target_frame_offset_pos.append(target_offsets[(body_name, frame)]["pos"])
+                    target_frame_offset_quat.append(target_offsets[(body_name, frame)]["quat"])
                     self._target_frame_names.append(frame)
                     duplicate_frame_indices.append(i)
 

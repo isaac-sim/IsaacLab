@@ -23,7 +23,7 @@ import warp as wp
 from flaky import flaky
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
@@ -67,8 +67,8 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
     )
@@ -90,8 +90,8 @@ class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
                 sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
                 sim_utils.SphereCfg(radius=0.05),
             ],
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             random_choice=False,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),

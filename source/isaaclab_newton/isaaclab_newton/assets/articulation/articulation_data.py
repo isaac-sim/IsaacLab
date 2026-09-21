@@ -22,6 +22,10 @@ from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.assets.articulation.joint_coordinates import (
+    build_ball_joint_coordinate_map,
+    gather_joint_coordinates,
+)
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -1591,7 +1595,23 @@ class ArticulationData(BaseArticulationData):
                 "joint_effort_limit", SimulationManager.get_model()
             )[:, 0]
             # -- joint states
-            self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            # ``get_dof_positions`` returns Newton's ``joint_q``, which is *coordinate* space: a ball
+            # joint occupies 4 quaternion components against 3 DOFs, so the array is wider than
+            # ``num_joints`` whenever the articulation has one. IsaacLab addresses joints by DOF
+            # index everywhere, so keep the coordinate array separate and publish a DOF-space view.
+            self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            # The view's per-joint counts are already in the column order of the array above and
+            # already exclude the free root, fixed joints and loop-closing joints.
+            self._joint_coord_map = build_ball_joint_coordinate_map(
+                self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
+            )
+            if self._joint_coord_map.required:
+                self._sim_bind_joint_pos = wp.zeros(
+                    (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+                )
+                gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+            else:
+                self._sim_bind_joint_pos = self._sim_bind_joint_coords
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
             # -- joint commands (sent to the simulation)
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
@@ -1601,6 +1621,19 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_q", SimulationManager.get_control()
             )[:, 0]
+            # ``joint_target_q`` follows ``newton.use_coord_layout_targets``, which defaults to
+            # True from Newton 1.6. Under that layout the array is coordinate-shaped, exactly like
+            # ``joint_q``, so actuators keep writing DOF-indexed targets into a staging buffer and
+            # the same map scatters them across.
+            self._sim_bind_joint_target_coords = self._sim_bind_joint_position_target
+            self._joint_targets_need_conversion = self._sim_bind_joint_target_coords.shape[1] != self._num_joints
+            if self._joint_targets_need_conversion:
+                self._sim_bind_joint_position_target = wp.zeros(
+                    (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+                )
+                gather_joint_coordinates(
+                    self._joint_coord_map, self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target
+                )
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
                 "joint_target_qd", SimulationManager.get_control()
             )[:, 0]
@@ -1629,13 +1662,20 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_effort_limits_sim = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
-            self._sim_bind_joint_pos = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            # No joints: the view reports no counts, so the map has nothing to convert.
+            self._sim_bind_joint_coords = self._sim_bind_joint_pos = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._joint_coord_map = build_ball_joint_coordinate_map(
+                self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
+            )
             self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_effort = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_act = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_position_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
+            self._joint_targets_need_conversion = False
             self._sim_bind_joint_velocity_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
@@ -2157,8 +2197,18 @@ class ArticulationData(BaseArticulationData):
             outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
         )
 
+    def _gather_joint_coordinates(self) -> None:
+        """Re-derive the DOF-space joint positions from Newton's coordinate array.
+
+        A no-op unless the articulation has a ball joint; without one ``_sim_bind_joint_pos`` is a
+        zero-copy view onto ``joint_q`` and is always current.
+        """
+        if self._joint_coord_map.required:
+            gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+
     def _refresh_user_order_state(self) -> None:
-        """Republish all Tier-1 user-order state shadows from live backend state.
+        """Republish all Tier-1 user-order state shadows from live backend state, and gather any
+        ball-joint DOF positions ahead of them.
 
         Registered as a post-step callback (see
         :meth:`isaaclab_newton.physics.NewtonManager.register_post_step_callback`)
@@ -2166,8 +2216,12 @@ class ArticulationData(BaseArticulationData):
         the last solver substep. With no Python freshness guard the launches are
         recorded into every captured graph and replayed on each tick, so the
         passthrough ``joint_pos`` / ``joint_vel`` / ``body_link_pose_w`` /
-        ``body_com_vel_w`` shadows behave exactly like sim-bound memory.
+        ``body_com_vel_w`` shadows behave exactly like sim-bound memory. For an
+        identity-ordered ball-joint articulation the coordinate gather is the only
+        work this method does -- the two reorder calls below are no-ops.
         """
+        # Ahead of the reorder: the user-order shadows have to gather from a current DOF buffer.
+        self._gather_joint_coordinates()
         self._refresh_user_order_joint_state()
         self._refresh_user_order_body_state()
 
