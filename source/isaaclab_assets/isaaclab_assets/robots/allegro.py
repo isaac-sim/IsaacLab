@@ -33,12 +33,6 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{MUJOCO_MENAGERIE_DIR}/wonik_allegro/right_hand/right_hand.usda",
         activate_contact_sensors=False,
-        # TODO(asset bug, not IL-fixable): PhysX NaNs on training because the palm fixed joint has no
-        # body1 rel ("Cloning joints .../palm/FixedJoint without a body rel"). Tried fix_root_link=True
-        # (isaaclab.sim.schemas.apply_articulation_root_properties) as a WAR -- it re-anchors the root
-        # joint at sim start, but still produced a joint with no body rel, meaning the palm prim has no
-        # valid rigid body for it to target in this asset. Needs the same asset-side fix already applied
-        # to Shadow Hand's Robots_Multiphysics USD; not fixable from Isaac Lab config alone.
         rigid_props=PhysxRigidBodyCfg(
             disable_gravity=True,
             retain_accelerations=False,
