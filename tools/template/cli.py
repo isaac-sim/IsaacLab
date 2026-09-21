@@ -13,7 +13,7 @@ from textwrap import fill
 
 import rich.console
 import rich.table
-from common import ROOT_DIR
+from common import MULTI_AGENT_ALGORITHMS, ROOT_DIR, SINGLE_AGENT_ALGORITHMS
 from generator import generate, get_algorithms_per_rl_library
 from rich.prompt import Prompt
 
@@ -459,7 +459,7 @@ def _collect_non_interactive_specification(
         has_single_agent = any(workflow["type"] == "single-agent" for workflow in workflows)
         has_multi_agent = any(workflow["type"] == "multi-agent" for workflow in workflows)
         supported_libraries = _SINGLE_AGENT_RL_LIBRARIES if has_single_agent else ["skrl"]
-        default_libraries = ["rsl_rl"] if has_single_agent else ["skrl"]
+        default_libraries = ["skrl"] if has_multi_agent else ["rsl_rl"]
         selected_libraries = list(dict.fromkeys(args.rl_library or default_libraries))
         invalid_libraries = [library for library in selected_libraries if library not in supported_libraries]
         if invalid_libraries:
@@ -468,7 +468,9 @@ def _collect_non_interactive_specification(
                 f"choose from {supported_libraries}"
             )
 
-        default_algorithms = ["ppo"] if has_single_agent else ["ippo"]
+        default_algorithms = (
+            ["ppo", "ippo"] if has_single_agent and has_multi_agent else ["ppo" if has_single_agent else "ippo"]
+        )
         requested_algorithms = args.rl_algorithm or default_algorithms
         shared_algorithms = []
         algorithms_by_library: dict[str, list[str]] = {library: [] for library in selected_libraries}
@@ -498,6 +500,14 @@ def _collect_non_interactive_specification(
                     f"choose from {[value.lower() for value in supported_algorithms[library]]}"
                 )
             rl_libraries.append({"name": library, "algorithms": algorithms})
+
+        selected_algorithms = {algorithm.upper() for library in rl_libraries for algorithm in library["algorithms"]}
+        for workflow_type, required_algorithms in (
+            ("single-agent", SINGLE_AGENT_ALGORITHMS if has_single_agent else []),
+            ("multi-agent", MULTI_AGENT_ALGORITHMS if has_multi_agent else []),
+        ):
+            if required_algorithms and selected_algorithms.isdisjoint(required_algorithms):
+                parser.error(f"select an RL algorithm compatible with the {workflow_type} workflow")
 
     return {
         "external": is_external_project,

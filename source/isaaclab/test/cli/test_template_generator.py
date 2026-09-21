@@ -138,6 +138,16 @@ def test_main_skips_task_prompts_for_blank_project():
                 "include_ui_extension": True,
             },
         ),
+        (
+            ["--workflow", "direct:single-agent", "--workflow", "direct:multi-agent"],
+            {
+                "workflows": [
+                    {"name": "direct", "type": "single-agent"},
+                    {"name": "direct", "type": "multi-agent"},
+                ],
+                "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "ippo"]}],
+            },
+        ),
     ],
 )
 def test_non_interactive_generation(options, expected, tmp_path):

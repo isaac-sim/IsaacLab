@@ -94,7 +94,8 @@ def _belongs_to_project(spec: Any, task_modules: tuple[str, ...]) -> bool:
     references = (spec.entry_point, spec.kwargs.get("env_cfg_entry_point"))
     module_prefixes = tuple(f"{module}." for module in task_modules)
     return any(
-        isinstance(reference, str) and (reference in task_modules or reference.startswith(module_prefixes))
+        isinstance(reference, str)
+        and ((module := reference.partition(":")[0]) in task_modules or module.startswith(module_prefixes))
         for reference in references
     )
 

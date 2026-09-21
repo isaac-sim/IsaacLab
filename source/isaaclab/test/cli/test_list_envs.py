@@ -18,7 +18,7 @@ def test_command_lists_non_isaac_prefixed_task_from_current_project(tmp_path, mo
     gym.register(
         id=task_id,
         entry_point="isaaclab.envs:ManagerBasedRLEnv",
-        kwargs={"env_cfg_entry_point": "example.tasks.balance.env_cfg:BalanceEnvCfg"},
+        kwargs={"env_cfg_entry_point": "example.tasks:BalanceEnvCfg"},
     )
     project_dir = tmp_path / "project"
     working_dir = project_dir / "scripts" / "nested"

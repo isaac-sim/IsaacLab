@@ -16,3 +16,5 @@ Fixed
 
 * Fixed external projects to forward the complete set of optional extras from the active Isaac Lab package, including
   visualizer extras such as ``rerun`` and ``viser`` and the aggregate ``all`` extra.
+* Fixed mixed single-agent and multi-agent generation to include compatible agent configurations for both workflows.
+* Fixed project environment discovery for entry-point references that use ``module:object`` syntax.

@@ -15,5 +15,7 @@
 | Generator tests activate unrelated suites under `tools/`. | Move focused tests to the Isaac Lab CLI suite; they run in well under one second. |
 | [Issue #3223](https://github.com/isaac-sim/IsaacLab/issues/3223) requests automation. | Add opt-in `--non_interactive` arguments while keeping prompts as the default. |
 | Generated projects omit extras such as `rerun`, `viser`, and `all`. | Forward every extra exposed by the active Isaac Lab source tree or installed distribution. |
+| Mixed single-agent and multi-agent workflows can omit compatible agent configs. | Default to SKRL with PPO and IPPO, and reject incompatible explicit selections. |
+| Project environment discovery misses `module:object` entry points. | Match the module portion of each task entry-point reference. |
 
 The reported Newton shape-color and Cartpole mass/inertia warnings also occur with Isaac Lab's built-in Cartpole task. They require shared backend or asset fixes and are not suppressed by the generator.
