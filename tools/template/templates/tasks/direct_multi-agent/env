@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class {{ task.classname }}Env(DirectMARLEnv):
-    """Cooperative cart-double-pendulum environment generated for a downstream project."""
+    """Cooperative cart-double-pendulum environment."""
 
     cfg: {{ task.classname }}EnvCfg
 

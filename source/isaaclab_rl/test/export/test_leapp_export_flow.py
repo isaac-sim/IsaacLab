@@ -50,12 +50,6 @@ _INITIALIZED_CASES = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def skip_franka(task: str) -> None:
-    if "Franka" in task:
-        pytest.skip("Known Franka asset cloning issue")
-
-
 def _run_checked(command: list[str], timeout: int = 600) -> str:
     """Run a command and return its combined output."""
     # OpenUSD versions before 26.5 can corrupt the heap while parsing Franka
