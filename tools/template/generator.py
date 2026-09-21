@@ -4,10 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import glob
+import importlib.metadata
 import json
 import os
 import shutil
 import subprocess
+from datetime import date
 from typing import Any
 
 import jinja2
@@ -179,8 +181,10 @@ def _external(specification: dict) -> None:
     os.makedirs(project_dir, exist_ok=True)
     specification = _prepare_external_dependencies(specification, project_dir)
     print("  |-- Copying repo files...")
-    for filename in [".gitattributes", ".gitignore", ".pre-commit-config.yaml", "LICENSE"]:
+    for filename in [".gitattributes", ".gitignore", ".pre-commit-config.yaml"]:
         shutil.copyfile(os.path.join(TEMPLATE_DIR, "external", filename), os.path.join(project_dir, filename))
+    template = jinja_env.get_template("external/LICENSE")
+    _write_file(os.path.join(project_dir, "LICENSE"), content=template.render(**specification))
     template = jinja_env.get_template("external/pyproject.toml.jinja")
     _write_file(os.path.join(project_dir, "pyproject.toml"), content=template.render(**specification))
     print("  |-- Copying utility scripts...")
@@ -197,6 +201,11 @@ def _external(specification: dict) -> None:
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(tasks_dir, "__init__.py"))
     template = jinja_env.get_template("external/__init__package")
     _write_file(os.path.join(module_dir, "__init__.py"), content=template.render(**specification))
+    print("  |-- Creating project asset structure...")
+    assets_dir = os.path.join(module_dir, "assets")
+    os.makedirs(os.path.join(assets_dir, "data"), exist_ok=True)
+    template = jinja_env.get_template("external/__init__assets")
+    _write_file(os.path.join(assets_dir, "__init__.py"), content=template.render(**specification))
     template = jinja_env.get_template("external/README.md")
     _write_file(
         os.path.join(project_dir, "README.md"), content=template.render(specifications=specifications, **specification)
@@ -249,6 +258,10 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
         specification["isaaclab_indexes"] = []
         specification["isaaclab_overrides"] = []
         specification["isaaclab_sources"] = []
+        optional_extras = specification.get("isaaclab_optional_extras")
+        if optional_extras is None:
+            optional_extras = importlib.metadata.distribution("isaaclab").metadata.get_all("Provides-Extra") or []
+        specification["isaaclab_optional_extras"] = sorted(set(optional_extras))
         return specification
 
     source_root = os.path.realpath(source_path)
@@ -275,6 +288,7 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
         }
     )
     specification["isaaclab_dependency"] = source_config["project"]["name"]
+    specification["isaaclab_optional_extras"] = sorted(source_config["project"].get("optional-dependencies", {}).keys())
     specification["isaaclab_environments"] = uv_config.get("environments", [])
     specification["isaaclab_indexes"] = uv_config.get("index", [])
     specification["isaaclab_overrides"] = uv_config.get("override-dependencies", [])
@@ -340,7 +354,15 @@ def generate(specification: dict) -> None:
         specification.setdefault("task_name", "balance")
         specification.setdefault("robot_name", "cartpole")
         specification.setdefault("include_ui_extension", False)
+        specification.setdefault("initial_content", "cartpole")
+        specification.setdefault("authors", ["Isaac Lab Project Developers"])
+        specification["copyright_year"] = date.today().year
         specification["task_id_prefix"] = "".join(item.capitalize() for item in specification["name"].split("_"))
+        assert specification["authors"] and all(author.strip() for author in specification["authors"]), (
+            "At least one author is required"
+        )
+        specification["authors_toml"] = json.dumps(", ".join(specification["authors"]))[1:-1]
+        assert specification["initial_content"] in ("blank", "cartpole"), "Invalid initial project content"
         assert specification["task_name"].isidentifier(), "Task family name must be a valid identifier"
         assert specification["robot_name"].isidentifier(), "Robot/config name must be a valid identifier"
     for workflow in specification["workflows"]:

@@ -72,25 +72,29 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     with launch_simulation(env_cfg, args_cli):
         env = gym.make(args_cli.task, cfg=env_cfg)
-        print(f"[INFO]: Gym observation space: {env.observation_space}")
-        print(f"[INFO]: Gym action space: {env.action_space}")
-        env.reset()
-        if policy == "zero":
-            action_policy = create_zero_action_policy(env)
-        else:
-            action_policy = create_random_action_policy(env)
-        print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
+        try:
+            print(f"[INFO]: Gym observation space: {env.observation_space}")
+            print(f"[INFO]: Gym action space: {env.action_space}")
+            env.reset()
+            if policy == "zero":
+                action_policy = create_zero_action_policy(env)
+            else:
+                action_policy = create_random_action_policy(env)
+            print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
-        # keep running while any visualizer is open and the step budget is not exhausted
-        sim = env.unwrapped.sim
-        step = 0
-        while sim.is_headless_or_exist_active_visualizer():
-            if args_cli.max_steps is not None and step >= args_cli.max_steps:
-                break
-            step += 1
-            with torch.inference_mode():
-                env.step(action_policy())
-        env.close()
+            # keep running while any visualizer is open and the step budget is not exhausted
+            sim = env.unwrapped.sim
+            step = 0
+            while sim.is_headless_or_exist_active_visualizer():
+                if args_cli.max_steps is not None and step >= args_cli.max_steps:
+                    break
+                step += 1
+                with torch.inference_mode():
+                    env.step(action_policy())
+        except KeyboardInterrupt:
+            print(f"\n[INFO] {policy.capitalize()} agent stopped.")
+        finally:
+            env.close()
 
 
 def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:

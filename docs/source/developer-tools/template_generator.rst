@@ -4,11 +4,12 @@
 Build your own project or task
 ==============================
 
-The template generator bootstraps the package structure, task registration, and
-agent configurations needed to start developing an Isaac Lab task. Use it to
+The template generator bootstraps the package structure and, when requested,
+task registration and agent configurations for an Isaac Lab task. Use it to
 create either a standalone project outside Isaac Lab or a task intended for
-contribution to the Isaac Lab repository. Both options include a working
-Cartpole example that you can replace with your own environment.
+contribution to the Isaac Lab repository. An external project can start with a
+working Cartpole example or an empty task package. Internal tasks start from the
+Cartpole example.
 
 Choose what to generate
 -----------------------
@@ -33,8 +34,27 @@ The first prompt chooses where the new task will live.
 Installed Isaac Lab wheels only offer external projects. The internal option is
 available from a source checkout because it writes directly into that checkout.
 
-Next, choose one or more task workflows. See :ref:`feature-workflows` for the
-complete comparison.
+For an external project, provide one or more authors and choose its initial
+content:
+
+.. list-table::
+   :widths: 22 78
+   :header-rows: 1
+
+   * - Content
+     - Result
+   * - Cartpole
+     - A runnable example with the selected workflows, task registration, and
+       agent configurations.
+   * - Blank
+     - Package structure, project-owned asset paths, task discovery, tests, and
+       development tooling without example task or agent files.
+
+The selected authors are written to ``pyproject.toml``, the project extension
+metadata when selected, and the BSD-3-Clause ``LICENSE`` used by Isaac Lab. A
+Blank project skips task family, robot, workflow, and RL prompts. A Cartpole
+project next asks for one or more task workflows. See :ref:`feature-workflows`
+for the complete comparison.
 
 .. list-table::
    :widths: 30 70
@@ -52,9 +72,9 @@ complete comparison.
      - Tasks with multiple policies or agent-specific observation and action
        spaces.
 
-Finally, choose the RL libraries and algorithms whose configuration files you
-want generated. The prompt adapts the available choices to the selected
-workflow. See :ref:`rl-frameworks` for the framework comparison.
+For Cartpole content, finally choose the RL libraries and algorithms whose
+configuration files you want created. The prompt adapts the available choices
+to the selected workflow. See :ref:`rl-frameworks` for the framework comparison.
 
 Create and run an external project
 ----------------------------------
@@ -90,6 +110,8 @@ Select the following options for a small first project:
 * **External** project
 * A parent directory outside the Isaac Lab repository
 * A Python-compatible project name, such as ``my_robot_project``
+* Your name or organization as the author
+* **Cartpole** initial content
 * A task family name, such as ``balance``
 * A robot/config name, such as ``cartpole``
 * **No** Isaac Sim UI extension for a headless task package
@@ -101,6 +123,92 @@ selections when more than one choice is allowed. The generator creates the
 project under ``<parent-directory>/<project-name>`` and initializes a Git
 repository there.
 
+Automate project generation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Interactive prompts remain the default. Pass ``--non-interactive`` to opt into
+argument-driven generation for scripts and continuous integration. The smallest
+external Cartpole command is:
+
+.. code-block:: bash
+
+   uv run isaaclab --new --non-interactive \
+      --project-path /work/projects \
+      --name my_robot_project \
+      --author "Example Author"
+
+This uses the ``cartpole`` content, ``balance`` task family, ``cartpole`` robot
+configuration, manager-based single-agent workflow, RSL-RL, and PPO defaults.
+Create a Blank project by adding ``--initial-content blank``. Blank projects do
+not accept task, workflow, library, or algorithm options because they contain no
+example task.
+
+Use the following arguments to override the defaults:
+
+.. list-table::
+   :widths: 32 68
+   :header-rows: 1
+
+   * - Argument
+     - Meaning
+   * - ``--task-type external|internal``
+     - Generate an external project by default, or an internal task from a
+       source checkout.
+   * - ``--project-path PATH``
+     - Parent directory for an external project. Required in non-interactive
+       mode.
+   * - ``--name NAME``
+     - External project name or internal task folder name. Required in
+       non-interactive mode. ``--project-name`` is an alias.
+   * - ``--author NAME``
+     - External project author. Required; repeat the argument for multiple
+       authors.
+   * - ``--initial-content blank|cartpole``
+     - External project content. The default is ``cartpole``.
+   * - ``--task-name NAME`` and ``--robot-name NAME``
+     - Cartpole task family and robot/config names. The defaults are ``balance``
+       and ``cartpole``.
+   * - ``--include-ui-extension``
+     - Include files for loading the project through the Isaac Sim Extension
+       Manager.
+   * - ``--workflow WORKFLOW``
+     - Repeat for any of ``manager-based:single-agent``,
+       ``direct:single-agent``, and ``direct:multi-agent``.
+   * - ``--rl-library LIBRARY``
+     - Repeat for ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``.
+   * - ``--rl-algorithm ALGORITHM``
+     - Repeat an algorithm such as ``ppo``. Prefix it with a selected library,
+       such as ``skrl:ippo``, when selecting algorithms independently for
+       several libraries.
+
+For example, create direct single-agent and multi-agent variants with selected
+SKRL algorithms:
+
+.. code-block:: bash
+
+   uv run isaaclab --new --non-interactive \
+      --project-path /work/projects \
+      --name multi_workflow_project \
+      --author "Example Author" \
+      --workflow direct:single-agent \
+      --workflow direct:multi-agent \
+      --rl-library skrl \
+      --rl-algorithm skrl:ppo \
+      --rl-algorithm skrl:ippo
+
+Arguments that configure project content are rejected unless
+``--non-interactive`` is present, which prevents an accidental argument from
+silently changing the interactive flow. Run ``uv run isaaclab --new --help`` to
+see the complete command reference.
+
+From a source checkout, an internal task can also be created without prompts:
+
+.. code-block:: bash
+
+   uv run isaaclab --new --non-interactive \
+      --task-type internal \
+      --name my_internal_task
+
 Enter the generated project and create its environment:
 
 .. code-block:: bash
@@ -111,11 +219,14 @@ Enter the generated project and create its environment:
 This default environment includes the selected RL library and the kit-less
 Newton backend. It does **not** install Isaac Sim.
 
-List the generated task name and its available presets:
+For Cartpole content, list the task name and its available presets:
 
 .. code-block:: bash
 
-   uv run python scripts/list_envs.py --show_presets
+   uv run isaaclab list_envs --show_presets
+
+A Blank project reports no project tasks until you add and import a Gymnasium
+registration under ``src/<project-name>/tasks``.
 
 Copy the task name from the output, then run a quick smoke test:
 
@@ -132,22 +243,33 @@ Isaac Lab itself:
    uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>
    uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton
 
-Choose a simulation backend
----------------------------
+Choose optional features and a simulation backend
+-------------------------------------------------
 
 The default ``uv sync`` installs the kit-less Newton backend without Isaac Sim.
-Use a generated ``isaacsim``, ``ov``, ``ovphysx``, or ``ovrtx`` extra when a
-command needs that optional runtime. For example:
+The generated project's ``[project.optional-dependencies]`` table mirrors every
+extra declared by the Isaac Lab package used to create it. This keeps backend,
+visualizer, RL, teleoperation, and other feature extras aligned with that Isaac
+Lab version. It includes ``rerun``, ``viser``, and ``all`` when the active Isaac
+Lab package provides them.
+
+Pass each extra required by a command. For example:
 
 .. code-block:: bash
 
    uv run --extra isaacsim isaaclab random_agent \
       --task <TASK_NAME> physics=isaacsim_physx
 
-Place ``--extra`` before ``isaaclab`` and keep it on every command that needs
-the optional runtime. See :ref:`backends-and-presets` for the backend and preset
-model and :ref:`isaac-lab-quickstart` for supported physics, renderer, and
-visualizer combinations.
+   uv run --extra isaacsim --extra rerun isaaclab play \
+      --rl_library skrl --task <TASK_NAME> --viz rerun
+
+Place ``--extra`` before ``isaaclab`` and repeat it when a command needs several
+features. The generated ``all`` extra forwards Isaac Lab's own ``all`` extra;
+the exact contents remain defined by that release. Inspect the generated
+``pyproject.toml`` for the complete version-specific list. See
+:ref:`backends-and-presets` for the backend and preset model and
+:ref:`isaac-lab-quickstart` for supported physics, renderer, and visualizer
+combinations.
 
 .. _project-structure:
 
@@ -165,12 +287,18 @@ registrations, and agent configurations live under ``config/<robot-name>``.
 This separation lets a project add another robot configuration without copying
 the task MDP, or add another task family without creating another repository.
 
+Project-owned USD files and related data live under
+``src/<project-name>/assets/data``. The project's ``assets`` module exposes a
+package-relative ``<PROJECT_NAME>_ASSETS_DIR`` path, so task and asset
+configurations can locate those files from an editable checkout or an installed
+wheel. The generated ``.gitattributes`` routes USD files through Git LFS.
+
 Code shared by several task families can live in a package such as
 ``tasks/mdp``. The generated task importer skips packages named ``mdp`` while it
 searches for task registrations, so shared modules do not register as task
 families.
 
-A generated project resembles:
+A Cartpole project resembles:
 
 .. code-block:: text
 
@@ -183,6 +311,9 @@ A generated project resembles:
    ├── src/
    │   └── my_robot_project/
    │       ├── __init__.py
+   │       ├── assets/
+   │       │   ├── __init__.py
+   │       │   └── data/
    │       └── tasks/
    │           ├── __init__.py
    │           └── balance/
@@ -197,6 +328,8 @@ A generated project resembles:
 The generated package ``__init__.py`` is intentionally passive. Installing the
 project exposes ``my_robot_project.tasks`` through the ``isaaclab.tasks`` entry
 point, so importing the package for utilities does not eagerly register tasks.
+For Blank content, the ``tasks`` directory contains only ``__init__.py`` until
+you add and import a task package.
 
 If you opt into the Isaac Sim UI extension, the generator additionally creates
 ``config/extension.toml`` and ``src/my_robot_project/ui_extension_example.py``.
@@ -220,6 +353,9 @@ the action and observation paths:
 
    uv run isaaclab zero_agent --task <TASK_NAME> --num_envs 16
    uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16
+
+Both commands run until their step limit, their visualizer closes, or you press
+Ctrl+C. Ctrl+C closes the environment and exits without a traceback.
 
 Edit the generated environment configuration and task terms under
 ``src/<project-name>/tasks``. The generated package is
@@ -283,7 +419,7 @@ a separate project. From the Isaac Lab repository root, list and test it with:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/list_envs.py --show_presets
+   uv run isaaclab list_envs --show_presets
    uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16
    uv run isaaclab train --rl_library <RL_LIBRARY> --task <TASK_NAME>
 
@@ -314,11 +450,21 @@ Troubleshooting
 
 **The CLI cannot find the generated task**
    Run ``uv sync`` and invoke the command from the generated project root. Then
-   confirm the task appears in ``uv run python scripts/list_envs.py``.
+   confirm the task appears in ``uv run isaaclab list_envs``. Pass ``--all`` to
+   include tasks from every installed task package instead of limiting the list
+   to the current project's ``isaaclab.tasks`` entry point.
+
+**Non-interactive arguments are rejected**
+   Include ``--non-interactive`` after ``--new``. Cartpole is the default initial
+   content; Blank content rejects task, workflow, library, and algorithm options.
+   The error message identifies missing required arguments or incompatible
+   selections.
 
 **An optional backend module is missing**
    Add its extra before the command, such as ``uv run --extra ovphysx
-   isaaclab ...`` or ``uv run --extra isaacsim isaaclab ...``.
+   isaaclab ...`` or ``uv run --extra isaacsim --extra rerun isaaclab ...``.
+   Every extra offered by the active Isaac Lab package is copied into the
+   generated project's optional dependencies.
 
 **The generator reports a missing template dependency**
    Current versions obtain the renderer and prompts from the Isaac Lab

@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 class {{ task.classname }}Env(DirectRLEnv):
-    """Cart-pole balancing environment generated for a downstream project."""
+    """Cart-pole balancing environment."""
 
     cfg: {{ task.classname }}EnvCfg
 

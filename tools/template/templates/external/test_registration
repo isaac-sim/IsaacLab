@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the generated task registrations."""
+"""Tests for the project's task registrations."""
 
 import gymnasium as gym
 
@@ -11,7 +11,8 @@ import {{ name }}.tasks  # noqa: F401
 
 
 def test_task_registrations():
-    """The generated tasks must expose valid environment and agent entry points."""
+    """The project tasks must expose valid environment and agent entry points."""
+{% if specifications %}
     expected = {
 {% for specification in specifications %}
         "{{ specification.task.id }}": {
@@ -23,6 +24,9 @@ def test_task_registrations():
         },
 {% endfor %}
     }
+{% else %}
+    expected = {}
+{% endif %}
 
     for task_id, expected_values in expected.items():
         spec = gym.spec(task_id)

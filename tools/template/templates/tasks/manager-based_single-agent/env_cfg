@@ -35,7 +35,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 @configclass
 class {{ task.classname }}PhysicsCfg(PresetCfg):
-    """Physics presets for the generated cart-pole environment."""
+    """Physics presets for the cart-pole environment."""
 
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -191,7 +191,7 @@ class TerminationsCfg:
 
 @configclass
 class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the generated cart-pole environment."""
+    """Configuration for the cart-pole environment."""
 
     # Scene settings
     scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=4096, env_spacing=4.0)
