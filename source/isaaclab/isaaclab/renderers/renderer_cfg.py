@@ -26,6 +26,9 @@ class RendererCfg:
 
     renderer_type: str = "default"
 
+    cloning_contexts: tuple[type | str, ...] = ()
+    """Clone contexts that build this renderer's scene representation from the asset plan."""
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec] | None:
         """Return the camera output layouts supported by this renderer configuration.
 

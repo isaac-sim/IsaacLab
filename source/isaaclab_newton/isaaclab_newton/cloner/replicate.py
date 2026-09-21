@@ -9,6 +9,7 @@ import contextlib
 import copy
 import re
 from collections.abc import Callable, Iterator, Sequence
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -17,7 +18,7 @@ from newton import ModelBuilder
 
 from pxr import Usd
 
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -25,7 +26,8 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_plan
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 if TYPE_CHECKING:
@@ -242,7 +244,21 @@ class NewtonReplicateContext:
             raise ValueError("ClonePlan.env_ids is required for replication.")
         rows = plan.context_rows[type(self)]
         cfg = self._sim.cfg.physics
-        load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
+        if not isinstance(cfg, NewtonCfg):
+            builder, geometry = build_visualization_builder_from_plan(
+                self._sim.stage, plan, rows, up_axis=self.up_axis, device=self._sim.device
+            )
+            backend_cfg = NewtonBackendCfg(
+                builder=builder, device=self._sim.device, num_envs=len(plan.env_ids), simulation=False
+            )
+            self._sim.physics_manager.register_callback(
+                partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),
+                PhysicsEvent.PHYSICS_READY,
+                name="newton_visualization_model",
+                wrap_weak_ref=False,
+            )
+            return builder, None, {}
+        load_visual_shapes = cfg.load_visual_shapes
         return _replicate_newton(
             stage=self._sim.stage,
             sources=tuple(plan.sources[row] for row in rows),

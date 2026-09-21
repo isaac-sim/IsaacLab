@@ -71,6 +71,7 @@ class RenderContext:
     """
 
     __slots__ = (
+        "clone_contexts",
         "_renderer_entries",
         "_physics_initialized",
         "_prepared_renderer_ids",
@@ -87,6 +88,8 @@ class RenderContext:
     )
 
     def __init__(self) -> None:
+        self.clone_contexts: set[type | str] = set()
+        """Scene representations declared by camera renderers and visualizers before cloning."""
         self._renderer_entries: list[tuple[RendererCfg, BaseRenderer]] = []
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
@@ -140,6 +143,7 @@ class RenderContext:
             raise RuntimeError("Renderers must be registered before rendering consumers are finalized.")
         new_renderer = cfg.class_type(cfg)
         self._renderer_entries.append((cfg, new_renderer))
+        self.clone_contexts.update(cfg.cloning_contexts)
         with force_log_level(logging.INFO):
             logger.info("Created new renderer for simulation: %s", type(new_renderer).__name__)
         if self._physics_initialized:
@@ -408,6 +412,7 @@ class RenderContext:
                 logger.error("Error closing renderer %s: %s", type(renderer).__name__, exc)
                 errors.append(exc)
         self._renderer_entries.clear()
+        self.clone_contexts.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
         self._last_scene_state_step = None

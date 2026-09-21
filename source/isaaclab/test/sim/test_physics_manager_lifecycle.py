@@ -253,6 +253,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             Visualizer("visualizer_failed", ValueError("visualizer failed")),
             Visualizer("visualizer_last"),
         ],
+        _pending_visualizers=[Visualizer("visualizer_pending")],
         clone_contexts={object: object()},
         _backend_registry=[
             (0, Backend("backend_failed", LookupError("backend failed"))),
@@ -277,6 +278,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "renderers",
         "visualizer_failed",
         "visualizer_last",
+        "visualizer_pending",
         "backend_failed",
         "same_type",
         "stage",
@@ -284,6 +286,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "gc",
     ]
     assert context._visualizers == []
+    assert context._pending_visualizers == []
     assert context._backend_registry == []
     assert context.clone_contexts == {}
     assert SimulationContext.instance() is None
@@ -310,6 +313,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context.physics_manager = Manager
     context._render_context = RenderContext()
     context._visualizers = []
+    context._pending_visualizers = []
     context._backend_registry = []
     context.clone_contexts = {}
     context_ref = weakref.ref(context)

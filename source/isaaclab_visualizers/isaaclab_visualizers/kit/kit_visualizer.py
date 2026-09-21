@@ -35,6 +35,7 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -133,6 +134,13 @@ class KitVisualizer(BaseVisualizer):
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
+        if (
+            cfg.streaming_view
+            and get_settings_manager().get("/isaaclab/cameras_enabled", False)
+            and cfg.streaming_sensor_prim_path is None
+            and cfg.streaming_cam_target_prim_path is not None
+        ):
+            SimulationContext.instance().render_context.get_renderer(self._resolve_streaming_renderer_cfg())
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -1237,8 +1245,6 @@ class KitVisualizer(BaseVisualizer):
         camera is positioned immediately. For asset-tracking origins the first update is deferred
         to :meth:`step` because asset state is not yet available at initialization time.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         self._interactive_scene = getattr(SimulationContext.instance(), "_interactive_scene", None)
 
         if self.cfg.origin_type == "world":

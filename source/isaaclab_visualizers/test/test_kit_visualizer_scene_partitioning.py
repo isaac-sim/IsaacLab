@@ -19,6 +19,24 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
+@pytest.mark.parametrize("generated", [False, True])
+def test_streaming_renderer_registers_before_visualizer_initialization(monkeypatch, generated):
+    sim = MagicMock()
+    settings = MagicMock()
+    settings.get.return_value = True
+    renderer_cfg = object()
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(KitVisualizer, "_resolve_streaming_renderer_cfg", lambda self: renderer_cfg)
+
+    KitVisualizer(KitVisualizerCfg(streaming_view=True, streaming_cam_target_prim_path="/Robot" if generated else None))
+
+    if generated:
+        sim.render_context.get_renderer.assert_called_once_with(renderer_cfg)
+    else:
+        sim.render_context.get_renderer.assert_not_called()
+
+
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
 def test_background_color_applies_to_render_product_session_layer(
     color: tuple[float, float, float] | None,

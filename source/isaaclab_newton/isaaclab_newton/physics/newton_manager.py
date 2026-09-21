@@ -102,7 +102,6 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg, NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
-from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
@@ -535,7 +534,7 @@ class NewtonManager(PhysicsManager):
     _scene_data_backend: NewtonSceneDataBackend | None = None
 
     # Visualization-only state used when the sim backend is PhysX. Populated
-    # lazily in :meth:`_ensure_visualization_model` and updated each render
+    # from the clone plan in :meth:`_initialize_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
     _scene_data: SceneDataFormat.Transform | None = None
     _scene_data_mapping: wp.array | None = None
@@ -2687,21 +2686,12 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_model(cls) -> Model:
-        """Get the Newton model.
-
-        When the active sim backend is Newton this returns the manager's own
-        authoritative model. When the active sim backend is PhysX a shadow
-        Newton model is built lazily (from the visualizer prebuilt artifact) so
-        renderers/visualizers that operate on Newton ``Model`` and ``State`` can
-        still drive a PhysX-simulated scene.
-        """
-        cls._ensure_visualization_model()
+        """Return the native or render-only model initialized from the clone-built representation."""
         return None if cls.backend is None else cls.backend.model
 
     @classmethod
     def get_state_0(cls) -> State:
         """Get the current state."""
-        cls._ensure_visualization_model()
         return None if cls.backend is None else cls.backend.state_0
 
     @classmethod
@@ -2899,60 +2889,14 @@ class NewtonManager(PhysicsManager):
         return isinstance(cls.get_scene_data_provider().backend, NewtonSceneDataBackend)
 
     @classmethod
-    def _ensure_visualization_model(cls) -> None:
-        """Build a shadow Newton model from the USD stage when the sim backend is PhysX.
-
-        No-op when the sim backend is Newton (the native backend's model and state
-        are authoritative) or when a shadow model has already been
-        built. This is the entry point that makes :meth:`get_model` /
-        :meth:`get_state` work uniformly across both sim backends.
-
-        The shadow model is built by walking the USD stage and finalizing the resulting
-        :class:`~newton.ModelBuilder`. Per-frame body transforms are pushed into
-        ``backend.state_0.body_q`` by :meth:`update_visualization_state` using the
-        :class:`~isaaclab.scene_data.SceneDataProvider`.
-        """
-
+    def _initialize_visualization_model(cls, cfg: NewtonBackendCfg, geometry: tuple[list, list], _event: Any) -> None:
+        """Acquire the completed clone representation when foreign physics becomes ready."""
         if cls.backend is not None:
             return
-
-        if cls._backend_is_newton():
-            return
-
-        stage = get_current_stage()
-        if stage is None:
-            logger.error(
-                "[NewtonManager] No USD stage available; cannot build a Newton "
-                "Model/State for visualization while the sim backend is PhysX."
-            )
-            return
-
-        up_axis_token = UsdGeom.GetStageUpAxis(stage)
-        up_axis = Axis.from_string(str(up_axis_token))
-
-        env_paths = []
-        envs_prim = stage.GetPrimAtPath("/World/envs")
-        if envs_prim.IsValid():
-            env_pattern = re.compile(r"^env_(\d+)$")
-            env_paths = sorted(
-                (int(match.group(1)), child.GetPath().pathString)
-                for child in envs_prim.GetChildren()
-                if (match := env_pattern.match(child.GetName()))
-            )
-
         sim = SimulationContext.instance()
-        assert sim is not None
-        clone_plan = sim.get_clone_plan()
-        if clone_plan is not None and not env_paths:
-            logger.warning(
-                "[NewtonManager] Clone plan is available but no environment prims were found; "
-                "deferring visualization model creation."
-            )
-            return
-        NewtonManager._num_envs = clone_plan.clone_mask.shape[1] if clone_plan is not None else 1
-        builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
-            stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
-        )
+        NewtonManager.backend = sim.get_or_create_backend(cfg)
+        NewtonManager._num_envs = cls.backend.model.num_envs
+        shadow_entities, registry_groups = geometry
         NewtonManager._scene_data_mapping = None
         NewtonManager._shadow_deformable_entities = shadow_entities
         NewtonManager._scene_data_geometry_mapping = None
@@ -2960,34 +2904,9 @@ class NewtonManager(PhysicsManager):
         cls._invalidate_shadow_deformable_batch_sync()
         sim_particle_total = sum(entity.sim_particle_count for entity in shadow_entities)
         if sim_particle_total > 0:
-            device = PhysicsManager._device or "cpu"
-            NewtonManager._sim_particle_q = wp.zeros(sim_particle_total, dtype=wp.vec3f, device=device)
+            NewtonManager._sim_particle_q = wp.zeros(sim_particle_total, dtype=wp.vec3f, device=cfg.device)
         else:
             NewtonManager._sim_particle_q = None
-
-        particle_count = getattr(builder, "particle_count", 0)
-        if builder.body_count == 0 and particle_count == 0:
-            if clone_plan is not None or env_paths:
-                logger.error(
-                    "[NewtonManager] USD stage walk produced no Newton bodies or particles; the shadow "
-                    "Newton model for visualization will be empty. Common causes: the cloned "
-                    "envs are not yet on the stage, or PhysX schemas could not be parsed by "
-                    "Newton's add_usd. Check that /World/envs/env_<id> prims exist when the "
-                    "renderer is initialized."
-                )
-                return
-            logger.info(
-                "[NewtonManager] USD stage walk produced no Newton bodies or particles; "
-                "finalizing an empty visualization model."
-            )
-        elif builder.body_count == 0:
-            log = logger.warning if clone_plan is not None or env_paths else logger.info
-            log("[NewtonManager] USD stage walk produced no Newton bodies; finalizing an empty visualization model.")
-
-        device = PhysicsManager._device or "cpu"
-        NewtonManager.backend = sim.get_or_create_backend(
-            NewtonBackendCfg(builder=builder, device=device, num_envs=cls._num_envs, simulation=False)
-        )
         NewtonManager._deformable_registry = []
         populate_shadow_deformable_registry(cls, registry_groups)
         NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
@@ -3034,8 +2953,6 @@ class NewtonManager(PhysicsManager):
 
         if cls._backend_is_newton(scene_data_provider):
             return
-
-        cls._ensure_visualization_model()
 
         if cls.backend is None:
             return

@@ -3,65 +3,34 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for ``NewtonManager.update_visualization_state`` and shadow-model build.
-
-When the active sim backend is PhysX and a Newton-native visualizer/renderer is in
-use, :meth:`NewtonManager._ensure_visualization_model` must build the manager's
-native model and state directly from the USD stage, and
-:meth:`NewtonManager.update_visualization_state` must copy fresh transforms into
-``state_0.body_q`` via the
-:class:`~isaaclab.scene_data.SceneDataProvider`.
-"""
+"""Clone-owned Newton visualization models and SDP state synchronization under foreign physics."""
 
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
+from isaaclab.cloner import ClonePlan
+from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+
 pytestmark = pytest.mark.integration
 
-_DEFAULT = object()
+_SINGLE_ENV_PLAN = ClonePlan(
+    sources=("/World/envs/env_0",),
+    destinations=("/World/envs/env_{}",),
+    clone_mask=np.ones((1, 1), dtype=np.bool_),
+    env_ids=np.arange(1),
+    positions=np.zeros((1, 3), dtype=np.float32),
+)
 
 
 def _reset_newton_manager_state():
     from isaaclab_newton.physics import NewtonManager
 
     NewtonManager.clear()
-
-
-def _make_env_stage(num_envs: int = 1):
-    from pxr import Usd, UsdGeom
-
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/envs")
-    for env_id in range(num_envs):
-        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
-    return stage
-
-
-def _make_standalone_stage():
-    from pxr import Usd, UsdGeom
-
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/Robot")
-    return stage
-
-
-def _set_sim_context(monkeypatch, nm, clone_plan=_DEFAULT, scene_data_provider=_DEFAULT):
-    clone_plan = SimpleNamespace(clone_mask=np.ones((1, 1), dtype=np.bool_)) if clone_plan is _DEFAULT else clone_plan
-    scene_data_provider = SimpleNamespace() if scene_data_provider is _DEFAULT else scene_data_provider
-    sim = object.__new__(nm.SimulationContext)
-    sim._backend_registry = []
-    sim.get_clone_plan = lambda: clone_plan
-    sim.get_scene_data_provider = lambda: scene_data_provider
-    sim.physics_manager = nm.PhysicsManager
-    monkeypatch.setattr(nm.NewtonManager, "backend", None)
-    monkeypatch.setattr(nm.SimulationContext, "instance", classmethod(lambda cls: sim))
-    return sim
 
 
 def _add_api_schemas(prim, schemas: list[str]) -> None:
@@ -174,6 +143,7 @@ class _FakeShadowBuilder:
         self.soft_calls = 0
         self.body_count = body_count
         self.ignore_paths = None
+        self.usd_roots = []
         self._cloth_delta = cloth_delta
         self._soft_delta = soft_delta
         self._reject_soft = reject_soft
@@ -196,6 +166,7 @@ class _FakeShadowBuilder:
         if not self._track_usd:
             raise AssertionError("add_usd was not expected")
         self.ignore_paths = list(ignore_paths or [])
+        self.usd_roots.append(kwargs["root_path"])
         return {"path_shape_map": {}}
 
     @property
@@ -246,24 +217,6 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
     return stage
 
 
-def _make_finalize_builder(*, body_count: int, particle_count: int = 0, finalize: bool = True):
-    """ModelBuilder stub used by ``_ensure_visualization_model`` tests."""
-
-    class _Builder:
-        pass
-
-    builder = _Builder()
-    builder.body_count = body_count
-    builder.particle_count = particle_count
-    if finalize:
-
-        def _finalize(device):
-            return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
-
-        builder.finalize = _finalize
-    return builder
-
-
 def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
     """Only the active physics manager can clear shared SimulationContext state."""
     from isaaclab.physics import PhysicsManager
@@ -291,189 +244,81 @@ def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
     assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
 
 
-def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
-    """When sim backend is Newton, the manager keeps its own model/state untouched."""
+@pytest.mark.parametrize(("body_count", "particle_count"), [(0, 0), (3, 0), (0, 4)])
+def test_visualization_model_is_built_during_clone_and_allocated_on_physics_ready(
+    monkeypatch, body_count, particle_count
+):
+    """Cloning owns parsing; READY owns native allocation; getters never discover or allocate."""
+    from isaaclab_newton.cloner import NewtonReplicateContext
+    from isaaclab_newton.cloner import replicate as replicate_module
     from isaaclab_newton.physics import NewtonManager
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
-    NewtonManager._ensure_visualization_model()
-    assert NewtonManager.backend is None
-
-
-def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monkeypatch):
-    """With a PhysX sim backend, the shadow Newton model is built directly from the stage."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-
-    finalize_calls: list[str] = []
-    builder = _make_finalize_builder(body_count=3)
-
-    def _finalize(device):
-        finalize_calls.append(device)
-        return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
-
-    builder.finalize = _finalize
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
-    NewtonManager._scene_data_mapping = object()
-
-    NewtonManager._ensure_visualization_model()
-
-    assert finalize_calls == ["cpu"]
-    assert NewtonManager.backend.model is not None
-    assert NewtonManager.backend.state_0 is not None
-    assert NewtonManager._scene_data_mapping is None
-
-
-def test_physx_shadow_model_is_rebuilt_after_physics_stop(monkeypatch):
-    """Sequential PhysX scenes must not reuse the prior scene's Newton visualization model."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
+    from isaaclab.sim import SimulationContext
 
-    class ActivePhysicsManager(PhysicsManager):
+    class ForeignPhysicsManager(PhysicsManager):
         _callbacks = {}
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    sim = _set_sim_context(monkeypatch, nm)
-    sim.physics_manager = ActivePhysicsManager
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-    builders = iter((_make_finalize_builder(body_count=1), _make_finalize_builder(body_count=2)))
-    monkeypatch.setattr(
-        nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (next(builders), ([], []))
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    plan = ClonePlan(
+        sources=("/Scene/Source",),
+        destinations=("/Scene/Copy_{}",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2),
+        positions=np.zeros((2, 3), dtype=np.float32),
+        context_rows={NewtonReplicateContext: (0,)},
     )
+    sim = object.__new__(SimulationContext)
+    sim.cfg = SimpleNamespace(physics=object(), device="cpu")
+    sim.stage = object()
+    sim.physics_manager = ForeignPhysicsManager
+    sim._backend_registry = []
+    sim._scene_data_provider = SimpleNamespace(backend=object(), point_count=0)
+    monkeypatch.setattr(SimulationContext, "_instance", sim)
 
-    NewtonManager._ensure_visualization_model()
-    first_model = NewtonManager.backend.model
-    NewtonManager._shadow_deformable_entities = [object()]
-    ActivePhysicsManager.dispatch_event(PhysicsEvent.STOP)
+    builder = SimpleNamespace(
+        body_count=body_count,
+        particle_count=particle_count,
+        finalize=Mock(
+            side_effect=lambda device: SimpleNamespace(
+                body_count=body_count,
+                particle_count=particle_count,
+                world_count=2,
+                state=lambda: SimpleNamespace(body_q=None, particle_q=None),
+            )
+        ),
+    )
+    build = Mock(return_value=(builder, ([], [])))
+    monkeypatch.setattr(replicate_module, "build_visualization_builder_from_plan", build)
+    context = NewtonReplicateContext(sim)
+    assert NewtonManager.get_model() is None
+    assert NewtonManager.get_state() is None
+    build.assert_not_called()
 
-    assert NewtonManager.backend is None
-    assert NewtonManager._shadow_deformable_entities is None
-    assert NewtonManager._visualization_stop_callback is None
-    NewtonManager._ensure_visualization_model()
-    assert NewtonManager.backend.model is not first_model
+    assert context.replicate(plan)[0] is builder
+    build.assert_called_once_with(sim.stage, plan, (0,), up_axis="Z", device="cpu")
+    builder.finalize.assert_not_called()
+    assert not sim._backend_registry
 
+    ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+    first_model = NewtonManager.get_model()
+    first_state = NewtonManager.get_state()
+    ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+    assert NewtonManager.get_model() is first_model
+    assert NewtonManager.get_state() is first_state
+    assert (first_model.body_count, first_model.particle_count) == (body_count, particle_count)
+    assert first_model.num_envs == NewtonManager.get_num_envs() == 2
+    builder.finalize.assert_called_once_with(device="cpu")
 
-def test_ensure_visualization_model_empty_builder_supports_marker_only_scene(monkeypatch, caplog):
-    """An empty shadow model supports marker-only and geometry-only scenes."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_standalone_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm, clone_plan=None)
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-
-    builder = _make_finalize_builder(body_count=0, particle_count=0)
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
-
-    with caplog.at_level("INFO"):
-        NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager.backend.model is not None
-    assert NewtonManager.backend.state_0 is not None
-    assert any("no Newton bodies or particles" in r.message for r in caplog.records)
-
-
-def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, caplog):
-    """When a cloned stage walk produces no bodies or particles, model/state stay unset."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
-
-    builder = _make_finalize_builder(body_count=0, particle_count=0, finalize=False)
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
-
-    with caplog.at_level("ERROR"):
-        NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager.backend is None
-    assert any("no Newton bodies or particles" in r.message for r in caplog.records)
-
-
-def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(monkeypatch):
-    """Shadow-model build must populate ``_num_envs`` so ``get_num_envs`` is correct under PhysX."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm, clone_plan=SimpleNamespace(clone_mask=np.ones((1, 4), dtype=np.bool_)))
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-
-    builder = _make_finalize_builder(body_count=3)
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
-
-    NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager.get_num_envs() == 4
-    assert NewtonManager.backend.model.num_envs == 4
-
-
-def test_ensure_visualization_model_builds_single_world_for_standalone_scene(monkeypatch):
-    """A scene outside ``/World/envs`` is imported as one visualization world."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_standalone_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm, clone_plan=None)
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-
-    build_calls = []
-    builder = _make_finalize_builder(body_count=1)
-
-    def _build(stage, env_paths, clone_plan, *, up_axis, device="cpu"):
-        build_calls.append((stage, env_paths, clone_plan, up_axis, device))
-        return builder, ([], [])
-
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", _build)
-
-    NewtonManager._ensure_visualization_model()
-
-    assert build_calls[0][1:3] == ([], None)
-    assert build_calls[0][4] == "cpu"
-    assert NewtonManager.get_num_envs() == 1
-    assert NewtonManager.backend.model.num_envs == 1
-
-
-def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch, caplog):
-    """When no USD stage is available, model/state stay unset and an error is logged."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: None)
-
-    with caplog.at_level("ERROR"):
-        NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager.backend is None
-    assert any("No USD stage available" in r.message for r in caplog.records)
+    ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
+    assert NewtonManager.get_model() is None and NewtonManager.get_state() is None
+    assert not sim._backend_registry
+    ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+    assert NewtonManager.get_model() is not first_model
+    assert builder.finalize.call_count == 2
+    assert build.call_count == 1
+    ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
 
 
 def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
@@ -793,7 +638,8 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
 
     stage = _make_volume_soft_stage()
     builder = _FakeShadowBuilder(cloth_delta=1, soft_delta=4)
-    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, [(0, "/World/envs/env_0")])
+    entries = discover_deformables_on_stage(stage, root_paths=_SINGLE_ENV_PLAN.sources)
+    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, entries, _SINGLE_ENV_PLAN)
 
     assert builder.cloth_calls == 1
     assert builder.soft_calls == 0
@@ -813,7 +659,8 @@ def test_shadow_deformable_volume_remap_failure_falls_back_to_soft_mesh(monkeypa
     stage = _make_volume_soft_stage()
     monkeypatch.setattr(vd, "_build_volume_vis_remap", lambda entry, device: None)
     builder = _FakeShadowBuilder(cloth_delta=1, soft_delta=4)
-    flat_entities, registry_groups = vd.add_shadow_deformables_to_builder(builder, stage, [(0, "/World/envs/env_0")])
+    entries = discover_deformables_on_stage(stage, root_paths=_SINGLE_ENV_PLAN.sources)
+    flat_entities, registry_groups = vd.add_shadow_deformables_to_builder(builder, stage, entries, _SINGLE_ENV_PLAN)
 
     assert builder.cloth_calls == 0
     assert builder.soft_calls == 1
@@ -851,23 +698,21 @@ def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
         vis_vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
         vis_indices=[0, 1, 2],
     )
-    monkeypatch.setattr(vd, "discover_deformables_on_stage", lambda stage: [entry])
-    monkeypatch.setattr(vd, "sort_deformable_entries_for_geometry_sync", lambda entries: entries)
-
     builder = _FakeShadowBuilder(cloth_delta=3, reject_soft=True)
-    vd.add_shadow_deformables_to_builder(builder, stage, [(0, "/World/envs/env_0")])
+    vd.add_shadow_deformables_to_builder(builder, stage, [entry], _SINGLE_ENV_PLAN)
 
     # Parent world translation is (10,0,0); root's extra (2,0,0) must not be used as placement.
     assert tuple(float(v) for v in builder.captured["pos"]) == (10.0, 0.0, 0.0)
 
 
-def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import(monkeypatch):
-    """Clone-path world ``add_usd`` must ignore deformables outside ``/World/envs``."""
+def test_clone_visualization_builder_imports_only_declared_global_deformables(monkeypatch):
+    """Shared deformables are imported from plan-owned roots, never a whole-world walk."""
     from isaaclab_newton.physics import visualization_builder as vb
 
-    from pxr import UsdGeom
+    from pxr import Sdf, UsdGeom
 
     stage = _make_surface_cloth_stage(path="/World/Assets/Cloth")
+    Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), "/World/UnplannedCloth")
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     UsdGeom.Xform.Define(stage, "/World/envs/env_1")
 
@@ -876,12 +721,13 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     fake_builder.shape_collision_group = []
     fake_builder.shape_count = 0
     fake_builder.add_builder = lambda _builder: None
-    clone_plan = SimpleNamespace(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
+    clone_plan = ClonePlan(
+        sources=(),
+        destinations=(),
         env_ids=np.asarray([0, 1], dtype=np.int64),
-        clone_mask=np.asarray([[False, False]], dtype=np.bool_),
+        clone_mask=np.zeros((0, 2), dtype=np.bool_),
         positions=np.zeros((2, 3), dtype=np.float32),
+        global_paths=("/World/Assets/Cloth",),
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
@@ -889,16 +735,9 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     monkeypatch.setattr(vb, "build_source_builders", lambda *args, **kwargs: {})
     monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: ({}, [], []))
 
-    _builder, (shadow_entities, registry_groups) = vb.build_visualization_builder_from_stage_envs(
-        stage,
-        [(0, "/World/envs/env_0"), (1, "/World/envs/env_1")],
-        clone_plan=clone_plan,
-    )
+    _builder, (shadow_entities, registry_groups) = vb.build_visualization_builder_from_plan(stage, clone_plan, ())
 
-    assert "/World/envs" in fake_builder.ignore_paths
-    assert "/World/envs/env_0" in fake_builder.ignore_paths
+    assert fake_builder.usd_roots == ["/World/Assets/Cloth"]
     assert "/World/Assets/Cloth" in fake_builder.ignore_paths
-    assert any(entity.root_path == "/World/Assets/Cloth" for entity in shadow_entities)
-    assert any(
-        group.prim_path == "/World/Assets/Cloth" and "/World/envs/" not in group.prim_path for group in registry_groups
-    )
+    assert [entity.root_path for entity in shadow_entities] == ["/World/Assets/Cloth"]
+    assert [group.prim_path for group in registry_groups] == ["/World/Assets/Cloth"]

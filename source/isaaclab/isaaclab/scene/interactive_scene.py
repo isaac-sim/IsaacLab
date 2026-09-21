@@ -39,7 +39,6 @@ from isaaclab.assets import (
     VisualMaterialCfg,
 )
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -145,7 +144,6 @@ class InteractiveScene:
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
-        requested_viz_types = set(self.sim.resolve_visualizer_types())
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
@@ -190,13 +188,6 @@ class InteractiveScene:
             sim_utils.standardize_xform_ops(env_0, translation=tuple(map(float, positions[0])))
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
-
-        # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
-        cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
-        for type_name in requested_viz_types.union(cam_types):
-            requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
-            self.sim.requires_usd_stage |= requires_stage
-            self.sim.requires_newton_model |= requires_model
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
@@ -246,6 +237,8 @@ class InteractiveScene:
         clone_asset_names: list[str] = []
         variant_counts: list[int] = []
         for asset_name, child in flat_items:
+            if isinstance(child, CameraCfg):
+                self.sim.render_context.get_renderer(child.renderer_cfg)
             if id(child) in nested_visual_material_ids:
                 if child.spawn is not None:
                     child.spawn.spawn_path = child.prim_path

@@ -126,12 +126,15 @@ def test_get_renderer_returns_equal_cfg_singleton():
 def test_get_renderer_constructs_class_type_with_its_config():
     ctx = RenderContext()
     seen = []
-    cfg = RendererCfg()
+    cfg = RendererCfg(cloning_contexts=("example:CloneContext",))
     cfg.class_type = lambda actual: seen.append(actual) or _FakeBackend()
 
     renderer = ctx.get_renderer(cfg)
 
     assert isinstance(renderer, _FakeBackend)
+    assert seen == [cfg]
+    assert ctx.clone_contexts == set(cfg.cloning_contexts)
+    assert ctx.get_renderer(cfg) is renderer
     assert seen == [cfg]
 
 
@@ -308,9 +311,11 @@ def test_close_resets_stage_and_step_bookkeeping():
     """After ``close`` the context holds no backend, so a later ``ensure_prepare_stage`` is an error."""
     ctx = RenderContext()
     _set_entries(ctx, (IsaacRtxRendererCfg(), _FakeBackend()))
+    ctx.clone_contexts.add("example:CloneContext")
     ctx.ensure_prepare_stage(None, 4)
 
     ctx.close()
+    assert not ctx.clone_contexts
 
     with pytest.raises(RuntimeError, match="get_renderer must be called"):
         ctx.ensure_prepare_stage(None, 4)
