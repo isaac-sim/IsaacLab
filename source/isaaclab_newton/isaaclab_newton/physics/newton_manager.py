@@ -1019,7 +1019,7 @@ class NewtonManager(PhysicsManager):
         )
 
     @classmethod
-    def step(cls) -> None:
+    def _step(cls) -> None:
         """Step the physics simulation.
 
         The stepping logic follows one of two paths depending on whether

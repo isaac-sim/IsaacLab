@@ -106,7 +106,7 @@ transforms in the Warp-native format consumed by renderers and visualizers.
             return cls._scene_data_backend
 
         @classmethod
-        def step(cls):
+        def _step(cls):
             # Advance simulation by one timestep.
             ...
 

@@ -344,15 +344,13 @@ def _stub_context_for_step(recorder: list[str]):
     return context
 
 
-def test_step_is_unaffected_by_the_physics_profile_flag(monkeypatch):
-    """Enabling ``ISAACLAB_PHYSICS_PROFILE`` only wraps the physics step in a printed timer.
+def test_step_calls_physics_manager_in_order(monkeypatch):
+    """``SimulationContext.step`` does not know about profiling -- that lives in ``PhysicsManager.step``.
 
-    The wrapping must not change the call order, drop the step itself, or skip the step count.
+    It must still wait for the timeline, step physics, and bump the step count in order.
     """
     from isaaclab.sim import SimulationContext
-    from isaaclab.sim import simulation_context as context_module
 
-    monkeypatch.setattr(context_module, "_PHYSICS_PROFILE_ENABLED", True)
     calls: list[str] = []
     context = _stub_context_for_step(calls)
 
@@ -362,29 +360,37 @@ def test_step_is_unaffected_by_the_physics_profile_flag(monkeypatch):
     assert context._physics_step_count == 1
 
 
-def test_step_prints_timing_line_when_physics_profile_enabled(monkeypatch, capsys):
+def test_physics_manager_step_prints_timing_line_when_profile_enabled(monkeypatch, capsys):
     """The printed line must match the format ``scripts/benchmarks/benchmark_renderer.py`` parses."""
     import re
 
-    from isaaclab.sim import SimulationContext
-    from isaaclab.sim import simulation_context as context_module
+    from isaaclab.physics import physics_manager as physics_manager_module
 
-    monkeypatch.setattr(context_module, "_PHYSICS_PROFILE_ENABLED", True)
-    context = _stub_context_for_step([])
+    class TestManager(PhysicsManager):
+        @classmethod
+        def _step(cls):
+            pass
 
-    SimulationContext.step(context, render=False)
+    monkeypatch.setattr(physics_manager_module, "_PHYSICS_PROFILE_ENABLED", True)
 
-    assert re.search(rf"{re.escape(context_module.PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms", capsys.readouterr().out)
+    TestManager.step()
+
+    assert re.search(
+        rf"{re.escape(physics_manager_module.PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms", capsys.readouterr().out
+    )
 
 
-def test_step_prints_nothing_when_physics_profile_disabled(monkeypatch, capsys):
+def test_physics_manager_step_prints_nothing_when_profile_disabled(monkeypatch, capsys):
     """Profiling is off by default, so an ordinary run pays neither the print nor the sync."""
-    from isaaclab.sim import SimulationContext
-    from isaaclab.sim import simulation_context as context_module
+    from isaaclab.physics import physics_manager as physics_manager_module
 
-    monkeypatch.setattr(context_module, "_PHYSICS_PROFILE_ENABLED", False)
-    context = _stub_context_for_step([])
+    class TestManager(PhysicsManager):
+        @classmethod
+        def _step(cls):
+            pass
 
-    SimulationContext.step(context, render=False)
+    monkeypatch.setattr(physics_manager_module, "_PHYSICS_PROFILE_ENABLED", False)
 
-    assert context_module.PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out
+    TestManager.step()
+
+    assert physics_manager_module.PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out

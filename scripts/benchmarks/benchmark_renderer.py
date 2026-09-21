@@ -82,7 +82,7 @@ one ``"<name> took X.XX ms"`` line per call, which :func:`parse_log` regexes out
 PHYSICS_SCOPE = "IsaacLab::Physics::step"
 """Backend-agnostic timer name around one physics step, enabled by ``ISAACLAB_PHYSICS_PROFILE``.
 
-See :data:`isaaclab.sim.simulation_context.PHYSICS_PROFILE_SCOPE`. Turned on for every run, the
+See :data:`isaaclab.physics.physics_manager.PHYSICS_PROFILE_SCOPE`. Turned on for every run, the
 same way :data:`RENDER_SCOPE` is, so a log always records what physics cost alongside the render
 times this script reports.
 """

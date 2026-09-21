@@ -652,7 +652,7 @@ class OvPhysxManager(PhysicsManager):
         pass
 
     @classmethod
-    def step(cls) -> None:
+    def _step(cls) -> None:
         """Step the simulation by one physics timestep."""
         if cls.backend is None or cls.backend.physx is None:
             return

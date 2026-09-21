@@ -42,9 +42,9 @@ def test_render_scope_matches_render_context(benchmark_renderer):
     assert benchmark_renderer.RENDER_SCOPE == RENDER_PROFILE_SCOPE
 
 
-def test_physics_scope_matches_simulation_context(benchmark_renderer):
-    """The script's physics timer name must match the one the simulation prints."""
-    from isaaclab.sim.simulation_context import PHYSICS_PROFILE_SCOPE
+def test_physics_scope_matches_physics_manager(benchmark_renderer):
+    """The script's physics timer name must match the one the physics manager prints."""
+    from isaaclab.physics.physics_manager import PHYSICS_PROFILE_SCOPE
 
     assert benchmark_renderer.PHYSICS_SCOPE == PHYSICS_PROFILE_SCOPE
 

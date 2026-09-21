@@ -75,6 +75,12 @@ from functools import cached_property
 from pathlib import Path
 from typing import ClassVar
 
+# Fragment bullets use non-ASCII bullets/arrows; Windows consoles default stdout/stderr to a
+# legacy codepage (e.g. cp1252) that cannot encode them, crashing the pre-commit hook mid-run.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
 # Walk three levels up: tools/changelog/cli.py -> tools/changelog/ -> tools/ -> repo root.
 REPO_ROOT = Path(__file__).parent.parent.parent
 PACKAGES_ROOT = REPO_ROOT / "source"

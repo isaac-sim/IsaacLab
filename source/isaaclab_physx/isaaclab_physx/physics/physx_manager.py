@@ -521,7 +521,7 @@ class PhysxManager(PhysicsManager):
         return "kit"
 
     @classmethod
-    def step(cls) -> None:
+    def _step(cls) -> None:
         """Step the physics simulation."""
         sim = PhysicsManager._sim
         if sim is None:
