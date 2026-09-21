@@ -7,11 +7,11 @@
 
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
 
 import torch
 import warp as wp
+from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.sensors.ray_caster import ray_caster as ray_caster_module
 
 
@@ -53,11 +53,8 @@ class _DummyRayCaster(ray_caster_module._OvPhysxRayCasterMixin):
 
 def test_initialize_pose_tracking_uses_shared_rigid_body_resolver_without_destination_usd(monkeypatch):
     """RayCaster should use SensorBase clone-plan resolution when destination USD prims are missing."""
-    fake_tensor_type = object()
-    fake_tensor_types = SimpleNamespace(RIGID_BODY_POSE=fake_tensor_type)
     fake_physx = _FakePhysx()
 
-    monkeypatch.setitem(sys.modules, "isaaclab_ov.tensor_types", fake_tensor_types)
     monkeypatch.setattr(ray_caster_module.sim_utils, "find_matching_prims", lambda _path: [])
     monkeypatch.setattr(ray_caster_module.OvPhysxManager, "get_physx_instance", staticmethod(lambda: fake_physx))
 
@@ -65,7 +62,7 @@ def test_initialize_pose_tracking_uses_shared_rigid_body_resolver_without_destin
 
     sensor._initialize_pose_tracking()
 
-    assert fake_physx.calls == [("/World/envs/env_*/Robot/base", fake_tensor_type)]
+    assert fake_physx.calls == [("/World/envs/env_*/Robot/base", TT.RIGID_BODY_POSE)]
     assert sensor.count == 3
     torch.testing.assert_close(
         wp.to_torch(sensor._offset_pos_wp),
