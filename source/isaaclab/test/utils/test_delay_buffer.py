@@ -101,12 +101,13 @@ def test_random_time_lags(delay_buffer):
         (torch.tensor([5, 1], dtype=torch.int), [2, 3]),
     ],
 )
-def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_ids):
-    """Rejected lag updates leave the existing per-batch configuration unchanged."""
+def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_ids, monkeypatch):
+    """Reject invalid inputs before copying or changing the live lag configuration."""
     initial_lags = torch.arange(delay_buffer.batch_size, dtype=torch.int) % 5
     delay_buffer.set_time_lag(initial_lags)
     expected_lags = delay_buffer.time_lags
     expected_values = expected_lags.clone()
+    monkeypatch.setattr(expected_lags, "clone", lambda: pytest.fail("Validate the requested lag before copying state."))
 
     with pytest.raises(ValueError):
         delay_buffer.set_time_lag(time_lag, batch_ids)

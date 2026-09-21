@@ -125,38 +125,26 @@ class DelayBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
 
-        # Stage the update so a rejected lag cannot leave the buffer partially mutated.
-        candidate_time_lags = self._time_lags.clone()
-
-        # parse requested time_lag
+        # Validate the requested values before changing the live configuration.
         if isinstance(time_lag, int):
-            # set the time lags across provided batch indices
-            candidate_time_lags[batch_ids] = time_lag
+            min_time_lag = max_time_lag = time_lag
         elif isinstance(time_lag, torch.Tensor):
             # check valid dtype for time_lag: must be int or long
             if time_lag.dtype not in [torch.int, torch.long]:
                 raise TypeError(f"Invalid dtype for time_lag: {time_lag.dtype}. Expected torch.int or torch.long.")
-            # set the time lags
-            candidate_time_lags[batch_ids] = time_lag.to(device=self.device)
+            min_time_lag = int(time_lag.min().item()) if time_lag.numel() else 0
+            max_time_lag = int(time_lag.max().item()) if time_lag.numel() else 0
         else:
             raise TypeError(f"Invalid type for time_lag: {type(time_lag)}. Expected int or integer tensor.")
 
-        # compute the min and max time lag
-        candidate_min_time_lag = int(torch.min(candidate_time_lags).item())
-        candidate_max_time_lag = int(torch.max(candidate_time_lags).item())
-        # check that time_lag is feasible
-        if candidate_min_time_lag < 0:
-            raise ValueError(f"The minimum time lag cannot be negative. Received: {candidate_min_time_lag}")
-        if candidate_max_time_lag > self._history_length:
-            raise ValueError(
-                f"The maximum time lag cannot be larger than the history length. Received: {candidate_max_time_lag}"
-            )
+        if min_time_lag < 0:
+            raise ValueError(f"The minimum time lag cannot be negative. Received: {min_time_lag}")
+        if max_time_lag > self._history_length:
+            raise ValueError(f"The maximum time lag cannot be larger than the history length. Received: {max_time_lag}")
 
-        # Commit only after the complete candidate has passed validation. Keep the tensor identity stable for
-        # callers that retain a reference to ``time_lags``.
-        self._time_lags.copy_(candidate_time_lags)
-        self._min_time_lag = candidate_min_time_lag
-        self._max_time_lag = candidate_max_time_lag
+        self._time_lags[batch_ids] = time_lag.to(device=self.device) if isinstance(time_lag, torch.Tensor) else time_lag
+        self._min_time_lag = int(self._time_lags.min().item())
+        self._max_time_lag = int(self._time_lags.max().item())
 
     def reset(self, batch_ids: Sequence[int] | None = None):
         """Reset the data in the delay buffer at the specified batch indices.
