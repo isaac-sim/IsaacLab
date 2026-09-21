@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from ..selection_utils import SceneEntitySelectionCfg
 

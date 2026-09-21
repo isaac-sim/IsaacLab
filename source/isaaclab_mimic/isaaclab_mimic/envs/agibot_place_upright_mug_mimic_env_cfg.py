@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.place.config.agibot.place_upright_mug_rmp_rel_env_cfg import (
     RmpFlowAgibotPlaceUprightMugEnvCfg,

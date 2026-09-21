@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the direct-workflow cabinet-opening environment."""
+
 from __future__ import annotations
 
 from dataclasses import MISSING
@@ -10,9 +12,9 @@ from dataclasses import MISSING
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
+from .cabinet_env_cfg import (
     CABINET_CFG,
     LIGHT_CFG,
     PLANE_CFG,

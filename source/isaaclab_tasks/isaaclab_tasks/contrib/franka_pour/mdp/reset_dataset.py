@@ -15,7 +15,7 @@ import torch
 from isaaclab.managers import CurriculumTermCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 
-from ..reset_sampler import ResetDatasetSamplerCfg, _ResetDatasetSampler
+from ..reset_sampler import ResetDatasetSampler, ResetDatasetSamplerCfg
 
 if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
@@ -42,7 +42,7 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         sampler_cfg = env.cfg.reset_dataset_sampler.copy()
         if not isinstance(sampler_cfg, ResetDatasetSamplerCfg):
             raise TypeError("reset_dataset_sampler must be ResetDatasetSamplerCfg.")
-        self._sampler = _ResetDatasetSampler(self._row_count, self._device, sampler_cfg)
+        self._sampler = ResetDatasetSampler(self._row_count, self._device, sampler_cfg)
 
         self._frozen_rows = torch.arange(self._row_count, device=self._device, dtype=torch.long)
         top_grasp_count = env.cfg.reset_dataset_top_grasp_count

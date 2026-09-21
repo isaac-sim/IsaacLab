@@ -12,6 +12,9 @@ The following configurations are available:
 
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -25,15 +28,13 @@ AGIBOT_A2D_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agibot/A2D/A2D_physics.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={

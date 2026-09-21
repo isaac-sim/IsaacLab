@@ -131,3 +131,54 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     assert semantics.name == "robot_root_quat_w"
     assert semantics.kind == InputKindEnum.BODY_ROTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
+
+
+def test_named_last_action_observations_use_independent_feedback_states(monkeypatch: pytest.MonkeyPatch):
+    """Test named action terms are registered and updated as independent feedback states."""
+    full_action = torch.arange(12, dtype=torch.float32).reshape(2, 6)
+    terms = {
+        "arm": SimpleNamespace(raw_actions=full_action[:, :2]),
+        "hand": SimpleNamespace(raw_actions=full_action[:, 2:]),
+    }
+    action_manager = SimpleNamespace(
+        action=full_action,
+        _action=full_action,
+        get_term=terms.__getitem__,
+        process_action=lambda action: None,
+        apply_action=lambda: None,
+    )
+    env = SimpleNamespace(action_manager=action_manager)
+    state_payloads = {}
+    state_updates = []
+
+    def _record_state_tensors(task_name, tensors):
+        assert task_name == "multi-term-task"
+        state_payloads.update(tensors)
+        return next(iter(tensors.values()))
+
+    def _record_update_state(task_name, tensors):
+        assert task_name == "multi-term-task"
+        state_updates.append(tensors)
+        return tuple(tensors.values())
+
+    monkeypatch.setattr(leapp_utils.annotate, "state_tensors", _record_state_tensors)
+    monkeypatch.setattr(leapp_utils.annotate, "update_state", _record_update_state)
+    monkeypatch.setattr(leapp_utils.annotate, "output_tensors", lambda *args, **kwargs: None)
+    patcher = ExportPatcher(export_method="onnx-dynamo")
+    patcher.task_name = "multi-term-task"
+    monkeypatch.setattr(patcher, "_collect_action_outputs", lambda action_manager: [])
+    monkeypatch.setattr(patcher, "_collect_processed_action_fallbacks", lambda action_manager: [])
+    monkeypatch.setattr(patcher, "_collect_action_static_outputs", lambda action_manager, fallback_terms: [])
+    wrapped = patcher._wrap_last_action(mdp.last_action)
+
+    assert torch.equal(wrapped(env, "arm"), full_action[:, :2])
+    assert torch.equal(wrapped(env, "hand"), full_action[:, 2:])
+    patcher._patch_action_manager_methods(action_manager)
+    patcher._pending_action_output_export = True
+    action_manager.apply_action()
+
+    assert set(state_payloads) == {"last_action_arm", "last_action_hand"}
+    assert len(state_updates) == 1
+    assert set(state_updates[0]) == set(state_payloads)
+    assert torch.equal(state_updates[0]["last_action_arm"], state_payloads["last_action_arm"])
+    assert torch.equal(state_updates[0]["last_action_hand"], state_payloads["last_action_hand"])

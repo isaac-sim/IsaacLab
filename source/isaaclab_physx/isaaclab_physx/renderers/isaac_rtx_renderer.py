@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
@@ -75,12 +75,6 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
 # The public data-type names we expose (``simple_shading_*``) are kept stable
 # for backwards compatibility and map onto the Kit integer values below.
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
-SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 1,
-    "simple_shading_diffuse_mdl": 2,
-    "simple_shading_full_mdl": 3,
-}
-
 # Render-product attributes Kit maps the ``/rtx/rendermode`` and ``/rtx/minimal/mode`` carb
 # settings onto (``OmniRtxSettingsCommonAPI_1`` and ``OmniRtxSettingsMinimalAPI_1``). Authoring
 # them per render product keeps the process-wide settings — and therefore every other camera and
@@ -176,31 +170,11 @@ class IsaacRtxRenderer(BaseRenderer):
         """
         sim_major = get_isaac_sim_version().major
 
-        specs: dict[RenderBufferKind, RenderBufferSpec] = {
-            # Replicator's native layout for color output is rgba/uint8;
-            # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
-            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
-        }
-
-        if sim_major >= 6:
-            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, wp.uint8)
+        specs = self.cfg.supported_output_types()
+        if sim_major < 6:
+            specs.pop(RenderBufferKind.ALBEDO)
             for shading_type in SIMPLE_SHADING_MODES:
-                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, wp.uint8)
-
-        seg_specs = (
-            (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
-            (RenderBufferKind.INSTANCE_SEGMENTATION, self.cfg.colorize_instance_segmentation),
-            (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
-        )
-        for name, colorize in seg_specs:
-            specs[name] = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+                specs.pop(RenderBufferKind(shading_type))
 
         return specs
 

@@ -11,7 +11,7 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -35,13 +35,11 @@ if TYPE_CHECKING:
 
     from isaaclab.cloner.clone_plan import ClonePlan
 
-from .simulation_cfg import SimulationCfg
+from .simulation_cfg import BackendCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
-
-_BackendT = TypeVar("_BackendT")
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
@@ -127,7 +125,9 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self._backend_registry: dict[type[object], object] = {}
+        self._backend_registry: list[tuple[BackendCfg, Any]] = []
+        self.clone_contexts: dict[type, Any] = {}
+        """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -216,6 +216,9 @@ class SimulationContext:
         # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
         # cameras created for this instance re-set it to True before it is read.
         self.set_setting("/isaaclab/render/rtx_sensors", False)
+        # Preserve rendering initialization, then avoid continuous Fabric synchronization when
+        # the only visualizer is used for on-demand headless capture.
+        self.set_setting("/physics/fabricUpdateTransformations", self.is_rendering)
         # Set by camera sensors, which draw visual-only geometry regardless of renderer backend.
         self._visual_shapes_required = False
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -347,7 +350,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or bool(self.resolve_visualizer_types())
+            or self._has_continuous_visualizers()
             or self._xr_enabled
         )
 
@@ -520,6 +523,31 @@ class SimulationContext:
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
+
+    def _has_continuous_visualizers(self) -> bool:
+        """Return whether the resolved visualizers require per-step updates."""
+        visualizer_types = self.resolve_visualizer_types()
+        if not visualizer_types:
+            return False
+
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            visualizer_cfgs = []
+        elif not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
+
+        if self._is_cli_visualizer_explicit():
+            for visualizer_type in visualizer_types:
+                matching_cfgs = [
+                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) == visualizer_type
+                ]
+                if not matching_cfgs or any(not getattr(cfg, "headless", False) for cfg in matching_cfgs):
+                    return True
+            return False
+
+        return any(
+            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False) for cfg in visualizer_cfgs
+        )
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Resolve final visualizer configs from cfg and optional CLI override.
@@ -953,23 +981,42 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
-        """Return the simulation-scoped native backend for a type.
+    def get_or_create_backend(self, cfg: BackendCfg) -> Any:
+        """Return the simulation-scoped native backend for a configuration.
 
-        Consumers that register the same backend type resolve one shared native resource
-        instead of constructing state to synchronize.
+        Equal configurations of the same concrete type share a resource. Finalize configurations
+        before registration and treat them as read-only afterward; use a new cfg for new settings.
 
         Args:
-            backend_type: Backend class to construct when the resource does not exist.
-            *args: Positional arguments used only when constructing the resource.
-            **kwargs: Keyword arguments used only when constructing the resource.
+            cfg: Native resource configuration. A cache miss constructs ``cfg.class_type(cfg)``.
 
         Returns:
             The existing or newly constructed native backend.
         """
-        if backend_type not in self._backend_registry:
-            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
-        return cast(_BackendT, self._backend_registry[backend_type])
+        for registered_cfg, resource in self._backend_registry:
+            if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
+                return resource
+        resource = cfg.class_type(cfg)
+        self._backend_registry.append((cfg, resource))
+        return resource
+
+    def close_backend(self, backend: Any) -> None:
+        """Close one registered resource by object identity after all consumers release their bindings.
+
+        A failed release retains the registry entry so teardown can be retried.
+
+        Args:
+            backend: The exact registered resource to close, not its configuration.
+
+        Raises:
+            KeyError: The backend is not registered with this context.
+        """
+        for index, (_, resource) in enumerate(self._backend_registry):
+            if resource is backend:
+                resource.close()
+                self._backend_registry.pop(index)
+                return
+        raise KeyError(backend)
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -997,9 +1044,9 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
 
-                for resource in instance._backend_registry.values():
-                    if (clear := getattr(resource, "clear", None)) is not None:
-                        run_cleanup(clear)
+                instance.clone_contexts.clear()
+                for _, resource in instance._backend_registry:
+                    run_cleanup(resource.close)
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

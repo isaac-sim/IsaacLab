@@ -6,12 +6,10 @@
 """End-to-end test that typed preset selectors reach the resolver from each
 unified train/play entrypoint.
 
-The four supported RL libraries (rl_games, rsl_rl, sb3, skrl) each have a
-``train_<library>`` / ``play_<library>`` backend module under
-``isaaclab_rl.entrypoints.backends`` that the unified
-``scripts/reinforcement_learning/{train,play}.py`` dispatchers route to via
-``--rl_library``. Each entrypoint must wire :func:`setup_preset_cli` and pass
-its remainder through to Hydra so that user-typed ``physics=NAME`` /
+The unified ``scripts/reinforcement_learning/{train,play}.py`` dispatchers route
+to backend modules under ``isaaclab_rl.entrypoints.backends`` via
+``--rl_library``. Each entrypoint must wire :func:`setup_preset_cli` and pass its
+remainder through to Hydra so that user-typed ``physics=NAME`` /
 ``renderer=NAME`` / ``presets=NAME`` tokens reach
 :func:`~isaaclab_tasks.utils.hydra.register_task`, which parses them directly.
 If an entrypoint dropped the remainder (or routed the token to Hydra as a raw
@@ -50,7 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # ``scripts/reinforcement_learning/{action}.py``. Dispatching matches how
 # ``uv run isaaclab train`` / ``uv run isaaclab play`` invoke these in practice.
 _ENTRYPOINT_CASES = [
-    (action, library) for action in ("train", "play") for library in ("rl_games", "rsl_rl", "sb3", "skrl")
+    (action, library) for action in ("train", "play") for library in ("rl_games", "rsl_rl", "sb3", "skrl", "torchrl")
 ]
 
 
@@ -71,7 +69,7 @@ def test_typed_preset_reaches_resolver(action: str, library: str) -> None:
         str(dispatcher),
         "--rl_library",
         library,
-        "--task=Isaac-Ant",
+        "--task=Isaac-Cartpole",
         "physics=does_not_exist",
     ]
     result = subprocess.run(

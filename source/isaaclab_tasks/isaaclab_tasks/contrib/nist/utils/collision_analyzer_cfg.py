@@ -9,7 +9,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_tasks.contrib.nist.utils.collision_analyzer import CollisionAnalyzer

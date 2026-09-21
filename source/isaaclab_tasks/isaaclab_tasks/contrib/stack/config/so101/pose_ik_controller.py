@@ -28,7 +28,7 @@ import torch
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

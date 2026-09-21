@@ -11,10 +11,9 @@ from dataclasses import MISSING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
-
+from ..handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
 from .commands import HandoverCommand
 
 

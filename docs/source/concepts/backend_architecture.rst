@@ -74,6 +74,26 @@ cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
 ``PHYSICS_READY`` after physics initialization, and ``STOP`` during shutdown.
 The concrete ``close()`` implementation dispatches the ``STOP`` event.
 
+``SimulationContext`` owns native resources. ``get_or_create_backend(backend_cfg)``
+reuses one resource for equal configurations of the same concrete type; a cache miss
+constructs ``backend_cfg.class_type(backend_cfg)``.
+:class:`~isaaclab.sim.BackendCfg` describes native construction inputs, while
+``PhysicsCfg`` selects a physics manager. Finalize configurations before
+registration and treat them, including nested values, as read-only afterward.
+Use a new configuration for different settings. ``close_backend(backend)`` closes
+the exact registered object after all consumers have released their bindings;
+it does not compare or hash configurations. Resources implement ``close()``;
+failed release retains the entry for retry. Simulation teardown closes all
+remaining resources after renderers and visualizers have released their bindings.
+
+Managers and native renderers expose their borrowed resource through ``backend``.
+For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+Closing a renderer releases its bindings, not the shared native resource.
+Exposing native handles does not replace SDP transport.
+
+Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
+before plan dispatch. They apply the plan but do not own native runtime resources.
+
 Portable asset and sensor interfaces
 ------------------------------------
 
@@ -117,7 +137,7 @@ converts and remaps that data for backend-independent consumers:
 
 This boundary lets renderers and visualizers consume a common Warp-native data
 path without knowing which physics engine owns the state. See
-:doc:`/source/concepts/scene_data_providers` for the complete
+:doc:`/source/developer-tools/scene_data_providers` for the complete
 data-flow model.
 
 Native engine access boundary
