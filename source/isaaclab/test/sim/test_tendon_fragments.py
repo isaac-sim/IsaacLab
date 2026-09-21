@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import dataclasses
+import inspect
 
 import pytest
 from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
@@ -37,6 +38,13 @@ from isaaclab.sim.schemas import (
 from isaaclab.utils.string import to_camel_case
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
 
 
 def _new_sim():
@@ -189,7 +197,7 @@ def test_legacy_spatial_tendon_writer_uses_root_property_namespace():
         "/World/STlegacy",
         ["PhysxTendonAttachmentRootAPI:r0", "PhysxTendonAttachmentLeafAPI:l0"],
     )
-    writer = modify_spatial_tendon_properties.__wrapped__
+    writer = inspect.unwrap(modify_spatial_tendon_properties)
     assert writer("/World/STlegacy", PhysxSpatialTendonPropertiesCfg(stiffness=6.0), stage)
     assert prim.GetAttribute("physxTendon:r0:stiffness").Get() == pytest.approx(6.0)
     assert not prim.GetAttribute("physxTendon:l0:stiffness").IsValid()
@@ -217,7 +225,7 @@ def test_legacy_physx_tendon_cfg_does_not_leak_physx_only_fields_to_mujoco():
     stage = _new_sim()
     prim = stage.DefinePrim("/World/LegacyMjcTendon", "MjcTendon")
     cfg = PhysxFixedTendonPropertiesCfg(stiffness=2.0, damping=0.25, lower_limit=-1.0, upper_limit=1.0)
-    assert modify_fixed_tendon_properties.__wrapped__(str(prim.GetPath()), cfg, stage)
+    assert inspect.unwrap(modify_fixed_tendon_properties)(str(prim.GetPath()), cfg, stage)
     assert prim.GetAttribute("mjc:stiffness").Get() == pytest.approx(2.0)
     assert prim.GetAttribute("mjc:damping").Get() == pytest.approx(0.25)
     assert not prim.HasAttribute("mjc:lowerLimit")

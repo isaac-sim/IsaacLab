@@ -30,6 +30,13 @@ LINK_REL_PATHS = ("link1", "link2", "link2/link3")
 """Link prim paths relative to the robot root; ``link2/link3`` is a nested child link."""
 
 
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
+
+
 def _author_robot_usd(path: str) -> None:
     """Author a minimal articulated-robot USD layout.
 

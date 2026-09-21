@@ -156,7 +156,7 @@ Supported locomotion environments
 ---------------------------------
 
 The following locomotion training environments declare an ``ovphysx`` physics
-preset. Their corresponding ``-Play`` variants support the same backend where
+preset. Playback through ``uv run isaaclab play`` uses the same backend where
 available.
 
 * ``Isaac-Ant-Direct``

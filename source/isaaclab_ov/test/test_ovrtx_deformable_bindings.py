@@ -95,10 +95,11 @@ class _FakeOVRTXBackend:
 def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer.backend = SimpleNamespace()
     renderer._device = device
     renderer._camera_rel_path = "Camera"
     renderer._clone_plan = None
-    renderer._renderer = _FakeOVRTXBackend()
+    renderer.backend.renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
     renderer._deformable_particle_offsets = []
     renderer._deformable_particle_counts = []
@@ -112,7 +113,7 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._cable_points_binding = None
     renderer._cable_segment_counts = []
     renderer._use_ovstage = False
-    return renderer, renderer._renderer
+    return renderer, renderer.backend.renderer
 
 
 def test_points_array_binding_uses_write_not_map():
@@ -135,7 +136,7 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=1)
+    renderer._setup_deformable_bindings_legacy(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -166,7 +167,7 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=1)
+    renderer._setup_deformable_bindings_legacy(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -195,7 +196,7 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [surface_entry, volume_entry])
 
-    renderer._setup_deformable_bindings(num_envs=2)
+    renderer._setup_deformable_bindings_legacy(num_envs=2)
 
     assert backend.calls[0]["prim_paths"] == [
         "/World/envs/env_0/DeformableSurface/mesh",
@@ -221,7 +222,7 @@ def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.Monke
     monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=1)
+    renderer._setup_deformable_bindings_legacy(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -241,7 +242,7 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=4)
+    renderer._setup_deformable_bindings_legacy(num_envs=4)
 
     expected_paths = [f"/World/envs/env_{i}/Deformable/mesh" for i in range(4)]
     assert backend.calls[0]["prim_paths"] == expected_paths
@@ -309,7 +310,7 @@ def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: py
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [bad_entry, other_bad_entry])
 
     with pytest.raises(RuntimeError, match="one particle offset per environment") as excinfo:
-        renderer._setup_deformable_bindings(num_envs=2)
+        renderer._setup_deformable_bindings_legacy(num_envs=2)
 
     message = str(excinfo.value)
     assert bad_entry.prim_path in message
@@ -343,7 +344,7 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_bindings()
+    renderer._setup_particle_bindings_legacy()
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == [
@@ -372,7 +373,7 @@ def test_setup_particle_points_bindings_binds_multiple_mpm_assets(monkeypatch: p
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_bindings()
+    renderer._setup_particle_bindings_legacy()
 
     # Binding order follows dict insertion order (no path sort).
     assert backend.calls[0]["prim_paths"] == [
@@ -481,7 +482,7 @@ def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch
     renderer, backend = _make_renderer_without_backend()
     _install_cable_shapes({"/World/envs/env_0/Cable/geometry/mesh": [4, 5, 6]}, monkeypatch)
 
-    renderer._setup_cable_bindings()
+    renderer._setup_cable_bindings_legacy()
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Cable/geometry/mesh"]
@@ -501,7 +502,7 @@ def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatc
     renderer, backend = _make_renderer_without_backend()
     _install_cable_shapes({}, monkeypatch)
 
-    renderer._setup_cable_bindings()
+    renderer._setup_cable_bindings_legacy()
 
     assert renderer._cable_points_binding is None
     assert backend.calls == []
@@ -518,7 +519,7 @@ def test_update_geometries_writes_one_slice_per_cable(monkeypatch: pytest.Monkey
         },
         monkeypatch,
     )
-    renderer._setup_cable_bindings()
+    renderer._setup_cable_bindings_legacy()
 
     model = SimpleNamespace(shape_body=None, shape_transform=None, shape_scale=None)
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
@@ -570,7 +571,7 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
         writes.append({"query": query, "attribute": attribute, **kwargs})
         return SimpleNamespace(wait=lambda: None)
 
-    renderer._stage = SimpleNamespace(write_attribute=_write)
+    renderer.backend.stage = SimpleNamespace(write_attribute=_write)
     renderer._current_ordinal = 7
     renderer._warp_device = wp.get_device("cuda:0")
 

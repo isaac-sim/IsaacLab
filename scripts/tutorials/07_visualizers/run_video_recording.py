@@ -84,9 +84,9 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.tiled_camera=rgb"))
-    env_cfg.tiled_camera.height = 256
-    env_cfg.tiled_camera.width = 256
+    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.scene.tiled_camera=rgb"))
+    env_cfg.scene.tiled_camera.height = 256
+    env_cfg.scene.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
     env_cfg.scene.env_spacing = env_spacing
     return env_cfg

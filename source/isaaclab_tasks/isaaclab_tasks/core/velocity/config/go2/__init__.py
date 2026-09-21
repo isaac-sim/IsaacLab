@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Unitree Go2 velocity-tracking locomotion environments."""
+
 import gymnasium as gym
 
 from . import agents

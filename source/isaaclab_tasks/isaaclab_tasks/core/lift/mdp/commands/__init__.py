@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Command terms specific to the lift environments."""
+
 from isaaclab.utils.module import lazy_export
 
 lazy_export()

@@ -53,6 +53,7 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
     with patch("isaaclab_physx.renderers.isaac_rtx_renderer.get_isaac_sim_version", return_value=version.parse("6.0")):
         specs = renderer.supported_output_types()
 
+    assert specs == renderer.cfg.supported_output_types()
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
 
 
