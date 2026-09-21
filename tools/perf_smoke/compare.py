@@ -156,7 +156,9 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     return resolved
 
 
-def _is_significant(before: list[float], after: list[float], before_stats: dict, after_stats: dict, mann_whitney_u) -> bool:
+def _is_significant(
+    before: list[float], after: list[float], before_stats: dict, after_stats: dict, mann_whitney_u
+) -> bool:
     """Return whether ``before`` and ``after`` differ significantly.
 
     ASV picks Mann-Whitney U over a confidence-interval overlap check based on a
