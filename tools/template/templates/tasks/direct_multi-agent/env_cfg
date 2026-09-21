@@ -25,7 +25,7 @@ from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
 
 @configclass
 class {{ task.classname }}PhysicsCfg(PresetCfg):
-    """Physics presets for the generated multi-agent environment."""
+    """Physics presets for the multi-agent environment."""
 
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -52,7 +52,7 @@ class {{ task.classname }}PhysicsCfg(PresetCfg):
 
 @configclass
 class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
-    """Scene configuration for the generated multi-agent environment."""
+    """Scene configuration for the multi-agent environment."""
 
     robot: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ground: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
@@ -63,7 +63,7 @@ class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
 
 @configclass
 class {{ task.classname }}EnvCfg(DirectMARLEnvCfg):
-    """Configuration for the generated multi-agent environment."""
+    """Configuration for the multi-agent environment."""
 
     # env
     decimation = 2

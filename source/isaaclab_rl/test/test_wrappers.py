@@ -36,11 +36,16 @@ def _wrap_env(library: str, env: Any) -> Any:
         from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
         return SkrlVecEnvWrapper(env)
+    if library == "torchrl":
+        pytest.importorskip("torchrl")
+        from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper
+
+        return IsaacLabTorchRLWrapper(env)
     raise ValueError(f"Unsupported RL library: {library}")
 
 
 @pytest.fixture
-def raw_env(task: str, finite_horizon: bool) -> Iterator[Any]:
+def raw_env(task: str, library: str, finite_horizon: bool) -> Iterator[Any]:
     import gymnasium as gym
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -54,6 +59,7 @@ def raw_env(task: str, finite_horizon: bool) -> Iterator[Any]:
     cfg.episode_length_s = _EPISODE_STEPS * cfg.decimation * cfg.sim.dt
     cfg.seed = 42
     cfg.is_finite_horizon = finite_horizon
+    cfg.compute_final_obs = library == "torchrl"
     with launch_simulation(cfg, {"headless": True, "visualizer": None, "visualizer_explicit": True}):
         env = gym.make(task, cfg=cfg)
         try:
@@ -64,12 +70,34 @@ def raw_env(task: str, finite_horizon: bool) -> Iterator[Any]:
 
 @pytest.mark.parametrize(
     ("library", "finite_horizon"),
-    [("rsl_rl", False), ("rsl_rl", True), ("rl_games", False), ("sb3", False), ("skrl", False)],
+    [
+        ("rsl_rl", False),
+        ("rsl_rl", True),
+        ("rl_games", False),
+        ("sb3", False),
+        ("skrl", False),
+        ("torchrl", False),
+        ("torchrl", True),
+    ],
 )
 @pytest.mark.parametrize("task", ["Isaac-Cartpole", "Isaac-Cartpole-Direct"])
 def test_wrapper_reset_step_and_timeout(library: str, finite_horizon: bool, raw_env: Any) -> None:
     env = _wrap_env(library, raw_env)
     _assert_finite(env.reset())
+    if library == "torchrl":
+        from torchrl.envs.utils import check_env_specs
+
+        check_env_specs(env)
+        with torch.inference_mode():
+            rollout = env.rollout(_EPISODE_STEPS + 1, break_when_any_done=False)
+        _assert_finite(rollout)
+        rewards = rollout["next", "reward"]
+        dones = rollout["next", "done"]
+        assert rewards.shape[:2] == dones.shape[:2] == (_NUM_ENVS, _EPISODE_STEPS + 1)
+        assert torch.equal(dones, rollout["next", "terminated"] | rollout["next", "truncated"])
+        assert bool(dones.any()), "The short episode must exercise automatic reset"
+        assert bool(rollout["next", "truncated"].any()) is not finite_horizon
+        return
     if library == "rsl_rl":
         _assert_observation_buffer(env)
     saw_done = False
@@ -94,6 +122,30 @@ def test_wrapper_reset_step_and_timeout(library: str, finite_horizon: bool, raw_
     assert saw_done, "The short episode must exercise automatic reset"
 
 
+def test_torchrl_actor_uses_unbatched_action_bounds() -> None:
+    """Bounded policies must support minibatches whose size differs from the environment batch."""
+    from types import SimpleNamespace
+
+    pytest.importorskip("torchrl")
+    from torchrl.data import Bounded, Composite, Unbounded
+
+    from isaaclab_rl.torchrl import make_actor
+
+    env = SimpleNamespace(
+        batch_size=torch.Size([2]),
+        action_spec=Bounded(low=-2.0, high=2.0, shape=(2, 1)),
+        action_spec_unbatched=Bounded(low=-2.0, high=2.0, shape=(1,)),
+        observation_spec=Composite(policy=Unbounded(shape=(2, 4)), shape=(2,)),
+    )
+    cfg = SimpleNamespace(actor_hidden_dims=[8], activation="ELU", init_noise_std=1.0)
+
+    actor = make_actor(env, cfg)
+    batch = TensorDict({"policy": torch.randn(6, 4)}, batch_size=[6])
+
+    assert actor(batch)["action"].shape == (6, 1)
+
+
+@pytest.mark.parametrize("library", ["sb3"])
 @pytest.mark.parametrize("finite_horizon", [False])
 @pytest.mark.parametrize("task", ["Isaac-Cartpole"])
 def test_sb3_normalizes_unbounded_action_space(raw_env: Any) -> None:

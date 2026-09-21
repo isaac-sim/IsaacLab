@@ -46,12 +46,14 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Achintya Paningapalli
 * Advait Jayant
 * Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
 * Alice Zhou
+* alltheseas
 * Amr Mousa
 * Andrei Aristarkhov
 * Andrej Orsula
@@ -146,6 +148,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
+* Michael Wedd
 * Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni

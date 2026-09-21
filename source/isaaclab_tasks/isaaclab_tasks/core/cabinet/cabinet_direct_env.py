@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow cabinet-opening environment."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -14,7 +16,7 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg
+    from .cabinet_direct_env_cfg import CabinetDirectEnvCfg
 
 
 class CabinetDirectEnv(DirectRLEnv):
@@ -51,13 +53,11 @@ class CabinetDirectEnv(DirectRLEnv):
         self.arm_joint_targets = torch.zeros((self.num_envs, len(self.arm_joint_ids)), device=self.device)
         self.finger_joint_targets = torch.zeros((self.num_envs, len(self.finger_joint_ids)), device=self.device)
 
-        def _repeat(value: tuple[float, ...]) -> torch.Tensor:
-            return torch.tensor(value, device=self.device, dtype=torch.float32).repeat((self.num_envs, 1))
-
-        self.ee_pos_offset = _repeat(self.cfg.ee_pos_offset)
-        self.finger_pos_offset = _repeat(self.cfg.finger_pos_offset)
-        self.drawer_handle_pos_offset = _repeat(self.cfg.drawer_handle_pos_offset)
-        self.drawer_handle_rot_offset = _repeat(self.cfg.drawer_handle_rot_offset)
+        # frame offsets, repeated for every environment
+        self.ee_pos_offset = self._repeat_per_env(self.cfg.ee_pos_offset)
+        self.finger_pos_offset = self._repeat_per_env(self.cfg.finger_pos_offset)
+        self.drawer_handle_pos_offset = self._repeat_per_env(self.cfg.drawer_handle_pos_offset)
+        self.drawer_handle_rot_offset = self._repeat_per_env(self.cfg.drawer_handle_rot_offset)
 
         self.ee_pos_w = torch.zeros((self.num_envs, 3), device=self.device)
         self.ee_quat_w = torch.zeros((self.num_envs, 4), device=self.device)
@@ -107,10 +107,31 @@ class CabinetDirectEnv(DirectRLEnv):
             joint_ids=self.finger_joint_ids,
         )
 
-    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        terminated = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        time_out = self.episode_length_buf >= self.max_episode_length
-        return terminated, time_out
+    def _get_observations(self) -> dict[str, torch.Tensor]:
+        robot_joint_pos = self._robot.data.joint_pos.torch - self._robot.data.default_joint_pos.torch
+        robot_joint_vel = self._robot.data.joint_vel.torch - self._robot.data.default_joint_vel.torch
+        drawer_joint_pos = (
+            self._cabinet.data.joint_pos.torch[:, self.drawer_joint_idx]
+            - self._cabinet.data.default_joint_pos.torch[:, self.drawer_joint_idx]
+        ).unsqueeze(-1)
+        drawer_joint_vel = (
+            self._cabinet.data.joint_vel.torch[:, self.drawer_joint_idx]
+            - self._cabinet.data.default_joint_vel.torch[:, self.drawer_joint_idx]
+        ).unsqueeze(-1)
+        relative_ee_drawer_distance = self.drawer_handle_pos_w - self.ee_pos_w
+
+        observation = torch.cat(
+            (
+                robot_joint_pos,
+                robot_joint_vel,
+                drawer_joint_pos,
+                drawer_joint_vel,
+                relative_ee_drawer_distance,
+                torch.clamp(self.actions, -5.0, 5.0),
+            ),
+            dim=-1,
+        )
+        return {"policy": observation}
 
     def _get_rewards(self) -> torch.Tensor:
         self._compute_intermediate_values()
@@ -179,6 +200,11 @@ class CabinetDirectEnv(DirectRLEnv):
             self._episode_reward_sums[name] += value
         return reward
 
+    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        terminated = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        time_out = self.episode_length_buf >= self.max_episode_length
+        return terminated, time_out
+
     def _reset_idx(self, env_ids: Sequence[int] | None) -> None:
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
@@ -197,32 +223,6 @@ class CabinetDirectEnv(DirectRLEnv):
         self._episode_succeeded[env_ids] = False
         self._best_drawer_pos[env_ids] = 0.0
         self._compute_intermediate_values(env_ids)
-
-    def _get_observations(self) -> dict[str, torch.Tensor]:
-        robot_joint_pos = self._robot.data.joint_pos.torch - self._robot.data.default_joint_pos.torch
-        robot_joint_vel = self._robot.data.joint_vel.torch - self._robot.data.default_joint_vel.torch
-        drawer_joint_pos = (
-            self._cabinet.data.joint_pos.torch[:, self.drawer_joint_idx]
-            - self._cabinet.data.default_joint_pos.torch[:, self.drawer_joint_idx]
-        ).unsqueeze(-1)
-        drawer_joint_vel = (
-            self._cabinet.data.joint_vel.torch[:, self.drawer_joint_idx]
-            - self._cabinet.data.default_joint_vel.torch[:, self.drawer_joint_idx]
-        ).unsqueeze(-1)
-        relative_ee_drawer_distance = self.drawer_handle_pos_w - self.ee_pos_w
-
-        observation = torch.cat(
-            (
-                robot_joint_pos,
-                robot_joint_vel,
-                drawer_joint_pos,
-                drawer_joint_vel,
-                relative_ee_drawer_distance,
-                torch.clamp(self.actions, -5.0, 5.0),
-            ),
-            dim=-1,
-        )
-        return {"policy": observation}
 
     def _compute_intermediate_values(self, env_ids: Sequence[int] | None = None) -> None:
         if env_ids is None:
@@ -260,3 +260,7 @@ class CabinetDirectEnv(DirectRLEnv):
             self.drawer_handle_pos_offset[env_ids],
             self.drawer_handle_rot_offset[env_ids],
         )
+
+    def _repeat_per_env(self, value: tuple[float, ...]) -> torch.Tensor:
+        """Return ``value`` as a float tensor repeated for every environment, shape ``(num_envs, len(value))``."""
+        return torch.tensor(value, device=self.device, dtype=torch.float32).repeat((self.num_envs, 1))

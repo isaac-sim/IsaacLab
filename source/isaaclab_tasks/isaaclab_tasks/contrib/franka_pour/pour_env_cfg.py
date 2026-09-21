@@ -173,7 +173,6 @@ FRANKA_POUR_ARM_COLLISION_PROXIES = frozenset(
         "link7_c",
     }
 )
-SPILL_FLOOR_LABEL_PATTERN = r".*/SpillFloor$"
 
 
 def spawn_franka_with_arm_collisions(
@@ -293,7 +292,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
     return capacity
 
 
-def _configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
+def configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
     """Resolve world-count-dependent MPM capacities after command-line overrides."""
     _configure_media_fill(cfg)
     solver_cfg = _mpm_solver_cfg(cfg)
@@ -656,9 +655,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             separate_worlds=True,
                         ),
                         all_particles=True,
-                        bodies=[SPILL_FLOOR_LABEL_PATTERN],
-                        include_static_shapes=False,
-                        include_child_joints=False,
                         # The tall source payload needs a smaller MPM step than the coupled rigid solve.
                         substeps=2,
                         in_place=True,

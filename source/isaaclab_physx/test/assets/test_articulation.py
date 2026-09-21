@@ -1843,14 +1843,14 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
-    """Test that the resolved joint effort limit reaches the PhysX solver.
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit, gravity_enabled):
+    """Test that the resolved joint effort limit and a commanded effort reach the PhysX solver.
 
     The full limit-resolution matrix (config override vs. USD default, implicit and explicit
     actuators, actuator-limit soft fallback) is covered on the Newton backend and at unit
-    level. This smoke test only verifies the PhysX write path: the configured limit (or the
-    USD-authored default when unset) lands in the native solver buffers and matches
-    ``data.joint_effort_limits``.
+    level. This smoke test verifies the PhysX write path: the configured limit (or the USD-authored
+    default when unset) lands in the native solver buffers, and a commanded effort produces motion.
     """
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
@@ -1877,6 +1877,25 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
     torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+
+    # Exercise the command path as well as the property readback. The Isaac Sim 6.0 tensor backend
+    # accepted this write and updated its staging buffer without applying the effort to the joint.
+    initial_position = articulation.data.default_joint_pos.torch.clone()
+    articulation.write_joint_state_to_sim_index(
+        position=initial_position,
+        velocity=torch.zeros_like(initial_position),
+        full_data=True,
+    )
+    effort_target = torch.full_like(initial_position, 10.0)
+    articulation.actuators.target_command.set_position_index(value=initial_position, full_data=True)
+    articulation.actuators.target_command.set_velocity_index(value=torch.zeros_like(initial_position), full_data=True)
+    articulation.actuators.target_command.set_effort_index(value=effort_target, full_data=True)
+    articulation.write_data_to_sim()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+    assert torch.all(articulation.data.joint_vel.torch > 1e-3), (
+        "a positive effort target must accelerate the commanded joint"
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

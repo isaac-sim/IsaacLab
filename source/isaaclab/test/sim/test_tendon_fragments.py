@@ -40,6 +40,13 @@ from isaaclab.utils.string import to_camel_case
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
+
+
 def _new_sim():
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))

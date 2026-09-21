@@ -42,7 +42,7 @@ def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, j
     )
 
     backend = PhysxSceneDataBackend()
-    backend.simulation_view = _SimulationView()
+    backend.backend = SimpleNamespace(simulation_view=_SimulationView())
     backend.get_rigid_body_view()
 
     assert captured_paths == [
@@ -102,7 +102,8 @@ def test_discover_deformable_geometry_publishes_discovered_roots(monkeypatch):
     )
 
     backend = PhysxSceneDataBackend()
-    backend.simulation_view = _SimulationView()
+    assert backend.geometry_paths == []
+    backend.backend = SimpleNamespace(simulation_view=_SimulationView())
     backend._discover_deformable_geometry()
 
     assert backend.geometry_paths == [

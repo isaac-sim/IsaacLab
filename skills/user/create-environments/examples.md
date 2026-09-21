@@ -1,5 +1,7 @@
 # Environment Creation Examples
 
+For a new package, first follow the [template scaffolding workflow](SKILL.md#scaffold-a-new-task). The maintained tasks below are implementation references to adapt inside the generated layout. For an existing package, preserve its layout.
+
 ## Manager-Based Workflow
 
 Use manager-based workflow by default for new Isaac Lab tasks. This is the framework's main task-building path because observations, rewards, commands, events, curricula, and terminations can be reused and tuned independently.
@@ -19,7 +21,7 @@ If the quadruped task already exists and the request is limited to contacts, con
 Smoke-test pattern:
 
 ```bash
-uv run --extra isaacsim python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
+uv run isaaclab random_agent --task Isaac-Cartpole --num_envs 8
 ```
 
 ## Direct Workflow
@@ -35,7 +37,7 @@ Start from:
 Smoke-test pattern:
 
 ```bash
-uv run --extra isaacsim python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
+uv run isaaclab random_agent --task Isaac-Cartpole-Direct --num_envs 8
 ```
 
 Training pattern:
