@@ -1155,6 +1155,56 @@ def test_validity():
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
 
 
+def test_nested_configclass_custom_validation():
+    """Custom validation hooks run for nested configclass instances."""
+
+    @configclass
+    class ChildCfg:
+        value: int = 0
+
+        def validate_config(self) -> None:
+            if self.value == 0:
+                raise ValueError("nested validation ran")
+
+    @configclass
+    class ParentCfg:
+        child: ChildCfg = ChildCfg()
+
+    with pytest.raises(ValueError, match="nested validation ran"):
+        ParentCfg().validate()
+
+
+def test_nested_non_configclass_custom_validation_is_not_called():
+    """Arbitrary nested objects do not participate in configclass custom validation."""
+
+    class Child:
+        def validate_config(self) -> None:
+            raise ValueError("must not run")
+
+    @configclass
+    class ParentCfg:
+        child: Child = Child()
+
+    ParentCfg().validate()
+
+
+def test_missing_fields_precede_nested_custom_validation():
+    """Missing-field reporting remains the first validation phase for the whole tree."""
+
+    @configclass
+    class ChildCfg:
+        def validate_config(self) -> None:
+            raise ValueError("must run only after missing-field checks")
+
+    @configclass
+    class ParentCfg:
+        child: ChildCfg = ChildCfg()
+        required: int = MISSING
+
+    with pytest.raises(TypeError, match="required"):
+        ParentCfg().validate()
+
+
 def test_dir_resolution_in_subclass():
     """Test that {DIR} in inherited fields resolves relative to the declaring class's module."""
 
