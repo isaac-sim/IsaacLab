@@ -3,6 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the object pose commands of the lift environments."""
+
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
@@ -37,7 +41,7 @@ ALIGN_MARKER_CFG = VisualizationMarkersCfg(
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type["ObjectUniformPoseCommand"] | str = "{DIR}.pose_commands:ObjectUniformPoseCommand"
+    class_type: type[ObjectUniformPoseCommand] | str = "{DIR}.pose_commands:ObjectUniformPoseCommand"
 
     asset_name: str = MISSING
     """Name of the coordinate referencing asset in the environment for which the commands are generated respect to."""
@@ -100,14 +104,14 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
 class DeformableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for the deformable uniform pose command generator."""
 
-    class_type: type["DeformableUniformPoseCommand"] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
+    class_type: type[DeformableUniformPoseCommand] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
 
 
 @configclass
 class CableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for a cable segment uniform pose command generator."""
 
-    class_type: type["CableUniformPoseCommand"] | str = "{DIR}.pose_commands:CableUniformPoseCommand"
+    class_type: type[CableUniformPoseCommand] | str = "{DIR}.pose_commands:CableUniformPoseCommand"
 
     segment_index: int = MISSING
     """Zero-based cable segment index tracked by the command."""

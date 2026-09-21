@@ -141,8 +141,8 @@ class TableclothSceneCfg(InteractiveSceneCfg):
                         scale=KITCHEN_ISLAND_SCALE,
                         variants={"Physics": "none"},
                         make_uninstanceable=True,
-                        rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=False),
-                        collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=False),
+                        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=False)],
+                        collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
                     ),
                     init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, lane_y, 0.0), rot=KITCHEN_ISLAND_ROTATION),
                 ),
@@ -391,7 +391,6 @@ def main() -> None:
         solver_cfg=VBDSolverCfg(
             iterations=15,
             rigid_compliant_alm=True,
-            rigid_body_contact_buffer_size=512,
             rigid_body_particle_contact_buffer_size=8192,
         ),
     )

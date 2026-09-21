@@ -24,6 +24,13 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
+
+
 def _make_revolute_joint(stage, path="/World/Articulation/joint_0"):
     UsdGeom.Xform.Define(stage, "/World/Articulation")
     UsdGeom.Cube.Define(stage, "/World/Articulation/body0")

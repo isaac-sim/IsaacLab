@@ -33,7 +33,8 @@ the same number or order of entries:
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
-   :lines: 78-82
+   :start-at: joint_wrench = JointWrenchSensorCfg
+   :end-at: joint_wrench = JointWrenchSensorCfg
 
 Manager-based environments can select a body subset through
 :class:`~isaaclab.managers.SceneEntityCfg` and use
@@ -41,7 +42,8 @@ Manager-based environments can select a body subset through
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
-   :lines: 122-131
+   :start-at: feet_body_forces = ObsTerm(
+   :end-at: actions = ObsTerm(func=mdp.last_action)
 
 Read the data
 -------------

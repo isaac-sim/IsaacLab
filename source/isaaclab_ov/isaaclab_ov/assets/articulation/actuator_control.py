@@ -128,13 +128,13 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        # Native telemetry contains the local implicit-drive shadow. Submit raw runtime effort
-        # instead, so OVPhysX evaluates each implicit PD drive exactly once.
+        # Submit the processed effort command, not telemetry that includes the implicit PD estimate.
+        # The native runtime similarly provides effort without the implicit-drive estimate.
         write_effort = articulation._can_write_effort
         # position and velocity targets only for implicit actuators.
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
-        user_effort = collection._applied_effort
+        user_effort = collection._joint_effort_target_sim
         if self._actuator_runtime is not None:
             user_effort = self._actuator_runtime.wrapper.joint_f_2d
         if articulation.data.has_joint_ordering:

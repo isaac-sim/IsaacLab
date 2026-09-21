@@ -146,6 +146,7 @@ _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "exa
 
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
+    "scripts/demos/arms.py": ScriptOverride(startup_timeout=420.0),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
@@ -494,7 +495,7 @@ def run_until_ready(
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
-            if now - start_time >= startup_timeout:
+            if ready_at is None and now - start_time >= startup_timeout:
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break

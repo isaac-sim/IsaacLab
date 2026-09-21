@@ -107,3 +107,16 @@ def test_cli_loads_downstream_tasks_before_benchmark():
     entry_points.assert_called_once_with(group="isaaclab.tasks")
     task_entry_point.load.assert_called_once_with()
     benchmark.assert_called_once_with(["runtime", "--task", "Example"])
+
+
+def test_list_envs_cli_dispatches_without_preloading_tasks():
+    """Environment listing owns task discovery so its script wrapper can share the same behavior."""
+    with (
+        mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
+        mock.patch.object(cli, "list_envs") as list_environments,
+        mock.patch.object(sys, "argv", ["isaaclab", "list_envs", "--show_presets"]),
+    ):
+        cli.cli()
+
+    load_external_tasks.assert_not_called()
+    list_environments.assert_called_once_with(["--show_presets"])

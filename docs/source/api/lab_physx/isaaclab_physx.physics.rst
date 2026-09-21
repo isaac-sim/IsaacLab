@@ -9,6 +9,7 @@
 
     PhysxManager
     PhysxCfg
+    PhysxBackendCfg
 
 .. currentmodule:: isaaclab_physx.physics
 
@@ -23,6 +24,11 @@ Physics Configuration
 ---------------------
 
 .. autoclass:: PhysxCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: PhysxBackendCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

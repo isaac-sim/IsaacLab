@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
-from isaaclab.sim import PinholeCameraCfg
+from isaaclab.sim import PinholeCameraCfg, SimulationContext
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -29,11 +29,12 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
+    from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
+        OVRTXBackend,
         OVRTXRenderData,
         OVRTXRenderer,
         _gpu_side_render_var_sync_enabled,
@@ -81,26 +82,62 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
+    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
+    renderer.backend.stage = renderer.backend.paths = None
+    renderer.backend._resources = contextlib.ExitStack()
+    SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     return renderer
 
 
-def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch):
-    """OVRTX 0.4.1 options are passed directly to ``RendererConfig``."""
+@pytest.fixture(autouse=True)
+def _simulation_registry(monkeypatch):
+    sim = types.SimpleNamespace(_backend_registry=[])
+    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    sim.close_backend = SimulationContext.close_backend.__get__(sim)
+    monkeypatch.setattr(SimulationContext, "_instance", sim)
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch, use_ovstage):
+    """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
+    destroyed = []
 
     class RecordingRendererConfig:
         def __init__(self, **kwargs):
             config_kwargs.update(kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
-    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: object())  # noqa: ARG005
-    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: False)
+    monkeypatch.setattr(
+        ovrtx_renderer_module, "Renderer", lambda cfg: types.SimpleNamespace(destroy=lambda: destroyed.append(cfg))
+    )
+    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: use_ovstage)
+    monkeypatch.setattr(ovrtx_renderer_module, "create_ovstage", lambda _name: contextlib.nullcontext(object()))
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: contextlib.nullcontext(object()))
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
+    shared = OVRTXRenderer(renderer.cfg)
 
-    assert renderer._renderer is not None
+    assert not {"_backend", "_renderer", "_stage", "_stage_paths", "_ovstage_exit_stack"}.intersection(vars(renderer))
+    assert shared.backend is renderer.backend
+    assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
+    assert len(SimulationContext.instance()._backend_registry) == 1
+    other = OVRTXRenderer(renderer.cfg.replace(enable_shadows=True))
+    assert other.backend is not renderer.backend
+    renderer.close()
+    renderer.close()
+    assert not destroyed
+    assert shared.backend.renderer is not None
+    shared.close()
+    other.close()
+    assert not destroyed
+    SimulationContext.instance().close_backend(renderer.backend)
+    SimulationContext.instance().close_backend(other.backend)
+    assert len(destroyed) == 2
+    assert not SimulationContext.instance()._backend_registry
 
 
 def test_ovrtx_supported_output_types_key_set():
@@ -108,6 +145,7 @@ def test_ovrtx_supported_output_types_key_set():
     renderer = _make_ovrtx_renderer_without_backend()
     specs = renderer.supported_output_types()
 
+    assert specs == renderer.cfg.supported_output_types()
     assert set(specs.keys()) == {
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
@@ -539,8 +577,8 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     """Build a legacy-path renderer whose backend calls are recorded into ``events``."""
 
     class Backend:
-        def reset_stage(self) -> None:
-            events.append("reset_stage")
+        def destroy(self) -> None:
+            events.append("destroy_renderer")
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = False
@@ -555,7 +593,7 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_visual_counts = [1]
     renderer._particle_workaround_applied = True
     renderer._cable_segment_counts = [1]
-    renderer._renderer = Backend()
+    renderer.backend.renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
@@ -579,8 +617,9 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
             events.append(f"destroy_path_list:{path_list}")
 
     class Backend:
-        def detach_ovstage(self) -> None:
+        def destroy(self) -> None:
             events.append("detach_ovstage")
+            events.append("destroy_renderer")
 
     class ExitStack:
         def close(self) -> None:
@@ -588,8 +627,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = True
-    renderer._stage = Stage()
-    renderer._stage_paths = StagePaths()
+    renderer.backend.stage = Stage()
+    renderer.backend.paths = StagePaths()
     renderer._camera_xform_query = "camera"
     renderer._camera_paths_list = "camera"
     renderer._object_xform_query = "object"
@@ -605,8 +644,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
-    renderer._renderer = Backend()
-    renderer._ovstage_exit_stack = ExitStack()
+    renderer.backend.renderer = Backend()
+    renderer.backend._resources = ExitStack()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
@@ -615,11 +654,13 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
 
 def test_ovrtx_close_releases_legacy_renderer_state():
-    """``close`` unbinds the tensor bindings and resets the stage the renderer owns."""
+    """Borrowers unbind their tensor bindings before the registry closes the native engine."""
     events: list[str] = []
     renderer = _make_legacy_renderer_with_backend(events)
 
     renderer.close()
+    assert "destroy_renderer" not in events
+    SimulationContext.instance().close_backend(renderer.backend)
 
     assert events == [
         "unbind:camera",
@@ -627,7 +668,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:deformable",
         "unbind:particle",
         "unbind:cable",
-        "reset_stage",
+        "destroy_renderer",
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
@@ -636,24 +677,20 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None
     assert renderer._particle_workaround_applied is False
-    assert renderer._renderer is None
+    assert renderer.backend.renderer is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
     assert renderer._initialized_scene is False
 
 
 def test_ovrtx_close_releases_ovstage_renderer_state():
-    """``close`` releases the queries and path lists, then detaches before closing the ExitStack.
-
-    The ExitStack owns the ovstage ``Stage`` and ``PathDictionary`` as context managers, so it is the
-    only thing that releases them — ``ExitStack`` has no finalizer, and garbage collection never
-    invokes ``__exit__``. Detaching first avoids a use-after-free while the renderer still references
-    the stage.
-    """
+    """Queries release before the native engine, which must detach before stage resources close."""
     events: list[str] = []
     renderer = _make_ovstage_renderer_with_backend(events)
 
     renderer.close()
+    assert "destroy_renderer" not in events
+    SimulationContext.instance().close_backend(renderer.backend)
 
     assert events == [
         "release_query:camera",
@@ -667,6 +704,7 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "release_query:cable",
         "destroy_path_list:cable",
         "detach_ovstage",
+        "destroy_renderer",
         "exit_stack_close",
     ]
     assert renderer._camera_xform_query is None
@@ -674,23 +712,13 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._cable_points_query is None
     assert renderer._cable_paths_list is None
     assert renderer._object_newton_indices is None
-    assert renderer._renderer is None
-    assert renderer._ovstage_exit_stack is None
-    assert renderer._stage is None
-    assert renderer._stage_paths is None
+    assert renderer.backend.renderer is None
+    assert renderer.backend.stage is None
+    assert renderer.backend.paths is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
     assert renderer._initialized_scene is False
     assert renderer._current_ordinal == 0
-
-
-def test_ovrtx_close_is_idempotent():
-    """A second ``close`` releases nothing again, so a repeated teardown cannot double-free."""
-    events: list[str] = []
-    renderer = _make_ovstage_renderer_with_backend(events)
-
-    renderer.close()
     events.clear()
     renderer.close()
-
     assert events == []

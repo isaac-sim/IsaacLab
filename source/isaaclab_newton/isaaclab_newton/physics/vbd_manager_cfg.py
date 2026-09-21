@@ -69,24 +69,9 @@ class VBDSolverCfg(NewtonSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 
-    rigid_body_contact_buffer_size: int = 64
-    """Per-body capacity of the body-body contact list."""
-
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body capacity of the particle, edge, and face soft-contact list.
 
     Increase this value when Newton reports a per-body particle contact buffer overflow.
     Only used when :attr:`integrate_with_external_rigid_solver` is ``False``.
     """
-
-    rigid_joint_linear_ke: float = 1.0e5
-    """Structural linear-joint stiffness [N/m]."""
-
-    rigid_joint_angular_ke: float = 1.0e5
-    """Structural angular-joint stiffness [N*m/rad]."""
-
-    rigid_joint_linear_kd: float = 0.0
-    """Structural linear-joint damping [N*s/m]."""
-
-    rigid_joint_angular_kd: float = 0.0
-    """Structural angular-joint damping [N*m*s/rad]."""
