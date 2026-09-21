@@ -1,0 +1,1 @@
+Internal refactor: the Fabric prim tagging, selections, and view-to-slot mapping shared by the backend frame views moved into a private helper module.
