@@ -14,6 +14,7 @@ import sys
 import types
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import gymnasium as gym
 import numpy as np
@@ -346,43 +347,32 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Ctrl+C must stop a checkpoint-free agent cleanly and close its environment."""
-
-    class _Cfg:
-        scene = SimpleNamespace(num_envs=1)
-        sim = SimpleNamespace(device="cpu", use_fabric=True)
-
-        def validate(self) -> None:
-            pass
-
-    class _Env:
-        observation_space = "observations"
-        action_space = SimpleNamespace(shape=(1, 1))
-        unwrapped = SimpleNamespace(
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        validate=lambda: None,
+    )
+    env = SimpleNamespace(
+        observation_space="observations",
+        action_space=SimpleNamespace(shape=(1, 1)),
+        unwrapped=SimpleNamespace(
             sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
             device="cpu",
-        )
-        closed = False
-
-        def reset(self) -> None:
-            pass
-
-        def step(self, actions) -> None:
-            raise KeyboardInterrupt
-
-        def close(self) -> None:
-            self.closed = True
-
+        ),
+        reset=lambda: None,
+        step=mock.Mock(side_effect=KeyboardInterrupt),
+        close=mock.Mock(),
+    )
     args = SimpleNamespace(max_steps=None, task="Example", device=None)
-    env = _Env()
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
     monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
     simple_agents.run([], policy="random")
 
-    assert env.closed
+    env.close.assert_called_once_with()
     assert "Random agent stopped." in capsys.readouterr().out
 
 

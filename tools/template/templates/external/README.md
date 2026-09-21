@@ -23,14 +23,9 @@ This project's `pyproject.toml` uses editable relative paths to an Isaac Lab sou
 `[tool.uv.sources]` if either directory moves.
 {% endif %}
 
-The project forwards every optional extra declared by the Isaac Lab package used to create it. This includes physics,
-rendering, visualizer, RL, teleoperation, and development features. The available extras are:
-
-{% for extra in isaaclab_optional_extras %}
-- `{{ extra }}`
-{% endfor %}
-
-Pass each required extra to `uv run`:
+The project forwards every optional extra declared by the Isaac Lab package used to create it, including physics,
+rendering, visualizer, RL, teleoperation, and development features. Inspect `pyproject.toml` for the complete list and
+pass each required extra to `uv run`:
 
 ```bash
 # Standalone OV PhysX

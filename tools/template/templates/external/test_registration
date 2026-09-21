@@ -25,12 +25,17 @@ def test_task_registrations():
 {% endfor %}
     }
 {% else %}
-    expected = {}
+    assert all(
+        not str(spec.kwargs.get("env_cfg_entry_point", "")).startswith("{{ name }}.tasks")
+        for spec in gym.registry.values()
+    )
 {% endif %}
 
+{% if specifications %}
     for task_id, expected_values in expected.items():
         spec = gym.spec(task_id)
         assert spec.entry_point == expected_values["entry_point"]
         assert spec.kwargs["env_cfg_entry_point"] == expected_values["env_cfg_entry_point"]
         if "default_agent" in expected_values:
             assert spec.kwargs["default_agent"] == expected_values["default_agent"]
+{% endif %}

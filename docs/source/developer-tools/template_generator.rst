@@ -126,20 +126,20 @@ repository there.
 Automate project generation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Interactive prompts remain the default. Pass ``--non-interactive`` to opt into
+Interactive prompts remain the default. Pass ``--non_interactive`` to opt into
 argument-driven generation for scripts and continuous integration. The smallest
 external Cartpole command is:
 
 .. code-block:: bash
 
-   uv run isaaclab --new --non-interactive \
-      --project-path /work/projects \
+   uv run isaaclab --new --non_interactive \
+      --project_path /work/projects \
       --name my_robot_project \
       --author "Example Author"
 
 This uses the ``cartpole`` content, ``balance`` task family, ``cartpole`` robot
 configuration, manager-based single-agent workflow, RSL-RL, and PPO defaults.
-Create a Blank project by adding ``--initial-content blank``. Blank projects do
+Create a Blank project by adding ``--initial_content blank``. Blank projects do
 not accept task, workflow, library, or algorithm options because they contain no
 example task.
 
@@ -151,32 +151,32 @@ Use the following arguments to override the defaults:
 
    * - Argument
      - Meaning
-   * - ``--task-type external|internal``
+   * - ``--task_type external|internal``
      - Generate an external project by default, or an internal task from a
        source checkout.
-   * - ``--project-path PATH``
+   * - ``--project_path PATH``
      - Parent directory for an external project. Required in non-interactive
        mode.
    * - ``--name NAME``
      - External project name or internal task folder name. Required in
-       non-interactive mode. ``--project-name`` is an alias.
+       non-interactive mode. ``--project_name`` is an alias.
    * - ``--author NAME``
      - External project author. Required; repeat the argument for multiple
        authors.
-   * - ``--initial-content blank|cartpole``
+   * - ``--initial_content blank|cartpole``
      - External project content. The default is ``cartpole``.
-   * - ``--task-name NAME`` and ``--robot-name NAME``
+   * - ``--task_name NAME`` and ``--robot_name NAME``
      - Cartpole task family and robot/config names. The defaults are ``balance``
        and ``cartpole``.
-   * - ``--include-ui-extension``
+   * - ``--include_ui_extension``
      - Include files for loading the project through the Isaac Sim Extension
        Manager.
    * - ``--workflow WORKFLOW``
      - Repeat for any of ``manager-based:single-agent``,
        ``direct:single-agent``, and ``direct:multi-agent``.
-   * - ``--rl-library LIBRARY``
+   * - ``--rl_library LIBRARY``
      - Repeat for ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``.
-   * - ``--rl-algorithm ALGORITHM``
+   * - ``--rl_algorithm ALGORITHM``
      - Repeat an algorithm such as ``ppo``. Prefix it with a selected library,
        such as ``skrl:ippo``, when selecting algorithms independently for
        several libraries.
@@ -186,18 +186,18 @@ SKRL algorithms:
 
 .. code-block:: bash
 
-   uv run isaaclab --new --non-interactive \
-      --project-path /work/projects \
+   uv run isaaclab --new --non_interactive \
+      --project_path /work/projects \
       --name multi_workflow_project \
       --author "Example Author" \
       --workflow direct:single-agent \
       --workflow direct:multi-agent \
-      --rl-library skrl \
-      --rl-algorithm skrl:ppo \
-      --rl-algorithm skrl:ippo
+      --rl_library skrl \
+      --rl_algorithm skrl:ppo \
+      --rl_algorithm skrl:ippo
 
 Arguments that configure project content are rejected unless
-``--non-interactive`` is present, which prevents an accidental argument from
+``--non_interactive`` is present, which prevents an accidental argument from
 silently changing the interactive flow. Run ``uv run isaaclab --new --help`` to
 see the complete command reference.
 
@@ -205,8 +205,8 @@ From a source checkout, an internal task can also be created without prompts:
 
 .. code-block:: bash
 
-   uv run isaaclab --new --non-interactive \
-      --task-type internal \
+   uv run isaaclab --new --non_interactive \
+      --task_type internal \
       --name my_internal_task
 
 Enter the generated project and create its environment:
@@ -455,7 +455,7 @@ Troubleshooting
    to the current project's ``isaaclab.tasks`` entry point.
 
 **Non-interactive arguments are rejected**
-   Include ``--non-interactive`` after ``--new``. Cartpole is the default initial
+   Include ``--non_interactive`` after ``--new``. Cartpole is the default initial
    content; Blank content rejects task, workflow, library, and algorithm options.
    The error message identifies missing required arguments or incompatible
    selections.

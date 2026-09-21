@@ -8,6 +8,7 @@ import enum
 import importlib
 import os
 from collections.abc import Callable
+from pathlib import Path
 from textwrap import fill
 
 import rich.console
@@ -23,6 +24,10 @@ _NON_INTERACTIVE_WORKFLOWS = {
     "direct:single-agent": {"name": "direct", "type": "single-agent"},
     "direct:multi-agent": {"name": "direct", "type": "multi-agent"},
 }
+
+
+def _is_external_path(path: str) -> bool:
+    return not Path(path).resolve().is_relative_to(Path(ROOT_DIR).resolve())
 
 
 class CLIHandler:
@@ -171,23 +176,23 @@ def _create_argument_parser() -> argparse.ArgumentParser:
     """Create the template generator argument parser."""
     parser = argparse.ArgumentParser(description="Create an Isaac Lab project or task from a template.")
     parser.add_argument(
-        "--non-interactive",
+        "--non_interactive",
         action="store_true",
         help="Generate without prompts using command-line arguments.",
     )
-    parser.add_argument("--task-type", choices=("external", "internal"), help="Where to create the task.")
-    parser.add_argument("--project-path", help="Parent directory for an external project.")
-    parser.add_argument("--name", "--project-name", dest="name", help="Project name or internal task folder name.")
+    parser.add_argument("--task_type", choices=("external", "internal"), help="Where to create the task.")
+    parser.add_argument("--project_path", help="Parent directory for an external project.")
+    parser.add_argument("--name", "--project_name", dest="name", help="Project name or internal task folder name.")
     parser.add_argument(
         "--author",
         action="append",
         help="Project author. Repeat this option to specify multiple authors.",
     )
-    parser.add_argument("--initial-content", choices=("blank", "cartpole"), help="Initial external project content.")
-    parser.add_argument("--task-name", help="Task family name for the Cartpole example.")
-    parser.add_argument("--robot-name", help="Robot/config name for the Cartpole example.")
+    parser.add_argument("--initial_content", choices=("blank", "cartpole"), help="Initial external project content.")
+    parser.add_argument("--task_name", help="Task family name for the Cartpole example.")
+    parser.add_argument("--robot_name", help="Robot/config name for the Cartpole example.")
     parser.add_argument(
-        "--include-ui-extension",
+        "--include_ui_extension",
         action="store_true",
         default=None,
         help="Include an Isaac Sim UI extension in an external project.",
@@ -199,13 +204,13 @@ def _create_argument_parser() -> argparse.ArgumentParser:
         help="Task workflow. Repeat this option to generate several workflows.",
     )
     parser.add_argument(
-        "--rl-library",
+        "--rl_library",
         action="append",
         choices=tuple(_SINGLE_AGENT_RL_LIBRARIES),
         help="RL library. Repeat this option to include several libraries.",
     )
     parser.add_argument(
-        "--rl-algorithm",
+        "--rl_algorithm",
         action="append",
         help=(
             "RL algorithm, such as 'ppo', or a library-qualified value, such as 'skrl:ippo'. "
@@ -227,7 +232,6 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
     cli_handler = CLIHandler()
 
     if not is_lab_pip_installed:
-        # project type
         is_external_project = (
             cli_handler.input_select(
                 "Task type:",
@@ -242,20 +246,18 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
     else:
         is_external_project = True
 
-    # project path (if 'external')
     project_path = None
     if is_external_project:
         project_path = cli_handler.input_path(
             "Project path:",
             default=os.path.dirname(ROOT_DIR) + os.sep,
-            validate=lambda path: not os.path.abspath(path).startswith(os.path.abspath(ROOT_DIR)),
+            validate=_is_external_path,
             invalid_message="External project path cannot be within the Isaac Lab project",
         )
 
-    # project/task names
     project_name = cli_handler.input_text(
         "Project name:" if is_external_project else "Task's folder name:",
-        validate=lambda name: name.isidentifier(),
+        validate=lambda name: name.isascii() and name.isidentifier(),
         invalid_message=(
             "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"
         ),
@@ -281,13 +283,13 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
             task_name = cli_handler.input_text(
                 "Task family name:",
                 default="balance",
-                validate=lambda name: name.isidentifier(),
+                validate=lambda name: name.isascii() and name.isidentifier(),
                 invalid_message="Task family name must be a valid Python identifier.",
             )
             robot_name = cli_handler.input_text(
                 "Robot/config name:",
                 default="cartpole",
-                validate=lambda name: name.isidentifier(),
+                validate=lambda name: name.isascii() and name.isidentifier(),
                 invalid_message="Robot/config name must be a valid Python identifier.",
             )
         else:
@@ -314,8 +316,6 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
     workflow = []
     rl_library_algorithms = []
     if initial_content == "cartpole":
-        # Isaac Lab workflow
-        # - show supported workflows and features
         workflow_table = rich.table.Table(title="RL environment features support according to Isaac Lab workflows")
         workflow_table.add_column("Environment feature", no_wrap=True)
         workflow_table.add_column("Manager-based", justify="center")
@@ -324,7 +324,6 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
         workflow_table.add_row("Multi-agent", State.No, State.Yes)
         workflow_table.add_row("Fundamental/composite spaces (apart from 'Box')", State.No, State.Yes)
         cli_handler.output_table(workflow_table)
-        # - prompt for workflows
         workflow = cli_handler.get_choices(
             cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*_SUPPORTED_WORKFLOWS, "---", "all"]),
             default=_SUPPORTED_WORKFLOWS,
@@ -333,9 +332,7 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
         single_agent_workflow = [item for item in workflow if item["type"] == "single-agent"]
         multi_agent_workflow = [item for item in workflow if item["type"] == "multi-agent"]
 
-        # RL library
         algorithms_per_rl_library = get_algorithms_per_rl_library()
-        # - show supported RL libraries and features
         rl_library_table = rich.table.Table(title="Supported RL libraries")
         rl_library_table.add_column("RL/training feature", no_wrap=True)
         rl_library_table.add_column("rsl_rl", overflow="fold")
@@ -356,13 +353,11 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
         rl_library_table.add_row("Vectorized training", State.Yes, State.Yes, State.Yes, State.No)
         rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
         cli_handler.output_table(rl_library_table)
-        # - prompt for RL libraries
         supported_rl_libraries = _SINGLE_AGENT_RL_LIBRARIES if len(single_agent_workflow) else ["skrl"]
         selected_rl_libraries = cli_handler.get_choices(
             cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
             default=supported_rl_libraries,
         )
-        # - prompt for algorithms per RL library
         algorithms_per_rl_library = get_algorithms_per_rl_library(len(single_agent_workflow), len(multi_agent_workflow))
         for rl_library in selected_rl_libraries:
             algorithms = algorithms_per_rl_library.get(rl_library, [])
@@ -399,17 +394,17 @@ def _collect_non_interactive_specification(
     task_type = args.task_type or "external"
     is_external_project = task_type == "external"
     if not is_external_project and is_lab_pip_installed:
-        parser.error("--task-type internal requires an Isaac Lab source checkout")
+        parser.error("--task_type internal requires an Isaac Lab source checkout")
     if not args.name:
         parser.error("--name is required in non-interactive mode")
-    if not args.name.isidentifier():
-        parser.error("--name must be a valid Python identifier")
+    if not args.name.isascii() or not args.name.isidentifier():
+        parser.error("--name must be an ASCII Python identifier")
 
     if is_external_project:
         if not args.project_path:
-            parser.error("--project-path is required for an external project in non-interactive mode")
-        if os.path.abspath(args.project_path).startswith(os.path.abspath(ROOT_DIR)):
-            parser.error("--project-path for an external project cannot be within the Isaac Lab project")
+            parser.error("--project_path is required for an external project in non-interactive mode")
+        if not _is_external_path(args.project_path):
+            parser.error("--project_path for an external project cannot be within the Isaac Lab project")
         if not args.author or any(not author.strip() for author in args.author):
             parser.error("at least one non-empty --author is required for an external project")
         authors = [author.strip() for author in args.author]
@@ -421,11 +416,11 @@ def _collect_non_interactive_specification(
         invalid_external_options = [
             option
             for option, value in (
-                ("--project-path", args.project_path),
+                ("--project_path", args.project_path),
                 ("--author", args.author),
-                ("--initial-content", args.initial_content),
-                ("--task-name", args.task_name),
-                ("--include-ui-extension", args.include_ui_extension),
+                ("--initial_content", args.initial_content),
+                ("--task_name", args.task_name),
+                ("--include_ui_extension", args.include_ui_extension),
             )
             if value is not None
         ]
@@ -437,25 +432,25 @@ def _collect_non_interactive_specification(
         task_name = args.name
         robot_name = args.robot_name or "cartpole"
 
-    if not task_name.isidentifier():
-        parser.error("--task-name must be a valid Python identifier")
-    if not robot_name.isidentifier():
-        parser.error("--robot-name must be a valid Python identifier")
+    if not task_name.isascii() or not task_name.isidentifier():
+        parser.error("--task_name must be an ASCII Python identifier")
+    if not robot_name.isascii() or not robot_name.isidentifier():
+        parser.error("--robot_name must be an ASCII Python identifier")
 
     if initial_content == "blank":
         incompatible_options = [
             option
             for option, value in (
-                ("--task-name", args.task_name),
-                ("--robot-name", args.robot_name),
+                ("--task_name", args.task_name),
+                ("--robot_name", args.robot_name),
                 ("--workflow", args.workflow),
-                ("--rl-library", args.rl_library),
-                ("--rl-algorithm", args.rl_algorithm),
+                ("--rl_library", args.rl_library),
+                ("--rl_algorithm", args.rl_algorithm),
             )
             if value is not None
         ]
         if incompatible_options:
-            parser.error(f"{'/'.join(incompatible_options)} cannot be used with --initial-content blank")
+            parser.error(f"{'/'.join(incompatible_options)} cannot be used with --initial_content blank")
         workflows = []
         rl_libraries = []
     else:
@@ -481,9 +476,9 @@ def _collect_non_interactive_specification(
             selector, separator, algorithm = value.lower().partition(":")
             if separator:
                 if selector not in algorithms_by_library:
-                    parser.error(f"--rl-algorithm {value!r} refers to an unselected RL library")
+                    parser.error(f"--rl_algorithm {value!r} refers to an unselected RL library")
                 if not algorithm:
-                    parser.error(f"--rl-algorithm {value!r} must include an algorithm after ':'")
+                    parser.error(f"--rl_algorithm {value!r} must include an algorithm after ':'")
                 algorithms_by_library[selector].append(algorithm)
             else:
                 shared_algorithms.append(selector)
@@ -493,7 +488,7 @@ def _collect_non_interactive_specification(
         for library in selected_libraries:
             algorithms = list(dict.fromkeys([*shared_algorithms, *algorithms_by_library[library]]))
             if not algorithms:
-                parser.error(f"specify at least one --rl-algorithm for {library}")
+                parser.error(f"specify at least one --rl_algorithm for {library}")
             invalid_algorithms = [
                 algorithm for algorithm in algorithms if algorithm.upper() not in supported_algorithms[library]
             ]
@@ -524,11 +519,9 @@ def main(argv: list[str] | None = None) -> None:
     """Run template generation from the command line."""
     parser = _create_argument_parser()
     args = parser.parse_args(argv)
-    non_interactive_values = [
-        value for name, value in vars(args).items() if name != "non_interactive" and value is not None
-    ]
-    if not args.non_interactive and non_interactive_values:
-        parser.error("template arguments require --non-interactive")
+    has_generation_args = any(value is not None for name, value in vars(args).items() if name != "non_interactive")
+    if not args.non_interactive and has_generation_args:
+        parser.error("template arguments require --non_interactive")
 
     lab_module, is_lab_pip_installed = _isaaclab_installation()
     if args.non_interactive:

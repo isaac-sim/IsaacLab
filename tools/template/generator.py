@@ -203,7 +203,9 @@ def _external(specification: dict) -> None:
     _write_file(os.path.join(module_dir, "__init__.py"), content=template.render(**specification))
     print("  |-- Creating project asset structure...")
     assets_dir = os.path.join(module_dir, "assets")
-    os.makedirs(os.path.join(assets_dir, "data"), exist_ok=True)
+    asset_data_dir = os.path.join(assets_dir, "data")
+    os.makedirs(asset_data_dir, exist_ok=True)
+    _write_file(os.path.join(asset_data_dir, ".gitkeep"), "")
     template = jinja_env.get_template("external/__init__assets")
     _write_file(os.path.join(assets_dir, "__init__.py"), content=template.render(**specification))
     template = jinja_env.get_template("external/README.md")
@@ -349,7 +351,9 @@ def generate(specification: dict) -> None:
     print("\nValidating specification...")
     specification = specification.copy()
     assert "external" in specification, "External flag is required"
-    assert specification.get("name", "").isidentifier(), "Name must be a valid identifier"
+    assert specification.get("name", "").isascii() and specification["name"].isidentifier(), (
+        "Name must be an ASCII identifier"
+    )
     if specification["external"]:
         specification.setdefault("task_name", "balance")
         specification.setdefault("robot_name", "cartpole")
@@ -363,8 +367,12 @@ def generate(specification: dict) -> None:
         )
         specification["authors_toml"] = json.dumps(", ".join(specification["authors"]))[1:-1]
         assert specification["initial_content"] in ("blank", "cartpole"), "Invalid initial project content"
-        assert specification["task_name"].isidentifier(), "Task family name must be a valid identifier"
-        assert specification["robot_name"].isidentifier(), "Robot/config name must be a valid identifier"
+        assert specification["task_name"].isascii() and specification["task_name"].isidentifier(), (
+            "Task family name must be an ASCII identifier"
+        )
+        assert specification["robot_name"].isascii() and specification["robot_name"].isidentifier(), (
+            "Robot/config name must be an ASCII identifier"
+        )
     for workflow in specification["workflows"]:
         assert workflow["name"] in ["direct", "manager-based"], f"Invalid workflow: {workflow}"
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
@@ -384,7 +392,6 @@ def generate(specification: dict) -> None:
     specification["rl_libraries"] = normalized_libraries
     if specification["external"]:
         assert "path" in specification, "Path is required for external projects"
-    if specification["external"]:
         print("Generating external project...")
         _external(specification)
     else:

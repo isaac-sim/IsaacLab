@@ -38,6 +38,7 @@ def command_list_envs(args: list[str] | None = None) -> None:
 
     import isaaclab_tasks  # noqa: F401
 
+    # PLACEHOLDER: Extension template (do not remove this comment)
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401
 

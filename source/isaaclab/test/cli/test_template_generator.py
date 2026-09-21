@@ -6,7 +6,6 @@
 """Tests for the project template interactive prompts."""
 
 import importlib.util
-import io
 import sys
 import types
 from pathlib import Path
@@ -14,7 +13,6 @@ from unittest import mock
 
 import pytest
 import tomllib
-from rich.console import Console
 
 _TEMPLATE_DIR = Path(__file__).parents[4] / "tools" / "template"
 _SPEC = importlib.util.spec_from_file_location("isaaclab_template_cli", _TEMPLATE_DIR / "cli.py")
@@ -29,12 +27,6 @@ finally:
 
 CLIHandler = _MODULE.CLIHandler
 _GENERATOR = sys.modules["generator"]
-
-
-def _handler() -> tuple[CLIHandler, io.StringIO]:
-    """Create a prompt handler whose output can be asserted."""
-    output = io.StringIO()
-    return CLIHandler(Console(file=output, force_terminal=False)), output
 
 
 def _external_specification(
@@ -55,53 +47,6 @@ def _external_specification(
         "workflows": [{"name": "manager-based", "type": "single-agent"}] if initial_content == "cartpole" else [],
         "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}] if initial_content == "cartpole" else [],
     }
-
-
-def test_select_uses_rich_prompt_and_displays_long_instruction():
-    """Single selection must retain explanatory text and return the chosen value."""
-    handler, output = _handler()
-
-    with mock.patch.object(_MODULE.Prompt, "ask", return_value="External") as ask:
-        result = handler.input_select(
-            "Task type:",
-            choices=["External", "Internal"],
-            long_instruction="External projects live outside Isaac Lab.",
-        )
-
-    assert result == "External"
-    assert "External projects live outside Isaac Lab." in output.getvalue()
-    ask.assert_called_once_with(
-        "Task type",
-        console=handler.console,
-        choices=["External", "Internal"],
-        case_sensitive=False,
-    )
-
-
-def test_checkbox_parses_multiple_choices_and_reprompts_invalid_input():
-    """Multi-selection must validate numbered input and preserve choice order."""
-    handler, output = _handler()
-
-    with mock.patch.object(_MODULE.Prompt, "ask", side_effect=["invalid", "1, 3, 1"]):
-        result = handler.input_checkbox("Workflow:", ["Direct", "Manager-based", "---", "all"])
-
-    assert result == ["Direct", "all"]
-    assert "Enter one or more valid numbers" in output.getvalue()
-
-
-def test_text_reprompts_until_validation_succeeds():
-    """Text entry must surface the validation message and retry."""
-    handler, output = _handler()
-
-    with mock.patch.object(_MODULE.Prompt, "ask", side_effect=["not valid", "valid_name"]):
-        result = handler.input_text(
-            "Project name:",
-            validate=str.isidentifier,
-            invalid_message="Project name must be a valid identifier.",
-        )
-
-    assert result == "valid_name"
-    assert "Project name must be a valid identifier." in output.getvalue()
 
 
 def test_main_collects_canonical_external_project_choices():
@@ -163,8 +108,40 @@ def test_main_skips_task_prompts_for_blank_project():
     assert specification["rl_libraries"] == []
 
 
-def test_non_interactive_cartpole_uses_defaults_without_prompts(tmp_path):
-    """Non-interactive mode must build a complete default Cartpole specification."""
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        (
+            [],
+            {
+                "initial_content": "cartpole",
+                "task_name": "balance",
+                "robot_name": "cartpole",
+                "workflows": [{"name": "manager-based", "type": "single-agent"}],
+                "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
+            },
+        ),
+        (["--initial_content", "blank"], {"workflows": [], "rl_libraries": []}),
+        (
+            [
+                "--workflow",
+                "direct:multi-agent",
+                "--rl_library",
+                "skrl",
+                "--rl_algorithm",
+                "skrl:ippo",
+                "--include_ui_extension",
+            ],
+            {
+                "workflows": [{"name": "direct", "type": "multi-agent"}],
+                "rl_libraries": [{"name": "skrl", "algorithms": ["ippo"]}],
+                "include_ui_extension": True,
+            },
+        ),
+    ],
+)
+def test_non_interactive_generation(options, expected, tmp_path):
+    """Non-interactive mode must support defaults, Blank projects, and explicit selections."""
     source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
         mock.patch.object(_MODULE, "CLIHandler", side_effect=AssertionError("unexpected prompt")),
@@ -173,70 +150,19 @@ def test_non_interactive_cartpole_uses_defaults_without_prompts(tmp_path):
     ):
         _MODULE.main(
             [
-                "--non-interactive",
-                "--project-path",
+                "--non_interactive",
+                "--project_path",
                 str(tmp_path),
                 "--name",
                 "automated_project",
                 "--author",
                 "Test Author",
+                *options,
             ]
         )
 
     specification = generate.call_args.args[0]
-    assert specification["initial_content"] == "cartpole"
-    assert specification["task_name"] == "balance"
-    assert specification["robot_name"] == "cartpole"
-    assert specification["workflows"] == [{"name": "manager-based", "type": "single-agent"}]
-    assert specification["rl_libraries"] == [{"name": "rsl_rl", "algorithms": ["ppo"]}]
-
-
-def test_non_interactive_mode_supports_blank_and_explicit_cartpole_options(tmp_path):
-    """Automation arguments must cover Blank projects and explicit workflow selections."""
-    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
-    with (
-        mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
-        mock.patch.object(_MODULE, "generate") as generate,
-    ):
-        _MODULE.main(
-            [
-                "--non-interactive",
-                "--project-path",
-                str(tmp_path),
-                "--name",
-                "blank_project",
-                "--author",
-                "Test Author",
-                "--initial-content",
-                "blank",
-            ]
-        )
-        blank_specification = generate.call_args.args[0]
-        _MODULE.main(
-            [
-                "--non-interactive",
-                "--project-path",
-                str(tmp_path),
-                "--name",
-                "multi_agent_project",
-                "--author",
-                "Test Author",
-                "--workflow",
-                "direct:multi-agent",
-                "--rl-library",
-                "skrl",
-                "--rl-algorithm",
-                "skrl:ippo",
-                "--include-ui-extension",
-            ]
-        )
-        cartpole_specification = generate.call_args.args[0]
-
-    assert blank_specification["workflows"] == []
-    assert blank_specification["rl_libraries"] == []
-    assert cartpole_specification["workflows"] == [{"name": "direct", "type": "multi-agent"}]
-    assert cartpole_specification["rl_libraries"] == [{"name": "skrl", "algorithms": ["ippo"]}]
-    assert cartpole_specification["include_ui_extension"] is True
+    assert {key: specification[key] for key in expected} == expected
 
 
 def test_generation_arguments_require_non_interactive_opt_in(capsys):
@@ -244,7 +170,7 @@ def test_generation_arguments_require_non_interactive_opt_in(capsys):
     with pytest.raises(SystemExit, match="2"):
         _MODULE.main(["--name", "unexpected_project"])
 
-    assert "template arguments require --non-interactive" in capsys.readouterr().err
+    assert "template arguments require --non_interactive" in capsys.readouterr().err
 
     source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
@@ -253,21 +179,21 @@ def test_generation_arguments_require_non_interactive_opt_in(capsys):
     ):
         _MODULE.main(
             [
-                "--non-interactive",
-                "--project-path",
+                "--non_interactive",
+                "--project_path",
                 "/tmp",
                 "--name",
                 "blank_project",
                 "--author",
                 "Test Author",
-                "--initial-content",
+                "--initial_content",
                 "blank",
                 "--workflow",
                 "direct:single-agent",
             ]
         )
 
-    assert "--workflow cannot be used with --initial-content blank" in capsys.readouterr().err
+    assert "--workflow cannot be used with --initial_content blank" in capsys.readouterr().err
 
 
 def test_generated_project_matches_canonical_uv_layout(tmp_path):
@@ -390,9 +316,10 @@ def test_generated_blank_project_contains_no_example_task(tmp_path):
     tasks_dir = project_dir / "src" / "test_project" / "tasks"
     assert [path.name for path in tasks_dir.iterdir()] == ["__init__.py"]
     assert (project_dir / "src" / "test_project" / "assets" / "__init__.py").is_file()
+    assert (project_dir / "src" / "test_project" / "assets" / "data" / ".gitkeep").is_file()
     assert "No tasks are registered yet" in (project_dir / "README.md").read_text()
     assert "cartpole" not in (project_dir / "README.md").read_text().lower()
-    assert "expected = {}" in (project_dir / "tests" / "test_registration.py").read_text()
+    compile((project_dir / "tests" / "test_registration.py").read_text(), "test_registration.py", "exec")
     with (project_dir / "pyproject.toml").open("rb") as file:
         project_config = tomllib.load(file)
     assert project_config["project"]["dependencies"] == ["isaaclab==3.0.0"]

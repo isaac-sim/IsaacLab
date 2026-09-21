@@ -8,7 +8,7 @@ Added
   task discovery, tests, and development tooling without the cart-pole example files.
 * Added a package-relative asset directory and path constant to external projects so project-owned USD files can be
   referenced consistently from editable checkouts and installed wheels.
-* Added an opt-in ``--non-interactive`` template-generator mode with validated arguments for project metadata, initial
+* Added an opt-in ``--non_interactive`` template-generator mode with validated arguments for project metadata, initial
   content, workflows, RL libraries, algorithms, and the optional Isaac Sim UI extension.
 
 Fixed
