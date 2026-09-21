@@ -195,11 +195,13 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             zoomed = intrinsics.clone()
             zoomed[:, 0, 0] *= 2.0
             zoomed[:, 1, 1] *= 2.0
+            # Compile runtime kernels on first use, then prohibit compilation in repeated updates.
+            camera.set_intrinsic_matrices(intrinsics)
             for focal_length in (None, 12.0):
                 with patch.object(
                     type(wp.get_module(Camera.__module__)),
                     "_compile",
-                    side_effect=AssertionError("Runtime calibration must not compile Warp modules"),
+                    side_effect=AssertionError("Repeated runtime calibration must not compile Warp modules"),
                 ):
                     camera.set_intrinsic_matrices(zoomed, focal_length=focal_length)
                 depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)

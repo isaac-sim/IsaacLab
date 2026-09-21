@@ -181,7 +181,6 @@ class IsaacRtxRenderData:
         self.intrinsic_selection = selection
         self.intrinsic_row_attribute = row_attribute
         self.intrinsic_stage = fabric
-        wp.load_module(module=__name__, device=spec.device, block_dim=1 if wp.get_device(spec.device).is_cpu else None)
 
 
 class IsaacRtxRenderer(BaseRenderer):

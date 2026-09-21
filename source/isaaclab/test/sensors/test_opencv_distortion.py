@@ -46,7 +46,7 @@ if not _MISSING_MODULES:
     from pxr import Gf, Sdf, Usd, UsdGeom
 
     import isaaclab.sim as sim_utils
-    from isaaclab.sensors.camera.camera import Camera
+    from isaaclab.sensors.camera.camera import Camera, _camera_select_intrinsics_kernel, _camera_set_intrinsics_kernel
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.sim.spawners.sensors.sensors import spawn_camera
     from isaaclab.sim.spawners.sensors.sensors_cfg import (
@@ -206,8 +206,19 @@ def _camera_for_prims(prims, width=640, height=480, device="cpu"):
         update_camera_intrinsics=lambda data, _matrices, parameters: setattr(data, "parameters", wp.clone(parameters)),
         cleanup=lambda _data: None,
     )
-    with patch.object(wp, "launch", side_effect=AssertionError("Initialization must prepare calibration on the CPU")):
+    with (
+        patch.object(wp, "launch", side_effect=AssertionError("Initialization must prepare calibration on the CPU")),
+        patch.object(wp, "load_module", side_effect=AssertionError("Initialization must not preload runtime kernels")),
+        patch.object(
+            type(wp.get_module(Camera.__module__)),
+            "_compile",
+            side_effect=AssertionError("Initial calibration must not compile kernels"),
+        ),
+    ):
         fake._initialize_intrinsics()
+    # Pose initialization must not pull runtime calibration into its compilation unit.
+    assert _camera_select_intrinsics_kernel.module is not wp.get_module(Camera.__module__)
+    assert _camera_set_intrinsics_kernel.module is _camera_select_intrinsics_kernel.module
     return fake
 
 
@@ -400,10 +411,13 @@ def test_intrinsic_batch_matches_runtime_projection(intrinsic_camera, input_kind
     elif input_kind == "warp_matrix_double":
         matrices = wp.from_torch(requested.double(), dtype=wp.mat33d)
     untouched = camera._data.intrinsic_matrices.warp.numpy()[1].copy()
+    # Only the first runtime update may compile the calibration kernels.
+    camera.set_intrinsic_matrices(matrices, focal_length=focal_length, env_ids=[2, 0])
+    caplog.clear()
     monkeypatch.setattr(
         type(wp.get_module(Camera.__module__)),
         "_compile",
-        Mock(side_effect=AssertionError("Runtime calibration must not compile kernels")),
+        Mock(side_effect=AssertionError("Repeated runtime calibration must not compile kernels")),
     )
 
     camera.set_intrinsic_matrices(matrices, focal_length=focal_length, env_ids=[2, 0])

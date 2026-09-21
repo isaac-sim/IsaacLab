@@ -37,7 +37,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@wp.kernel(enable_backward=False)
+# Keep runtime calibration out of the pose module compiled during camera initialization.
+@wp.kernel(module=f"{__name__}.runtime_intrinsics", enable_backward=False)
 def _camera_select_intrinsics_kernel(
     matrices: wp.array3d(dtype=Any),
     env_ids: wp.array(dtype=wp.int32),
@@ -67,7 +68,7 @@ def _camera_select_intrinsics_kernel(
         wp.atomic_or(status, 0, 4)
 
 
-@wp.kernel(enable_backward=False)
+@wp.kernel(module=f"{__name__}.runtime_intrinsics", enable_backward=False)
 def _camera_set_intrinsics_kernel(
     matrices: wp.array3d(dtype=Any),
     rows: wp.array(dtype=wp.int32),
@@ -383,14 +384,14 @@ class Camera(SensorBase):
             Per-environment intrinsic randomization therefore requires additional renderer support;
             successful attribute updates alone do not establish correct independent projections.
 
-        Initialization imports calibration on the CPU and prepares the float32/float64 Warp kernels.
+        Initialization builds calibration in NumPy without compiling this setter's Warp kernels.
         Runtime selection and projection conversion execute on the camera device, including for host
         inputs, which are uploaded first. Matrix and index batches are never copied back to the CPU.
 
         Shape and batch cardinality are checked before any changes. Index validation and projection
         warnings transfer one status integer to the host, so this method is not CUDA graph capturable.
-        Backend validation completes before the public calibration buffers are committed. Kernel
-        preparation moves the one-time compilation cost into initialization; it does not remove it.
+        Backend validation completes before the public calibration buffers are committed. The first
+        runtime update may compile Warp kernels; repeated updates reuse the compiled kernels.
 
         Args:
             matrices: NumPy or Torch intrinsic matrices [pixel], shape (N, 3, 3), or a Warp array of ``wp.mat33f`` /
@@ -856,36 +857,39 @@ class Camera(SensorBase):
         return tuple(float(value) for value in intrinsics)
 
     def _initialize_intrinsics(self):
-        """Import composed USD calibration once and allocate persistent runtime buffers."""
+        """Build initial calibration in NumPy, then upload persistent runtime buffers."""
         height, width = self.image_shape
-        matrices, parameters, fixed = [], [], []
+        count = self._view.count
+        matrices = np.zeros((count, 3, 3), dtype=np.float32)
+        parameters = np.empty((5, count), dtype=np.float64)
+        fixed = np.zeros(count, dtype=bool)
+        pinhole = np.ones(count, dtype=bool)
         for i, sensor_prim in enumerate(self._sensor_prims):
             prim = sensor_prim.GetPrim()
-            values = [
+            parameters[:, i] = (
                 sensor_prim.GetFocalLengthAttr().Get(),
                 sensor_prim.GetHorizontalApertureAttr().Get(),
                 sensor_prim.GetVerticalApertureAttr().Get(),
                 sensor_prim.GetHorizontalApertureOffsetAttr().Get(),
                 sensor_prim.GetVerticalApertureOffsetAttr().Get(),
-            ]
-            parameters.append(values)
-            fixed.append(bool(prim.GetAttribute("omni:lensdistortion:model").Get()))
-            authored = self._read_authored_opencv_intrinsics(prim, width, height, i)
+            )
+            fixed[i] = bool(prim.GetAttribute("omni:lensdistortion:model").Get())
+            authored = self._read_authored_opencv_intrinsics(prim, width, height, i) if fixed[i] else None
             if authored is not None:
-                fx, fy, cx, cy = authored
-            else:
-                fx = fy = width * values[0] / values[1]
-                cx, cy = width * 0.5, height * 0.5
-            matrices.append(((fx, 0.0, cx), (0.0, fy, cy), (0.0, 0.0, 1.0)))
+                matrices[i, 0, 0], matrices[i, 1, 1], matrices[i, 0, 2], matrices[i, 1, 2] = authored
+                pinhole[i] = False
+        matrices[pinhole, 0, 0] = matrices[pinhole, 1, 1] = width * parameters[0, pinhole] / parameters[1, pinhole]
+        matrices[pinhole, 0, 2] = width * 0.5
+        matrices[pinhole, 1, 2] = height * 0.5
+        matrices[:, 2, 2] = 1.0
         device = self._device
         wp.copy(self._data.intrinsic_matrices.warp, wp.array(matrices, dtype=wp.mat33f, device=device))
-        self._intrinsic_parameters = wp.array(np.asarray(parameters, dtype=np.float32).T.copy(), device=device)
+        self._intrinsic_parameters = wp.array(parameters, dtype=wp.float32, device=device)
         self._intrinsic_fixed = wp.array(fixed, dtype=wp.bool, device=device)
         self._intrinsic_rows = wp.empty(self._view.count, dtype=wp.int32, device=device)
         self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=device)
         self._intrinsic_pending = wp.empty_like(self._data.intrinsic_matrices.warp)
         self._intrinsic_parameters_pending = wp.empty_like(self._intrinsic_parameters)
-        wp.load_module(module=__name__, device=device, block_dim=1 if wp.get_device(device).is_cpu else None)
 
     def _update_poses(
         self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None, frame_op: int = 0
