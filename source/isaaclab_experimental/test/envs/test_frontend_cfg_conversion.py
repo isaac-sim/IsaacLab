@@ -67,8 +67,8 @@ _WARP_SUPPORTED_TASKS = frozenset(
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
 # env class; direct tasks provide their own env class (resolved by name-based
-# mirror, or an explicit ``warp_entry_point`` override) and are not cfg-adapted,
-# so they are excluded here.
+# mirror, or an explicit ``warp_entry_point`` override). Their task terms are not
+# cfg-adapted, so they are excluded here.
 _MANAGER_WARP_ENTRY_POINT = "isaaclab_experimental.envs:ManagerBasedRLEnvWarp"
 
 _WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")

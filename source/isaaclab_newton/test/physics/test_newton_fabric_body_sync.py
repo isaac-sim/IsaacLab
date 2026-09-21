@@ -18,6 +18,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Gf as UsdGf
 from pxr import UsdGeom
@@ -39,9 +40,9 @@ class _RenderSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )

@@ -14,18 +14,22 @@ import isaaclab.cli.commands.misc as misc
 pytestmark = pytest.mark.unit
 
 
-def test_new_runs_template_generator_directly():
-    """The template command must not modify the active environment at runtime."""
-    cli_script = misc.ISAACLAB_ROOT / "tools" / "template" / "cli.py"
-
+def test_python_subcommands_propagate_failures():
+    """Python-based CLI subcommands must propagate failures from their child process."""
     with mock.patch.object(misc, "run_python_command") as run_python_command:
         misc.command_new(["--help"])
+        misc.command_test(["-q"])
+        misc.command_run_docker(["--help"])
 
-    run_python_command.assert_called_once_with(cli_script, ["--help"])
+    assert run_python_command.call_args_list == [
+        mock.call(misc.ISAACLAB_ROOT / "tools" / "template" / "cli.py", ["--help"], check=True),
+        mock.call("-m", ["pytest", str(misc.ISAACLAB_ROOT / "tools"), "-q"], check=True),
+        mock.call(misc.ISAACLAB_ROOT / "docker" / "container.py", ["--help"], check=True),
+    ]
 
 
-def test_build_docs_runs_sphinx_with_the_uv_test_extra():
-    """The docs command must build through UV instead of an unpinned pip install."""
+def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
+    """The docs command must use the UV extra that provides Sphinx."""
     docs_dir = misc.ISAACLAB_ROOT / "docs"
     output_dir = docs_dir / "_build" / "current"
 
@@ -41,7 +45,7 @@ def test_build_docs_runs_sphinx_with_the_uv_test_extra():
             "run",
             "--isolated",
             "--extra",
-            "test",
+            "dev",
             "--",
             "python",
             "-m",

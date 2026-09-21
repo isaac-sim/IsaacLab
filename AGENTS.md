@@ -59,3 +59,12 @@
 - Keep repository-owned skills in `skills/`; do not duplicate their contents in tool-specific discovery directories.
 - Validate skill changes with `uv run --no-project python tools/skills/cli.py check`.
 - Keep skills concise and point to maintained documentation and source examples.
+
+## Schema fragment consumers
+
+- When migrating a spawner schema slot to fragments, migrate its readers and overrides too.
+  Use a bare fragment for a single instance and a list only for multiple fragments. For lists,
+  select the owning fragment before accessing fields or calling `replace()`; `fix_root_link`
+  belongs on the spawner.
+- For file-spawned fixtures that must only tune existing physics bodies, use explicit fragment
+  target mappings. A bare fragment or list may create a missing body and change the fixture's validity.

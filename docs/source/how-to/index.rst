@@ -234,15 +234,9 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Finding how many cameras to train with </source/how-to/estimate_how_many_cameras_can_run>`
+         :doc:`Select and configure a Renderer </source/how-to/configure_rendering>`
 
-         Estimate camera throughput and memory limits for your hardware.
-
-      .. container:: guide-entry
-
-         :doc:`Configuring RTX rendering settings </source/how-to/configure_rendering>`
-
-         Tune RTX rendering quality and performance options.
+         Choose Newton Warp, OVRTX, or legacy Isaac RTX and tune the selected renderer.
 
       .. container:: guide-entry
 

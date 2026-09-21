@@ -118,7 +118,9 @@ def setup_env():
     # let the simulation play (we need this for observation manager to compute obs dims)
     env.sim._app_control_on_stop_handle = None
     env.sim.reset()
-    return env
+    yield env
+    sim.stop()
+    sim_utils.SimulationContext.clear_instance()
 
 
 def test_str(setup_env):

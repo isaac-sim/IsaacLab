@@ -17,6 +17,7 @@ Covers:
   rejects the ``MJWarp + use_mujoco_contacts=True + collision_cfg`` combination.
 * Manager name dispatch (used by :class:`InteractiveScene` and the various
   factory dispatchers) still starts with ``"newton"``.
+* Fixed-root pose writes refresh MuJoCo's solver-owned root transform.
 * End-to-end: spinning up a simulation with each solver builds the correct
   solver, sets the right ``_use_single_state`` / ``_needs_collision_pipeline``
   flags, and lands canonical state on :class:`NewtonManager` so that external
@@ -25,15 +26,21 @@ Covers:
 
 from __future__ import annotations
 
+import ctypes
 import logging
+import subprocess
+import sys
+import textwrap
 from inspect import signature
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
+from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoDVICfg,
@@ -59,6 +66,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -267,7 +275,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     monkeypatch.setattr(NewtonManager, "_collision_cfg", None)
     monkeypatch.setattr(NewtonManager, "_contacts", None)
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace())
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace()))
     monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.GPU_TO_GPU)
 
     NewtonManager._initialize_contacts()
@@ -282,7 +290,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
 def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
     """BVH refitting raises when a particle BVH exists without an initialized sensor state."""
     model = SimpleNamespace(shape_count=0, particle_count=1, bvh_particles=object())
-    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model))
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
 
     with pytest.raises(RuntimeError, match="requires an initialized sensor state"):
@@ -334,7 +342,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(get_state))
-    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state))
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
@@ -359,7 +367,7 @@ def test_non_graph_capturable_sensor_task_runs_eagerly(monkeypatch):
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: state))
-    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state))
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_eager_tasks", set(), raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
@@ -1145,6 +1153,60 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
 
 
+@pytest.mark.parametrize(
+    ("torch_cuda", "available", "expected"),
+    [
+        ("12.8", "libcudart.so.12,libcudart.so.13", "libcudart.so.12"),
+        ("13.0", "libcudart.so.12,libcudart.so.13", "libcudart.so.13"),
+        ("13.0", "libcudart.so.12,libcudart.so", "libcudart.so.13"),
+        ("", "libcudart.so.12,libcudart.so.13", ""),
+    ],
+    ids=["cuda12", "cuda13", "matching_runtime_missing", "cpu"],
+)
+def test_cuda_runtime_selection_matches_torch_in_isolated_import(torch_cuda, available, expected):
+    """Graph capture must use Torch's runtime major, even when another CUDA runtime is available."""
+    code = textwrap.dedent("""\
+        import ctypes
+        import sys
+        import torch
+
+        torch.version.cuda = sys.argv[1] or None
+        available = set(sys.argv[2].split(","))
+        expected = sys.argv[3]
+        runtime = object()
+        requested = []
+        original_cdll = ctypes.CDLL
+
+        def load_library(name, *args, **kwargs):
+            if not str(name).startswith("libcudart.so"):
+                return original_cdll(name, *args, **kwargs)
+            requested.append(name)
+            if name not in available:
+                raise OSError("CUDA runtime is unavailable")
+            return runtime
+
+        ctypes.CDLL = load_library
+        import isaaclab_newton.physics.newton_manager as manager
+
+        assert requested == ([expected] if expected else []), requested
+        assert manager._cudart is (runtime if expected in available else None)
+        """)
+    result = subprocess.run(
+        [sys.executable, "-c", code, torch_cuda, available, expected], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_cuda_runtime_loaded_version_matches_torch():
+    """CUDA-enabled Linux wheels must expose the matching runtime without requiring a GPU context."""
+    if sys.platform != "linux" or torch.version.cuda is None:
+        pytest.skip("CUDA runtime loading is supported for CUDA-enabled Linux wheels.")
+    assert newton_manager_module._cudart is not None
+    runtime_version = ctypes.c_int()
+    assert newton_manager_module._cudart.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0
+    assert runtime_version.value // 1000 == int(torch.version.cuda.split(".")[0])
+
+
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
 
@@ -1181,6 +1243,55 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("asset_class", [articulation_module.Articulation, rigid_object_module.RigidObject])
+@pytest.mark.parametrize(
+    "writer, selector",
+    [
+        ("write_root_link_pose_to_sim_index", "env_ids"),
+        ("write_root_link_pose_to_sim_mask", "env_mask"),
+        ("write_root_com_pose_to_sim_index", "env_ids"),
+        ("write_root_com_pose_to_sim_mask", "env_mask"),
+    ],
+)
+def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, selector):
+    """A model-backed root write immediately refreshes MuJoCo's root transform."""
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    initial_pose = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat_identity())
+    root = builder.add_link(xform=initial_pose, mass=1.0, inertia=wp.mat33(np.eye(3)))
+    root_joint = builder.add_joint_fixed(-1, root, parent_xform=initial_pose)
+    builder.add_articulation([root_joint], label="robot")
+    builder.end_world()
+    model = builder.finalize(device="cpu")
+    view = ArticulationView(model, "robot", verbose=False)
+    body_com = view.get_attribute("body_com", model)[:, 0]
+    data = SimpleNamespace(
+        root_link_pose_w=view.get_root_transforms(model)[:, 0],
+        root_com_pose_w=wp.empty(1, dtype=wp.transform, device="cpu"),
+        _sim_bind_body_com_pos_b=body_com,
+        body_com_pos_b=body_com,
+    )
+    asset = SimpleNamespace(
+        root_view=view,
+        data=data,
+        device="cpu",
+        _ALL_ENV_MASK=wp.array([True], dtype=wp.bool, device="cpu"),
+        _resolve_env_ids=lambda ids: ids,
+        _resolve_mask=lambda mask, default: default if mask is None else mask,
+        assert_shape_and_dtype=lambda *args: None,
+        assert_shape_and_dtype_mask=lambda *args: None,
+    )
+    solver = SolverMuJoCo(model)
+    monkeypatch.setattr(NewtonManager, "_solver", solver)
+    target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
+    selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
+
+    getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+
+    np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
+
+
 def test_forward_consumes_existing_reset_masks(monkeypatch):
     """The existing device masks are the complete input to masked FK and the solver reset hook."""
     world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
@@ -1198,6 +1309,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=object()))
     monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
     monkeypatch.setattr(
         NewtonManager,
@@ -1630,9 +1742,7 @@ def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_
     state_0 = _State("state_0")
     state_1 = _State("state_1")
 
-    monkeypatch.setattr(NewtonManager, "_state_0", state_0)
-    monkeypatch.setattr(NewtonManager, "_state_1", state_1)
-    monkeypatch.setattr(NewtonManager, "_control", object())
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=state_0, state_1=state_1, control=object()))
     monkeypatch.setattr(NewtonManager, "_solver_dt", 0.001)
     monkeypatch.setattr(NewtonManager, "_num_substeps", 2)
     monkeypatch.setattr(NewtonManager, "_collision_decimation", 0)
@@ -1719,7 +1829,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         # Kamino keeps separate input/output states; the bug only exists there.
         assert NewtonManager._use_single_state is False
         # The data layer binds its joint-state write target to _state_0 at setup.
-        reset_target = NewtonManager._state_0.joint_q
+        reset_target = NewtonManager.backend.state_0.joint_q
         assert reset_target.shape[0] > 0  # guard against a vacuous assertion
 
         for _ in range(num_steps):
@@ -1730,7 +1840,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
 
         # The reset must be visible in the manager's canonical _state_0; if the
         # buffer flipped it landed in _state_1 instead.
-        canonical_joint_q = NewtonManager._state_0.joint_q.numpy()
+        canonical_joint_q = NewtonManager.backend.state_0.joint_q.numpy()
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
@@ -1810,10 +1920,14 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
 
         sim.reset()
         assert NewtonManager._needs_collision_pipeline is True
+        old_backend = NewtonManager.backend
         old_model = NewtonManager._collision_pipeline.model
         sim.step(render=False)
 
         sim.reset()
+        assert NewtonManager.backend is not old_backend
+        assert old_backend.model is old_backend.state_0 is old_backend.state_1 is old_backend.control is None
+        assert sum(isinstance(cfg, newton_manager_module.NewtonBackendCfg) for cfg, _ in sim._backend_registry) == 1
 
         _free_model_collide_arrays_and_churn(old_model, "cuda:0")
 

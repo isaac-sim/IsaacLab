@@ -3,58 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the manager-based cartpole camera environment."""
+
 import math
 
-import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-##
-# Camera presets
-##
-
-
-@configclass
-class CartpoleTiledCameraCfg(PresetCfg):
-    """Tiled-camera presets, one per rendered data type.
-
-    Each variant selects its rendering backend (RTX, OmniverseRTX, Newton + Warp) through the
-    nested :attr:`~BaseCartpoleTiledCameraCfg.renderer_cfg` preset, so a single ``presets=`` selector
-    can pick both the data type and the backend.
-    """
-
-    @configclass
-    class BaseCartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "{ENV_REGEX_NS}/Camera"
-        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
-            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
-        )
-        data_types: list[str] = []
-        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        )
-        width: int = 96
-        height: int = 96
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
-
-    default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
-    depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
-    albedo = BaseCartpoleTiledCameraCfg(data_types=["albedo"])
-    semantic_segmentation = BaseCartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
-    simple_shading_constant_diffuse = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
-    simple_shading_diffuse_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
-    simple_shading_full_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
-    rgb = default
-
+from . import mdp
+from .cartpole_common import CartpoleTiledCameraCfg
+from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 
 ##
 # Scene definition
@@ -124,7 +87,7 @@ class TheiaTinyObservationCfg:
 
     @configclass
     class TheiaTinyFeaturesCameraPolicyCfg(ObsGroup):
-        """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny Transformer"""
+        """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny model."""
 
         image = ObsTerm(
             func=mdp.image_features,
@@ -156,7 +119,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
     @configclass
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
-        """Camera variant of :class:`CartpoleEnvCfg` -- only the fields that differ are overridden."""
+        """Camera variant of :class:`CartpoleEnvCfg`; only the fields that differ are overridden."""
 
         frame_stack: int = 2
         """Number of frames to stack along the channel dimension.
@@ -169,10 +132,11 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
         def __post_init__(self):
             super().__post_init__()
-            # remove ground as it obstructs the camera
+            # remove the ground as it obstructs the camera
             self.scene.ground = None
+            # reset: smaller initial pole angle than the proprioceptive task
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
-            # visualizer camera settings
+            # visualizer settings
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0), lookat=(0.0, 0.0, 0.0))
 
     rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))
