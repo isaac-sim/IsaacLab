@@ -105,7 +105,11 @@ def _cmd_write(args: argparse.Namespace) -> int:
         timestamp=args.timestamp,
         run_id=args.run_id,
     )
-    created = store_mod.write(row)
+    try:
+        created = store_mod.write(row)
+    except metrics_mod.PerfSmokeError as exc:
+        print(f"::warning::perf-smoke: baseline not recorded: {exc}", file=sys.stderr)
+        return 0
     action = "Recorded" if created else "Already recorded"
     print(f"{action} baseline for contract {key.hash} at commit {args.commit[:12]}")
     return 0
