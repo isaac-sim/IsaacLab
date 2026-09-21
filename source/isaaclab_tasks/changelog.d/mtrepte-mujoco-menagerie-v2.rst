@@ -10,3 +10,8 @@ Fixed
 * Fixed the direct-workflow Allegro Hand reorientation task to use the Menagerie joint and
   fingertip body names (``ffj0``, ``ff_tip``, etc.) instead of the stale legacy Allegro asset
   names, which no longer matched the robot's Menagerie-sourced USD asset.
+* Fixed the Spot flat velocity-tracking task configuration to reference ``.*_lleg`` instead of
+  ``.*_foot`` for contact, air-time, slip, and gait reward terms, matching the MuJoCo Menagerie
+  Spot asset's body names (it has no separate foot bodies, the same as ANYmal). The
+  ``foot_clearance`` reward's ``target_height`` was tuned against a foot-tip body and may need
+  re-tuning once the asset gets dedicated foot bodies.
