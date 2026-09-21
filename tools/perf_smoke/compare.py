@@ -5,17 +5,15 @@
 
 """Compare one runtime benchmark against the recent history of comparable runs.
 
-Pure functions only. Everything this module needs is passed in.
-
-A regression must clear both its percentage threshold and the historical noise
-band. A hard floor is separate and always applies if available.
+ASV decides relative regressions and statistical significance. Isaac Lab applies
+the warmup, advisory-metric, and absolute-floor policies around that comparison.
 """
 
 from __future__ import annotations
 
 import statistics
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
 from .contract import Contract, backend_key, valid_backend_keys
@@ -27,18 +25,11 @@ FAIL = "FAIL"
 SKIP = "SKIP"
 ERROR = "ERROR"
 
-#: Robust sigmas a change must reach before it can raise the verdict above PASS.
-MIN_SIGNIFICANCE_SIGMA = 2.0
-
 #: Comparable runs required before the gate will render a verdict.
 MIN_BASELINE_SAMPLES = 3
 
 #: Rows read from the store.
 MAX_BASELINE_SAMPLES = 20
-
-#: Scale factor making the median absolute deviation a consistent estimator of the
-#: standard deviation for normally distributed data.
-_MAD_TO_SIGMA = 1.4826
 
 _SEVERITY = {PASS: 0, SKIP: 0, ERROR: 0, WARN: 1, FAIL: 2}
 
@@ -66,9 +57,6 @@ class MetricResult:
     fail_pct: float | None = None
     hard_floor: float | None = None
     sample_count: int = 0
-    spread_pct: float | None = None
-    significance_sigma: float | None = None
-    significant: bool | None = None
     verdict: str = SKIP
     gating: bool = False
     note: str | None = None
@@ -128,9 +116,11 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
         warn = number(override["warn_regression_pct"], f"per_task_regression_pct.{task}.warn_regression_pct")
     if "fail_regression_pct" in override:
         fail = number(override["fail_regression_pct"], f"per_task_regression_pct.{task}.fail_regression_pct")
-    if fail < warn:
-        raise PerfSmokeError(f"fail_regression_pct must be >= warn_regression_pct for {task}")
-    advisory_only = bool(override.get("advisory_only", False))
+    if not 0 <= warn <= fail < 100:
+        raise PerfSmokeError(f"regression percentages must satisfy 0 <= warn <= fail < 100 for {task}")
+    advisory_only = override.get("advisory_only", False)
+    if not isinstance(advisory_only, bool):
+        raise PerfSmokeError(f"per_task_regression_pct.{task}.advisory_only must be a boolean")
 
     floors = _clean(root.get("hard_floor_fps", {}), "hard_floor_fps")
     by_task = _clean(floors.get(gpu_model, {}), f"hard_floor_fps.{gpu_model}")
@@ -160,102 +150,72 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     return resolved
 
 
-def _floor_note(measured: float, hard_floor: float | None) -> str | None:
-    """Return the breach note when ``measured`` is below ``hard_floor``, else ``None``."""
-    if hard_floor is None or measured >= hard_floor:
-        return None
-    return f"below hard floor {hard_floor:g}"
-
-
-def _robust_spread(values: list[float], center: float) -> float:
-    """Return the scaled median absolute deviation of ``values`` about ``center``."""
-    if len(values) < 2:
-        return 0.0
-    return _MAD_TO_SIGMA * statistics.median(abs(value - center) for value in values)
-
-
 def _evaluate(
     metric: Metric,
-    measured: float,
+    candidates: list[float],
     history: list[float],
     thresholds: Thresholds,
     min_samples: int,
 ) -> MetricResult:
-    """Compare one metric against its history and resolved policy.
-
-    A history too short or too degenerate to compare against yields :data:`SKIP` rather
-    than a verdict, except where the measurement breaches its hard floor.
-    """
-    note = _floor_note(measured, thresholds.hard_floor)
-    # A hard-floor breach still gates even for an advisory-only task
-    floor_breach = note is not None
-
-    if len(history) < min_samples:
-        return MetricResult(
-            name=metric.name,
-            label=metric.label,
-            measured=measured,
-            hard_floor=thresholds.hard_floor,
-            sample_count=len(history),
-            verdict=FAIL if note else SKIP,
-            gating=thresholds.gating or floor_breach,
-            note=note or "insufficient history for this metric",
-        )
-
-    reference = statistics.median(history)
-    sigma = _robust_spread(history, reference)
-
-    if reference == 0:
-        return MetricResult(
-            name=metric.name,
-            label=metric.label,
-            measured=measured,
-            reference=reference,
-            hard_floor=thresholds.hard_floor,
-            sample_count=len(history),
-            verdict=FAIL if note else SKIP,
-            gating=thresholds.gating or floor_breach,
-            note=note or "baseline median is zero",
-        )
-
-    change_pct = (measured - reference) / reference * 100.0
-    # Normalize such that positive regression means worse
-    regression_pct = change_pct if metric.higher_is_worse else -change_pct
-
-    difference = abs(measured - reference)
-    if sigma == 0.0:
-        significant = difference > 0.0
-        sigma_count = None
-    else:
-        sigma_count = difference / sigma
-        significant = sigma_count >= MIN_SIGNIFICANCE_SIGMA
-
-    if note is not None or regression_pct >= thresholds.fail_pct and significant:
-        verdict = FAIL
-    elif regression_pct >= thresholds.warn_pct and significant:
-        verdict = WARN
-    elif regression_pct >= thresholds.warn_pct:
-        verdict = PASS
-        note = "regression within historical noise"
-    else:
-        verdict = PASS
-
-    return MetricResult(
+    """Apply absolute floors, then ASV's significance and strict relative thresholds."""
+    result = MetricResult(
         name=metric.name,
         label=metric.label,
-        measured=measured,
-        reference=reference,
-        regression_pct=regression_pct,
+        measured=statistics.median(candidates),
         warn_pct=thresholds.warn_pct,
         fail_pct=thresholds.fail_pct,
         hard_floor=thresholds.hard_floor,
         sample_count=len(history),
-        spread_pct=(sigma / reference * 100.0) if reference else None,
-        significance_sigma=sigma_count,
-        significant=significant,
-        verdict=verdict,
-        gating=thresholds.gating or floor_breach,
-        note=note,
+        gating=thresholds.gating,
+    )
+    if thresholds.hard_floor is not None:
+        worst = max(candidates) if metric.higher_is_worse else min(candidates)
+        breached = worst > thresholds.hard_floor if metric.higher_is_worse else worst < thresholds.hard_floor
+        if breached:
+            direction = "above" if metric.higher_is_worse else "below"
+            return replace(
+                result,
+                verdict=FAIL,
+                gating=True,
+                note=f"{direction} hard floor {thresholds.hard_floor:g}",
+            )
+
+    if len(history) < min_samples or len(candidates) < 2:
+        return replace(result, note="insufficient independent runs for ASV significance testing")
+
+    reference = statistics.median(history)
+    if reference == 0:
+        return replace(result, reference=reference, note="baseline median is zero")
+
+    # Lazy loading keeps aggregation dependency-free. The internal ASV helper is
+    # version-pinned and covered by the comparison tests.
+    try:
+        from asv.commands.compare import _is_result_better
+        from asv_runner.statistics import compute_stats
+    except ImportError as exc:
+        raise PerfSmokeError("ASV is unavailable; install tools/perf_smoke/requirements.txt") from exc
+
+    # ASV assumes lower is better. Reversing FPS comparisons preserves the
+    # original samples and medians, including zero throughput and even counts.
+    before, after = (history, candidates) if metric.higher_is_worse else (candidates, history)
+    before_value, before_stats = compute_stats(before, 1)
+    after_value, after_stats = compute_stats(after, 1)
+    warned, failed = (
+        _is_result_better(
+            before_value,
+            after_value,
+            (before_stats, before),
+            (after_stats, after),
+            factor=1 + pct / 100 if metric.higher_is_worse else 1 / (1 - pct / 100),
+        )
+        for pct in (thresholds.warn_pct, thresholds.fail_pct)
+    )
+    change_pct = (result.measured - reference) / reference * 100.0
+    return replace(
+        result,
+        reference=reference,
+        regression_pct=change_pct if metric.higher_is_worse else -change_pct,
+        verdict=FAIL if failed else WARN if warned else PASS,
     )
 
 
@@ -315,27 +275,32 @@ def errored(reason: str, label: str = "") -> Report:
 
 def compare(
     contract: Contract,
-    measured: dict[str, float],
+    measurements: list[dict[str, float]],
     history: list[dict[str, float]],
     threshold_config: Any,
     *,
     min_samples: int = MIN_BASELINE_SAMPLES,
     label: str = "",
 ) -> Report:
-    """Compare a measurement against the history of comparable runs.
+    """Compare independent candidate runs against comparable baseline history.
 
     Args:
         contract: Comparability contract for this run.
-        measured: Metric values from :func:`~tools.perf_smoke.metrics.extract`.
+        measurements: Metric mappings from independent candidate runs.
         history: Metric mappings from prior comparable runs, oldest first.
         threshold_config: Parsed ``perf_smoke_thresholds.json``.
         min_samples: Comparable runs required before a verdict is rendered.
+        label: Matrix combination name.
 
     Returns:
         The comparison report: FAIL if any gating metric failed, WARN if any warned,
         SKIP only if every gating metric was skipped, otherwise PASS. Non-gating
         metrics are evaluated and reported, but never change the verdict.
     """
+    if not measurements:
+        raise PerfSmokeError("at least one candidate run is required")
+    if min_samples < 2:
+        raise PerfSmokeError("min_samples must be at least 2 for ASV significance testing")
     thresholds = resolve_thresholds(
         threshold_config,
         str(contract.runtime.get("gpu_model", "")),
@@ -346,7 +311,7 @@ def compare(
     results = tuple(
         _evaluate(
             metric,
-            measured[metric.name],
+            [row[metric.name] for row in measurements],
             [row[metric.name] for row in history if metric.name in row],
             thresholds[metric.name],
             min_samples,
@@ -366,7 +331,7 @@ def compare(
     else:
         verdict = SKIP
     worst = max(gating, key=lambda result: _SEVERITY[result.verdict], default=None)
-    if verdict == FAIL and worst is not None and _floor_note(worst.measured, worst.hard_floor):
+    if verdict == FAIL and worst is not None and worst.hard_floor is not None and worst.note is not None:
         message = f"{worst.label} below hard floor"
     elif verdict == FAIL:
         message = f"Performance regression in {worst.label}" if worst else "Performance regression"

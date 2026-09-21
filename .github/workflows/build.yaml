@@ -931,8 +931,7 @@ jobs:
   performance-smoke:
     name: "performance-smoke (${{ matrix.name }})"
     runs-on: [self-hosted, gpu]
-    # Budget for two attempts plus image pull and cache restore.
-    # Each attempt is bounded individually by `timeout` to prevent starving retry.
+    # Each attempt is bounded by `timeout` within the job's overall budget.
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
@@ -1031,6 +1030,7 @@ jobs:
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
     - name: Run runtime benchmark
+      id: runtime_benchmark
       env:
         BENCHMARK_ARGS: ${{ matrix.args }}
         BENCHMARK_TASK: ${{ matrix.task }}
@@ -1043,10 +1043,20 @@ jobs:
         # World-writable so the in-container user (uid 1000) can populate the cache
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
 
+        container=""
+        cleanup_container() {
+          if [ -n "$container" ]; then
+            docker rm -f "$container" >/dev/null 2>&1 || true
+          fi
+        }
+        trap cleanup_container EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+
         run_attempt() {
           local attempt="$1"
-          local container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${attempt}"
-          docker rm -f "$container" >/dev/null 2>&1 || true
+          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${sample}-${attempt}"
+          cleanup_container
           timeout "${BENCH_TIMEOUT_S}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e OMNI_KIT_ACCEPT_EULA=yes \
             -e ACCEPT_EULA=Y \
@@ -1057,7 +1067,7 @@ jobs:
             --entrypoint bash "$CI_IMAGE_TAG" -lc \
             "set -euo pipefail
             mkdir -p /tmp/benchmark-output
-            ./isaaclab.sh benchmark runtime \
+            uv run --no-sync isaaclab benchmark runtime \
               --task '$BENCHMARK_TASK' \
               --num_envs '$NUM_ENVS' \
               --num_steps 200 \
@@ -1068,23 +1078,31 @@ jobs:
               --visualizer none \
               $BENCHMARK_ARGS"
           local status=$?
-          docker cp "$container:/tmp/benchmark-output/." benchmark-output/ 2>/dev/null || true
-          docker rm -f "$container" >/dev/null 2>&1 || true
-          if [ "$status" -eq 0 ] && ! compgen -G 'benchmark-output/benchmark_runtime_*.json' >/dev/null; then
-            echo "::error::${{ matrix.name }} exited 0 but produced no benchmark JSON"
+          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/sample-${sample}/" 2>/dev/null || true
+          cleanup_container
+          container=""
+          local -a bundles
+          mapfile -t bundles < <(find "benchmark-output/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+          if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
+            echo "::error::${{ matrix.name }} exited 0 but did not produce exactly one benchmark JSON"
             return 1
           fi
           return $status
         }
 
-        if ! run_attempt 1; then
-          echo "::warning::${{ matrix.name }} failed on the first attempt; retrying once"
-          rm -f benchmark-output/benchmark_runtime_*.json
-          if ! run_attempt 2; then
-            echo "::error::${{ matrix.name }} failed on both attempts"
-            exit 1
+        # ASV needs repeated independent runs on both sides for significance tests.
+        # Per-frame samples within one simulation are not independent CI runs.
+        for sample in 1 2 3; do
+          mkdir -p "benchmark-output/sample-${sample}"
+          if ! run_attempt 1; then
+            echo "::warning::${{ matrix.name }} sample ${sample} failed; retrying once"
+            rm -f "benchmark-output/sample-${sample}/"benchmark_runtime_*.json
+            if ! run_attempt 2; then
+              echo "::error::${{ matrix.name }} sample ${sample} failed on both attempts"
+              exit 1
+            fi
           fi
-        fi
+        done
 
     # Only develop pushes publish, so this key is only written at push cadence
     - name: Save warm JIT cache
@@ -1094,10 +1112,15 @@ jobs:
         path: ${{ github.workspace }}/jit-cache
         key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
 
-    # The gate runs on the runner host, not inside the Isaac Sim container, so the
-    # baseline store's SDK goes in a throwaway venv. Everything else in tools/perf_smoke
-    # is standard library.
-    - name: Set up the baseline store client
+    - name: Set up uv for performance comparisons
+      if: always()
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: false
+
+    # The gate runs on the runner host, not inside the Isaac Sim container, so
+    # ASV and the baseline store's SDK go in a throwaway uv environment.
+    - name: Set up ASV and the baseline store client
       if: always()
       # Job status answers "did the benchmark run", the check answers "did it regress".
       # A transient PyPI failure means the gate could not run, degrading to ERROR instead of a failure.
@@ -1106,8 +1129,8 @@ jobs:
       run: |
         set -euo pipefail
         venv="${RUNNER_TEMP}/perf-smoke-venv"
-        python3 -m venv "$venv"
-        "$venv/bin/python" -m pip install -q --disable-pip-version-check \
+        uv venv --python 3.12 "$venv"
+        uv pip install --python "$venv/bin/python" \
           -r tools/perf_smoke/requirements.txt
         echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
 
@@ -1123,21 +1146,17 @@ jobs:
       env:
         # The SAS URL is strictly only read from the environment for security.
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
-        PYTHON: ${{ steps.store_venv.outputs.python }}
+        PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -euo pipefail
-        mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-        if [ "${#results[@]}" -eq 1 ]; then
-          result="${results[0]}"
-        else
-          # Zero bundles (crash or timeout) or several (one attempt emitted more than one)
-          # point compare at a path that cannot exist so it reports ERROR
-          echo "::warning::Expected one runtime benchmark JSON, found ${#results[@]}"
-          result="benchmark-output/benchmark_runtime_MISSING.json"
+        mapfile -t results < <(find benchmark-output -type f -name 'benchmark_runtime_*.json' | sort)
+        if [ "${{ steps.runtime_benchmark.outcome }}" != 'success' ] || [ "${#results[@]}" -ne 3 ]; then
+          echo "::warning::Expected three runtime benchmark JSONs, found ${#results[@]}"
+          results=("benchmark-output/benchmark_runtime_MISSING.json")
         fi
         # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
-        "${PYTHON:-python3}" -m tools.perf_smoke.cli compare \
-          --benchmark_result "$result" \
+        uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
+          --benchmark_result "${results[@]}" \
           --label "${{ matrix.name }}" \
           --output_json benchmark-output/comparison.json \
           | tee -a "$GITHUB_STEP_SUMMARY"
@@ -1146,27 +1165,29 @@ jobs:
     # against the branch it will merge into rather than against a stale snapshot.
     # Writes are create-only under a name derived from the commit and run id.
     - name: Record baseline
-      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      if: ${{ always() && steps.runtime_benchmark.outcome == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
       timeout-minutes: 5
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
-        PYTHON: ${{ steps.store_venv.outputs.python }}
+        PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -euo pipefail
         if [ -z "${ISAACLAB_BLOB_URL:-}" ]; then
           echo "::warning::ISAACLAB_BLOB_URL is not set; no baseline recorded"
           exit 0
         fi
-        mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-        if [ "${#results[@]}" -ne 1 ]; then
-          echo "::error::Expected one runtime benchmark JSON, found ${#results[@]}; no baseline recorded"
+        mapfile -t results < <(find benchmark-output -type f -name 'benchmark_runtime_*.json' | sort)
+        if [ "${#results[@]}" -ne 3 ]; then
+          echo "::error::Expected three runtime benchmark JSONs, found ${#results[@]}; no baseline recorded"
           exit 1
         fi
-        "${PYTHON:-python3}" -m tools.perf_smoke.cli write \
-          --benchmark_result "${results[0]}" \
-          --commit "$GITHUB_SHA" \
-          --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-          --run_id "$GITHUB_RUN_ID"
+        for index in "${!results[@]}"; do
+          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli write \
+            --benchmark_result "${results[$index]}" \
+            --commit "$GITHUB_SHA" \
+            --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --run_id "${GITHUB_RUN_ID}-sample-${index}"
+        done
     - name: Upload performance results
       if: always()
       uses: actions/upload-artifact@v7
@@ -1186,6 +1207,9 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
+    - uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: false
     - uses: actions/download-artifact@v7
       with:
         pattern: performance-smoke-*-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1194,7 +1218,7 @@ jobs:
     - name: Summarise performance comparisons
       run: |
         set -euo pipefail
-        python3 -m tools.perf_smoke.cli aggregate \
+        uv run --no-project python -m tools.perf_smoke.cli aggregate \
           --comparison_dir comparisons \
           | tee -a "$GITHUB_STEP_SUMMARY"
 

@@ -46,17 +46,16 @@ def render(report: Report) -> str:
         "",
         report.message,
         "",
-        "| Metric | Measured | Baseline median | Change | Noise (1σ) | Significance | Warn | Fail | Verdict |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Metric | Measured | Baseline median | Change | Warn | Fail | Verdict |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for metric in report.metrics:
-        significance = "-" if metric.significance_sigma is None else f"{metric.significance_sigma:.2f}σ"
         label = metric.label if metric.gating else f"{metric.label} _(advisory)_"
         verdict = _icon(metric.verdict) if metric.gating else f"{metric.verdict} _(advisory)_"
         note = f" — {metric.note}" if metric.note else ""
         lines.append(
             f"| {label} | {_num(metric.measured)} | {_num(metric.reference)} | {_pct(metric.regression_pct)} | "
-            f"{_pct(metric.spread_pct)} | {significance} | {_pct(metric.warn_pct)} | {_pct(metric.fail_pct)} | "
+            f"{_pct(metric.warn_pct)} | {_pct(metric.fail_pct)} | "
             f"{verdict}{note} |"
         )
 

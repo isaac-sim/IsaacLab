@@ -14,6 +14,8 @@ on:
       # Top-level tools modules and their tests. Deliberately not "tools/**": the
       # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
       - "tools/*.py"
+      - "tools/perf_smoke/**"
+      - "tools/perf_smoke_thresholds.json"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
@@ -64,3 +66,10 @@ jobs:
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v --noconftest
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Test ASV performance comparisons
+        run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt python -m unittest tools.perf_smoke.test_compare

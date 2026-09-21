@@ -11,7 +11,7 @@ Wiring only; every decision lives in :mod:`compare`, :mod:`contract` or
 The container SAS URL is read from ``$ISAACLAB_BLOB_URL``.
 
 Subcommands:
-    ``compare``    compare one benchmark bundle against the baseline store
+    ``compare``    compare independent benchmark runs against the baseline store
     ``write``      record one measurement in the store (develop only)
     ``aggregate``  roll several comparison JSONs into one summary
 """
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -40,16 +41,21 @@ def _load_json(path: Path, name: str) -> dict:
     except OSError as exc:
         # A bad path should surface as a gate error.
         raise metrics_mod.PerfSmokeError(f"{name} could not be read: {path} ({exc})") from exc
-    except json.JSONDecodeError as exc:
-        raise metrics_mod.PerfSmokeError(f"{name} is not valid JSON: {exc}") from exc
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise metrics_mod.PerfSmokeError(f"{name} is not valid UTF-8 JSON: {exc}") from exc
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
     # Split into compare and measure stages such that measurements are preserved.
     try:
-        bundle = _load_json(args.benchmark_result, "benchmark result")
-        key = contract_mod.build(bundle)
-        measured = metrics_mod.extract(bundle)
+        bundles = [_load_json(path, "benchmark result") for path in args.benchmark_result]
+        key = contract_mod.build(bundles[0])
+        if any(not contract_mod.build(bundle).matches(key) for bundle in bundles[1:]):
+            raise metrics_mod.PerfSmokeError("candidate runs have different runtime contracts")
+        measurements = [metrics_mod.extract(bundle) for bundle in bundles]
+        measured = {
+            metric.name: statistics.median(row[metric.name] for row in measurements) for metric in metrics_mod.METRICS
+        }
     except metrics_mod.PerfSmokeError as exc:
         report = compare_mod.errored(str(exc), label=args.label)
         print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
@@ -67,9 +73,15 @@ def _cmd_compare(args: argparse.Namespace) -> int:
             else:
                 rows = store_mod.read(key.hash, compare_mod.MAX_BASELINE_SAMPLES)
                 # The storage key is a truncation of the contract digest; need a full match.
-                history = [row.metrics for row in rows if contract_mod.from_dict(row.contract).matches(key)]
+                expected_contract = key.as_dict()
+                history = [row.metrics for row in rows if row.contract == expected_contract]
                 report = compare_mod.compare(
-                    key, measured, history, thresholds, min_samples=args.min_samples, label=args.label
+                    key,
+                    measurements,
+                    history,
+                    thresholds,
+                    min_samples=args.min_samples,
+                    label=args.label,
                 )
         except metrics_mod.PerfSmokeError as exc:
             report = compare_mod.unresolved(key, measured, compare_mod.ERROR, str(exc), label=args.label)
@@ -144,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     compare_parser = subparsers.add_parser("compare", help="compare a benchmark against the baseline store")
-    compare_parser.add_argument("--benchmark_result", type=Path, required=True)
+    compare_parser.add_argument("--benchmark_result", type=Path, nargs="+", required=True)
     compare_parser.add_argument("--thresholds", type=Path, default=_DEFAULT_THRESHOLDS)
     compare_parser.add_argument("--output_json", type=Path, required=True)
     compare_parser.add_argument("--min_samples", type=int, default=compare_mod.MIN_BASELINE_SAMPLES)

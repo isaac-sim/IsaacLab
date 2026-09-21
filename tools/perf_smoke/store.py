@@ -3,44 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Append-only baseline store, backed by one Azure Blob Storage container.
+"""Create-only Azure baselines configured by ``ISAACLAB_BLOB_URL``.
 
-The store is the only module that performs I/O or touches credentials.
-
-Configuration is a single environment variable, :data:`BLOB_URL_ENV`, holding the
-container SAS URL. That URL already names the account and the container, and the layout
-below is fixed in code, so there is nothing else to configure.
-
-Layout::
-
-    baselines/v1/<contract_hash>/<YYYY-MM>/<commit12>-<run_id>.json
-
-One **immutable blob per measurement**, never an appended log. Three properties of the
-container drive that choice:
-
-* **Delete is not granted.** A single corrupt append-log would poison every read for its
-  contract permanently. One blob per row confines corruption to one sample, which
-  :func:`read` skips with a warning.
-* **Overwrite is granted**, so clobbering is possible. Writing with ``overwrite=False``
-  under a name derived from commit and run id makes it structurally impossible instead,
-  and the name, derived from the commit and run id, makes a re-run of the same CI job
-  record the sample once rather than once per attempt.
-* **Only the key prefix is an index.** Blob storage is a flat key-to-blob map, and
-  blob index tags needs SAS permissions this credential does not carry.
+Each measurement occupies ``baselines/v1/<contract>/<YYYY-MM>/<commit12>-<run_id>.json``.
+Separate blobs isolate corrupt samples; deterministic names make CI retries idempotent
+within a monthly partition. Credentials are read only from the environment.
 """
 
 from __future__ import annotations
 
+import heapq
 import json
 import os
 import re
 import sys
 import time
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from .contract import from_dict
 from .metrics import METRICS, PerfSmokeError, mapping, number
 
 BLOB_PREFIX = "baselines"
@@ -71,7 +55,6 @@ _TOTAL_BUDGET_S = 120
 # Dots are excluded; no way to spell a ".." segment.
 _SAFE_NAME = re.compile(r"[^0-9a-zA-Z_-]+")
 _QUERY = re.compile(r"\?[^\s\"'<>]*")
-_METADATA_KEY = re.compile(r"[^0-9a-zA-Z_]+")
 
 
 def _warn(message: str) -> None:
@@ -142,7 +125,10 @@ def parse_row(data: Any, source: str) -> BaselineRow:
         if metric.name not in stored_metrics:
             continue
         try:
-            values[metric.name] = number(stored_metrics[metric.name], f"{source}.metrics.{metric.name}")
+            value = number(stored_metrics[metric.name], f"{source}.metrics.{metric.name}")
+            if value < 0:
+                raise PerfSmokeError(f"{source}.metrics.{metric.name} must be non-negative")
+            values[metric.name] = value
         except PerfSmokeError as exc:
             # Same treatment as an absent metric. A malformed advisory value must not
             # cost us the gating one recorded beside it, which cannot be re-recorded.
@@ -150,23 +136,19 @@ def parse_row(data: Any, source: str) -> BaselineRow:
     if not values:
         raise PerfSmokeError(f"{source}.metrics contains no recognised metric")
 
+    contract = from_dict(payload.get("contract"))
     contract_hash = payload.get("contract_hash")
-    if not isinstance(contract_hash, str) or not contract_hash.strip():
-        raise PerfSmokeError(f"{source}.contract_hash must be a non-empty string")
+    if contract.hash != contract_hash:
+        raise PerfSmokeError(f"{source}.contract_hash does not match its contract")
 
     return BaselineRow(
-        contract=mapping(payload.get("contract"), f"{source}.contract"),
+        contract=contract.as_dict(),
         contract_hash=contract_hash,
         metrics=values,
         commit=str(payload.get("commit", "")),
         timestamp=str(payload.get("timestamp", "")),
         run_id=str(payload.get("run_id", "")),
     )
-
-
-# ---------------------------------------------------------------------------
-# Layout
-# ---------------------------------------------------------------------------
 
 
 def _slug(value: str, fallback: str) -> str:
@@ -234,19 +216,13 @@ def _row_metadata(row: BaselineRow) -> dict[str, str]:
         candidates["render_backend"] = str(workload.get("render_backend") or "")
     if isinstance(runtime, dict):
         candidates["gpu_model"] = str(runtime.get("gpu_model", ""))
+    # Keys are fixed identifiers; Azure requires ASCII metadata values.
     metadata: dict[str, str] = {}
     for key, value in candidates.items():
-        # Azure metadata keys must be valid C# identifiers; values must be ASCII.
-        safe_key = _METADATA_KEY.sub("_", key).lstrip("0123456789")
-        safe_value = value.encode("ascii", "ignore").decode("ascii").strip()
-        if safe_key and safe_value:
-            metadata[safe_key] = safe_value[:256]
+        value = value.encode("ascii", "ignore").decode("ascii").strip()
+        if value:
+            metadata[key] = value[:256]
     return metadata
-
-
-# ---------------------------------------------------------------------------
-# Container access
-# ---------------------------------------------------------------------------
 
 
 def make_container_client(sas_url: str) -> Any:
@@ -325,25 +301,34 @@ class _Container:
         _check_expiry(sas_url, datetime.now(timezone.utc))
         self._client = make_container_client(sas_url)
 
-    def list_names(self, prefix: str) -> list[str]:
-        """Return the keys under ``prefix``, oldest first."""
+    def close(self) -> None:
+        """Release the SDK's HTTP connection pool."""
+        self._client.close()
+
+    def list_names(self, prefix: str, limit: int) -> list[str]:
+        """Return at most ``limit`` newest keys under ``prefix``, oldest first."""
         from azure.core.exceptions import AzureError
 
         try:
-            blobs = list(self._client.list_blobs(name_starts_with=prefix))
+            blobs = heapq.nlargest(
+                limit,
+                self._client.list_blobs(name_starts_with=prefix),
+                key=lambda blob: (blob.last_modified, blob.name),
+            )
         except AzureError as exc:
             raise PerfSmokeError(_describe(exc, f"listing {prefix}")) from None
-        # last_modified is the creation time here: rows are written once and never updated.
-        blobs.sort(key=lambda blob: (blob.last_modified, blob.name))
-        return [blob.name for blob in blobs]
+        return [blob.name for blob in reversed(blobs)]
 
     def read_text(self, name: str) -> str | None:
-        """Return the blob's contents, or ``None`` when it does not exist."""
+        """Return UTF-8 contents, or ``None`` for missing or undecodable blobs."""
         from azure.core.exceptions import AzureError, ResourceNotFoundError
 
         try:
             return self._client.download_blob(name, encoding="utf-8").readall()
         except ResourceNotFoundError:
+            return None
+        except UnicodeDecodeError as exc:
+            _warn(f"skipping unreadable baseline row {name}: {exc}")
             return None
         except AzureError as exc:
             raise PerfSmokeError(_describe(exc, f"reading {name}")) from None
@@ -359,11 +344,6 @@ class _Container:
         except AzureError as exc:
             raise PerfSmokeError(_describe(exc, f"writing {name}")) from None
         return True
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def read(contract_hash: str, limit: int, now: datetime | None = None) -> list[BaselineRow]:
@@ -387,28 +367,27 @@ def read(contract_hash: str, limit: int, now: datetime | None = None) -> list[Ba
     if limit <= 0:
         raise PerfSmokeError("limit must be a positive integer")
     deadline = time.monotonic() + _TOTAL_BUDGET_S
-    container = _Container()
     base = _contract_prefix(contract_hash)
-
-    names: list[str] = []
-    for month in _months_back(now or datetime.now(timezone.utc), MAX_LOOKBACK_MONTHS):
-        if time.monotonic() > deadline:
-            raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
-        names = container.list_names(f"{base}/{month}/") + names
-        if len(names) >= limit:
-            break
-
     rows: list[BaselineRow] = []
-    for name in names[-limit:]:
-        if time.monotonic() > deadline:
-            raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
-        text = container.read_text(name)
-        if text is None:
-            continue
-        try:
-            rows.append(parse_row(json.loads(text), name))
-        except (PerfSmokeError, json.JSONDecodeError, UnicodeDecodeError) as exc:
-            _warn(f"skipping unreadable baseline row {name}: {exc}")
+    with closing(_Container()) as container:
+        names: list[str] = []
+        for month in _months_back(now or datetime.now(timezone.utc), MAX_LOOKBACK_MONTHS):
+            if time.monotonic() > deadline:
+                raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
+            names = container.list_names(f"{base}/{month}/", limit - len(names)) + names
+            if len(names) == limit:
+                break
+
+        for name in names:
+            if time.monotonic() > deadline:
+                raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
+            text = container.read_text(name)
+            if text is None:
+                continue
+            try:
+                rows.append(parse_row(json.loads(text), name))
+            except (PerfSmokeError, json.JSONDecodeError) as exc:
+                _warn(f"skipping unreadable baseline row {name}: {exc}")
     return rows
 
 
@@ -419,10 +398,11 @@ def write(row: BaselineRow) -> bool:
         row: The measurement to record.
 
     Returns:
-        ``True`` when the row was created, ``False`` when an identical name exits.
+        ``True`` when the row was created, ``False`` when an identical name exists.
 
     Raises:
         PerfSmokeError: If the store cannot be reached or the row cannot be named.
     """
     payload = json.dumps(row.as_dict(), sort_keys=True, separators=(",", ":"))
-    return _Container().create_text(_row_name(row), payload, _row_metadata(row))
+    with closing(_Container()) as container:
+        return container.create_text(_row_name(row), payload, _row_metadata(row))

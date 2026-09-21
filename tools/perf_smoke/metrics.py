@@ -3,18 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Metric vocabulary and validated extraction from a runtime benchmark bundle.
-
-This is the only module that knows the shape of a schema-v1 ``RuntimeBundle``.
-:mod:`contract`, :mod:`store`, :mod:`compare` and :mod:`report` all speak the
-vocabulary defined here, so a schema change lands in one place.
-
-Every metric flows through the whole pipeline -- extracted, stored, compared and
-displayed. :attr:`Metric.gating` is consulted in exactly one place (the verdict
-rollup in :mod:`compare`), so a non-gating metric still produces a visible,
-advisory verdict. Promoting one to gating is a one-line change with historical
-data already behind it.
-"""
+"""Metric definitions and validated extraction from schema-v1 runtime bundles."""
 
 from __future__ import annotations
 

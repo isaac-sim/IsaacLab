@@ -92,7 +92,7 @@ class Contract:
 
     def matches(self, other: Contract) -> bool:
         """Return whether ``other`` may be pooled with this run."""
-        return self.as_dict() == other.as_dict()
+        return self.workload == other.workload and self.runtime == other.runtime
 
 
 def _required_version_names(physics_backend: str, render_backend: str | None) -> tuple[str, ...]:
