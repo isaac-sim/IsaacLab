@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the functions that are specific to the fourbar-pole environments."""
+"""MDP terms specific to the fourbar-pole swing-up environment."""
 
 from isaaclab.utils.module import lazy_export
 

@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
+"""Configuration for the manager-based cartpole environment."""
 
-from isaaclab_newton.physics import (
-    KaminoPADMMSolverCfg,
-    MJWarpSolverCfg,
-    NewtonCfg,
-)
-from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+import math
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -22,46 +16,14 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
-
-
-##
-# Physics backend presets
-##
-
-
-@configclass
-class CartpolePhysicsCfg(PresetCfg):
-    isaacsim_physx: PhysxCfg = PhysxCfg()
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=5,
-            nconmax=3,
-            cone="pyramidal",
-            impratio=1,
-            integrator="implicitfast",
-        ),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-    default: NewtonCfg = newton_mjwarp
-    newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-
+from . import mdp
+from .cartpole_common import LIGHT_ORIENTATION, CartpolePhysicsCfg
 
 ##
 # Scene definition
@@ -82,12 +44,9 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
-    # rot quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
     distant_light = AssetBaseCfg(
         prim_path="/World/DistantLight",
-        init_state=AssetBaseCfg.InitialStateCfg(
-            rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
-        ),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=LIGHT_ORIENTATION),
         spawn=sim_utils.DistantLightCfg(color=(1.0, 1.0, 1.0), intensity=2000.0),
     )
 
@@ -116,7 +75,7 @@ class ObservationsCfg:
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
 
@@ -207,20 +166,19 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
 
-    # Post initialization
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # visualizer camera settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = CartpolePhysicsCfg()
+        # visualizer settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))

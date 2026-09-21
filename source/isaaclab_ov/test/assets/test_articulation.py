@@ -81,6 +81,7 @@ from isaaclab_ov.assets import Articulation  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -402,7 +403,7 @@ def test_heterogeneous_articulation_clone_indexed_state(device, tmp_path):
         expected[selected] = positions
         torch.testing.assert_close(robot.data.joint_pos.torch, expected, atol=1e-4, rtol=0.0)
         for env_id in range(scene.num_envs):
-            binding = sim.physics_manager._physx.create_tensor_binding(
+            binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
                 pattern=f"/World/envs/env_{env_id}/Robot", tensor_type=TT.DOF_POSITION
             )
             try:
@@ -464,7 +465,10 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=[
+                    sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                    PhysxJointCfg(max_joint_velocity=5.0),
+                ],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -487,7 +491,10 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=[
+                    sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                    PhysxJointCfg(max_joint_velocity=5.0),
+                ],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -1910,7 +1917,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = True
+    articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -2019,7 +2026,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = False
+    articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -2766,7 +2773,9 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
@@ -2802,7 +2811,9 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)

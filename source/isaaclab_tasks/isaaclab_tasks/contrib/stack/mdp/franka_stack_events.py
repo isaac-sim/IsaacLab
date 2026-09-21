@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backward-compatible re-exports of the (now robot-neutral) stack event functions.
+"""Backward-compatible re-exports of the robot-neutral stack event terms in :mod:`.stack_events`.
 
-These functions used to live here but are robot-agnostic and shared by every stack robot config,
-so they were moved to :mod:`.stack_events`. This module re-exports them so existing imports
-(``from isaaclab_tasks.contrib.stack.mdp import franka_stack_events``) keep working. New configs
-should import from :mod:`.stack_events` directly.
+New configurations should import from :mod:`.stack_events` directly.
 """
 
 from .stack_events import (

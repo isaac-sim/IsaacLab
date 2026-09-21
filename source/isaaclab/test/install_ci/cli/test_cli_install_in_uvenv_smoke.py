@@ -73,9 +73,11 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
             # ./isaaclab.sh -i core — core set only, no optional extras
             result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
+            output = result.stdout + result.stderr
+            assert "Unknown install token" not in output, f"Unexpected warnings from -i core:\n{output}"
 
             # All core packages should be importable.
-            for pkg in ("isaaclab_assets", "isaaclab_tasks", "isaaclab_rl", "isaaclab_physx"):
+            for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_rl", "isaaclab_physx"):
                 result = self.run_in_uv_env(["python", "-c", f"import {pkg}; print('{pkg} ok')"])
                 assert result.returncode == 0, f"import {pkg} failed:\n{result.stdout}\n{result.stderr}"
 

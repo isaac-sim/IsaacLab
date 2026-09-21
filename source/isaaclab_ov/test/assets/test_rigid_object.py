@@ -189,7 +189,9 @@ def test_heterogeneous_clone_indexed_state(device):
         sim.step()
         scene.update(sim.get_physics_dt())
         # An independent exact-path binding detects a write to the wrong physical object.
-        binding = OvPhysxManager._physx.create_tensor_binding(prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE)
+        binding = OvPhysxManager.get_physx_instance().create_tensor_binding(
+            prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE
+        )
         try:
             actual = torch.empty(binding.shape, device=device)
             binding.read(actual)
@@ -231,17 +233,18 @@ def generate_cubes_scene(
         # since no rigid body properties defined, this is just a static collider
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
     elif api == "rigid_body":
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled),
         )
     elif api == "articulation_root":
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/RigidObject/Cube/dex_cube_instanceable_with_articulation_root.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            # Only tune existing bodies; do not create one on this invalid articulation fixture.
+            rigid_props={"(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled)]},
         )
     else:
         raise ValueError(f"Unknown api: {api}")
@@ -1378,7 +1381,7 @@ def test_warmup_attach_stage_not_called_for_cpu(monkeypatch):
 
         # First reset constructs (or reuses) the real ovphysx.PhysX instance.
         sim.reset()
-        assert OvPhysxManager._physx is not None, "PhysX should be constructed after sim.reset()"
+        assert OvPhysxManager.get_physx_instance() is not None, "PhysX should be constructed after sim.reset()"
 
         warmup_spy = MagicMock()
         monkeypatch.setattr(OvPhysxManager, "_warmup_physx", warmup_spy)

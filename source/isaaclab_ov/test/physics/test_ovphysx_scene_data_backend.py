@@ -22,6 +22,16 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 
 @pytest.fixture(autouse=True)
+def _native_backend(monkeypatch):
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager
+
+    backend = OvPhysxBackend.__new__(OvPhysxBackend)
+    backend.physx = None
+    backend.stage = None
+    monkeypatch.setattr(OvPhysxManager, "backend", backend)
+
+
+@pytest.fixture(autouse=True)
 def _close_test_views():
     from isaaclab_ov.sim.views import OvPhysxView
 
@@ -345,10 +355,11 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
         OvPhysxManager._pending_clones = previous
 
 
-def test_manager_resets_full_stage_requirement_between_contexts():
+def test_manager_resets_full_stage_requirement_between_contexts(monkeypatch):
     """Closing a manager context resets the full-stage requirement."""
     from isaaclab_ov.physics import OvPhysxManager
 
+    monkeypatch.setattr(OvPhysxManager, "backend", None)
     OvPhysxManager.require_full_stage()
     OvPhysxManager.close()
     assert OvPhysxManager._requires_full_stage is False
@@ -362,7 +373,7 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
     calls = []
     monkeypatch.setattr(OvPhysxManager, "_warmup_done", False)
-    monkeypatch.setattr(OvPhysxManager, "_ovstage", object())
+    OvPhysxManager.backend.stage = object()
     monkeypatch.setattr(OvPhysxManager, "_warmup_and_load", lambda: calls.append("warmup"))
     monkeypatch.setattr(
         OvPhysxManager,
@@ -376,12 +387,18 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("device", "gpu_index", "expected_cpu_mode", "expected_active_cuda_gpus"),
-    [("cpu", 0, True, None), ("gpu", 2, False, "2")],
+    ("device", "expected_cpu_mode", "expected_active_cuda_gpus"),
+    [("cpu", True, None), ("cuda:2", False, "2")],
 )
-def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus):
+@pytest.mark.parametrize("use_env_ids", [True, False])
+def test_manager_supports_pinned_runtime_api(
+    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus, use_env_ids
+):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
-    from isaaclab_ov.physics import OvPhysxManager
+    import isaaclab_ov.physics.ovphysx_manager as module
+    from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
+
+    from isaaclab.physics import PhysicsManager
 
     cache_dir = str(tmp_path / "cooked_colliders")
 
@@ -399,6 +416,9 @@ def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expect
         def step_sync(self, *, dt):
             self.calls.append(("step_sync", dt))
 
+        def update_articulations_kinematic(self):
+            self.calls.append(("update_articulations_kinematic",))
+
         def reset_stage(self):
             self.calls.append(("reset_stage",))
             return 23
@@ -414,17 +434,26 @@ def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expect
             carbonite_overrides=carbonite_overrides,
         )
 
-    runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config)
+    runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
+    monkeypatch.setattr(module, "import_ovphysx", lambda: runtime)
 
-    physx = OvPhysxManager._create_physx_instance(runtime, device, gpu_index, cache_dir)
-    OvPhysxManager._step_physx(physx, dt=0.02)
-    OvPhysxManager._reset_physx_stage(physx)
+    backend = module.OvPhysxBackend(
+        OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir, use_env_ids=use_env_ids)
+    )
+    physx = backend.physx
+    OvPhysxManager.backend.physx = physx
+    monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0)
+    OvPhysxManager.step()
+    OvPhysxManager._prepare_physx_for_stage_reuse()
 
     assert PinnedPhysX.cpu_mode is expected_cpu_mode
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
-    assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
+    assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is use_env_ids
+    assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
+    assert PhysicsManager._sim_time == 0.02
 
 
 def test_manager_serializes_env0_only_stage_in_memory(caplog):
@@ -519,7 +548,7 @@ def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
 
 
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
-    """The manager owns OVStage from population through PhysX release."""
+    """The registered resource releases the attached OVStage once, after PhysX."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
     from isaaclab_ov.physics import OvPhysxManager
 
@@ -569,23 +598,17 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     # the same ovstage configuration; that is the seam to fake, not ``ovstage.Stage``.
     monkeypatch.setattr(om_mod, "create_ovstage", FakeStage)
 
-    previous_physx = OvPhysxManager._physx
-    previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
     physx = FakePhysX()
-    OvPhysxManager._physx = physx
-    OvPhysxManager._ovstage = None
+    OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(
-        OvPhysxManager,
-        "_close_physx_views",
-        staticmethod(lambda value: events.append(("close_views", value))),
+        om_mod.OvPhysxView,
+        "_close_all_for",
+        lambda value: events.append(("close_views", value)),
     )
-    try:
-        OvPhysxManager._attach_ovstage("#usda 1.0")
-        stage = OvPhysxManager._ovstage
-        OvPhysxManager._release_physx()
-    finally:
-        OvPhysxManager._physx = previous_physx
-        OvPhysxManager._ovstage = previous_ovstage
+    OvPhysxManager._attach_ovstage("#usda 1.0")
+    stage = OvPhysxManager.backend.stage
+    OvPhysxManager.backend.close()
+    OvPhysxManager.backend.close()
 
     # The seal must land between population and attach: ovphysx reads sealed data
     # only, so attaching at an unsealed ordinal silently yields an empty scene.
@@ -620,11 +643,14 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
         warmup_gpu=lambda: calls.append("warmup_gpu"),
         destroy=lambda: calls.append("destroy"),
         release=lambda: calls.append("release"),
+        reset_stage=lambda: None,
+        wait_op=lambda op: None,
     )
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
     OvPhysxManager._warmup_physx(physx)
-    OvPhysxManager._destroy_physx(physx)
+    OvPhysxManager.backend.physx = physx
+    OvPhysxManager.backend.close()
 
     assert calls == expected_calls
 
@@ -637,65 +663,41 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
 
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
     entry_point = _CURRENT_LIFECYCLE_ENTRY_POINTS[operation]
-    lifecycle_method = getattr(OvPhysxManager, f"_{operation}_physx")
     with pytest.raises(AttributeError, match=rf"selected {entry_point}\(\) lifecycle entry point"):
-        lifecycle_method(SimpleNamespace())
+        if operation == "warmup":
+            OvPhysxManager._warmup_physx(SimpleNamespace())
+        else:
+            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_op=lambda op: None)
+            OvPhysxManager.backend.close()
 
 
-def test_manager_releases_legacy_owners_after_release_error(monkeypatch):
-    """The 0.5.11 path preserves its unconditional owner cleanup on failure."""
-    from isaaclab_ov.physics import OvPhysxManager
+@pytest.mark.parametrize(
+    ("entry_points", "retryable"),
+    [
+        pytest.param(_LEGACY_LIFECYCLE_ENTRY_POINTS, False, id="legacy-release-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, False, id="terminal-destroy-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, True, id="retryable-destroy-error"),
+    ],
+)
+def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry_points, retryable):
+    """Terminal errors free native owners; pre-teardown errors retain them for the next close."""
+    from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
-    events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
-
-    class FakePhysX:
-        def reset_stage(self):
-            events.append("reset")
-            return 23
-
-        def wait_op(self, operation):
-            events.append(("wait", operation))
-
-        def release(self):
-            events.append("release")
-            raise RuntimeError("legacy release failed")
-
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
-
-    previous_physx = OvPhysxManager._physx
-    previous_ovstage = OvPhysxManager._ovstage
-    OvPhysxManager._physx = FakePhysX()
-    OvPhysxManager._ovstage = FakeStage()
-    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: events.append("close_views")))
-    try:
-        with pytest.raises(RuntimeError, match="legacy release failed"):
-            OvPhysxManager._release_physx()
-
-        assert OvPhysxManager._physx is None
-        assert OvPhysxManager._ovstage is None
-        assert events == ["close_views", "reset", ("wait", 23), "release", "destroy_stage"]
-    finally:
-        OvPhysxManager._physx = previous_physx
-        OvPhysxManager._ovstage = previous_ovstage
-
-
-def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
-    """A pre-teardown destroy failure preserves the runtime and stage for retry."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.sim import SimulationContext
 
     events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
     class FakePhysX:
         fail_destroy = True
+        terminal = False
 
         @property
         def handle(self):
+            if self.terminal:
+                raise RuntimeError("PhysX instance has been destroyed")
             return 17
 
         def reset_stage(self):
@@ -708,93 +710,49 @@ def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
         def destroy(self):
             events.append("destroy")
             if self.fail_destroy:
-                raise RuntimeError("destroy did not reach native teardown")
+                self.terminal = not retryable
+                raise RuntimeError("native teardown failed")
 
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
+        def release(self):
+            events.append("release")
+            raise RuntimeError("native teardown failed")
 
     physx = FakePhysX()
-    stage = FakeStage()
-    previous_physx = OvPhysxManager._physx
-    previous_ovstage = OvPhysxManager._ovstage
-    OvPhysxManager._physx = physx
-    OvPhysxManager._ovstage = stage
-    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: events.append("close_views")))
-    try:
-        with pytest.raises(RuntimeError, match="did not reach native teardown"):
-            OvPhysxManager._release_physx()
+    stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
+    OvPhysxManager.backend.physx = physx
+    OvPhysxManager.backend.stage = stage
+    backend = OvPhysxManager.backend
+    cfg = OvPhysxBackendCfg(device="cpu")
+    sim = SimpleNamespace(
+        _backend_registry=[(cfg, backend)],
+        physics_manager=OvPhysxManager,
+    )
+    sim.close_backend = SimulationContext.close_backend.__get__(sim)
+    monkeypatch.setattr(SimulationContext, "_instance", sim)
+    for name in ("_cfg", "_sim_time"):
+        monkeypatch.setattr(PhysicsManager, name, getattr(PhysicsManager, name))
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    monkeypatch.setattr(PhysicsManager, "_callbacks", {})
+    monkeypatch.setattr(PhysicsManager, "views", {})
+    monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: events.append("close_views"))
+    with pytest.raises(RuntimeError, match="native teardown failed"):
+        OvPhysxManager.close()
 
-        assert OvPhysxManager._physx is physx
-        assert OvPhysxManager._ovstage is stage
+    assert PhysicsManager._sim is None
+    assert sim._backend_registry == [(cfg, backend)]
+    assert backend.physx is (physx if retryable else None)
+    assert backend.stage is (stage if retryable else None)
 
-        physx.fail_destroy = False
-        OvPhysxManager._release_physx()
+    teardown = ["close_views", "reset", ("wait", 23), entry_points["destroy"]]
+    assert events == teardown + ([] if retryable else ["destroy_stage"])
 
-        assert OvPhysxManager._physx is None
-        assert OvPhysxManager._ovstage is None
-        assert events == [
-            "close_views",
-            "reset",
-            ("wait", 23),
-            "destroy",
-            "close_views",
-            "reset",
-            ("wait", 23),
-            "destroy",
-            "destroy_stage",
-        ]
-    finally:
-        OvPhysxManager._physx = previous_physx
-        OvPhysxManager._ovstage = previous_ovstage
+    physx.fail_destroy = False
+    OvPhysxManager.close()
 
-
-def test_manager_releases_owners_after_terminal_destroy_error(monkeypatch):
-    """A destroy error after terminal teardown does not retain dead owners."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
-
-    class FakePhysX:
-        terminal = False
-
-        @property
-        def handle(self):
-            if self.terminal:
-                raise RuntimeError("PhysX instance has been destroyed")
-            return 17
-
-        def reset_stage(self):
-            return 23
-
-        def wait_op(self, operation):
-            pass
-
-        def destroy(self):
-            self.terminal = True
-            raise RuntimeError("native teardown reported a terminal failure")
-
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
-
-    previous_physx = OvPhysxManager._physx
-    previous_ovstage = OvPhysxManager._ovstage
-    OvPhysxManager._physx = FakePhysX()
-    OvPhysxManager._ovstage = FakeStage()
-    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: None))
-    try:
-        with pytest.raises(RuntimeError, match="terminal failure"):
-            OvPhysxManager._release_physx()
-
-        assert OvPhysxManager._physx is None
-        assert OvPhysxManager._ovstage is None
-        assert events == ["destroy_stage"]
-    finally:
-        OvPhysxManager._physx = previous_physx
-        OvPhysxManager._ovstage = previous_ovstage
+    assert OvPhysxManager.backend is None
+    assert not sim._backend_registry
+    assert backend.physx is None and backend.stage is None
+    assert events == teardown * (2 if retryable else 1) + ["destroy_stage"]
 
 
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
@@ -820,14 +778,9 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
     monkeypatch.setattr(om_mod, "create_ovstage", FakeStage)
 
-    previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
-    OvPhysxManager._ovstage = None
-    try:
-        with pytest.raises(RuntimeError, match="population failed"):
-            OvPhysxManager._attach_ovstage("#usda 1.0")
-        assert OvPhysxManager._ovstage is None
-    finally:
-        OvPhysxManager._ovstage = previous_ovstage
+    with pytest.raises(RuntimeError, match="population failed"):
+        OvPhysxManager._attach_ovstage("#usda 1.0")
+    assert OvPhysxManager.backend.stage is None
 
     assert destroyed == ["isaaclab"]
 

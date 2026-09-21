@@ -150,7 +150,7 @@ class gear_shaft_quat_w(ManagerTermBase):
         asset_cfg: The asset configuration for the gear base. Defaults to SceneEntityCfg("factory_gear_base").
 
     Returns:
-        Gear shaft orientation tensor as a quaternion (w, x, y, z) with shape (num_envs, 4).
+        Gear shaft orientation tensor as a quaternion (x, y, z, w) with shape (num_envs, 4).
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -270,7 +270,7 @@ class gear_quat_w(ManagerTermBase):
     the w component is positive, reducing observation variation for the policy.
 
     Returns:
-        Gear orientation tensor as a quaternion (w, x, y, z) with shape (num_envs, 4).
+        Gear orientation tensor as a quaternion (x, y, z, w) with shape (num_envs, 4).
 
     Raises:
         RuntimeError: If the gear type manager is not initialized in the environment.
