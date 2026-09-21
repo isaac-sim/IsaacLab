@@ -249,7 +249,7 @@ def _context_rows(
             rows_by_context.setdefault(context_type, set()).update(rows)
 
     if UsdReplicateContext in rows_by_context:
-        sim.get_or_create_backend(UsdReplicateContext, sim.stage)
+        sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(sim.stage)
     return {
         context_type: tuple(sorted(rows & populated_rows))
         for context_type, rows in rows_by_context.items()

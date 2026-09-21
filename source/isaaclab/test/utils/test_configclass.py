@@ -806,6 +806,20 @@ def test_multiple_instances_with_replace():
     assert cfg1.to_dict() == cfg2.to_dict()
 
 
+def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
+    @configclass
+    class NativeCfg(ViewerCfg):
+        handle: object = field(kw_only=True, metadata={"copy": False})
+
+    handle = object()
+    cfg = NativeCfg(handle=handle)
+    assert cfg.handle is handle
+    for copied in (cfg.copy(), cfg.replace(eye=[1.0, 2.0, 3.0])):
+        assert copied.handle is handle
+        assert copied.eye is not cfg.eye
+        assert copied.lookat is not cfg.lookat
+
+
 def test_alter_values_multiple_instances_wth_replace():
     """Test alterations in multiple instances through replace function."""
     # create two config instances
