@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+19.1.0 (2026-09-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.rewards.survival_success_rate`, :func:`~isaaclab.envs.mdp.rewards.terminated_penalty`
+  and :func:`~isaaclab.envs.mdp.rewards.joint_pos_target_l2` reward terms, previously duplicated across the cartpole,
+  locomotion and DR-legs task packages.
+* Added :class:`~isaaclab.envs.mdp.curriculums.DifficultyScheduler` and
+  :func:`~isaaclab.envs.mdp.curriculums.initial_final_interpolate_fn` for adaptive domain randomization curricula,
+  previously local to the lift task package. The scheduler reads the success flag from the reward term named by the new
+  ``success_term_name`` parameter (default ``"success"``).
+
+Fixed
+^^^^^
+
+* Clarified that binary joint and surface-gripper actions use ``True`` or non-negative values to open
+  and ``False`` or negative values to close.
+* Fixed :func:`~isaaclab.envs.multi_agent_to_single_agent` to expose the terminal observations that
+  :class:`~isaaclab.envs.DirectMARLEnv` captures per agent (``extras[agent]["final_obs"]``, see
+  :attr:`~isaaclab.envs.DirectMARLEnvCfg.compute_final_obs`) as the concatenated single-agent
+  ``extras["final_obs"]`` entry, so single-agent RL wrappers bootstrap time-outs of converted multi-agent tasks
+  correctly. The converted environment now also exposes :attr:`extras` like :class:`~isaaclab.envs.DirectRLEnv`.
+* Fixed the ``-t``, ``--new``, and ``--docker`` CLI commands exiting with code 0 when their
+  underlying Python command failed.
+
+
 19.0.0 (2026-09-20)
 ~~~~~~~~~~~~~~~~~~~
 
