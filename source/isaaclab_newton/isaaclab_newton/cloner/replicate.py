@@ -18,7 +18,9 @@ from newton import ModelBuilder
 
 from pxr import Usd
 
+from isaaclab.cloner import ClonePlan
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -27,11 +29,10 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
-from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_plan
+from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
 
 
@@ -92,140 +93,129 @@ def newton_builder_world_hook(
             hooks.remove(hook)
 
 
-def _build_newton_builder_from_mapping(
+def _replicate_newton(
     stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
-    env_ids: np.ndarray,
-    mapping: np.ndarray,
-    positions: np.ndarray | None = None,
-    quaternions: np.ndarray | None = None,
+    plan: ClonePlan,
+    rows: tuple[int, ...],
+    sim: SimulationContext,
+    *,
     up_axis: str = "Z",
-    load_visual_shapes: bool = True,
-    global_paths: tuple[str, ...] = (),
-) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder], list[tuple[str, int]]]:
-    """Build a Newton model builder from clone mapping inputs and retain its source builders."""
+    quaternions: np.ndarray | None = None,
+) -> tuple[ModelBuilder, object, dict]:
+    """Import and replicate the plan's Newton representation, with or without Newton physics."""
+    cfg = sim.cfg.physics
+    simulation = isinstance(cfg, NewtonCfg)
+    sources = tuple(plan.sources[row] for row in rows)
+    positions = plan.positions
     if positions is None:
-        positions = np.zeros((mapping.shape[1], 3), dtype=np.float32)
+        positions = np.zeros((len(plan.env_ids), 3), dtype=np.float32)
     if quaternions is None:
-        quaternions = np.zeros((mapping.shape[1], 4), dtype=np.float32)
+        quaternions = np.zeros((len(plan.env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    manager_cls = PhysicsManager._sim.physics_manager
+    manager_cls = sim.physics_manager if simulation else NewtonManager
     schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
+    create_builder = partial(manager_cls.create_builder if simulation else ModelBuilder, up_axis=up_axis)
+    load_visual_shapes = cfg.load_visual_shapes if simulation else True
+    if load_visual_shapes is None:
+        load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
+    builder = create_builder()
+    import_paths = (sim.cfg.physics_prim_path, *plan.global_paths) if simulation else plan.global_paths
+    if simulation:
+        global_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+        # Native deformables are appended by per-world hooks, not the USD importer.
+        patterns = tuple(
+            re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in NewtonManager._deformable_registry
+        )
+        ignore_paths = []
+        if patterns:
+            for source in sources:
+                for prim in Usd.PrimRange(stage.GetPrimAtPath(source)):
+                    path = str(prim.GetPath())
+                    if any(pattern.fullmatch(path) for pattern in patterns):
+                        ignore_paths.append(path)
+    else:
+        entries = discover_deformables_on_stage(stage, root_paths=(*sources, *plan.global_paths))
+        ignore_paths = list(
+            dict.fromkeys(
+                path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
+            )
+        )
+        global_ignore_paths = [*plan.sources, *ignore_paths]
 
-    builder = manager_cls.create_builder(up_axis=up_axis)
-    import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
-    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
     import_results = []
     for root_path in import_paths:
         import_result = builder.add_usd(
             stage,
             root_path=root_path,
-            ignore_paths=hf_ignore_paths,
+            ignore_paths=global_ignore_paths,
             schema_resolvers=schema_resolvers,
             load_visual_shapes=load_visual_shapes,
+            skip_mesh_approximation=not simulation,
         )
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
         import_results.append(import_result)
-    stage_info = import_results[0]
-    replace_newton_builder_shape_colors(builder, stage)
+    if simulation:
+        replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
-
-    # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
-    # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
-    # can skip them via ignore_paths.
-    deformable_patterns = tuple(
-        re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in NewtonManager._deformable_registry
-    )
-    deformable_ignore_paths = []
-    if deformable_patterns:
-        for source in sources:
-            for child in Usd.PrimRange(stage.GetPrimAtPath(source)):
-                child_path = str(child.GetPath())
-                if any(pattern.fullmatch(child_path) for pattern in deformable_patterns):
-                    deformable_ignore_paths.append(child_path)
 
     source_builders = build_source_builders(
         stage,
         sources,
-        lambda: manager_cls.create_builder(up_axis=up_axis),
+        create_builder,
         schema_resolvers,
-        ignore_paths=deformable_ignore_paths or None,
+        ignore_paths=ignore_paths,
         load_visual_shapes=load_visual_shapes,
+        skip_mesh_approximation=not simulation,
     )
 
-    # Inject registered sites into source builders (and global sites into main builder).
-    global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
+    if simulation:
+        global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
+    else:
+        # Clear imported filters before merging into a fresh, compact final filter store.
+        global_builder = builder
+        for imported in (global_builder, *source_builders.values()):
+            imported.shape_collision_filter_pairs = []
+            imported.shape_collision_group[:] = [0] * imported.shape_count
+        builder = create_builder()
+        builder.add_builder(global_builder)
+        global_sites, source_sites, root_sites = {}, {}, {}
 
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
         builder=builder,
         sources=sources,
-        mapping=mapping,
+        mapping=plan.clone_mask[list(rows)],
         positions=positions,
         quaternions=quaternions,
         source_builders=source_builders,
-        destinations=destinations,
-        env_ids=env_ids,
+        destinations=tuple(plan.destinations[row] for row in rows),
+        env_ids=plan.env_ids,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
-        per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
+        per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    return builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings
-
-
-def _renderer_wants_visual_shapes() -> bool:
-    """Whether anything in this run will draw the Newton model's visual-only shapes.
-
-    Visual shapes are consumed by the viewers, offscreen ``rgb_array`` capture, and camera
-    sensors on any renderer backend. A headless training run without cameras draws none of
-    them, so importing them only costs USD parse time and memory.
-    """
-    sim = PhysicsManager._sim
-    if sim is None:
-        return True
-    return bool(sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required)
-
-
-def _replicate_newton(
-    stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
-    env_ids: np.ndarray,
-    mapping: np.ndarray,
-    positions: np.ndarray | None,
-    quaternions: np.ndarray | None,
-    up_axis: str,
-    load_visual_shapes: bool,
-    global_paths: tuple[str, ...],
-) -> tuple[ModelBuilder, object, dict]:
-    """Build one Newton model and publish its plan-derived lookup data."""
-    builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings = (
-        _build_newton_builder_from_mapping(
-            stage=stage,
-            sources=sources,
-            destinations=destinations,
-            env_ids=env_ids,
-            mapping=mapping,
-            positions=positions,
-            quaternions=quaternions,
-            up_axis=up_axis,
-            load_visual_shapes=load_visual_shapes,
-            global_paths=global_paths,
+    if simulation:
+        NewtonManager._cl_site_index_map = site_index_map
+        NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
+        NewtonManager._world_xforms = world_xforms
+        NewtonManager._cl_protos = source_builders
+        NewtonManager.set_builder(builder)
+        NewtonManager._num_envs = len(plan.env_ids)
+    else:
+        geometry = add_shadow_deformables_to_builder(builder, stage, entries, plan, rows, device=sim.device)
+        backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
+        sim.physics_manager.register_callback(
+            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),
+            PhysicsEvent.PHYSICS_READY,
+            name="newton_visualization_model",
+            wrap_weak_ref=False,
         )
-    )
-    NewtonManager._cl_site_index_map = site_index_map
-    NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
-    NewtonManager._world_xforms = world_xforms
-    NewtonManager._cl_protos = source_builders
-    NewtonManager.set_builder(builder)
-    NewtonManager._num_envs = mapping.shape[1]
-    return builder, stage_info, site_index_map
+    return builder, import_results[0] if simulation else None, site_index_map
 
 
 class NewtonReplicateContext:
@@ -242,35 +232,7 @@ class NewtonReplicateContext:
         """Build and publish a Newton model from this context's plan rows."""
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
-        cfg = self._sim.cfg.physics
-        if not isinstance(cfg, NewtonCfg):
-            builder, geometry = build_visualization_builder_from_plan(
-                self._sim.stage, plan, rows, up_axis=self.up_axis, device=self._sim.device
-            )
-            backend_cfg = NewtonBackendCfg(
-                builder=builder, device=self._sim.device, num_envs=len(plan.env_ids), simulation=False
-            )
-            self._sim.physics_manager.register_callback(
-                partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),
-                PhysicsEvent.PHYSICS_READY,
-                name="newton_visualization_model",
-                wrap_weak_ref=False,
-            )
-            return builder, None, {}
-        load_visual_shapes = cfg.load_visual_shapes
-        return _replicate_newton(
-            stage=self._sim.stage,
-            sources=tuple(plan.sources[row] for row in rows),
-            destinations=tuple(plan.destinations[row] for row in rows),
-            env_ids=plan.env_ids,
-            mapping=plan.clone_mask[list(rows)],
-            positions=plan.positions,
-            quaternions=None,
-            up_axis=self.up_axis,
-            load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
-            global_paths=plan.global_paths,
-        )
+        return _replicate_newton(self._sim.stage, plan, plan.context_rows[type(self)], self._sim, up_axis=self.up_axis)
 
 
 def newton_physics_replicate(
@@ -300,18 +262,15 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    cfg = PhysicsManager._cfg
-    load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
-    builder, stage_info, _ = _replicate_newton(
-        stage=stage,
-        sources=sources,
-        destinations=destinations,
+    plan = ClonePlan(
+        sources=tuple(sources),
+        destinations=tuple(destinations),
         env_ids=env_ids,
-        mapping=mapping,
+        clone_mask=mapping,
         positions=positions,
-        quaternions=quaternions,
-        up_axis=up_axis,
-        load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
         global_paths=global_paths,
+    )
+    builder, stage_info, _ = _replicate_newton(
+        stage, plan, tuple(range(len(sources))), PhysicsManager._sim, up_axis=up_axis, quaternions=quaternions
     )
     return builder, stage_info

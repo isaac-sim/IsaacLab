@@ -135,19 +135,13 @@ class _FakeShadowBuilder:
         cloth_delta: int = 1,
         soft_delta: int = 4,
         reject_soft: bool = False,
-        body_count: int = 0,
-        track_usd: bool = False,
     ):
         self.particle_count = particle_count
         self.cloth_calls = 0
         self.soft_calls = 0
-        self.body_count = body_count
-        self.ignore_paths = None
-        self.usd_roots = []
         self._cloth_delta = cloth_delta
         self._soft_delta = soft_delta
         self._reject_soft = reject_soft
-        self._track_usd = track_usd
         self._captured: dict = {}
 
     def add_cloth_mesh(self, **kwargs):
@@ -161,13 +155,6 @@ class _FakeShadowBuilder:
         self.soft_calls += 1
         self.particle_count += self._soft_delta
         self._captured.update(kwargs)
-
-    def add_usd(self, stage, schema_resolvers=None, ignore_paths=None, **kwargs):
-        if not self._track_usd:
-            raise AssertionError("add_usd was not expected")
-        self.ignore_paths = list(ignore_paths or [])
-        self.usd_roots.append(kwargs["root_path"])
-        return {"path_shape_map": {}}
 
     @property
     def captured(self) -> dict:
@@ -252,6 +239,9 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     from isaaclab_newton.cloner import NewtonReplicateContext
     from isaaclab_newton.cloner import replicate as replicate_module
     from isaaclab_newton.physics import NewtonManager
+    from newton import ModelBuilder
+
+    from pxr import Usd, UsdGeom
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
     from isaaclab.sim import SimulationContext
@@ -271,34 +261,33 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     )
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-    sim.stage = object()
+    sim.stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
     sim.physics_manager = ForeignPhysicsManager
     sim._backend_registry = []
     sim._scene_data_provider = SimpleNamespace(backend=object(), point_count=0)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
-    builder = SimpleNamespace(
-        body_count=body_count,
-        particle_count=particle_count,
-        finalize=Mock(
-            side_effect=lambda device: SimpleNamespace(
-                body_count=body_count,
-                particle_count=particle_count,
-                world_count=2,
-                state=lambda: SimpleNamespace(body_q=None, particle_q=None),
-            )
-        ),
+    finalize = Mock(
+        side_effect=lambda device: SimpleNamespace(
+            body_count=body_count,
+            particle_count=particle_count,
+            world_count=2,
+            state=lambda: SimpleNamespace(body_q=None, particle_q=None),
+        )
     )
-    build = Mock(return_value=(builder, ([], [])))
-    monkeypatch.setattr(replicate_module, "build_visualization_builder_from_plan", build)
+    monkeypatch.setattr(ModelBuilder, "finalize", finalize)
+    build = Mock(wraps=replicate_module._replicate_newton)
+    monkeypatch.setattr(replicate_module, "_replicate_newton", build)
     context = NewtonReplicateContext(sim)
     assert NewtonManager.get_model() is None
     assert NewtonManager.get_state() is None
     build.assert_not_called()
 
-    assert context.replicate(plan)[0] is builder
-    build.assert_called_once_with(sim.stage, plan, (0,), up_axis="Z", device="cpu")
-    builder.finalize.assert_not_called()
+    builder, _, _ = context.replicate(plan)
+    assert isinstance(builder, ModelBuilder)
+    build.assert_called_once_with(sim.stage, plan, (0,), sim, up_axis="Z")
+    finalize.assert_not_called()
     assert not sim._backend_registry
 
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -309,14 +298,14 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     assert NewtonManager.get_state() is first_state
     assert (first_model.body_count, first_model.particle_count) == (body_count, particle_count)
     assert first_model.num_envs == NewtonManager.get_num_envs() == 2
-    builder.finalize.assert_called_once_with(device="cpu")
+    finalize.assert_called_once_with(device="cpu")
 
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
     assert NewtonManager.get_model() is None and NewtonManager.get_state() is None
     assert not sim._backend_registry
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
     assert NewtonManager.get_model() is not first_model
-    assert builder.finalize.call_count == 2
+    assert finalize.call_count == 2
     assert build.call_count == 1
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
 
@@ -639,7 +628,7 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
     stage = _make_volume_soft_stage()
     builder = _FakeShadowBuilder(cloth_delta=1, soft_delta=4)
     entries = discover_deformables_on_stage(stage, root_paths=_SINGLE_ENV_PLAN.sources)
-    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, entries, _SINGLE_ENV_PLAN)
+    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, entries, _SINGLE_ENV_PLAN, (0,))
 
     assert builder.cloth_calls == 1
     assert builder.soft_calls == 0
@@ -660,7 +649,9 @@ def test_shadow_deformable_volume_remap_failure_falls_back_to_soft_mesh(monkeypa
     monkeypatch.setattr(vd, "_build_volume_vis_remap", lambda entry, device: None)
     builder = _FakeShadowBuilder(cloth_delta=1, soft_delta=4)
     entries = discover_deformables_on_stage(stage, root_paths=_SINGLE_ENV_PLAN.sources)
-    flat_entities, registry_groups = vd.add_shadow_deformables_to_builder(builder, stage, entries, _SINGLE_ENV_PLAN)
+    flat_entities, registry_groups = vd.add_shadow_deformables_to_builder(
+        builder, stage, entries, _SINGLE_ENV_PLAN, (0,)
+    )
 
     assert builder.cloth_calls == 0
     assert builder.soft_calls == 1
@@ -699,45 +690,60 @@ def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
         vis_indices=[0, 1, 2],
     )
     builder = _FakeShadowBuilder(cloth_delta=3, reject_soft=True)
-    vd.add_shadow_deformables_to_builder(builder, stage, [entry], _SINGLE_ENV_PLAN)
+    vd.add_shadow_deformables_to_builder(builder, stage, [entry], _SINGLE_ENV_PLAN, (0,))
 
     # Parent world translation is (10,0,0); root's extra (2,0,0) must not be used as placement.
     assert tuple(float(v) for v in builder.captured["pos"]) == (10.0, 0.0, 0.0)
 
 
-def test_clone_visualization_builder_imports_only_declared_global_deformables(monkeypatch):
-    """Shared deformables are imported from plan-owned roots, never a whole-world walk."""
-    from isaaclab_newton.physics import visualization_builder as vb
+@pytest.mark.parametrize("global_path", ["/World/Assets/Cloth", "/World/Assets"])
+def test_clone_visualization_builder_imports_only_declared_global_deformables(monkeypatch, global_path):
+    """Global ancestors do not route excluded clone sources into the shadow model."""
+    from isaaclab_newton.cloner import NewtonReplicateContext
+    from newton import ModelBuilder
 
     from pxr import Sdf, UsdGeom
 
     stage = _make_surface_cloth_stage(path="/World/Assets/Cloth")
     Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), "/World/UnplannedCloth")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
-
-    fake_builder = _FakeShadowBuilder(body_count=1, cloth_delta=3, track_usd=True)
-    fake_builder.shape_collision_filter_pairs = []
-    fake_builder.shape_collision_group = []
-    fake_builder.shape_count = 0
-    fake_builder.add_builder = lambda _builder: None
+    sources = ("/World/Assets/Selected", "/World/Assets/Excluded")
+    for source in sources:
+        UsdGeom.Xform.Define(stage, source)
+        Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), f"{source}/Cloth")
     clone_plan = ClonePlan(
-        sources=(),
-        destinations=(),
+        sources=sources,
+        destinations=("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"),
         env_ids=np.asarray([0, 1], dtype=np.int64),
-        clone_mask=np.zeros((0, 2), dtype=np.bool_),
+        clone_mask=np.ones((2, 2), dtype=np.bool_),
         positions=np.zeros((2, 3), dtype=np.float32),
-        global_paths=("/World/Assets/Cloth",),
+        global_paths=(global_path,),
+        context_rows={NewtonReplicateContext: (0,)},
     )
-    monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
-    monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
-    monkeypatch.setattr(vb, "import_builder_visual_material_paths", lambda *args, **kwargs: None)
-    monkeypatch.setattr(vb, "build_source_builders", lambda *args, **kwargs: {})
-    monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: ({}, [], []))
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(physics=object()),
+        device="cpu",
+        stage=stage,
+        physics_manager=SimpleNamespace(register_callback=Mock()),
+    )
+    usd_imports = []
+    add_usd = ModelBuilder.add_usd
 
-    _builder, (shadow_entities, registry_groups) = vb.build_visualization_builder_from_plan(stage, clone_plan, ())
+    def import_usd(builder, *args, **kwargs):
+        usd_imports.append(kwargs)
+        return add_usd(builder, *args, **kwargs)
 
-    assert fake_builder.usd_roots == ["/World/Assets/Cloth"]
-    assert "/World/Assets/Cloth" in fake_builder.ignore_paths
-    assert [entity.root_path for entity in shadow_entities] == ["/World/Assets/Cloth"]
-    assert [group.prim_path for group in registry_groups] == ["/World/Assets/Cloth"]
+    monkeypatch.setattr(ModelBuilder, "add_usd", import_usd)
+
+    builder, _, _ = NewtonReplicateContext(sim).replicate(clone_plan)
+    callback = sim.physics_manager.register_callback.call_args.args[0]
+    shadow_entities, registry_groups = callback.args[1]
+
+    assert [kwargs["root_path"] for kwargs in usd_imports] == [global_path, sources[0]]
+    assert {"/World/Assets/Cloth", *sources} <= set(usd_imports[0]["ignore_paths"])
+    assert {entity.root_path for entity in shadow_entities} == {
+        "/World/Assets/Cloth",
+        "/Copies/env_0/Selected/Cloth",
+        "/Copies/env_1/Selected/Cloth",
+    }
+    assert {group.prim_path for group in registry_groups} == {"/World/Assets/Cloth", "/Copies/env_[^/]+/Selected/Cloth"}
+    assert builder.particle_count == sum(entity.vis_particle_count for entity in shadow_entities)

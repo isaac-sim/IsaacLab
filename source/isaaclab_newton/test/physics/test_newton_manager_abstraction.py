@@ -41,6 +41,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
+from isaaclab_newton.cloner import newton_physics_replicate
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoDVICfg,
@@ -816,8 +817,6 @@ def test_production_imports_scope_mujoco_joint_properties(
     monkeypatch, import_path, manager_cls, solver_cfg, expected_friction, expected_damping
 ):
     """Only MJWarp imports MuJoCo joint properties through either production path."""
-    from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
-
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateInMemory()
@@ -842,27 +841,33 @@ def test_production_imports_scope_mujoco_joint_properties(
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
+    physics_cfg = NewtonCfg(solver_cfg=solver_cfg, load_visual_shapes=False)
     monkeypatch.setattr(
         PhysicsManager,
         "_sim",
-        SimpleNamespace(physics_manager=manager_cls, cfg=SimpleNamespace(physics_prim_path=physics_prim_path)),
+        SimpleNamespace(
+            physics_manager=manager_cls, cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path)
+        ),
     )
-    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
+    monkeypatch.setattr(PhysicsManager, "_cfg", physics_cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(NewtonManager, "_builder", None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
     monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
     monkeypatch.setattr(NewtonManager, "_world_xforms", None)
+    monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
+    monkeypatch.setattr(NewtonManager, "_cl_fabric_body_bindings", [])
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
+    monkeypatch.setattr(NewtonManager, "_num_envs", 0)
 
     if import_path == "clone":
-        builder, *_ = _build_newton_builder_from_mapping(
+        builder, _ = newton_physics_replicate(
             stage=stage,
             sources=(root_path,),
             destinations=("/World/envs/env_{}/robot",),
             env_ids=np.array([0], dtype=np.int64),
             mapping=np.ones((1, 1), dtype=np.bool_),
-            load_visual_shapes=False,
         )
     else:
         monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)

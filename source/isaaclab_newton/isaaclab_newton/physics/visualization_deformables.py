@@ -117,6 +117,7 @@ def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeV
 def _expand_clone_plan_deformable_entries(
     entries: Sequence[DeformableStageEntry],
     clone_plan: ClonePlan,
+    rows: tuple[int, ...],
 ) -> list[DeformableStageEntry]:
     """Expand prototype deformables into every destination selected by a clone plan.
 
@@ -131,10 +132,14 @@ def _expand_clone_plan_deformable_entries(
         ):
             if not under(entry.root_path, source):
                 continue
+            if source_idx not in rows:
+                break
             columns = np.flatnonzero(clone_plan.clone_mask[source_idx])
             for col in columns:
                 target = destination.format(int(clone_plan.env_ids[col]))
-                offset = clone_plan.positions[col] - clone_plan.positions[columns[0]]
+                offset = (
+                    0 if clone_plan.positions is None else clone_plan.positions[col] - clone_plan.positions[columns[0]]
+                )
                 cloned_entry = replace(
                     entry,
                     root_path=rebase(entry.root_path, source, target),
@@ -155,6 +160,7 @@ def add_shadow_deformables_to_builder(
     stage: Usd.Stage,
     entries: Sequence[DeformableStageEntry],
     clone_plan: ClonePlan,
+    rows: tuple[int, ...],
     *,
     device: str = "cpu",
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
@@ -169,6 +175,7 @@ def add_shadow_deformables_to_builder(
         stage: Current USD stage.
         entries: Deformable geometry imported from declared clone sources and shared roots.
         clone_plan: Replication layout used to expand prototypes into destination environments.
+        rows: Plan rows routed to this Newton representation.
         device: Warp device for barycentric remap tables uploaded during shadow build.
 
     Returns:
@@ -188,7 +195,7 @@ def add_shadow_deformables_to_builder(
             if under(entry.root_path, source):
                 key = tuple(rebase(path, source, destination.format("[^/]+")) for path in key)
                 break
-        wildcard_groups.setdefault(key, []).extend(_expand_clone_plan_deformable_entries([entry], clone_plan))
+        wildcard_groups.setdefault(key, []).extend(_expand_clone_plan_deformable_entries([entry], clone_plan, rows))
     entries = [entry for group in wildcard_groups.values() for entry in group]
 
     flat_entities: list[ShadowDeformableEntity] = []

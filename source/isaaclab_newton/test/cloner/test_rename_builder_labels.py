@@ -6,14 +6,17 @@
 """Unit tests for Newton clone label rewriting and visualization clone-plan sources."""
 
 import unittest
+from dataclasses import replace
+from types import SimpleNamespace
 from unittest import mock
 
 import newton
 import numpy as np
 import warp as wp
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
+from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels, replicate_builder_mapping
-from isaaclab_newton.physics import visualization_builder as visualization_builder_module
 from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
@@ -330,6 +333,14 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
 
 class TestVisualizationClonePlan(unittest.TestCase):
+    def setUp(self):
+        self.sim = SimpleNamespace(
+            cfg=SimpleNamespace(physics=object()),
+            device="cpu",
+            stage=None,
+            physics_manager=SimpleNamespace(register_callback=mock.Mock()),
+        )
+
     def test_clone_plan_expands_prototype_deformables_to_selected_environments(self):
         entry = DeformableStageEntry(
             root_path="/World/envs/env_0/Deformable",
@@ -347,7 +358,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             positions=np.zeros((4, 3), dtype=np.float32),
         )
 
-        entries = visualization_deformables_module._expand_clone_plan_deformable_entries([entry], clone_plan)
+        entries = visualization_deformables_module._expand_clone_plan_deformable_entries([entry], clone_plan, (0,))
 
         self.assertEqual(
             [entry.root_path for entry in entries],
@@ -366,6 +377,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
     def test_visualization_builder_imports_only_declared_global_roots(self):
         stage = Usd.Stage.CreateInMemory()
+        self.sim.stage = stage
         self._define_xform(stage, "/World")
         for path in ("/World/Declared", "/World/Undeclared"):
             body = UsdGeom.Cube.Define(stage, path)
@@ -377,16 +389,14 @@ class TestVisualizationClonePlan(unittest.TestCase):
             destinations=(),
             clone_mask=np.empty((0, 1), dtype=np.bool_),
             env_ids=np.arange(1, dtype=np.int64),
-            positions=np.zeros((1, 3), dtype=np.float32),
             global_paths=("/World/Declared",),
+            context_rows={NewtonReplicateContext: ()},
         )
-        builder, (shadow_entities, registry_groups) = (
-            visualization_builder_module.build_visualization_builder_from_plan(stage, plan, ())
-        )
+        builder, stage_info, site_index_map = NewtonReplicateContext(self.sim).replicate(plan)
 
         self.assertEqual(builder.body_label, ["/World/Declared"])
-        self.assertEqual(shadow_entities, [])
-        self.assertEqual(registry_groups, [])
+        self.assertIsNone(stage_info)
+        self.assertEqual(site_index_map, {})
 
         plan = ClonePlan(
             sources=("/World/Declared",),
@@ -395,12 +405,22 @@ class TestVisualizationClonePlan(unittest.TestCase):
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]], dtype=np.float32),
             global_paths=("/World",),
+            context_rows={NewtonReplicateContext: (0,)},
         )
-        builder, _ = visualization_builder_module.build_visualization_builder_from_plan(stage, plan, (0,))
-        self.assertCountEqual(builder.body_label, ["/World/Undeclared", "/Copies/env_0/Body", "/Copies/env_1/Body"])
+        for positions in (plan.positions, None):
+            with self.subTest(positions=positions):
+                builder, _, _ = NewtonReplicateContext(self.sim).replicate(replace(plan, positions=positions))
+                self.assertCountEqual(
+                    builder.body_label, ["/World/Undeclared", "/Copies/env_0/Body", "/Copies/env_1/Body"]
+                )
+                source_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_0/Body")])[:3]
+                target_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_1/Body")])[:3]
+                offset = np.zeros(3) if positions is None else positions[1] - positions[0]
+                np.testing.assert_allclose(target_position - source_position, offset)
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
+        self.sim.stage = stage
         robot_path = "/World/envs/env_0/Robot"
         self._define_xform(stage, "/World")
         self._define_xform(stage, "/World/envs")
@@ -427,10 +447,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.ones((1, 2), dtype=np.bool_),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
+            context_rows={NewtonReplicateContext: (0,)},
         )
-        builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_plan(
-            stage, clone_plan, (0,)
-        )
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
         model = builder.finalize(device="cpu")
 
         self.assertEqual(model.shape_count, 4)
@@ -439,6 +458,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
+        self.sim.stage = stage
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         self._define_xform(stage, "/World")
         self._define_xform(stage, "/World/envs")
@@ -455,20 +475,17 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.array([[True, False, True], [False, True, False]], dtype=np.bool_),
             env_ids=np.array([0, 1, 2], dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (6.0, 0.0, 0.0)), dtype=np.float32),
+            context_rows={NewtonReplicateContext: (0, 1)},
         )
 
         with (
-            mock.patch.object(visualization_builder_module, "ModelBuilder", _FakeVisualizationModelBuilder),
+            mock.patch.object(replicate_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
-            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
-            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
-            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
+            mock.patch.object(replicate_module, "import_builder_visual_material_paths"),
             mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
             mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):
-            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_plan(
-                stage, clone_plan, (0, 1)
-            )
+            builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
 
         self.assertEqual(
             [builder.geometry_sources_for_world(i) for i in range(3)],
@@ -505,17 +522,21 @@ class TestVisualizationClonePlan(unittest.TestCase):
             env_ids=np.array([7, 9, 12], dtype=np.int64),
             positions=np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]]),
         )
-        builder = mock.Mock(particle_count=0)
-        entities, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
-            builder, stage, [entry], plan
-        )
+        for positions in (plan.positions, None):
+            with self.subTest(positions=positions):
+                builder = mock.Mock(particle_count=0)
+                entities, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
+                    builder, stage, [entry], replace(plan, positions=positions), (0,)
+                )
 
-        self.assertEqual([entity.root_path for entity in entities], ["/Scene/copy_12/Parent/Cloth", path])
-        self.assertEqual(groups[0].prim_path, "/Scene/copy_[^/]+/Parent/Cloth")
-        self.assertEqual(
-            [tuple(call.kwargs["pos"]) for call in builder.add_cloth_mesh.call_args_list],
-            [(32.0, 0.0, 0.0), (12.0, 0.0, 0.0)],
-        )
+                self.assertEqual([entity.root_path for entity in entities], ["/Scene/copy_12/Parent/Cloth", path])
+                self.assertEqual(groups[0].prim_path, "/Scene/copy_[^/]+/Parent/Cloth")
+                offset = np.zeros(3) if positions is None else positions[2] - positions[0]
+                parent_position = np.array([12.0, 0.0, 0.0])
+                np.testing.assert_allclose(
+                    [tuple(call.kwargs["pos"]) for call in builder.add_cloth_mesh.call_args_list],
+                    [parent_position + offset, parent_position],
+                )
 
 
 class TestReplicationNamesItsCopies(unittest.TestCase):
