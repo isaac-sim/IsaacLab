@@ -187,9 +187,7 @@ def run(argv: list[str]) -> None:
             screen.close()
             try:
                 with contextlib.suppress(KeyboardInterrupt):
-                    agent.learn(
-                        total_timesteps=n_timesteps, callback=callbacks, progress_bar=True, log_interval=None
-                    )
+                    agent.learn(total_timesteps=n_timesteps, callback=callbacks, progress_bar=True, log_interval=None)
 
                 agent.save(os.path.join(log_dir, "model"))
                 print(f"Saving to:\n{os.path.join(log_dir, 'model.zip')}")
