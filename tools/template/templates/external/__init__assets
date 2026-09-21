@@ -3,11 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compatibility wrapper for ``isaaclab list_envs``."""
+"""Paths and configurations for project-owned assets."""
 
-import sys
+from pathlib import Path
 
-from isaaclab.cli.commands.list_envs import command_list_envs
-
-if __name__ == "__main__":
-    command_list_envs(sys.argv[1:])
+{{ name | upper }}_ASSETS_DIR = Path(__file__).resolve().parent / "data"
+"""Path to project-owned asset data."""

@@ -165,20 +165,30 @@ def test_instance_before_creation():
 
 @pytest.mark.isaacsim_ci
 def test_singleton():
-    """Tests that the singleton is working."""
-    sim1 = SimulationContext()
-    sim2 = SimulationContext()
-    assert sim1 is sim2
+    """Construction creates a context; only instance() retrieves the live context."""
+    sim = SimulationContext(SimulationCfg(dt=0.01))
+    live_device, live_dt = sim.cfg.device, sim.cfg.dt
+    other_device = "cpu" if live_device.startswith("cuda") else "cuda:0"
+    for args in (
+        (),
+        (None,),
+        (sim.cfg,),
+        (sim.cfg.copy(),),
+        (sim.cfg.replace(dt=2.0 * live_dt),),
+        (sim.cfg.replace(device=other_device),),
+    ):
+        with pytest.raises(RuntimeError, match=r"SimulationContext\.instance\(\)"):
+            SimulationContext(*args)
+        assert SimulationContext.instance() is sim
+        assert sim.cfg.dt == live_dt
+        assert sim.cfg.device == sim.device == live_device
 
-    # try to delete the singleton
-    sim2.clear_instance()
-    assert sim1.instance() is None
-    # create new instance
-    sim3 = SimulationContext()
-    assert sim1 is not sim3
-    assert sim1.instance() is sim3.instance()
-    # clear instance
-    sim3.clear_instance()
+    SimulationContext.clear_instance()
+    assert SimulationContext.instance() is None
+    replacement = SimulationContext(SimulationCfg(dt=2.0 * live_dt))
+    assert replacement is not sim
+    assert SimulationContext.instance() is replacement
+    assert replacement.cfg.dt == 2.0 * live_dt
 
 
 """

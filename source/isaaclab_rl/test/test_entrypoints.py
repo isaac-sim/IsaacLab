@@ -7,12 +7,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import subprocess
 import sys
 import types
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import gymnasium as gym
 import numpy as np
@@ -339,6 +341,39 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
 
     with pytest.raises(SystemExit, match="Invalid environment configuration: unsupported physics backend"):
         simple_agents.run([], policy="zero")
+
+
+def test_random_agent_closes_environment_after_keyboard_interrupt(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ctrl+C must stop a checkpoint-free agent cleanly and close its environment."""
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        validate=lambda: None,
+    )
+    env = SimpleNamespace(
+        observation_space="observations",
+        action_space=SimpleNamespace(shape=(1, 1)),
+        unwrapped=SimpleNamespace(
+            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            device="cpu",
+        ),
+        reset=lambda: None,
+        step=mock.Mock(side_effect=KeyboardInterrupt),
+        close=mock.Mock(),
+    )
+    args = SimpleNamespace(max_steps=None, task="Example", device=None)
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
+    monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
+    monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
+
+    simple_agents.run([], policy="random")
+
+    env.close.assert_called_once_with()
+    assert "Random agent stopped." in capsys.readouterr().out
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:

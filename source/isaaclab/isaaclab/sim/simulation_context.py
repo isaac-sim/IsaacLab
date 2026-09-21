@@ -94,18 +94,13 @@ class SimulationContext:
     * Simulation state (play, pause, step, stop)
     * Rendering and visualization
 
-    The singleton instance can be accessed using the ``instance()`` class method.
+    Use :meth:`instance` to retrieve the live context. Construction always creates a new context
+    and raises if one already exists; call :meth:`clear_instance` before constructing a replacement.
     """
 
     # SINGLETON PATTERN
 
     _instance: SimulationContext | None = None
-
-    def __new__(cls, cfg: SimulationCfg | None = None):
-        """Enforce singleton pattern."""
-        if cls._instance is not None:
-            return cls._instance
-        return super().__new__(cls)
 
     @classmethod
     def instance(cls) -> SimulationContext | None:
@@ -117,9 +112,15 @@ class SimulationContext:
 
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
+
+        Raises:
+            RuntimeError: If a simulation context already exists.
         """
         if type(self)._instance is not None:
-            return  # Already initialized
+            raise RuntimeError(
+                "A SimulationContext already exists. Use SimulationContext.instance() to retrieve it,"
+                " or call SimulationContext.clear_instance() before constructing a replacement."
+            )
 
         from pxr import UsdUtils  # noqa: PLC0415
 

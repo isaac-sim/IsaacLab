@@ -123,8 +123,32 @@ def _expose_mujoco_usd_schemas():
         os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (search_path, plugins)))
 
 
+def _expose_newton_usd_schemas():
+    """Put Newton's codeless USD schemas on OpenUSD's plugin search path.
+
+    OpenUSD discovers codeless plugins from this path when it builds the schema
+    registry. Expose the installed plugin during core initialization so kitless
+    processes find it without importing ``newton_usd_schemas``, which eagerly
+    imports ``pxr``. Core is the only lifecycle point guaranteed to precede both
+    direct OpenUSD use and AppLauncher.
+    """
+    # TODO: Replace this wheel-layout probe with the host-safe discovery from
+    # https://github.com/newton-physics/newton-usd-schemas/issues/90.
+    spec = importlib.util.find_spec("newton_usd_schemas")
+    if spec is None or spec.origin is None:
+        return
+    plugins = os.path.dirname(spec.origin)
+    if not os.path.isfile(os.path.join(plugins, "plugInfo.json")):
+        return
+    search_path = os.environ.get("PXR_PLUGINPATH_NAME", "")
+    if plugins not in search_path.split(os.pathsep):
+        # Prefer the project requirement over older copies bundled by Isaac Sim.
+        os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (plugins, search_path)))
+
+
 _deprioritize_prebundle_paths()
 _expose_mujoco_usd_schemas()
+_expose_newton_usd_schemas()
 
 
 try:

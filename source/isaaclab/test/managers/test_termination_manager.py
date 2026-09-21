@@ -52,7 +52,8 @@ def fail_every_3_steps(env) -> torch.Tensor:
 @pytest.fixture
 def env():
     sim = SimulationContext()
-    return DummyEnv(num_envs=20, device="cpu", sim=sim)
+    yield DummyEnv(num_envs=20, device="cpu", sim=sim)
+    SimulationContext.clear_instance()
 
 
 def test_initial_state_and_shapes(env):

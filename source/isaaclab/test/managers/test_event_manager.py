@@ -94,7 +94,8 @@ def env():
     # create sim
     sim = SimulationContext()
     # create dummy environment
-    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
+    yield DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
+    SimulationContext.clear_instance()
 
 
 def test_str(env):
