@@ -15,8 +15,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
-
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
@@ -59,8 +57,31 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
     )
-    actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
-    fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
+    # Order matches the prior Isaac Allegro layout (per-knuckle across fingers); names follow MuJoCo Menagerie MJCF.
+    actuated_joint_names = [
+        "ffj0",
+        "mfj0",
+        "rfj0",
+        "thj0",
+        "ffj1",
+        "mfj1",
+        "rfj1",
+        "thj1",
+        "ffj2",
+        "mfj2",
+        "rfj2",
+        "thj2",
+        "ffj3",
+        "mfj3",
+        "rfj3",
+        "thj3",
+    ]
+    fingertip_body_names = [
+        "ff_tip",
+        "mf_tip",
+        "rf_tip",
+        "th_tip",
+    ]
 
     # scene
     scene: AllegroHandSceneCfg = AllegroHandSceneCfg(

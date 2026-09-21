@@ -17,7 +17,7 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import SPOT_TRANSFORMED_USD
 
 # Note: This data was collected by the Boston Dynamics AI Institute.
 joint_parameter_lookup = [
@@ -136,7 +136,7 @@ and the output torque (N*m). It is used to interpolate the output torque based o
 
 SPOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/BostonDynamics/spot/spot.usd",
+        usd_path=SPOT_TRANSFORMED_USD,
         activate_contact_sensors=True,
         rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,

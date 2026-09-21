@@ -19,7 +19,7 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -206,7 +206,7 @@ def test_spawn_multiple_files_with_global_settings(sim):
 
     cfg = sim_utils.MultiUsdFileCfg(
         usd_path=[
-            f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+            f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda",
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
         ],
         rigid_props=PhysxRigidBodyCfg(

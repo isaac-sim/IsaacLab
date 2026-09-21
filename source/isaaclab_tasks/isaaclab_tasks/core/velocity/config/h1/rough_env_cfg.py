@@ -9,7 +9,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-from isaaclab_assets import H1_MINIMAL_CFG
+from isaaclab_assets import H1_MINIMAL_CFG, H1_NEWTON_MINIMAL_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import (
@@ -37,7 +37,8 @@ class H1Rewards(RewardsCfg):
         weight=0.25,
         params={
             "command_name": "base_velocity",
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+            # Rigid-body names are ``left_ankle_link`` / ``right_ankle_link`` (joints stay ``*_ankle``).
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_link"),
             "threshold": 0.4,
         },
     )
@@ -45,8 +46,8 @@ class H1Rewards(RewardsCfg):
         func=mdp.feet_slide,
         weight=-0.25,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_link"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_link"),
         },
     )
     # Penalize ankle joint limits
@@ -65,7 +66,9 @@ class H1Rewards(RewardsCfg):
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*", ".*_elbow"])},
     )
     joint_deviation_torso = RewTerm(
-        func=mdp.joint_deviation_l1, weight=-0.1, params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso")}
+        func=mdp.joint_deviation_l1,
+        weight=-0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_1")},
     )
 
 
@@ -79,9 +82,18 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+        # Newton needs IdealPDActuator to bypass Menagerie's direct-torque MjcActuator semantics.
+        # Detect active backend from argv since preset() returns an unresolved PresetCfg at this point.
+        import sys
+
+        _is_newton = any("newton" in a.lower() for a in sys.argv if a.startswith("presets="))
+        robot_cfg = H1_NEWTON_MINIMAL_CFG if _is_newton else H1_MINIMAL_CFG
+        self.scene.robot = robot_cfg.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        if self.scene.height_scanner:
+            self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
         # commands
+        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
+        # threshold to 0.8 rad/s (defaults work for quadrupeds).
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)

@@ -28,6 +28,7 @@ from isaaclab.utils.seed import configure_seed
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
 from ...sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from ..common import (
@@ -139,6 +140,8 @@ def run(argv: list[str]) -> None:
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli)
 
+            log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
             screen.stage("Creating environment")
             env = create_isaaclab_env(
                 args_cli.task,
@@ -182,13 +185,16 @@ def run(argv: list[str]) -> None:
             ]
 
             screen.close()
-            with contextlib.suppress(KeyboardInterrupt):
-                agent.learn(total_timesteps=n_timesteps, callback=callbacks, progress_bar=True, log_interval=None)
+            try:
+                with contextlib.suppress(KeyboardInterrupt):
+                    agent.learn(total_timesteps=n_timesteps, callback=callbacks, progress_bar=True, log_interval=None)
 
-            agent.save(os.path.join(log_dir, "model"))
-            print(f"Saving to:\n{os.path.join(log_dir, 'model.zip')}")
-            if isinstance(env, VecNormalize):
-                print("Saving normalization")
-                env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
-            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
+                agent.save(os.path.join(log_dir, "model"))
+                print(f"Saving to:\n{os.path.join(log_dir, 'model.zip')}")
+                if isinstance(env, VecNormalize):
+                    print("Saving normalization")
+                    env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
+                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            finally:
+                log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+                env.close()

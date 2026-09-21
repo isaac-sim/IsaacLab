@@ -1,0 +1,32 @@
+Representative gym tasks that exercise each Menagerie-backed robot asset.
+
+Rule: one primary task id per robot or distinct USD role. Omit -Play and duplicate variants.
+Workflows are the registered training entry points for the task.
+
+task_id | workflows | asset / note
+Isaac-Velocity-Rough-Anymal-B-v0 | rsl_rl, skrl | ANYMAL_B
+Isaac-Velocity-Rough-Anymal-C-v0 | rsl_rl, rl_games, skrl | ANYMAL_C
+Isaac-Velocity-Flat-Spot-v0 | rsl_rl, skrl | SPOT (no rough task in tree)
+Isaac-Velocity-Rough-Unitree-Go2-v0 | rsl_rl, skrl | UNITREE_GO2
+Isaac-Velocity-Rough-H1-v0 | rsl_rl, skrl | H1_MINIMAL velocity
+Isaac-Velocity-Rough-G1-v0 | rsl_rl, skrl | G1_MINIMAL velocity
+Isaac-PickPlace-Locomanipulation-G1-Abs-v0 | robomimic_bc | G1_29DOF distinct Menagerie USD role
+Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0 | none registered | G1_29DOF IK-only; add workflows before benchmarking
+Isaac-Repose-Cube-Allegro-v0 | rsl_rl, rl_games, skrl | ALLEGRO_HAND manager-based
+Isaac-Repose-Cube-Allegro-Direct-v0 | rsl_rl, rl_games, skrl | ALLEGRO_HAND direct
+Isaac-Repose-Cube-Shadow-Direct-v0 | rsl_rl, rl_games, skrl | SHADOW_HAND direct
+
+Automated pytest benchmark coverage
+  source/isaaclab_tasks/test/benchmarking/mujoco_configs.yaml currently uses the flat velocity variants plus the direct Allegro and Shadow hand tasks for RSL-RL smoke/benchmark coverage:
+  Isaac-Velocity-Flat-Anymal-B-v0
+  Isaac-Velocity-Flat-Anymal-C-v0
+  Isaac-Velocity-Flat-Spot-v0
+  Isaac-Velocity-Flat-Unitree-Go2-v0
+  Isaac-Velocity-Flat-H1-v0
+  Isaac-Velocity-Flat-G1-v0
+  Isaac-Repose-Cube-Allegro-Direct-v0
+  Isaac-Repose-Cube-Shadow-Direct-v0
+
+Not listed
+- Isaac-Repose-Cube-Shadow-* OpenAI / Vision / Benchmark variants use the same Shadow Menagerie target; add them only if those observation pipelines are in scope.
+- Isaac-Dexsuite-Kuka-Allegro-* uses KUKA_ALLEGRO_CFG / kuka.usd, not the Wonik Menagerie Allegro hand.

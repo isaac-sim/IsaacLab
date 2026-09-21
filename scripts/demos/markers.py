@@ -18,6 +18,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.physics import PhysicsCfg
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -32,13 +33,8 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
-
-##
-# Pre-defined configs
-##
-from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 from isaaclab.utils.math import quat_from_angle_axis
 
 if TYPE_CHECKING:
@@ -87,7 +83,7 @@ def define_markers() -> "VisualizationMarkers":
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.25, 0.0)),
             ),
             "robot_mesh": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+                usd_path=f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda",
                 scale=(2.0, 2.0, 2.0),
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
             ),

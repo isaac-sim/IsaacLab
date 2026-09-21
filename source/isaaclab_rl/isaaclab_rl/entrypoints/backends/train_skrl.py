@@ -22,6 +22,7 @@ from isaaclab.utils.seed import configure_seed
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
 from ...skrl import (
     SkrlVecEnvWrapper,
@@ -149,6 +150,8 @@ def _run(args_cli: argparse.Namespace) -> None:
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli)
 
+            log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
             screen.stage("Creating environment")
             env = create_isaaclab_env(
                 args_cli.task,
@@ -175,11 +178,14 @@ def _run(args_cli: argparse.Namespace) -> None:
                 runner.agent.load(resume_path)
 
             screen.close()
-            with contextlib.suppress(KeyboardInterrupt):
-                runner.run()
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                total_timesteps = agent_cfg["trainer"]["timesteps"]
-                os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
-                runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
-                print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
-            env.close()
+            try:
+                with contextlib.suppress(KeyboardInterrupt):
+                    runner.run()
+                    print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                    total_timesteps = agent_cfg["trainer"]["timesteps"]
+                    os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
+                    runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
+                    print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
+            finally:
+                log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+                env.close()

@@ -25,6 +25,7 @@ from isaaclab.utils.seed import configure_seed
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
 from ...rl_games import MultiObserver, PbtAlgoObserver, RlGamesVecEnvWrapper, register_rl_games_env
 from ..common import (
@@ -149,6 +150,8 @@ def run(argv: list[str]) -> None:
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli)
 
+            log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
             screen.stage("Creating environment")
             env = create_isaaclab_env(
                 args_cli.task,
@@ -203,7 +206,10 @@ def run(argv: list[str]) -> None:
                 run_args["checkpoint"] = resume_path
 
             screen.close()
-            with contextlib.suppress(KeyboardInterrupt):
-                runner.run(run_args)
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
+            try:
+                with contextlib.suppress(KeyboardInterrupt):
+                    runner.run(run_args)
+                    print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            finally:
+                log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+                env.close()

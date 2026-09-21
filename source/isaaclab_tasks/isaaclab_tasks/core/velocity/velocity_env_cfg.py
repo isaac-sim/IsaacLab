@@ -114,7 +114,11 @@ class MySceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/ground"],
         global_world_only=True,
     )
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, track_air_time=True)
+    # Core cfg + factory ContactSensor: backend follows active physics (avoids global ``presets=newton``
+    # replacing this with Newton-only cfg while sim stays PhysX). ``.*`` (not ``[^/]*``) is required so the
+    # pattern also matches nested rigid-body prims on assets (e.g. MuJoCo Menagerie robots) whose bodies are
+    # not direct children of the robot root.
+    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -187,6 +191,13 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class StartupEventsCfg:
+    """Startup event mixin for task-specific event presets."""
+
+    pass
 
 
 @configclass
