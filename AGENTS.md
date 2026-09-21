@@ -17,12 +17,6 @@
 - Do not remove or rename a public API without a prior deprecation and migration path.
 - Update public documentation when adding or changing public APIs.
 - Verify documented technical claims against the current code and primary sources before relying on them.
-- Runtime camera calibration belongs to the camera's device buffers. Import USD at initialization;
-  renderer implementations must consume device calibration through their native runtime APIs.
-  Do not restore per-camera USD access or matrix/index batch readbacks in calibration setters.
-  A scalar validation-status readback is allowed for synchronous errors and warnings.
-- Per-camera calibration bindings and queries belong to render data, never the shared renderer;
-  release them with that camera without affecting other cameras.
 - Use the uv-managed environment for routine commands.
 - Use `uv run python` for Python scripts and tests.
 - Use `uv run isaaclab` for Isaac Lab CLI commands.
@@ -41,8 +35,6 @@
 - Test observable behavior and public contracts, not implementation details.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
-- Extend existing camera tests and shared renderer scenes for calibration regressions; do not add a
-  standalone calibration scene or subprocess test harness.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.
 
 ## Changelog and release metadata

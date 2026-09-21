@@ -47,6 +47,7 @@ def _camera_select_intrinsics_kernel(
     rows: wp.array(dtype=wp.int32),
     status: wp.array(dtype=wp.int32),
 ):
+    """Validate a runtime device batch and select the last input row for each camera."""
     row = wp.tid()
     index = env_ids[row]
     if index < 0:
@@ -380,6 +381,10 @@ class Camera(SensorBase):
         warnings transfer one status integer to the host; matrix and index batches stay on device.
         Consequently this method is not CUDA graph capturable.
 
+        This path targets repeated runtime updates from device arrays. Initialization imports USD
+        calibration on the CPU without these kernels. The first setter call may compile Warp kernels;
+        small or one-off host batches do not necessarily benefit from GPU execution.
+
         Args:
             matrices: Intrinsic matrices [pixel], shape (N, 3, 3), or a Warp array of ``wp.mat33f`` /
                 ``wp.mat33d``. A single (3, 3) matrix is accepted for one selected camera.
@@ -432,6 +437,7 @@ class Camera(SensorBase):
             ],
             device=self._device,
         )
+        # Synchronize to raise index errors before backend writes, without downloading the input batch.
         status = int(self._intrinsic_status.numpy()[0])
         if status & 1:
             raise IndexError("Camera indices are out of range.")
