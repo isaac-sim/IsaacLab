@@ -69,7 +69,7 @@ def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", rigid_solver, raising=False)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", soft_solver, raising=False)
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_state_0", state)
+    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "backend", SimpleNamespace(state_0=state))
 
     NewtonCoupledMJWarpVBDManager._reset_solver_internals(world_mask)
 

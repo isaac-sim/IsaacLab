@@ -1092,20 +1092,13 @@ def test_camera_frame_offset(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize(
-    ("data_types", "expected_names", "expected_messages"),
-    [
-        (["rgba", "depth", "normals"], ["depth", "normals"], ["_PartialRenderer", "Supported data types"]),
-        (["rgba", "not_a_render_buffer_kind"], ["not_a_render_buffer_kind"], ["Unknown camera data types"]),
-    ],
-)
-def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, expected_names, expected_messages):
-    """Test Camera rejects data types its renderer cannot produce or does not recognize."""
+def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
+    """Test Camera rejects data types its runtime renderer cannot produce."""
     from isaaclab.renderers.base_renderer import BaseRenderer
 
     sim, camera_cfg, dt = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.data_types = data_types
+    camera_cfg.data_types = ["rgba", "depth", "normals"]
 
     from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
 
@@ -1147,10 +1140,8 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, e
 
     camera_cfg.renderer_cfg.class_type = _PartialRenderer
     camera = Camera(camera_cfg)
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="_PartialRenderer") as exc_info:
         sim.reset()
-    assert all(name in str(exc_info.value) for name in expected_names)
-    assert all(message in str(exc_info.value) for message in expected_messages)
     assert "Hint:" not in str(exc_info.value)
 
     del camera

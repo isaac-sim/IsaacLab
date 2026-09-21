@@ -6,6 +6,7 @@
 __all__ = [
     "OVRTXRenderer",
     "OVRTXRendererCfg",
+    "OVRTXBackendCfg",
     "Renderer",
     "map_attribute_for_warp_writes",
 ]
@@ -13,4 +14,4 @@ __all__ = [
 from .ovrtx_mapping import map_attribute_for_warp_writes
 from .ovrtx_renderer import OVRTXRenderer
 from .ovrtx_renderer import OVRTXRenderer as Renderer
-from .ovrtx_renderer_cfg import OVRTXRendererCfg
+from .ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
