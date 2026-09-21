@@ -143,7 +143,8 @@ def test_newton_warp_supported_output_types_key_set():
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
 
 
-def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
+@pytest.mark.parametrize("data_type", ["simple_shading_full_mdl", "not_a_render_buffer_kind"])
+def test_camera_cfg_rejects_outputs_unsupported_by_renderer(data_type):
     """Camera config validation rejects output types absent from the renderer contract."""
     pytest.importorskip("isaaclab_newton")
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -153,11 +154,11 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         width=64,
         prim_path="/World/Camera",
         spawn=_SPAWN,
-        data_types=["simple_shading_full_mdl"],
+        data_types=[data_type],
         renderer_cfg=NewtonWarpRendererCfg(),
     )
 
-    with pytest.raises(ValueError, match="simple_shading_full_mdl"):
+    with pytest.raises(ValueError, match=data_type):
         cfg.validate()
 
 
