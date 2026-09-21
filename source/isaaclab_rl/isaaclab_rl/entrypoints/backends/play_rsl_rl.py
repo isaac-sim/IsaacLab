@@ -27,6 +27,7 @@ from ...rsl_rl import (
     create_rsl_rl_runner,
     handle_deprecated_rsl_rl_cfg,
 )
+from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
     add_common_play_args,
@@ -74,6 +75,8 @@ def _resolve_checkpoint(
     args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunnerCfg, env_cfg: object, log_root_path: str
 ) -> str | None:
     """Resolve the checkpoint to play, or None when no published checkpoint exists."""
+    if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
+        return resolve_wandb_checkpoint(args_cli.checkpoint)
     if args_cli.checkpoint == "pretrained":
         return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:

@@ -30,7 +30,14 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
     )
     arg_group.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
     arg_group.add_argument(
-        "--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained for play."
+        "--checkpoint",
+        type=str,
+        default=None,
+        help=(
+            "Checkpoint path, latest/best, pretrained for play, or a Weights & Biases run"
+            " (https://wandb.ai/<entity>/<project>/runs/<run_id>, optionally with a '?checkpoint=<iteration>' query,"
+            " or the wandb:<entity>/<project>/<run_id> shorthand)."
+        ),
     )
     arg_group.add_argument(
         "--logger", type=str, default=None, choices={"wandb", "tensorboard", "neptune"}, help="Logger module to use."

@@ -29,6 +29,7 @@ from ...rsl_rl import (
     create_rsl_rl_runner,
     handle_deprecated_rsl_rl_cfg,
 )
+from ...utils.wandb import announce_new_run, is_wandb_checkpoint, resolve_wandb_checkpoint, resolve_wandb_entity
 from ..common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
@@ -76,6 +77,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunnerCfg, log_root_path: str) -> str | None:
     """Resolve the checkpoint to resume from, or None when training starts from scratch."""
+    if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
+        return resolve_wandb_checkpoint(args_cli.checkpoint)
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:
         return resolve_checkpoint_selector(
             log_root_path,
@@ -169,6 +172,9 @@ def _run(args_cli: argparse.Namespace) -> None:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
                 runner.load(resume_path)
             dump_train_configs(log_dir, env_cfg, agent_cfg)
+
+            if agent_cfg.logger == "wandb":
+                announce_new_run(agent_cfg.wandb_project, resolve_wandb_entity())
 
             screen.close()
             with contextlib.suppress(KeyboardInterrupt):
