@@ -13,7 +13,6 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 
 """Rest everything follows."""
 
-import logging
 import weakref
 
 import numpy as np
@@ -164,47 +163,30 @@ def test_instance_before_creation():
 
 @pytest.mark.isaacsim_ci
 def test_singleton():
-    """Tests that the singleton is working."""
-    sim1 = SimulationContext()
-    sim2 = SimulationContext()
-    assert sim1 is sim2
-
-    # try to delete the singleton
-    sim2.clear_instance()
-    assert sim1.instance() is None
-    # create new instance
-    sim3 = SimulationContext()
-    assert sim1 is not sim3
-    assert sim1.instance() is sim3.instance()
-    # re-passing the live config is not a conflict and keeps returning the same instance
-    assert SimulationContext(sim3.cfg) is sim3
-    # clear instance
-    sim3.clear_instance()
-
-
-@pytest.mark.isaacsim_ci
-def test_repeat_construction_ignores_config(caplog):
-    """Tests that a repeat construction warns about the dropped config and rejects a device change."""
+    """Construction creates a context; only instance() retrieves the live context."""
     sim = SimulationContext(SimulationCfg(dt=0.01))
     live_device, live_dt = sim.cfg.device, sim.cfg.dt
-
-    # a config that only differs in fields other than the device is dropped, but is not fatal
-    with caplog.at_level(logging.WARNING, logger="isaaclab.sim.simulation_context"):
-        assert SimulationContext(SimulationCfg(dt=2.0 * live_dt, device=live_device)) is sim
-    assert "configuration passed to this construction is ignored" in caplog.text
-    assert sim.cfg.dt == live_dt
-
-    # a config that would need a different device is rejected instead of being dropped
     other_device = "cpu" if live_device.startswith("cuda") else "cuda:0"
-    with pytest.raises(RuntimeError, match="cannot be re-created on"):
-        SimulationContext(SimulationCfg(dt=live_dt, device=other_device))
+    for args in (
+        (),
+        (None,),
+        (sim.cfg,),
+        (sim.cfg.copy(),),
+        (sim.cfg.replace(dt=2.0 * live_dt),),
+        (sim.cfg.replace(device=other_device),),
+    ):
+        with pytest.raises(RuntimeError, match=r"SimulationContext\.instance\(\)"):
+            SimulationContext(*args)
+        assert SimulationContext.instance() is sim
+        assert sim.cfg.dt == live_dt
+        assert sim.cfg.device == sim.device == live_device
 
-    # the rejected request leaves the running simulation untouched and reachable
-    assert SimulationContext.instance() is sim
-    assert sim.cfg.device == live_device
-    assert sim.device == live_device
-
-    sim.clear_instance()
+    SimulationContext.clear_instance()
+    assert SimulationContext.instance() is None
+    replacement = SimulationContext(SimulationCfg(dt=2.0 * live_dt))
+    assert replacement is not sim
+    assert SimulationContext.instance() is replacement
+    assert replacement.cfg.dt == 2.0 * live_dt
 
 
 """
