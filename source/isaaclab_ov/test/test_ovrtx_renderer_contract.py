@@ -183,6 +183,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     Use ``--basetemp=/tmp/ovrtx-camera-frames`` to choose where pytest writes the captures.
     Depth PNGs use a shared 0-8 m range (near is white); NPY files retain the raw depths [m].
     """
+    from isaaclab_newton.physics import NewtonManager
     from PIL import Image
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
@@ -194,6 +195,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
+    # This static USD scene has no physics model or scene-data provider.
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: None))
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
@@ -304,6 +307,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         assert not camera_scope_exists(cameras[1][0])
     finally:
         renderer.close()
+        SimulationContext.instance().close_backend(renderer.backend)
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
