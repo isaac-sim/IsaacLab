@@ -6,7 +6,7 @@
 """Base configuration of the environment.
 
 This module defines the general configuration of the environment. It includes parameters for
-configuring the environment instances, viewer settings, and simulation parameters.
+configuring the environment instances and simulation parameters.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
@@ -45,9 +45,6 @@ class ManagerBasedEnvCfg:
     """Base configuration of the environment."""
 
     # simulation settings
-    viewer: ViewerCfg = ViewerCfg()
-    """Viewer configuration. Default is ViewerCfg()."""
-
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
@@ -160,10 +157,31 @@ class ManagerBasedEnvCfg:
     """
 
     export_io_descriptors: bool = False
-    """Whether to export the IO descriptors for the environment. Defaults to False."""
+    """Whether to export the IO descriptors for the environment. Defaults to False.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+       workflow for supported RSL-RL/PyTorch deployments.
+    """
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
-    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``)."""
+    video_recorders: list[VideoRecorderCfg] = []
+    """Video recording streams. Each entry records from its configured source independently.
+
+    Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
+    with a default stream from the active visualizer.
+    """
+
+    viewer: ViewerCfg = ViewerCfg()
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+
+    .. deprecated::
+        This field is deprecated and will be removed in a future release. Configure the viewport
+        camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
+
+            from isaaclab.visualizers import VisualizerCfg
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
+    """

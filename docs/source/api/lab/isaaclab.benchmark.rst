@@ -34,9 +34,55 @@ isaaclab.benchmark
       MethodBenchmarkDefinition
       MethodBenchmarkRunner
       MethodBenchmarkRunnerConfig
+
+   .. rubric:: Micro-benchmarks
+
+   .. autosummary::
+
+      LatencyBenchmarkRunner
+      LatencySample
+      LatencyStatistics
+      MicrobenchmarkCommand
+      MicrobenchmarkFactory
+      add_latency_measurements
+      measure_latency
+      run_microbenchmark_cli
+      summarize_latency
+
+   .. rubric:: Measurements and metadata
+
+   .. autosummary::
+
+      BooleanMeasurement
+      DictMeasurement
+      DictMetadata
+      FloatMetadata
+      IntMetadata
+      ListMeasurement
+      Measurement
+      MetadataBase
+      SingleMeasurement
+      StatisticalMeasurement
+      StringMetadata
+      TestPhase
+
+   .. rubric:: Result schema
+
+   .. autosummary::
+
+      EnvironmentStepTiming
+      Learning
+      LearningCurve
+      MeanStd
       PlayBundle
+      Resources
+      RunConfig
+      RunIdentity
+      Runtime
       RuntimeBundle
       StartupBundle
+      StartupPhase
+      StartupTime
       TrainingBundle
 
 
@@ -65,6 +111,35 @@ Request and Result Classes
 
 .. autoclass:: BenchmarkTrainingRequest
    :members:
+
+Micro-Benchmark Dispatch
+------------------------
+
+.. autoclass:: MicrobenchmarkCommand
+   :members:
+
+.. autoclass:: MicrobenchmarkFactory
+   :members:
+
+.. autofunction:: run_microbenchmark_cli
+
+Latency Micro-Benchmarks
+------------------------
+
+.. autoclass:: LatencyBenchmarkRunner
+   :members:
+
+.. autoclass:: LatencySample
+   :members:
+
+.. autoclass:: LatencyStatistics
+   :members:
+
+.. autofunction:: add_latency_measurements
+
+.. autofunction:: measure_latency
+
+.. autofunction:: summarize_latency
 
 Workflow Functions
 ------------------
@@ -108,3 +183,122 @@ Benchmark Framework
 
 .. autoclass:: TrainingBundle
    :members:
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.benchmark` API.
+
+.. currentmodule:: isaaclab.benchmark
+
+.. autosummary::
+   :nosignatures:
+
+   BooleanMeasurement
+   CProfileFunction
+   DictMeasurement
+   DictMetadata
+   EnvironmentStepTiming
+   FloatMetadata
+   GpuDeviceInfo
+   Hardware
+   IntMetadata
+   Learning
+   LearningCurve
+   ListMeasurement
+   MeanStd
+   Measurement
+   MetadataBase
+   Resources
+   RunConfig
+   RunIdentity
+   Runtime
+   SingleMeasurement
+   StartupConfig
+   StartupPhase
+   StartupTime
+   StatisticalMeasurement
+   StringMetadata
+   TestPhase
+   Versions
+
+.. autoclass:: BooleanMeasurement
+   :show-inheritance:
+
+.. autoclass:: CProfileFunction
+   :show-inheritance:
+
+.. autoclass:: DictMeasurement
+   :show-inheritance:
+
+.. autoclass:: DictMetadata
+   :show-inheritance:
+
+.. autoclass:: EnvironmentStepTiming
+   :show-inheritance:
+
+.. autoclass:: FloatMetadata
+   :show-inheritance:
+
+.. autoclass:: GpuDeviceInfo
+   :show-inheritance:
+
+.. autoclass:: Hardware
+   :show-inheritance:
+
+.. autoclass:: IntMetadata
+   :show-inheritance:
+
+.. autoclass:: Learning
+   :show-inheritance:
+
+.. autoclass:: LearningCurve
+   :show-inheritance:
+
+.. autoclass:: ListMeasurement
+   :show-inheritance:
+
+.. autoclass:: MeanStd
+   :show-inheritance:
+
+.. autoclass:: Measurement
+   :show-inheritance:
+
+.. autoclass:: MetadataBase
+   :show-inheritance:
+
+.. autoclass:: Resources
+   :show-inheritance:
+
+.. autoclass:: RunConfig
+   :show-inheritance:
+
+.. autoclass:: RunIdentity
+   :show-inheritance:
+
+.. autoclass:: Runtime
+   :show-inheritance:
+
+.. autoclass:: SingleMeasurement
+   :show-inheritance:
+
+.. autoclass:: StartupConfig
+   :show-inheritance:
+
+.. autoclass:: StartupPhase
+   :show-inheritance:
+
+.. autoclass:: StartupTime
+   :show-inheritance:
+
+.. autoclass:: StatisticalMeasurement
+   :show-inheritance:
+
+.. autoclass:: StringMetadata
+   :show-inheritance:
+
+.. autoclass:: TestPhase
+   :show-inheritance:
+
+.. autoclass:: Versions
+   :show-inheritance:

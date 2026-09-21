@@ -257,9 +257,7 @@ def get_success_tracker(
 ) -> SuccessRateTracker | None:
     """Return a tracker with recorded history, or ``None`` if neither source has data.
 
-    Prefers *live_tracker* (from the training wrapper/observer). If it never ran or recorded
-    no iterations, falls back to building a post-hoc tracker by replaying the success metric
-    series out of TensorBoard *log_data* (from :func:`isaaclab.benchmark.metrics.parse_tf_logs`).
+    Prefer logged per-iteration history; fall back to the live tracker.
 
     Args:
         args_cli: Parsed arg namespace with the ``--success_*`` flags.
@@ -269,15 +267,17 @@ def get_success_tracker(
     Returns:
         A :class:`SuccessRateTracker` populated with history, or ``None`` if no data is available.
     """
+    history = get_success_rate_log(log_data)
+    if history:
+        tracker = live_tracker
+        if tracker is None:
+            kwargs = build_success_kwargs(args_cli)
+            tracker = SuccessRateTracker(kwargs["threshold"], kwargs["window"], num_steps_per_env=0)
+        tracker.history = list(history)
+        return tracker
     if live_tracker is not None and live_tracker.history:
         return live_tracker
-    history = get_success_rate_log(log_data)
-    if not history:
-        return None
-    kwargs = build_success_kwargs(args_cli)
-    tracker = SuccessRateTracker(kwargs["threshold"], kwargs["window"], num_steps_per_env=0)
-    tracker.history = list(history)
-    return tracker
+    return None
 
 
 def success_measurements(tracker: SuccessRateTracker | None) -> list[SingleMeasurement]:

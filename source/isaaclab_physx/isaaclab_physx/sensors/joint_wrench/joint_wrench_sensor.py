@@ -17,7 +17,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -60,7 +60,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         super().__init__(cfg)
 
         self._data = JointWrenchSensorData()
-        self._physics_sim_view = None
         self._root_view: physx.ArticulationView | None = None
         self._joint_pos_b: wp.array | None = None
         self._joint_quat_b: wp.array | None = None
@@ -124,14 +123,18 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and allocates buffers."""
         super()._initialize_impl()
 
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
+        self._root_view = SimulationManager.views.get((SimulationManager, root_prim_path_expr))
+        if self._root_view is None:
+            self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = (
+                SimulationManager.get_physics_sim_view().create_articulation_view(
+                    path_expr_to_glob(root_prim_path_expr)
+                )
+            )
         if self._root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation view at: {root_prim_path_expr}. Check PhysX logs.")
 
@@ -253,7 +256,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             event: An invalidate event.
         """
         super()._invalidate_initialize_callback(event)
-        self._physics_sim_view = None
         self._root_view = None
         self._joint_pos_b = None
         self._joint_quat_b = None

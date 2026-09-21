@@ -69,7 +69,6 @@ def main():
 
         # Robots
         robot_cfg = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
-        robot_cfg.spawn.func("/World/Crazyflie", robot_cfg.spawn, translation=robot_cfg.init_state.pos)
 
         # create handles for the robots
         robot = robot_cfg.class_type(robot_cfg)

@@ -240,15 +240,17 @@ def test_argv_helper_task_returns_last_value():
     assert _ArgvHelper(["train.py", "--task=Old", "--task", "New"]).task_name == "New"
 
 
-def test_bucket_variants_routes_by_base_class_isinstance():
-    """Variants bucket by ``isinstance`` against ``PresetTarget.base_classes``.
+def test_bucket_variants_routes_by_target_match():
+    """Variants bucket through :meth:`PresetTarget.matches`.
 
     PhysicsCfg subclass instances route to PHYSICS, RendererCfg subclass
-    instances route to RENDERER, and everything else falls into DOMAIN.
+    instances route to RENDERER, PhysicsCfg-containing SimulationCfg bundles
+    route to PHYSICS, and values matching no target fall into DOMAIN.
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
     from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -280,6 +282,14 @@ def test_bucket_variants_routes_by_base_class_isinstance():
             "default": _RendVariant(),
             "newton_renderer": _RendVariant(),
         },
+        "sim": {
+            "default": SimulationCfg(dt=1 / 60, physics=_PhysVariant()),
+            "simulation_physx": SimulationCfg(dt=1 / 60, physics=_PhysVariant()),
+        },
+        "sim_no_backend": {
+            "default": SimulationCfg(dt=1 / 240),
+            "plain": SimulationCfg(dt=1 / 240),
+        },
         "weight": {  # cfgs whose type is not a typed-target base subclass -> DOMAIN
             "default": 1.0,
             "light": 0.5,
@@ -288,10 +298,10 @@ def test_bucket_variants_routes_by_base_class_isinstance():
     }
     result = _bucket_variants_by_target(walked)
     # All physics variants bucket to PHYSICS (including the wrapper-shaped ones).
-    assert {"physx", "newton_mjwarp", "newton_kamino"} <= result[PresetTarget.PHYSICS]
+    assert {"physx", "newton_mjwarp", "newton_kamino", "simulation_physx"} <= result[PresetTarget.PHYSICS]
     assert "newton_renderer" in result[PresetTarget.RENDERER]
     # Primitive-typed variants land in DOMAIN.
-    assert {"light", "heavy"} <= result[PresetTarget.DOMAIN]
+    assert {"plain", "light", "heavy"} <= result[PresetTarget.DOMAIN]
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
     for bucket in result.values():
         assert "default" not in bucket
@@ -323,8 +333,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "empty",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: (none)",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "physics=NAME (typed) selects a physics backend. Available: (none)",
+                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
             ],
             id="zero_variants_everywhere",
@@ -332,8 +342,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "physics_only",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: - alpha - beta",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "physics=NAME (typed) selects a physics backend. Available: - alpha - beta",
+                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
             ],
             id="typed_populated_other_typed_empty",
@@ -341,8 +351,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "domain_only",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: (none)",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "physics=NAME (typed) selects a physics backend. Available: (none)",
+                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
             ],
             id="domain_bucket_only",
@@ -350,8 +360,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "mixed",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: - my_phys",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: - my_rend",
+                "physics=NAME (typed) selects a physics backend. Available: - my_phys",
+                "renderer=NAME (typed) selects a renderer backend. Available: - my_rend",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
             ],
             id="all_three_buckets_populated",
@@ -360,8 +370,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
 )
 def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phrases):
     """Each branch of the description builder renders the documented strings
-    for its variant shape. Typed-bucketed names (PhysicsCfg/RendererCfg subclass
-    instances) appear only under their typed section; the DOMAIN bucket
+    for its variant shape. Typed-bucketed names appear only under their typed
+    section; the DOMAIN bucket
     (``presets:``) lists only variants that fell into the catch-all. The
     parametrize id captures which branch each case locks; argparse line-
     wrapping is normalized away before substring assertions so wording changes
@@ -369,7 +379,7 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.hydra import preset
 
@@ -423,63 +433,36 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
         assert phrase in flat, f"Missing phrase: {phrase!r}"
 
 
-def test_agent_help_lists_cartpole_camera_preset_pairings(monkeypatch, capsys):
-    """Task help lists registered agents beside their compatible presets."""
-    import isaaclab_tasks  # noqa: F401
+def test_preset_cli_has_no_agent_selection_surface():
+    """Keep the preset CLI bounded to parsing and preset help."""
+    import inspect
+    from pathlib import Path
 
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    import isaaclab_tasks.utils.preset_cli as preset_cli
 
-    parser = argparse.ArgumentParser(prog="train.py")
-    parser.add_argument("--task")
-    parser.add_argument("--agent", default="rl_games_cfg_entry_point")
-    with pytest.raises(SystemExit):
-        setup_preset_cli(parser, agent_library="rl_games")
+    assert tuple(inspect.signature(preset_cli.setup_preset_cli).parameters) == ("parser", "argv")
+    forbidden_symbols = (
+        "_AGENT_UNSET",
+        "_AgentDescriptionBuilder",
+        "_agent_passed_explicitly",
+        "_auto_select_agent",
+        "_enumerate_agents",
+    )
+    assert not [name for name in forbidden_symbols if hasattr(preset_cli, name)]
 
-    output = capsys.readouterr().out
-    assert "rl_games_cfg_entry_point (default)" in output
-    assert "compatible presets: albedo, depth, rgb" in output
-    assert "rl_games_feature_cfg_entry_point" in output
-    assert "compatible presets: resnet18, theia_tiny" in output
-
-
-def test_agent_help_lists_agents_without_preset_constraints(monkeypatch, capsys):
-    """Alternate agents remain discoverable when presets do not constrain them."""
-    import isaaclab_tasks  # noqa: F401
-
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    parser = argparse.ArgumentParser(prog="train.py")
-    parser.add_argument("--task")
-    parser.add_argument("--agent", default="rsl_rl_cfg_entry_point")
-    with pytest.raises(SystemExit):
-        setup_preset_cli(parser, agent_library="rsl_rl")
-
-    output = capsys.readouterr().out
-    assert "rsl_rl_cfg_entry_point (default)" in output
-    assert "rsl_rl_with_symmetry_cfg_entry_point" in output
-    assert "Preset selection does not constrain --agent for this task." in output
+    repo_root = Path(__file__).resolve().parents[4]
+    paths = [*repo_root.glob("source/*/**/*.py"), *repo_root.glob("scripts/**/*.py")]
+    forbidden_kwarg = "agent_" + "library="
+    offenders = [
+        path for path in paths if "setup_preset_cli" in path.read_text() and forbidden_kwarg in path.read_text()
+    ]
+    assert not offenders
 
 
-@pytest.mark.parametrize(
-    "task_name,agent_library",
-    [
-        ("Isaac-Cartpole-Camera", "rl_games"),
-        ("Isaac-Cartpole-Camera", "rsl_rl"),
-        ("IsaacContrib-Cartpole-Showcase-Direct", "skrl"),
-        ("IsaacContrib-Cartpole-Camera-Showcase-Direct", "skrl"),
-    ],
-)
-def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name, agent_library):
-    """Task-owned help metadata stays aligned with live agent and preset registrations."""
-    import isaaclab_tasks  # noqa: F401
-    from isaaclab_tasks.utils.preset_cli import _enumerate_agents, _enumerate_variants
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+def test_task_registrations_have_no_preset_to_agent_maps():
+    """A shared preset name must compose config roots without a registry-side pairing table."""
+    from pathlib import Path
 
-    agents, compatibility = _enumerate_agents(task_name, agent_library)
-    domain_presets = _enumerate_variants(task_name)[PresetTarget.DOMAIN]
-
-    assert compatibility
-    assert set(compatibility) <= set(agents)
-    assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
+    task_root = Path(__file__).resolve().parents[2] / "isaaclab_tasks"
+    offenders = [path for path in task_root.rglob("*.py") if "agent_preset_compatibility" in path.read_text()]
+    assert not offenders

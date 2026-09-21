@@ -44,7 +44,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 # ======================================================================
 # Fixtures: fake stable/warp symbols and configclass trees.
@@ -165,6 +165,24 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
     assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
+def test_warp_direct_build_selects_warp_scene_from_cfg():
+    cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
+    expected_env = object()
+
+    def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
+        assert cfg.scene.class_type is fe.InteractiveSceneWarp
+        assert kwargs == {"render_mode": "rgb_array"}
+        return expected_env
+
+    with (
+        patch.object(WarpFrontend, "_resolve_direct_warp_class", return_value=fake_env),
+        patch.object(WarpFrontend, "_require_newton_physics"),
+    ):
+        env = WarpFrontend._build_direct_env(cfg, "Isaac-Test", render_mode="rgb_array")
+
+    assert env is expected_env
+
+
 # ======================================================================
 # SceneEntityCfg.from_stable
 # ======================================================================
@@ -228,8 +246,9 @@ def test_require_newton_passes_for_newton():
 def test_require_newton_rejects_physx():
     with pytest.raises(FrontendIncompatibleError) as exc:
         fe.WarpFrontend._require_newton_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
-    assert "presets=newton_mjwarp" in str(exc.value)
-    assert "PhysxCfg" in str(exc.value)
+    message = str(exc.value)
+    assert "Select Newton while composing the task configuration" in message
+    assert "PhysxCfg" in message
 
 
 def test_require_newton_rejects_none():

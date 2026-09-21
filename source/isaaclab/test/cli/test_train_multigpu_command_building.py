@@ -13,8 +13,8 @@ every entry point, including all ranks of the multi-GPU launcher.
 
 :meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` now fuses such pairs in
 ``sys.argv`` into single ``--kit_args=<value>`` tokens before any parsing, and
-``dispatch_library_entrypoint`` applies the same fusing to the explicit argv list
-it forwards to the per-library scripts (which parse that list, not ``sys.argv``).
+the unified RL dispatcher applies the same fusing to the explicit argv list it
+forwards to the backend modules (which parse that list, not ``sys.argv``).
 The multi-GPU launcher forwards the tokens verbatim; each child rank runs through
 the dispatcher and normalizes them at startup.
 
@@ -25,23 +25,14 @@ without a GPU or Isaac Sim installation.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import shlex
 import sys
-from pathlib import Path
 
 import pytest
 
 from isaaclab.app.app_launcher import AppLauncher
 
-# The launcher script lives outside the installed packages; load it by path.
-# This test lives at source/isaaclab/test/cli/test_train_multigpu_command_building.py.
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_TRAIN_MULTIGPU_PATH = _REPO_ROOT / "scripts" / "reinforcement_learning" / "train_multigpu.py"
-
-_spec = importlib.util.spec_from_file_location("train_multigpu", _TRAIN_MULTIGPU_PATH)
-train_multigpu = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(train_multigpu)
+from isaaclab_rl.entrypoints import multigpu as train_multigpu
 
 
 def _build_command(argv: list[str]) -> list[str]:
@@ -52,7 +43,7 @@ def _build_command(argv: list[str]) -> list[str]:
 
 def _forwarded_train_argv(command: list[str]) -> list[str]:
     """Return the argv forwarded to the child training script."""
-    return command[command.index(str(train_multigpu.TRAIN_SCRIPT)) + 1 :]
+    return command[command.index(train_multigpu.WORKER_SCRIPT) + 1 :]
 
 
 def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyPatch) -> str:
@@ -128,38 +119,6 @@ class TestAddAppLauncherArgsNormalization:
         assert unknown == ["env.param=1"]
 
 
-class TestDispatchLibraryEntrypoint:
-    """Tests for the ``--kit_args`` normalization in ``dispatch_library_entrypoint``.
-
-    The benchmark dispatchers hand the per-library scripts an explicit argv list
-    (not ``sys.argv``), so the normalization must also run on that list before it
-    is forwarded.
-    """
-
-    @staticmethod
-    def _dispatch(tmp_path: Path, argv: list[str]) -> list[str]:
-        """Dispatch to a stub library entry point and return the argv it received."""
-        rl_common = pytest.importorskip("isaaclab_rl.entrypoints.common")
-        stub = tmp_path / "stub_train.py"
-        stub.write_text(
-            "received = None\n\n\ndef run(argv):\n    global received\n    globals()['received'] = list(argv)\n"
-        )
-        exit_code = rl_common.dispatch_library_entrypoint(
-            argv, {"stub": stub}, action="train", description="test", library_help="test"
-        )
-        assert exit_code == 0
-        return sys.modules["isaaclab_rl_train_stub"].received
-
-    def test_space_separated_kit_args_fused_before_library_script(self, tmp_path):
-        received = self._dispatch(tmp_path, ["--rl_library", "stub", "--task", "X", "--kit_args", "--foo=/bar"])
-        assert received == ["--task", "X", "--kit_args=--foo=/bar"]
-
-    def test_already_working_argv_forms_forwarded_unchanged(self, tmp_path):
-        argv = ["--task", "X", "--kit_args=--foo=/bar", "--kit_args", "--a=/x --b=/y", "--num_envs", "16"]
-        received = self._dispatch(tmp_path, ["--rl_library", "stub", *argv])
-        assert received == argv
-
-
 class TestKitArgsForwarding:
     """Tests for forwarding ``--kit_args`` through the multi-GPU launcher."""
 
@@ -203,7 +162,9 @@ class TestKitArgsForwarding:
         assert kit_args == "--foo=/bar"
 
     def test_dry_run_prints_shell_parsable_command(self, capsys):
-        exit_code = train_multigpu.main(["--dry_run", "--task", "Isaac-Cartpole-Direct", "--kit_args", "--foo=/bar"])
+        exit_code = train_multigpu.run_train_multigpu_cli(
+            ["--dry_run", "--task", "Isaac-Cartpole-Direct", "--kit_args", "--foo=/bar"]
+        )
         assert exit_code == 0
         printed = capsys.readouterr().out.strip()
         tokens = shlex.split(printed)

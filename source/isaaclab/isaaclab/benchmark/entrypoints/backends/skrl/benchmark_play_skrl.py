@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 import sys
 import time
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
 
 
 def _parse_args(argv: list[str]):
@@ -42,11 +42,13 @@ def _parse_args(argv: list[str]):
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with SKRL.")
+    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
+    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument(
-        "--num_frames", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+        "--num_steps", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
@@ -59,10 +61,7 @@ def _parse_args(argv: list[str]):
         "--agent",
         type=str,
         default=None,
-        help=(
-            "Name of the RL agent configuration entry point. Defaults to None, in which"
-            " case --algorithm is used to determine the default agent entry point."
-        ),
+        help="Agent configuration entry point (default: the task's canonical SKRL configuration).",
     )
     parser.add_argument(
         "--ml_framework",
@@ -74,9 +73,9 @@ def _parse_args(argv: list[str]):
     parser.add_argument(
         "--algorithm",
         type=str,
-        default="PPO",
+        default=None,
         choices=["AMP", "PPO", "IPPO", "MAPPO"],
-        help="The RL algorithm used for the skrl agent.",
+        help="Optional algorithm selector; with --agent, the resolved agent.class must match.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -85,7 +84,7 @@ def _parse_args(argv: list[str]):
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
-        "--warmup_frames",
+        "--warmup_steps",
         type=parse_non_negative_int,
         default=1,
         help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
@@ -101,8 +100,10 @@ def _parse_args(argv: list[str]):
         ),
     )
     add_launcher_args(parser)
+    common.add_frontend_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    common.enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
@@ -118,13 +119,11 @@ def run(argv: list[str]) -> BenchmarkResult:
     import contextlib
     import os
 
-    import gymnasium as gym
-
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -137,15 +136,11 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     args_cli, remaining_args = _parse_args(argv)
 
-    # Resolve agent entry point (mirrors isaaclab_rl.entrypoints.backends.play_skrl).
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+    agent_cfg_entry_point = resolve_skrl_agent_cfg_entry_point(args_cli.agent, args_cli.algorithm)
 
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
+    common.pre_launch_video_config(env_cfg, args_cli=args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -153,11 +148,12 @@ def run(argv: list[str]) -> BenchmarkResult:
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
             app_t1 = time.perf_counter_ns()
+            common.apply_video_recording(env_cfg, args_cli.output_path, args_cli, subdir="play")
 
             if args_cli.ml_framework.startswith("jax"):
                 import skrl
 
-                cleanup.enter_context(_common.preserve_attribute(skrl.config.jax, "backend"))
+                cleanup.enter_context(common.preserve_attribute(skrl.config.jax, "backend"))
                 skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
             if args_cli.num_envs is not None:
@@ -166,8 +162,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"]))
-            if args_cli.checkpoint in _common.CHECKPOINT_SELECTORS:
-                resume_path = _common.resolve_checkpoint_selector(
+            if args_cli.checkpoint in common.CHECKPOINT_SELECTORS:
+                resume_path = common.resolve_checkpoint_selector(
                     log_root_path,
                     args_cli.checkpoint,
                     library="skrl",
@@ -181,9 +177,9 @@ def run(argv: list[str]) -> BenchmarkResult:
                     },
                 )
             else:
-                resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task)
+                resume_path = common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task, env_cfg)
 
-            cfg = capture.run_config_from_presets(remaining_args)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -198,20 +194,21 @@ def run(argv: list[str]) -> BenchmarkResult:
                     "metadata": [
                         {"name": "task", "data": args_cli.task},
                         {"name": "num_envs", "data": args_cli.num_envs},
-                        {"name": "num_frames", "data": args_cli.num_frames},
-                        {"name": "algorithm", "data": args_cli.algorithm},
+                        {"name": "num_steps", "data": args_cli.num_steps},
+                        {"name": "algorithm", "data": algorithm.upper()},
                         {
                             "name": "environment_step_measurement_mode",
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
-                        {"name": "environment_step_warmup_frames", "data": args_cli.warmup_frames},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
+                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                     ]
                 },
             )
 
             env_t0 = time.perf_counter_ns()
-            env = gym.make(args_cli.task, cfg=env_cfg)
+            env = common.create_isaaclab_env(
+                args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=algorithm == "ppo"
+            )
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 
@@ -252,14 +249,14 @@ def run(argv: list[str]) -> BenchmarkResult:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env,
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
-                warmup_steps=args_cli.warmup_frames,
+                warmup_steps=args_cli.warmup_steps,
             )
-            total_frames = args_cli.warmup_frames + args_cli.num_frames
+            total_steps = args_cli.warmup_steps + args_cli.num_steps
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
+                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_steps)
 
             first_step_s = all_step_times[0]
-            step_times = all_step_times[args_cli.warmup_frames :]
+            step_times = all_step_times[args_cli.warmup_steps :]
 
             benchmark.update_manual_recorders()
 
@@ -277,6 +274,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=fps,
                 steps_per_iteration=num_envs,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
@@ -311,6 +309,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 reward=reward,
                 ep_length=ep_length,
                 checkpoint_path=resume_path,
+                video_path=env_cfg.video_recorders[0].output_dir if args_cli.video else None,
             )
 
             benchmark.attach_bundle(bundle)

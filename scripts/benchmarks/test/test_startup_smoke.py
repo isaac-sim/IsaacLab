@@ -55,6 +55,7 @@ def test_startup_writes_startup_bundle(tmp_path):
     assert len(schema_files) == len(omniperf_files) == 1
 
     data = json.loads(schema_files[0].read_text())
+    assert data["run"]["num_envs"] == 16
     assert set(data["phases"]) == _EXPECTED_PHASES
     assert data["config"]["whitelist"] == str(whitelist)
     assert data["phases"]["python_imports"]["top_functions"]

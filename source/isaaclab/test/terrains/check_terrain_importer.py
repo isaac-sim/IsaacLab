@@ -62,6 +62,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -87,8 +88,8 @@ def main():
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_balls, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_balls, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim_utils.define_prim("/World/envs/env_0")
 
@@ -126,9 +127,9 @@ def main():
         # Spawn a geom sphere with rigid body properties
         sphere_cfg = sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )
@@ -137,9 +138,9 @@ def main():
         # Spawn a mesh sphere with rigid body properties
         mesh_sphere_cfg = sim_utils.MeshSphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )
@@ -154,7 +155,7 @@ def main():
     )
 
     # Set ball positions over terrain origins using FrameView (before simulation starts)
-    xform_view = sim_utils.FrameView("/World/envs/env_.*/ball")
+    xform_view = sim_utils.FrameView("{ENV_REGEX_NS}/ball")
     # cache initial state of the balls
     ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0

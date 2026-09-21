@@ -15,6 +15,8 @@ __all__ = [
     "DifferentialInverseKinematicsActionCfg",
     "EMAJointPositionToLimitsAction",
     "EMAJointPositionToLimitsActionCfg",
+    "FixedTendonPositionAction",
+    "FixedTendonPositionActionCfg",
     "JointAction",
     "JointActionCfg",
     "JointEffortAction",
@@ -44,6 +46,8 @@ __all__ = [
     "UniformPoseCommandCfg",
     "UniformVelocityCommand",
     "UniformVelocityCommandCfg",
+    "DifficultyScheduler",
+    "initial_final_interpolate_fn",
     "modify_env_param",
     "modify_reward_weight",
     "modify_term_cfg",
@@ -60,6 +64,8 @@ __all__ = [
     "randomize_rigid_body_material",
     "randomize_rigid_body_scale",
     "randomize_visual_color",
+    "randomize_visual_material",
+    "randomize_visual_shape",
     "randomize_visual_texture_material",
     "reset_joints_by_offset",
     "reset_joints_by_scale",
@@ -123,6 +129,7 @@ __all__ = [
     "joint_acc_l2",
     "joint_deviation_l1",
     "joint_pos_limits",
+    "joint_pos_target_l2",
     "joint_torques_l2",
     "joint_vel_l1",
     "joint_vel_l2",
@@ -131,6 +138,8 @@ __all__ = [
     "orientation_command_error",
     "position_command_error",
     "position_command_error_tanh",
+    "survival_success_rate",
+    "terminated_penalty",
     "track_ang_vel_z_exp",
     "track_lin_vel_xy_exp",
     "undesired_contacts",
@@ -159,6 +168,8 @@ from .actions import (
     DifferentialInverseKinematicsActionCfg,
     EMAJointPositionToLimitsAction,
     EMAJointPositionToLimitsActionCfg,
+    FixedTendonPositionAction,
+    FixedTendonPositionActionCfg,
     JointAction,
     JointActionCfg,
     JointEffortAction,
@@ -191,7 +202,13 @@ from .commands import (
     UniformVelocityCommand,
     UniformVelocityCommandCfg,
 )
-from .curriculums import modify_env_param, modify_reward_weight, modify_term_cfg
+from .curriculums import (
+    DifficultyScheduler,
+    initial_final_interpolate_fn,
+    modify_env_param,
+    modify_reward_weight,
+    modify_term_cfg,
+)
 from .events import (
     apply_external_force_torque,
     push_by_setting_velocity,
@@ -216,6 +233,7 @@ from .events import (
     reset_root_state_with_random_orientation,
     reset_scene_to_default,
 )
+from .visual_events import randomize_visual_material, randomize_visual_shape
 from .observations import (
     base_ang_vel,
     base_lin_vel,
@@ -275,6 +293,7 @@ from .rewards import (
     joint_acc_l2,
     joint_deviation_l1,
     joint_pos_limits,
+    joint_pos_target_l2,
     joint_torques_l2,
     joint_vel_l1,
     joint_vel_l2,
@@ -283,6 +302,8 @@ from .rewards import (
     orientation_command_error,
     position_command_error,
     position_command_error_tanh,
+    survival_success_rate,
+    terminated_penalty,
     track_ang_vel_z_exp,
     track_lin_vel_xy_exp,
     undesired_contacts,

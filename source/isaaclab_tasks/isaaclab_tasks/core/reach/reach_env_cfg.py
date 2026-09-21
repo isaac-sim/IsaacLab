@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the end-effector reach environments."""
+
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -21,9 +23,11 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -34,7 +38,11 @@ from isaaclab_tasks.utils import PresetCfg
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
+    """Physics backend presets for the reach environments."""
+
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
@@ -49,10 +57,6 @@ class ReachPhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
-    )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
     default: NewtonCfg = newton_mjwarp
 
 
@@ -140,7 +144,7 @@ class ObservationsCfg:
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -234,13 +238,14 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.sim.render_interval = self.decimation
         self.episode_length_s = 12.0
-        self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.sim.dt = 1.0 / 120.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
         self.sim.physics = ReachPhysicsCfg()
+        # visualizer settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))

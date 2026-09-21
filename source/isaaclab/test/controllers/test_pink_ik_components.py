@@ -14,7 +14,7 @@ from pink.exceptions import FrameNotFound
 
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = pytest.mark.integration
 
 
 class TestPinkKinematicsConfiguration:
@@ -296,3 +296,43 @@ class TestPinkKinematicsConfiguration:
         assert len(test_model.full_q) > len(test_model.controlled_q)
         assert len(test_model.full_q) == len(test_model.all_joint_names_pinocchio_order)
         assert len(test_model.controlled_q) == len(test_model.controlled_joint_names_pinocchio_order)
+
+
+@pytest.mark.parametrize("fixed_base", [False, True])
+@pytest.mark.parametrize("disable_gravity", [False, True])
+@pytest.mark.parametrize("robot_name", ["GR1T2_HIGH_PD_CFG", "G1_INSPIRE_FTP_CFG"])
+def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, disable_gravity, robot_name):
+    """The Pink robot configs retain direct gravity access and the action's effort targets."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import torch
+
+    from isaaclab.envs.mdp.actions.pink_task_space_actions import PinkInverseKinematicsAction
+
+    import isaaclab_assets
+
+    robot_cfg = getattr(isaaclab_assets, robot_name).copy()
+    robot_cfg.spawn.rigid_props.disable_gravity = disable_gravity
+    num_base_dofs = 0 if fixed_base else 6
+    forces = torch.arange(2 * (3 + num_base_dofs), dtype=torch.float32).reshape(2, -1)
+    asset = SimpleNamespace(
+        cfg=robot_cfg,
+        data=SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces)),
+        num_base_dofs=num_base_dofs,
+        is_fixed_base=fixed_base,
+        set_joint_effort_target_index=Mock(),
+    )
+    action = SimpleNamespace(
+        _asset=asset, _controlled_joint_ids=[0, 2], _controlled_joint_ids_tensor=torch.tensor([0, 2])
+    )
+    PinkInverseKinematicsAction._apply_gravity_compensation(action)
+
+    if disable_gravity:
+        asset.set_joint_effort_target_index.assert_not_called()
+    else:
+        asset.set_joint_effort_target_index.assert_called_once()
+        kwargs = asset.set_joint_effort_target_index.call_args.kwargs
+        assert kwargs["joint_ids"] == [0, 2]
+        expected = torch.zeros(2, 2) if fixed_base else forces[:, [6, 8]]
+        torch.testing.assert_close(kwargs["target"], expected)

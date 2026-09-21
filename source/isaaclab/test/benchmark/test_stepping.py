@@ -71,33 +71,33 @@ def test_sample_single_agent_shape_and_range():
 
 def test_run_runtime_loop_steps_and_times():
     env = _Env()
-    times = run_runtime_loop(env, num_frames=5)
+    times = run_runtime_loop(env, num_steps=5)
     assert env.reset_called and env.steps == 5
     assert len(times) == 5 and all(t >= 0.0 for t in times)
 
 
 def test_run_runtime_loop_can_skip_reset():
     env = _Env()
-    run_runtime_loop(env, num_frames=2, reset=False)
+    run_runtime_loop(env, num_steps=2, reset=False)
     assert not env.reset_called and env.steps == 2
 
 
-@pytest.mark.parametrize("num_frames", [0, 1, 50])
-def test_run_runtime_warmup_runs_exact_requested_steps(num_frames: int):
+@pytest.mark.parametrize("num_steps", [0, 1, 50])
+def test_run_runtime_warmup_runs_exact_requested_steps(num_steps: int):
     env = _Env()
 
-    times = run_runtime_warmup(env, num_frames=num_frames)
+    times = run_runtime_warmup(env, num_steps=num_steps)
 
     assert env.reset_called
-    assert env.steps == num_frames
-    assert len(times) == num_frames
+    assert env.steps == num_steps
+    assert len(times) == num_steps
 
 
 def test_environment_step_timer_measures_env_step_without_simulation_timing():
     env = _Env()
 
     with EnvironmentStepTimingRecorder(env) as timer:
-        run_runtime_loop(env, num_frames=2, reset=False)
+        run_runtime_loop(env, num_steps=2, reset=False)
 
     assert len(timer.step_times_s) == 2
     assert timer.simulation_step_times_s is None
@@ -111,7 +111,7 @@ def test_environment_step_timer_measures_only_step_calls():
 
     with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True) as timer:
         env.unwrapped.sim.step()
-        run_runtime_loop(env, num_frames=3, reset=False)
+        run_runtime_loop(env, num_steps=3, reset=False)
         env.unwrapped.sim.step()
 
     assert len(timer.step_times_s) == 3
@@ -126,7 +126,7 @@ def test_environment_step_timer_excludes_warmup_steps_host_return():
     env = _Env()
 
     with EnvironmentStepTimingRecorder(env, warmup_steps=2) as timer:
-        run_runtime_loop(env, num_frames=5, reset=False)
+        run_runtime_loop(env, num_steps=5, reset=False)
 
     # All five steps run, but the first two are excluded from the recorded timings.
     assert env.steps == 5
@@ -138,7 +138,7 @@ def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
     recorder = EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True, warmup_steps=1)
 
     with recorder:
-        run_runtime_loop(env, num_frames=3, reset=False)
+        run_runtime_loop(env, num_steps=3, reset=False)
 
     # The first env step is warmup; each _Env.step calls sim.step twice, so only the two
     # recorded steps' four simulation-step calls are counted (not the warmup step's two).
@@ -148,7 +148,7 @@ def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
 
     # Reusing the same recorder resets the warmup counter and the recorded series.
     with recorder:
-        run_runtime_loop(env, num_frames=4, reset=False)
+        run_runtime_loop(env, num_steps=4, reset=False)
 
     assert len(recorder.step_times_s) == 3
     assert recorder.simulation_step_calls == 6

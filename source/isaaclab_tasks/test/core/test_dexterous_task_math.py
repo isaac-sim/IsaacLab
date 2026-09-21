@@ -16,10 +16,10 @@ import pytest
 import torch
 
 import isaaclab.utils.math as math_utils
+from isaaclab.utils.math import quat_error_magnitude
 
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints, cube_keypoints_from_quat
-from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success
 
 _DEVICES = ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else [])
 
@@ -37,17 +37,16 @@ def _quats(device, *quats):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_rotation_distance_recovers_known_angles(device):
-    _, distance = evaluate_reorient_success(
-        _quats(device, _IDENTITY, _ROT90_X, _ROT180_Z), _quats(device, _IDENTITY, _IDENTITY, _IDENTITY), 0.4
+    distance = quat_error_magnitude(
+        _quats(device, _IDENTITY, _ROT90_X, _ROT180_Z), _quats(device, _IDENTITY, _IDENTITY, _IDENTITY)
     )
     torch.testing.assert_close(distance, torch.tensor([0.0, math.pi / 2, math.pi], device=device), atol=1e-5, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_reorient_success_thresholds_on_rotation_distance(device):
-    success, distance = evaluate_reorient_success(
-        _quats(device, _IDENTITY, _ROT90_X), _quats(device, _IDENTITY, _IDENTITY), 0.4
-    )
+    distance = quat_error_magnitude(_quats(device, _IDENTITY, _ROT90_X), _quats(device, _IDENTITY, _IDENTITY))
+    success = distance <= 0.4
     assert success.tolist() == [True, False]
     torch.testing.assert_close(distance, torch.tensor([0.0, math.pi / 2], device=device), atol=1e-5, rtol=0.0)
 

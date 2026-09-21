@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -125,20 +126,21 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and binds model / state arrays."""
         super()._initialize_impl()
 
-        model = NewtonManager.get_model()
-        state_0 = NewtonManager.get_state_0()
+        model, state_0 = NewtonManager.get_model(), NewtonManager.get_state_0()
 
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = ArticulationView(
-            model,
-            root_prim_path_expr.replace(".*", "*"),
-            verbose=False,
-            exclude_joint_types=[JointType.FREE, JointType.FIXED],
-        )
+        self._root_view = NewtonManager.views.get((NewtonManager, root_prim_path_expr))
+        if self._root_view is None:
+            self._root_view = NewtonManager.views[NewtonManager, root_prim_path_expr] = ArticulationView(
+                model,
+                re.compile(root_prim_path_expr),
+                verbose=False,
+                exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            )
         self._num_joints = self._root_view.joint_count
         if self._num_joints == 0:
             raise RuntimeError(

@@ -9,7 +9,7 @@ isaaclab_newton.sim.schemas
   Newton's MuJoCo solver). MuJoCo cfgs subclass their Newton counterpart
   because MuJoCo is one of Newton's solver options.
 
-  See :doc:`/source/overview/core-concepts/schema_cfgs` for the design and
+  See :doc:`/source/concepts/schema_cfgs` for the design and
   when to use each class.
 
   .. rubric:: Newton-targeted (family roots)
@@ -110,3 +110,43 @@ Articulation Root
     :members:
     :show-inheritance:
     :exclude-members: __init__
+
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_newton.sim.schemas` API.
+
+.. currentmodule:: isaaclab_newton.sim.schemas
+
+.. autosummary::
+   :nosignatures:
+
+   MujocoFixedTendonCfg
+   MujocoJointCfg
+   MujocoRigidBodyCfg
+   NewtonArticulationCfg
+   NewtonCollisionCfg
+   NewtonMeshCollisionCfg
+   NewtonSDFCollisionCfg
+
+.. autoclass:: MujocoFixedTendonCfg
+   :show-inheritance:
+
+.. autoclass:: MujocoJointCfg
+   :show-inheritance:
+
+.. autoclass:: MujocoRigidBodyCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonArticulationCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonCollisionCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonMeshCollisionCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonSDFCollisionCfg
+   :show-inheritance:

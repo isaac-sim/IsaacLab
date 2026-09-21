@@ -39,6 +39,21 @@ def test_config_accepts_zero_joints_for_rigid_assets() -> None:
     assert config.num_joints == 0
 
 
+def test_runner_records_exact_physics_variant_in_workflow_metadata(tmp_path) -> None:
+    """Exact backend selectors should remain distinguishable in output metadata."""
+    with patch("isaaclab.benchmark.method_benchmark.BaseIsaacLabBenchmark.__init__") as base_init:
+        MethodBenchmarkRunner(
+            benchmark_name="asset_benchmark",
+            config=MethodBenchmarkRunnerConfig(device="cpu"),
+            output_path=str(tmp_path),
+            use_recorders=False,
+            physics_variant="newton_kamino",
+        )
+
+    metadata = base_init.call_args.kwargs["workflow_metadata"]["metadata"]
+    assert {"name": "physics_variant", "data": "newton_kamino"} in metadata
+
+
 def _runner(*, num_iterations: int = 3, warmup_steps: int = 0) -> MethodBenchmarkRunner:
     runner = object.__new__(MethodBenchmarkRunner)
     runner._config = MethodBenchmarkRunnerConfig(
@@ -111,6 +126,49 @@ def test_method_benchmark_collects_exact_requested_samples() -> None:
     assert result is not None
     assert result["n"] == 3
     assert call_count == 6
+
+
+def test_method_benchmark_prepares_target_outside_timed_operation() -> None:
+    """Target cache preparation should run for every call without contributing to measured latency."""
+    runner = _runner(num_iterations=1, warmup_steps=1)
+    events: list[str] = []
+
+    def prepare_target() -> None:
+        events.append("target")
+
+    def generator(_config) -> dict[str, object]:
+        events.append("inputs")
+        return {}
+
+    def operation() -> None:
+        events.append("operation")
+
+    def clock() -> int:
+        events.append("clock")
+        return events.count("clock") * 1_000
+
+    with patch("isaaclab.benchmark.method_benchmark.time.perf_counter_ns", side_effect=clock):
+        result = runner._benchmark_method(
+            operation,
+            "example",
+            generator,
+            prepare_target=prepare_target,
+        )
+
+    assert result is not None
+    assert events == [
+        "target",
+        "inputs",
+        "operation",
+        "target",
+        "inputs",
+        "operation",
+        "target",
+        "inputs",
+        "clock",
+        "operation",
+        "clock",
+    ]
 
 
 def test_method_dependency_surface_is_not_published() -> None:

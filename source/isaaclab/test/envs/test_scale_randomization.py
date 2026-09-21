@@ -22,6 +22,7 @@ simulation_app = app_launcher.app
 
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Sdf
 
@@ -35,7 +36,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -152,11 +153,11 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # add cube for scale randomization
     cube1: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube1",
+        prim_path="/World/envs/env_[^/]+/cube1",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
@@ -165,11 +166,11 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # add cube for static scale values
     cube2: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube2",
+        prim_path="/World/envs/env_[^/]+/cube2",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
@@ -299,12 +300,12 @@ def test_scale_randomization(device):
     target_position -= env.scene.env_origins
 
     # test to make sure all assets in the scene are created
-    all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube.*/.*")
+    all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube[^/]*/[^/]*")
     assert len(all_prim_paths) == (env.num_envs * 2)
 
     # test to make sure randomized values are truly random
     applied_scaling_randomization = set()
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube1")
 
     # get the stage
     stage = sim_utils.get_current_stage()
@@ -320,7 +321,7 @@ def test_scale_randomization(device):
         applied_scaling_randomization.add(scale_spec.default)
 
     # test to make sure that fixed values are assigned correctly
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube2")
     for i in range(3):
         prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
         scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")

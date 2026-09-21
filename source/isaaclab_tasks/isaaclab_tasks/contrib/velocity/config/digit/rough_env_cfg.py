@@ -5,19 +5,49 @@
 
 import math
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import (
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    RewardTermCfg,
+    SceneEntityCfg,
+    TerminationTermCfg,
+)
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RoughPhysicsCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
+
+_ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
+"""Bound once so ``DigitPhysicsCfg`` does not construct ``RoughPhysicsCfg`` twice."""
+
+
+@configclass
+class DigitPhysicsCfg(PresetCfg):
+    """Physics configuration for the Digit velocity environments."""
+
+    isaacsim_physx = PhysxCfg(
+        gpu_max_rigid_patch_count=10 * 2**15,
+        gpu_found_lost_pairs_capacity=2**23,
+        gpu_total_aggregate_pairs_capacity=2**23,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
+    # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
+    # already-derived value from the source instance forward as one.
+    newton_mjwarp = _ROUGH_NEWTON_MJWARP.replace(
+        class_type=None,
+        solver_cfg=_ROUGH_NEWTON_MJWARP.solver_cfg.replace(njmax=5000, nconmax=2000),
+    )
+    default = isaacsim_physx
 
 
 @configclass
@@ -214,14 +244,6 @@ class DigitActionsCfg:
 
 
 @configclass
-class DigitPhysicsCfg(PresetCfg):
-    """PhysX-only physics configuration for the Digit velocity environments."""
-
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = default
-
-
-@configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(physics=DigitPhysicsCfg())
     rewards: DigitRewards = DigitRewards()
@@ -231,38 +253,28 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.decimation = 4
-        self.sim.dt = 0.005
 
-        # Scene
+        # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-
-        # Digit uses "torso_base" as base body
-        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        self.events.base_com.default.params["asset_cfg"].body_names = "torso_base"
-        # Digit has precise initial pose — don't scale joint defaults randomly on reset
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
-        # Override actuator to target only actuated joints. Digit has ball joints (rod constraints)
-        # that MuJoCo represents with 4 DoFs instead of 3, inflating joint_pos to 74 columns while
-        # joint_pos_target stays at 64. Using ".*" gives slice(None) which indexes both buffers
-        # differently. Explicit joint names produce a concrete index tensor that works correctly.
-        self.scene.robot.actuators = {
-            "legs_arms": ImplicitActuatorCfg(
-                joint_names_expr=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
-                stiffness=None,
-                damping=None,
-            ),
-        }
-
-        # Commands
+        # commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.rel_standing_envs = 0.1
         self.commands.base_velocity.resampling_time_range = (3.0, 8.0)
+        # events
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_com.params["asset_cfg"].body_names = "torso_base"
+        # The asset authors enabledSelfCollisions=False and DIGIT_V4_CFG sets no
+        # articulation_props, so Newton filters every intra-articulation shape pair -- 253 of
+        # them, exactly C(23,2) for its 23 colliding shapes -- and the legs pass through each
+        # other. Which links carry colliders is left as the asset authored it.
+        self.scene.robot.spawn.articulation_props = preset(
+            default=None, newton_mjwarp=[NewtonArticulationCfg(self_collision_enabled=True)]
+        )
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
