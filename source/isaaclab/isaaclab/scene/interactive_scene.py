@@ -238,7 +238,7 @@ class InteractiveScene:
         variant_counts: list[int] = []
         for asset_name, child in flat_items:
             if isinstance(child, CameraCfg):
-                self.sim.render_context.get_renderer(child.renderer_cfg)
+                self.sim.get_or_create_backend(child.renderer_cfg)
             if id(child) in nested_visual_material_ids:
                 if child.spawn is not None:
                     child.spawn.spawn_path = child.prim_path

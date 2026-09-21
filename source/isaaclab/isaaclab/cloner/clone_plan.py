@@ -317,7 +317,7 @@ def make_clone_plan(
     groups: list[tuple[Any, Any, str, int]] = []
     for cfg in cfgs:
         if isinstance(cfg, CameraCfg) and sim is not None:
-            sim.render_context.get_renderer(cfg.renderer_cfg)
+            sim.get_or_create_backend(cfg.renderer_cfg)
         matched = match(cfg.prim_path, env_template)
         count = num_spawn_variants(cfg.spawn)
         if count <= 0:
@@ -472,7 +472,7 @@ def clone_plan_from_env_0(
     records = []
     for cfg in asset_cfgs:
         if isinstance(cfg, CameraCfg):
-            sim.render_context.get_renderer(cfg.renderer_cfg)
+            sim.get_or_create_backend(cfg.renderer_cfg)
         prim_path = expand_env_regex_ns(cfg.prim_path, clone_cfg.clone_template)
         matched = match(prim_path, clone_cfg.clone_template)
         spawn = getattr(cfg, "spawn", None)

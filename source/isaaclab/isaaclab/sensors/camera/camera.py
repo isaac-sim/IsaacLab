@@ -220,7 +220,7 @@ class Camera(SensorBase):
         # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
         self._renderer: BaseRenderer | None = None
         if sim_ctx is not None:
-            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
             with force_log_level(logging.INFO):
                 logger.info("Using renderer: %s", type(self._renderer).__name__)
         # Render data — assigned in _initialize_impl.
@@ -541,7 +541,7 @@ class Camera(SensorBase):
             raise RuntimeError("SimulationContext is not initialized.")
         # Normally created in ``__init__``; only missing when the camera was built without a simulation.
         if self._renderer is None:
-            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume

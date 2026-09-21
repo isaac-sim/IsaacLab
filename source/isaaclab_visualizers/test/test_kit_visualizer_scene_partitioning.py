@@ -32,9 +32,9 @@ def test_streaming_renderer_registers_before_visualizer_initialization(monkeypat
     KitVisualizer(KitVisualizerCfg(streaming_view=True, streaming_cam_target_prim_path="/Robot" if generated else None))
 
     if generated:
-        sim.render_context.get_renderer.assert_called_once_with(renderer_cfg)
+        sim.get_or_create_backend.assert_called_once_with(renderer_cfg)
     else:
-        sim.render_context.get_renderer.assert_not_called()
+        sim.get_or_create_backend.assert_not_called()
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])

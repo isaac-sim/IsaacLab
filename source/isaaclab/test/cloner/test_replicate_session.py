@@ -35,14 +35,18 @@ class _RenderContext(_Context):
 
 @pytest.fixture
 def simulation(monkeypatch):
+    registry = []
     sim = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=_Context),
         clone_contexts={},
-        render_context=RenderContext(),
+        _backend_registry=registry,
+        _render_context=RenderContext(registry),
         stage=object(),
         plan=None,
         calls=[],
     )
+    sim.render_context = sim._render_context
+    sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
     sim.clone_contexts[_Context] = _Context(sim)
     sim.get_clone_plan = lambda: sim.plan
     sim.set_clone_plan = lambda plan: setattr(sim, "plan", plan)
@@ -122,7 +126,7 @@ def test_camera_registers_rendering_before_planning_and_shares_the_plan(simulati
         simulation.plan = plan
 
     assert constructed == [camera.renderer_cfg]
-    simulation.render_context.get_renderer(camera.renderer_cfg)
+    simulation.get_or_create_backend(camera.renderer_cfg)
     assert len(constructed) == 1
     assert plan.sources == ("/Lab/Cell0",)
     assert plan.destinations == ("/Lab/Cell{}",)

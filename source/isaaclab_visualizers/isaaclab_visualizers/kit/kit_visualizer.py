@@ -140,7 +140,7 @@ class KitVisualizer(BaseVisualizer):
             and cfg.streaming_sensor_prim_path is None
             and cfg.streaming_cam_target_prim_path is not None
         ):
-            SimulationContext.instance().render_context.get_renderer(self._resolve_streaming_renderer_cfg())
+            SimulationContext.instance().get_or_create_backend(self._resolve_streaming_renderer_cfg())
 
     # ---- Lifecycle ------------------------------------------------------------------------
 

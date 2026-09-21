@@ -9,16 +9,18 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
 
-from isaaclab.app.logging_utils import force_log_level
 from isaaclab.sensors.camera.camera_data import CameraData
 
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
+
+if TYPE_CHECKING:
+    from isaaclab.sim import BackendCfg
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +61,15 @@ _MATERIAL_WRITES = {
 
 
 class RenderContext:
-    """Own camera renderers and flat runtime material buffers for one simulation.
+    """Orchestrate simulation-owned renderers and own flat runtime material buffers.
 
-    A camera reuses a backend when a prior camera registered a config equal under ``==`` (value
-    equality) and the same concrete ``RendererCfg`` subclass. A distinct ``RendererCfg`` that
-    maps to a different implementation (e.g. Isaac RTX vs Newton) produces another backend; each
-    has :meth:`BaseRenderer.prepare_stage` run before use.
-
-    :meth:`update_scene_state` is invoked at most once per :meth:`get_physics_step_count` for the
-    context;
+    Renderer instances are borrowed from the simulation's backend registry. Scene state updates
+    run at most once per physics step, regardless of how many cameras share a renderer.
     """
 
     __slots__ = (
         "clone_contexts",
-        "_renderer_entries",
+        "_backend_registry",
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
@@ -87,10 +84,10 @@ class RenderContext:
         "_consumers_finalized",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, backend_registry: list[tuple[BackendCfg, Any]]) -> None:
         self.clone_contexts: set[type | str] = set()
         """Scene representations declared by camera renderers and visualizers before cloning."""
-        self._renderer_entries: list[tuple[RendererCfg, BaseRenderer]] = []
+        self._backend_registry = backend_registry
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
@@ -104,12 +101,23 @@ class RenderContext:
         self._visual_material_env_ids: dict[tuple[torch.device, int], tuple[torch.Tensor, wp.array]] = {}
         self._consumers_finalized = False
 
-    def _check_global_settings_compatible(self, cfg: RendererCfg) -> None:
-        """Reject conflicting process-global renderer settings."""
-        if getattr(cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(cfg, "global_settings"):
+    @property
+    def _renderer_entries(self) -> tuple[tuple[RendererCfg, BaseRenderer], ...]:
+        return tuple((cfg, resource) for cfg, resource in self._backend_registry if isinstance(cfg, RendererCfg))
+
+    @property
+    def renderer_types(self) -> tuple[str, ...]:
+        """Return the registered camera renderer types."""
+        return tuple(cfg.renderer_type for cfg, _renderer in self._renderer_entries)
+
+    def validate_renderer_cfg(self, cfg: RendererCfg) -> None:
+        """Reject late registration and conflicting global settings before renderer construction."""
+        if self._consumers_finalized and self._visual_material_batches:
+            raise RuntimeError("Renderers must be registered before rendering consumers are finalized.")
+        if cfg.renderer_type != "isaac_rtx":
             return
         for stored_cfg, _renderer in self._renderer_entries:
-            if getattr(stored_cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(stored_cfg, "global_settings"):
+            if stored_cfg.renderer_type != "isaac_rtx":
                 continue
             if stored_cfg.global_settings != cfg.global_settings:
                 raise ValueError(
@@ -118,37 +126,12 @@ class RenderContext:
                     "IsaacRtxRendererCfg.global_settings for every Isaac RTX camera."
                 )
 
-    @property
-    def renderer_types(self) -> tuple[str, ...]:
-        """Return the registered camera renderer types."""
-        return tuple(cfg.renderer_type for cfg, _renderer in self._renderer_entries)
-
-    def get_renderer(self, cfg: RendererCfg) -> BaseRenderer:
-        """Return a backend for this configuration, reusing a matching instance if present.
-
-        Lookups use ``==`` and concrete ``RendererCfg`` type, so :func:`hash` is not used (configs
-        are typically not hashable).
-
-        Args:
-            cfg: Renderer configuration from the initializing camera.
-
-        Returns:
-            A shared or newly created renderer backend.
-        """
-        self._check_global_settings_compatible(cfg)
-        for stored_cfg, r in self._renderer_entries:
-            if type(stored_cfg) is type(cfg) and stored_cfg == cfg:
-                return r
-        if self._consumers_finalized and self._visual_material_batches:
-            raise RuntimeError("Renderers must be registered before rendering consumers are finalized.")
-        new_renderer = cfg.class_type(cfg)
-        self._renderer_entries.append((cfg, new_renderer))
+    def register_renderer(self, cfg: RendererCfg, renderer: BaseRenderer) -> None:
+        """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
-        with force_log_level(logging.INFO):
-            logger.info("Created new renderer for simulation: %s", type(new_renderer).__name__)
+        self._last_scene_state_step = None
         if self._physics_initialized:
-            new_renderer.initialize()
-        return new_renderer
+            renderer.initialize()
 
     def ensure_initialize(self) -> None:
         """Idempotent call fired after PHYSICS_READY callback."""
@@ -318,11 +301,11 @@ class RenderContext:
             num_envs: Environment count.
 
         Raises:
-            RuntimeError: If :meth:`get_renderer` was never called, or ``num_envs`` disagrees with
+            RuntimeError: If no renderer is registered, or ``num_envs`` disagrees with
                 a value already used for a prepared backend in this context.
         """
         if not self._renderer_entries:
-            raise RuntimeError("get_renderer must be called at least once before ensure_prepare_stage.")
+            raise RuntimeError("A renderer must be registered before ensure_prepare_stage.")
         if self._prepared_num_envs is not None and self._prepared_num_envs != num_envs:
             raise RuntimeError(
                 "RenderContext prepare_stage was used with a different num_envs "
@@ -342,9 +325,6 @@ class RenderContext:
         Invokes :meth:`BaseRenderer.update_transforms` and then
         :meth:`BaseRenderer.update_geometries` on each registered renderer.
         """
-        if not self._renderer_entries:
-            return
-
         if self._last_scene_state_step == physics_step_count:
             return
 
@@ -387,16 +367,10 @@ class RenderContext:
         self._last_scene_state_step = None
 
     def close(self) -> None:
-        """Close every registered backend and drop it from this context.
-
-        Called from :meth:`~isaaclab.sim.simulation_context.SimulationContext.clear_instance` after
-        cameras have released their render data and before the stage is torn down, so
-        :meth:`BaseRenderer.close` runs while the stage is still alive. A backend that raises does
-        not prevent the others from closing; the failure is reported once every backend has been
-        given the chance. Idempotent.
+        """Release material writers and lifecycle bookkeeping, not registry-owned renderers.
 
         Raises:
-            RuntimeError: If any backend's :meth:`BaseRenderer.close` raised.
+            RuntimeError: If a material writer failed to close.
         """
         errors: list[Exception] = []
         for writer in self._visual_material_writers:
@@ -405,13 +379,6 @@ class RenderContext:
             except Exception as exc:  # noqa: BLE001 - reported after every resource is closed
                 logger.error("Error closing visual-material writer: %s", exc)
                 errors.append(exc)
-        for _cfg, renderer in self._renderer_entries:
-            try:
-                renderer.close()
-            except Exception as exc:  # noqa: BLE001 - re-raised below once every backend is closed
-                logger.error("Error closing renderer %s: %s", type(renderer).__name__, exc)
-                errors.append(exc)
-        self._renderer_entries.clear()
         self.clone_contexts.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
@@ -428,4 +395,4 @@ class RenderContext:
 
         if errors:
             # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
-            raise RuntimeError(f"{len(errors)} renderer(s) failed to close") from errors[0]
+            raise RuntimeError(f"{len(errors)} material writer(s) failed to close") from errors[0]

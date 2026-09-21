@@ -23,6 +23,7 @@ from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
+from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
@@ -236,7 +237,7 @@ class SimulationContext:
         self._render_generation: int = 0
 
         # Shared renderers for all Camera sensors (compatible renderer_cfg only).
-        self._render_context = RenderContext()
+        self._render_context = RenderContext(self._backend_registry)
 
         # Run renderer post-physics setup.
         self.physics_manager.register_callback(
@@ -934,22 +935,26 @@ class SimulationContext:
         return self._settings_helper.get(name)
 
     def get_or_create_backend(self, cfg: BackendCfg) -> Any:
-        """Return the simulation-scoped native backend for a configuration.
+        """Return the simulation-owned resource or renderer for a configuration.
 
         Equal configurations of the same concrete type share a resource. Finalize configurations
         before registration and treat them as read-only afterward; use a new cfg for new settings.
 
         Args:
-            cfg: Native resource configuration. A cache miss constructs ``cfg.class_type(cfg)``.
+            cfg: Construction inputs. A cache miss constructs ``cfg.class_type(cfg)``.
 
         Returns:
-            The existing or newly constructed native backend.
+            The existing or newly constructed resource.
         """
         for registered_cfg, resource in self._backend_registry:
             if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
                 return resource
+        if isinstance(cfg, RendererCfg):
+            self._render_context.validate_renderer_cfg(cfg)
         resource = cfg.class_type(cfg)
         self._backend_registry.append((cfg, resource))
+        if isinstance(cfg, RendererCfg):
+            self._render_context.register_renderer(cfg, resource)
         return resource
 
     def close_backend(self, backend: Any) -> None:
@@ -963,10 +968,12 @@ class SimulationContext:
         Raises:
             KeyError: The backend is not registered with this context.
         """
-        for index, (_, resource) in enumerate(self._backend_registry):
+        for index, (cfg, resource) in enumerate(self._backend_registry):
             if resource is backend:
                 resource.close()
                 self._backend_registry.pop(index)
+                if isinstance(cfg, RendererCfg):
+                    self._render_context._prepared_renderer_ids.discard(id(resource))
                 return
         raise KeyError(backend)
 
@@ -990,6 +997,9 @@ class SimulationContext:
                 # Close camera renderers after STOP invalidates camera-owned render data and
                 # before the stage is closed so stage-bound renderer resources remain valid.
                 run_cleanup(instance._render_context.close)
+                for cfg, resource in tuple(instance._backend_registry):
+                    if isinstance(cfg, RendererCfg):
+                        run_cleanup(lambda resource=resource: instance.close_backend(resource))
 
                 # Give every visualizer a chance to release its resources.
                 for viz in (*instance._visualizers, *instance._pending_visualizers):
@@ -998,8 +1008,9 @@ class SimulationContext:
                 instance._pending_visualizers.clear()
 
                 instance.clone_contexts.clear()
-                for _, resource in instance._backend_registry:
-                    run_cleanup(resource.close)
+                for cfg, resource in instance._backend_registry:
+                    if not isinstance(cfg, RendererCfg):
+                        run_cleanup(resource.close)
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
