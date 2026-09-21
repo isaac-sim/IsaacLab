@@ -931,11 +931,11 @@ class OVRTXRenderer(BaseRenderer):
         render_data = OVRTXRenderData(spec, self._device)
         camera_paths = [f"/World/envs/env_{i}/{spec.camera_path_relative_to_env_0}" for i in range(spec.num_instances)]
         if self._use_ovstage:
-            render_data.intrinsic_paths = self._stage_paths.create_path_list_from_strings(camera_paths)
-            render_data.intrinsic_query = self._stage.query_from_path_list(render_data.intrinsic_paths)
+            render_data.intrinsic_paths = self.backend.paths.create_path_list_from_strings(camera_paths)
+            render_data.intrinsic_query = self.backend.stage.query_from_path_list(render_data.intrinsic_paths)
         else:
             render_data.intrinsic_bindings = [
-                self._renderer.bind_attribute(
+                self.backend.renderer.bind_attribute(
                     prim_paths=camera_paths,
                     attribute_name=name,
                     dtype="float32",
@@ -1698,7 +1698,7 @@ class OVRTXRenderer(BaseRenderer):
         """Publish calibration columns from GPU memory into the renderer-owned scene."""
         stream = wp.get_stream(parameters.device).cuda_stream
         if self._use_ovstage:
-            self._stage.write_attributes(
+            self.backend.stage.write_attributes(
                 render_data.intrinsic_query,
                 [
                     ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
@@ -1736,10 +1736,10 @@ class OVRTXRenderer(BaseRenderer):
             binding.unbind()
         render_data.intrinsic_bindings.clear()
         if render_data.intrinsic_query is not None:
-            self._stage.release_query(render_data.intrinsic_query).wait()
+            self.backend.stage.release_query(render_data.intrinsic_query).wait()
             render_data.intrinsic_query = None
         if render_data.intrinsic_paths is not None:
-            self._stage_paths.destroy_path_list(render_data.intrinsic_paths)
+            self.backend.paths.destroy_path_list(render_data.intrinsic_paths)
             render_data.intrinsic_paths = None
         render_data.warp_buffers.clear()
         render_data.renderer_info.clear()

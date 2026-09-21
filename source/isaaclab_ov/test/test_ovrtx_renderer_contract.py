@@ -584,12 +584,12 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     renderer._initialized_scene = True
     renderer._use_ovstage = use_ovstage
     renderer._current_ordinal = 1
-    renderer._renderer = MagicMock()
-    renderer._renderer.bind_attribute.side_effect = lambda **kwargs: MagicMock()
-    renderer._stage = MagicMock()
-    renderer._stage_paths = MagicMock()
-    renderer._stage_paths.create_path_list_from_strings.side_effect = tuple
-    renderer._stage.query_from_path_list.side_effect = lambda paths: object()
+    renderer.backend.renderer = MagicMock()
+    renderer.backend.renderer.bind_attribute.side_effect = lambda **kwargs: MagicMock()
+    renderer.backend.stage = MagicMock()
+    renderer.backend.paths = MagicMock()
+    renderer.backend.paths.create_path_list_from_strings.side_effect = tuple
+    renderer.backend.stage.query_from_path_list.side_effect = lambda paths: object()
     cameras = [
         renderer.create_render_data(
             types.SimpleNamespace(
@@ -602,12 +602,13 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
-    assert not hasattr(renderer, "_camera_intrinsic_bindings")
+    # Keep native resources on the backend and calibration handles on each camera's render data.
+    assert not {"_renderer", "_stage", "_stage_paths", "_camera_intrinsic_bindings"}.intersection(vars(renderer))
     if use_ovstage:
-        assert [call.args[0] for call in renderer._stage_paths.create_path_list_from_strings.call_args_list] == paths
-        assert renderer._stage.write_attributes.call_args.args[0] is cameras[1].intrinsic_query
+        assert [call.args[0] for call in renderer.backend.paths.create_path_list_from_strings.call_args_list] == paths
+        assert renderer.backend.stage.write_attributes.call_args.args[0] is cameras[1].intrinsic_query
     else:
-        bound_paths = [call.kwargs["prim_paths"] for call in renderer._renderer.bind_attribute.call_args_list]
+        bound_paths = [call.kwargs["prim_paths"] for call in renderer.backend.renderer.bind_attribute.call_args_list]
         assert bound_paths == [paths[0]] * 5 + [paths[1]] * 5
         assert all(not binding.write_async.called for binding in cameras[0].intrinsic_bindings)
         for row, binding in enumerate(cameras[1].intrinsic_bindings):
