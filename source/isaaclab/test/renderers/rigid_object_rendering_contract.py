@@ -15,8 +15,10 @@ import gc
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from unittest.mock import patch
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -194,7 +196,12 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             zoomed[:, 0, 0] *= 2.0
             zoomed[:, 1, 1] *= 2.0
             for focal_length in (None, 12.0):
-                camera.set_intrinsic_matrices(zoomed, focal_length=focal_length)
+                with patch.object(
+                    type(wp.get_module(Camera.__module__)),
+                    "_compile",
+                    side_effect=AssertionError("Runtime calibration must not compile Warp modules"),
+                ):
+                    camera.set_intrinsic_matrices(zoomed, focal_length=focal_length)
                 depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
                 _, widths, _ = _measure_depth_mask(depth, backend.name, camera)
                 torch.testing.assert_close(widths.float(), center_widths.float() * 2.0, atol=2.0, rtol=0.0)

@@ -7,10 +7,11 @@ Changed
   ``PinholeCameraCfg.from_intrinsic_matrix`` when spawning cameras instead of exporting runtime USD.
 * Added ``BaseRenderer.update_camera_intrinsics`` for device calibration updates independently of
   pose updates. Custom renderers must implement this method to support runtime calibration changes.
-* Prepared intrinsic conversion, selection, and duplicate-index handling in NumPy, avoiding camera
-  calibration kernel compilation for setup-time updates. Accepted NumPy, Torch, and Warp matrices;
-  device inputs were copied to the host before native renderer updates consumed the device buffers.
-  OpenCV calibration, synchronous validation, and the centered, square-pixel projection were preserved.
+* Imported initial calibration on the CPU and prepared float32/float64 Warp kernels during
+  initialization. Runtime conversion, selection, and duplicate-index handling ran on the camera
+  device without matrix or index batch readbacks. Accepted NumPy, Torch, and Warp matrices;
+  host inputs were uploaded before runtime updates. OpenCV calibration, synchronous scalar
+  validation, and the centered, square-pixel projection were preserved.
 
 Fixed
 ^^^^^
