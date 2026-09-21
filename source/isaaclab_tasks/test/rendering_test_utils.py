@@ -45,9 +45,12 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
+# An entry is a single tolerance, or a ``[synchronous, asynchronous]`` pair for envs that also run
+# the pipelined lane, which captures a slightly different render state. Read via
+# :func:`max_different_pixels_percentage_for`.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
-    "cartpole": 1.5,
+    "cartpole": [1.5, 2.5],
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
@@ -76,12 +79,32 @@ _MPM_PARTICLE_SETTLE_STEPS = 30
 _OVRTX_SCALE_SENSITIVE_DATA_TYPES = {"depth", "distance_to_camera", "distance_to_image_plane"}
 
 
-def _max_different_pixels_percentage(env_name: str, renderer: str, data_type: str) -> float:
-    """Return the image-difference tolerance for an environment and renderer."""
-    threshold = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+def _max_different_pixels_percentage(
+    env_name: str, renderer: str, data_type: str, *, async_rendering: bool = False
+) -> float:
+    """Return the image-difference tolerance for an environment, renderer and render path."""
+    threshold = max_different_pixels_percentage_for(env_name, async_rendering=async_rendering)
     if renderer == "ovrtx_renderer" and data_type not in _OVRTX_SCALE_SENSITIVE_DATA_TYPES:
         return min(threshold, _OVRTX_MAX_DIFFERENT_PIXELS_PERCENTAGE)
     return threshold
+
+
+def max_different_pixels_percentage_for(env_name: str, *, async_rendering: bool = False) -> float:
+    """Return ``env_name``'s pixel-diff tolerance for the requested render path.
+
+    Args:
+        env_name: Key into :data:`MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME`.
+        async_rendering: Whether the run renders asynchronously.
+
+    Returns:
+        The entry itself when it is a single tolerance, else its synchronous or asynchronous
+        element.
+    """
+    tolerance = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+    if not isinstance(tolerance, list):
+        return tolerance
+    synchronous, asynchronous = tolerance
+    return asynchronous if async_rendering else synchronous
 
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
@@ -1715,6 +1738,7 @@ def rendering_test_cartpole(
     comparison_scores: list[dict],
     *,
     compare_golden: bool = False,
+    async_rendering: bool = False,
 ) -> None:
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -1774,6 +1798,8 @@ def rendering_test_cartpole(
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.tiled_camera.data_types = data_types
+    if async_rendering:
+        env_cfg.scene.tiled_camera.renderer_cfg.async_rendering = True
     if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
@@ -1814,7 +1840,10 @@ def rendering_test_cartpole(
             renderer,
             camera_outputs,
             max_different_pixels_percentage={
-                data_type: _max_different_pixels_percentage("cartpole", renderer, data_type) for data_type in data_types
+                data_type: _max_different_pixels_percentage(
+                    "cartpole", renderer, data_type, async_rendering=async_rendering
+                )
+                for data_type in data_types
             },
             comparison_scores=comparison_scores,
         )

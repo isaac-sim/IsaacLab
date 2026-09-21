@@ -113,6 +113,11 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._cable_points_binding = None
     renderer._cable_segment_counts = []
     renderer._use_ovstage = False
+    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
+    # The strategy takes the renderer's resolved Warp device; tests fake it with just the pieces
+    # the strategy reads (allocation device and the current stream handle).
+    renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
+    renderer._strategy.set_device(renderer._warp_device)
     return renderer, renderer.backend.renderer
 
 
@@ -493,7 +498,7 @@ def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", _fake_zeros)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
-    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=7))
+    renderer._strategy.set_device(SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7)))
 
     positions = SimpleNamespace(shape=(2,), warp=object())
     renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())

@@ -33,6 +33,7 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer_strategies import _SyncRenderStrategy  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
 else:
@@ -112,6 +113,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
+    renderer._strategy = _SyncRenderStrategy()
     renderer._camera_prim_path = "/World/envs/env_0/Camera"
     renderer._render_product_paths = []
     renderer._camera_render_data = []

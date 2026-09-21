@@ -82,6 +82,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend._resources = contextlib.ExitStack()
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
+    # ``__init__`` is bypassed, so set the strategy it would build: ``close`` drains the strategy
+    # before releasing the backend.
+    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
     return renderer
 
 
