@@ -33,9 +33,11 @@ RUNTIME_COMPATIBILITY: dict[str, Any] = {
     "version": 3,
     "always": ("torch", "warp"),
     "by_physics_backend": {
-        # TODO: add ovphysx when supported on gate
         "physx": ("isaacsim",),
         "newton_mjwarp": ("newton", "mujoco", "mjwarp"),
+        # Standalone, kit-less solver; isaacsim is null on this path, so it is pinned
+        # to its own version instead.
+        "ovphysx": ("ovphysx",),
     },
     "by_render_backend": {
         "newton": ("newton",),

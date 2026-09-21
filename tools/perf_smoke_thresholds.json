@@ -26,12 +26,13 @@
       "IsaacContrib-Factory-GearMesh-Direct": {
         "physx": 30.0
       },
-      "Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct": {
+      "IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct": {
         "physx_isaacsim_rtx": 20.0,
         "physx_newton": 0.0,
         "newton_mjwarp_isaacsim_rtx": 0.0,
         "newton_mjwarp_newton": 0.0,
-        "_todo": "Three of four floors are 0.0 (disabled). RTX 5090 sweep measured physx_newton_renderer ~22,556 and newton_newton_renderer ~30,579 fps; both *_rtx_renderer combos failed on that host with cudaErrorIllegalAddress and need re-measuring (physx_rtx_renderer does succeed in CI on L40S)."
+        "ovphysx_newton": 0.0,
+        "_todo": "Four of five floors are 0.0 (disabled)."
       },
       "Isaac-Velocity-Flat-G1": {
         "physx": 40.0,
