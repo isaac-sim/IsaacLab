@@ -188,6 +188,26 @@ def test_body_local_frame_resolves_before_and_after_reset(device):
     ctx.__exit__(None, None, None)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_close_before_reset_cancels_deferred_initialization(device):
+    """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``."""
+    num_envs = 3
+    ctx = _sim_context(device, num_envs=num_envs)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
+    sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
+
+    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
+    assert view.count == 0, "the model already exists; this is not the deferred path"
+    view.close()
+
+    sim.reset()
+
+    assert view.count == 0, "a closed view still initialized from the physics-ready callback"
+    ctx.__exit__(None, None, None)
+
+
 # ==================================================================
 # Newton edge case: world-attached prim (body=-1)
 # ==================================================================
