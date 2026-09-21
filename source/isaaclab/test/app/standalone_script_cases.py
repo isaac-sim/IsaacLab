@@ -8,13 +8,16 @@
 from __future__ import annotations
 
 import ast
+import fcntl
 import importlib.util
 import os
 import re
 import selectors
 import signal
+import struct
 import subprocess
 import tempfile
+import termios
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -482,9 +485,14 @@ def run_until_ready(
                 screenshot_captured = True
             if ready_at is not None and now - ready_at >= soak_time:
                 stopped_after_soak = True
-                # Classify every byte already waiting in the pipe before crossing the teardown boundary.
-                while read_available_output(timeout=0.0):
-                    pass
+                # Snapshot queued bytes so a continuous producer cannot extend the drain indefinitely.
+                pending_bytes = struct.unpack("i", fcntl.ioctl(process.stdout, termios.FIONREAD, b"\0" * 4))[0]
+                while pending_bytes:
+                    chunk = os.read(process.stdout.fileno(), min(pending_bytes, 65536))
+                    if not chunk:
+                        break
+                    record_output(chunk)
+                    pending_bytes -= len(chunk)
                 # Preserve shutdown logs without treating errors caused by intentional teardown as runtime failures.
                 monitor_fatal_patterns = False
                 _terminate_process_group(process)
