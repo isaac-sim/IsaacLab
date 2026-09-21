@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for OVPhysX 0.5.11 / 0.6 lifecycle compatibility."""
+"""Tests for OVPhysX 0.5.11 / 0.6 lifecycle and dynamics compatibility."""
 
 from __future__ import annotations
 
@@ -29,11 +29,13 @@ if not _MISSING_MODULES:
         OVPHYSX_LIFECYCLE_ENTRY_POINTS,
         build_lifecycle_entry_points,
         detect_ovphysx_version,
+        requires_legacy_joint_sign_correction,
     )
 else:
     OVPHYSX_LIFECYCLE_ENTRY_POINTS = None
     build_lifecycle_entry_points = None
     detect_ovphysx_version = None
+    requires_legacy_joint_sign_correction = None
 
 _LEGACY_ENTRY_POINTS = {"warmup": "warmup_gpu", "destroy": "release"}
 _CURRENT_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
@@ -75,3 +77,18 @@ def test_lifecycle_entry_points(version: Version | None, expected: dict[str, str
 def test_published_entry_points_are_read_only():
     with pytest.raises(TypeError):
         OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"] = "mutated"  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        (None, True),
+        (Version("0.5.11"), True),
+        (Version("0.6.0.dev1+trunk.e15a64a2"), False),
+        (Version("0.6"), False),
+        (Version("0.6.2"), False),
+        (Version("1.0"), False),
+    ],
+)
+def test_reversed_joint_sign_correction_version_boundary(version: Version | None, expected: bool):
+    assert requires_legacy_joint_sign_correction(version) is expected

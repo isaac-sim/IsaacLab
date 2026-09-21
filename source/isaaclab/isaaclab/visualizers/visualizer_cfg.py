@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -35,9 +35,10 @@ class VisualizerCfg:
     """Base configuration for all visualizer backends.
 
     Note:
-        This is an abstract base class and should not be instantiated directly.
-        Use specific configs from isaaclab_visualizers: KitVisualizerCfg, NewtonGLVisualizerCfg,
-        RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
+        This configuration can be used directly as
+        :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg` to provide shared defaults.
+        To create a visualizer, use a concrete config from ``isaaclab_visualizers``, such as
+        ``KitVisualizerCfg`` or ``NewtonGLVisualizerCfg``.
     """
 
     class_type: type[BaseVisualizer] | str | None = None
@@ -52,6 +53,13 @@ class VisualizerCfg:
 
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
+
+    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
+    """Solid background color as normalized RGB values in ``[0, 1]``.
+
+    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
+    backend's native background. Scene lighting remains independent of the visible background.
+    """
 
     # ── Streaming view ────────────────────────────────────────────────────────
     # Captures pixels from a camera sensor (existing or auto-created), tiles them
@@ -178,6 +186,11 @@ class VisualizerCfg:
 
     def __post_init__(self) -> None:
         import warnings
+
+        if self.background_color is not None:
+            if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
+                raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
+            self.background_color = tuple(float(value) for value in self.background_color)
 
         _simple = [
             ("tiled_cam_view", "streaming_view"),

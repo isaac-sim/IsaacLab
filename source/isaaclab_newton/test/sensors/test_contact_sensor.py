@@ -33,6 +33,7 @@ import warp as wp
 from flaky import flaky
 from isaaclab_newton.physics.newton_manager import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton._src.utils.selection import match_labels
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
@@ -53,7 +54,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
@@ -343,15 +344,15 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
-        rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)
+        rigid_props = [PhysxRigidBodyCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)]
 
         scene_cfg.object_a = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/BoxA",
             spawn=sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 rigid_props=rigid_props,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=mass_a),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=mass_a),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.5, 0.0, 0.2)),
@@ -361,8 +362,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
             spawn=sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 rigid_props=rigid_props,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=mass_b),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=mass_b),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.2)),
@@ -508,11 +509,10 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
         pytest.param(
             False,
             id="newton_contacts",
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason=(
                     "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
                 ),
-                strict=False,
             ),
         ),
         pytest.param(True, id="mujoco_contacts"),
@@ -543,27 +543,27 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
 
-        rigid_props_a = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)
+        rigid_props_a = [PhysxRigidBodyCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)]
         scene_cfg.object_a = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ObjectA",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.3),
                 rigid_props=rigid_props_a,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=5.0),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
         )
 
-        rigid_props_b = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=2.0, angular_damping=2.0)
+        rigid_props_b = [PhysxRigidBodyCfg(disable_gravity=False, linear_damping=2.0, angular_damping=2.0)]
         scene_cfg.object_b = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ObjectB",
             spawn=sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 rigid_props=rigid_props_b,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=mass_b),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=mass_b),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.55)),
@@ -647,11 +647,10 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         pytest.param(
             False,
             id="newton_contacts",
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason=(
                     "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
                 ),
-                strict=False,
             ),
         ),
         pytest.param(True, id="mujoco_contacts"),
@@ -682,14 +681,14 @@ def test_track_contact_points_reports_average_position(device: str, use_mujoco_c
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
 
-        rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)
+        rigid_props = [PhysxRigidBodyCfg(disable_gravity=False, linear_damping=0.5, angular_damping=0.5)]
         scene_cfg.object_a = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ObjectA",
             spawn=sim_utils.CuboidCfg(
                 size=size_a,
                 rigid_props=rigid_props,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=5.0),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=pos_a),
@@ -699,8 +698,8 @@ def test_track_contact_points_reports_average_position(device: str, use_mujoco_c
             spawn=sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 rigid_props=rigid_props,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=2.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=2.0),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.55)),
@@ -710,8 +709,8 @@ def test_track_contact_points_reports_average_position(device: str, use_mujoco_c
             spawn=sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 rigid_props=rigid_props,
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=2.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=2.0),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 0.15)),
@@ -809,7 +808,7 @@ ALLEGRO_FINGER_LINKS = {
         pytest.param(
             False,
             id="newton_contacts",
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason="Newton contact pipeline reports inaccurate per-finger forces in articulated systems"
             ),
         ),
@@ -858,11 +857,9 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
                 ),
             )
 
-        drop_rigid_props = sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False, linear_damping=0.0, angular_damping=0.0
-        )
-        drop_collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
-        drop_mass_props = sim_utils.MassPropertiesCfg(mass=1.0)
+        drop_rigid_props = [PhysxRigidBodyCfg(disable_gravity=False, linear_damping=0.0, angular_damping=0.0)]
+        drop_collision_props = [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)]
+        drop_mass_props = [sim_utils.MassCfg(mass=1.0)]
         drop_visual = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
 
         spawn_map = {
@@ -973,15 +970,15 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
 
 def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
     """Scene with two distinct Cuboid bodies (BoxA, BoxB) per env."""
-    rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.0, angular_damping=0.0)
+    rigid_props = [PhysxRigidBodyCfg(disable_gravity=True, linear_damping=0.0, angular_damping=0.0)]
     scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.object_a = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/BoxA",
         spawn=sim_utils.CuboidCfg(
             size=(0.3, 0.3, 0.3),
             rigid_props=rigid_props,
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             activate_contact_sensors=True,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.5, 0.0, 1.0)),
@@ -991,8 +988,8 @@ def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
         spawn=sim_utils.CuboidCfg(
             size=(0.3, 0.3, 0.3),
             rigid_props=rigid_props,
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             activate_contact_sensors=True,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 1.0)),

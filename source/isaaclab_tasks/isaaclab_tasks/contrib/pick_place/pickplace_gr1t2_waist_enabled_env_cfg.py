@@ -10,7 +10,7 @@ from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
@@ -18,7 +18,7 @@ from .pickplace_gr1t2_env_cfg import (
     ObjectTableSceneCfg,
     ObservationsCfg,
     TerminationsCfg,
-    _build_gr1t2_pickplace_pipeline,
+    build_gr1t2_pickplace_pipeline,
 )
 
 
@@ -67,7 +67,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )

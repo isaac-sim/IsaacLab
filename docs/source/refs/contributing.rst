@@ -514,7 +514,7 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
 
    if typing.TYPE_CHECKING:
        from .sensor import Sensor
@@ -763,6 +763,8 @@ Please make sure that you add tests for your changes.
                # Run a particular test
                isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
+All of these commands exit with a nonzero code when tests fail, so a test
+failure fails the invoking shell or CI step as well.
 
 Tools
 -----

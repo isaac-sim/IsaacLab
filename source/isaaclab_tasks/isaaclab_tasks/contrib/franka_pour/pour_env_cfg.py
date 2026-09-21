@@ -17,8 +17,9 @@ from typing import Any, Literal
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.sim.schemas import MujocoJointCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -34,8 +35,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -292,7 +293,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
     return capacity
 
 
-def _configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
+def configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
     """Resolve world-count-dependent MPM capacities after command-line overrides."""
     _configure_media_fill(cfg)
     solver_cfg = _mpm_solver_cfg(cfg)
@@ -339,8 +340,16 @@ class PourSceneCfg(InteractiveSceneCfg):
     )
     robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
+    robot.spawn.variants = {"Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions
-    robot.spawn.articulation_props.enabled_self_collisions = True
+    # The pouring asset relies on arm self-collision; author it in both namespaces so whichever
+    # backend resolves the articulation sees the flag.
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+    ).enabled_self_collisions = True
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, NewtonArticulationCfg)
+    ).self_collision_enabled = True
     robot.actuators = {
         name: actuator_cfg.replace(
             effort_limit_sim=None,
@@ -361,7 +370,7 @@ class PourSceneCfg(InteractiveSceneCfg):
         "panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_STIFFNESS["panda_joint[5-7]"]
     }
     robot.actuators["panda_forearm"].damping = {"panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_DAMPING["panda_joint[5-7]"]}
-    robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
+    robot.spawn.joint_drive_props = MujocoJointCfg(actuatorgravcomp=True)
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 

@@ -117,7 +117,7 @@ def test_tiled_camera_cfg_does_not_forward_deprecated_fields():
 
 
 def test_newton_warp_supported_output_types_key_set():
-    """NewtonWarpRenderer publishes the documented key set."""
+    """Newton renderer and config publish one shared output contract."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
@@ -127,6 +127,7 @@ def test_newton_warp_supported_output_types_key_set():
     renderer.cfg = NewtonWarpRendererCfg()
     specs = renderer.supported_output_types()
 
+    assert specs == renderer.cfg.supported_output_types()
     assert set(specs.keys()) == {
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
@@ -140,6 +141,43 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.INSTANCE_SEGMENTATION,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+
+
+@pytest.mark.parametrize("data_type", ["simple_shading_full_mdl", "not_a_render_buffer_kind"])
+def test_camera_cfg_rejects_outputs_unsupported_by_renderer(data_type):
+    """Camera config validation rejects output types absent from the renderer contract."""
+    pytest.importorskip("isaaclab_newton")
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    cfg = CameraCfg(
+        height=64,
+        width=64,
+        prim_path="/World/Camera",
+        spawn=_SPAWN,
+        data_types=[data_type],
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+
+    with pytest.raises(ValueError, match=data_type):
+        cfg.validate()
+
+
+@pytest.mark.parametrize("data_type", ["rgba", "rgb_hdr", "albedo"])
+def test_camera_cfg_accepts_supported_newton_outputs(data_type):
+    """Camera config validation accepts every formerly omitted Newton color output."""
+    pytest.importorskip("isaaclab_newton")
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    cfg = CameraCfg(
+        height=64,
+        width=64,
+        prim_path="/World/Camera",
+        spawn=_SPAWN,
+        data_types=[data_type],
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+
+    cfg.validate()
 
 
 @pytest.mark.parametrize("colorize", [True, False])
@@ -175,7 +213,9 @@ def test_newton_warp_wraps_requested_rgb_hdr_output():
     from isaaclab.utils.warp.proxy_array import ProxyArray
 
     fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
-    render_data = RenderData(fake_sensor, SimpleNamespace(cfg=SimpleNamespace(width=4, height=3, isp_cfg=None)))
+    spawn = SimpleNamespace(distortion=None)
+    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn, isp_cfg=None)
+    render_data = RenderData(fake_sensor, SimpleNamespace(cfg=camera_cfg))
     hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
 
     render_data.set_outputs({str(RenderBufferKind.RGB_HDR): hdr_proxy})

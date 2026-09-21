@@ -13,7 +13,7 @@ import warnings
 
 import pytest
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import hydra as hydra_mod
 from isaaclab_tasks.utils.hydra import (
@@ -427,7 +427,7 @@ def test_user_stacklevel_warning_origin_is_outside_hydra_module():
     deprecations = [w for w in caught if issubclass(w.category, FutureWarning)]
     assert deprecations, "expected a FutureWarning from the legacy alias"
     assert deprecations[0].filename != hydra_mod.__file__, (
-        f"warning was attributed to hydra.py ({deprecations[0].filename}); _user_stacklevel should "
+        f"warning was attributed to hydra.py ({deprecations[0].filename}); user_stacklevel should "
         f"point outside the module"
     )
 

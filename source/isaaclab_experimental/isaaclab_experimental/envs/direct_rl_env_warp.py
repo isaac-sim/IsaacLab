@@ -34,7 +34,6 @@ from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # from isaacsim.core.simulation_manager import SimulationManager
@@ -159,7 +158,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveSceneWarp(self.cfg.scene)
+                self.scene = self.cfg.scene.class_type(self.cfg.scene)
                 self._setup_scene()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -726,18 +725,6 @@ class DirectRLEnvWarp(DirectRLEnv):
     """
     Implementation-specific functions.
     """
-
-    def _setup_scene(self):
-        """Setup the scene for the environment.
-
-        This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
-        directly creating the scene objects and registering them with the scene manager.
-
-        We leave the implementation of this function to the derived classes. If the environment does not require
-        any explicit scene setup, the function can be left empty.
-        """
-        pass
 
     @abstractmethod
     def _pre_physics_step(self, actions: wp.array) -> None:

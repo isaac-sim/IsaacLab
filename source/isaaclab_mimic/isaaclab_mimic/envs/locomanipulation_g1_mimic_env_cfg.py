@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,

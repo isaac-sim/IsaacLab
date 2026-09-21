@@ -58,6 +58,7 @@ class _FakeVisualizationModelBuilder:
                 references="world",
             ),
         }
+        self.custom_frequencies = {}
         self.geometry_sources = []
         self.world_slices = []
         self._current_world = None
@@ -385,7 +386,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertIs(result, builder)
         self.assertEqual(shadow_entities, [])
         self.assertEqual(registry_groups, [])
-        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"], ignore_paths=None)
+        builder.add_usd.assert_called_once_with(
+            stage,
+            schema_resolvers=["newton", "physx"],
+            ignore_paths=None,
+            skip_mesh_approximation=True,
+        )
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
@@ -505,6 +511,41 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         source.add_shape_box(body=body, label=f"{self._SRC}/shape")
         child = source.add_link(xform=wp.transform(), label=f"{self._SRC}/link")
         source.add_joint_revolute(parent=body, child=child, axis=(0.0, 0.0, 1.0), label=f"{self._SRC}/hinge")
+
+        def resolve_motor_owners(builder):
+            labels = builder.custom_attributes["syn:motor_label"].values
+            targets = builder.custom_attributes["syn:motor_target"].values
+            return [0 if label == target else -1 for label, target in zip(labels, targets, strict=True)]
+
+        source.add_custom_frequency(
+            newton.ModelBuilder.CustomFrequency(
+                name="motor",
+                namespace="syn",
+                label_attribute="syn:motor_label",
+                articulation_owner_attribute="syn:motor_articulation",
+                articulation_owner_resolver=resolve_motor_owners,
+            )
+        )
+        for name, dtype, default, references in (
+            ("motor_label", str, "", None),
+            ("motor_target", str, "", None),
+            ("motor_world", int, -1, "world"),
+            ("motor_articulation", int, -1, "articulation"),
+        ):
+            source.add_custom_attribute(
+                newton.ModelBuilder.CustomAttribute(
+                    name=name,
+                    namespace="syn",
+                    frequency="syn:motor",
+                    dtype=dtype,
+                    default=default,
+                    references=references,
+                )
+            )
+        source.custom_attributes["syn:motor_label"].values = [f"{self._SRC}/motor"]
+        source.custom_attributes["syn:motor_target"].values = [f"{self._SRC}/motor"]
+        source.custom_attributes["syn:motor_world"].values = [-1]
+        source._custom_frequency_counts["syn:motor"] = 1
         original = {
             name: list(getattr(source, name))
             for name in ("body_label", "joint_label", "shape_label", "articulation_label")
@@ -531,6 +572,12 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             ]
             self.assertEqual(getattr(builder, name), expected)
             self.assertEqual(getattr(source, name), source_labels)
+
+        expected_labels = [f"{self._ENV.format(i)}/Robot/motor" for i in env_ids]
+        self.assertEqual(builder.custom_attributes["syn:motor_label"].values, expected_labels)
+        self.assertEqual(builder.custom_attributes["syn:motor_articulation"].values, [0, source.articulation_count])
+        self.assertEqual(builder.custom_attributes["syn:motor_target"].values, expected_labels)
+        self.assertEqual(source.custom_attributes["syn:motor_label"].values, [f"{self._SRC}/motor"])
 
     def test_hook_labels_are_rewritten_after_the_slow_path(self):
         source = newton.ModelBuilder()

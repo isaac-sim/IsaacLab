@@ -106,6 +106,7 @@ def build_visualization_builder_from_stage_envs(
             stage,
             schema_resolvers=schema_resolvers,
             ignore_paths=deformable_ignore_paths or None,
+            skip_mesh_approximation=True,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         import_builder_visual_material_paths(builder, stage)
@@ -136,6 +137,7 @@ def build_visualization_builder_from_stage_envs(
         stage,
         ignore_paths=["/World/envs", *sources, *deformable_ignore_paths],
         schema_resolvers=schema_resolvers,
+        skip_mesh_approximation=True,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
     import_builder_visual_material_paths(builder, stage)
@@ -146,6 +148,7 @@ def build_visualization_builder_from_stage_envs(
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
         ignore_paths=source_deformable_ignore_paths or None,
+        skip_mesh_approximation=True,
     )
     global_builder = builder
     builder = ModelBuilder(up_axis=up_axis)  # Preserve Newton's compact empty filter store.

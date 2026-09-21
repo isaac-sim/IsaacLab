@@ -264,7 +264,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
-    has_ovrtx = False
+    has_ovrtx = "newton_rtx" in _get_visualizer_types(launcher_args)
     has_auto_rtx = False
     has_auto_physx = False
     has_kit_camera = False
@@ -296,7 +296,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 return
             else:
                 concrete_physics_cfgs.append(node)
-        elif _is_ovrtx_renderer(node):
+        elif _is_ovrtx_renderer(node) or getattr(node, "visualizer_type", None) == "newton_rtx":
             has_ovrtx = True
         elif _is_kit_camera(node):
             has_kit_camera = True
@@ -432,16 +432,14 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
         return
 
     raise ValueError(
-        "Invalid backend combination: the OVRTX renderer (`OVRTXRendererCfg`,"
-        ' `renderer_type="ovrtx"`) is a kitless renderer and cannot be used together'
+        "Invalid backend combination: the OVRTX runtime (`OVRTXRendererCfg` or the"
+        " `newton_rtx` visualizer) cannot be used together"
         f" with Isaac Sim / Kit ({_format_runtime_sources(kit_sources)}).\n"
         "\n"
         "To fix this, pick one of the following supported combinations:\n"
         "  * Keep Isaac Sim / Kit and switch the renderer:\n"
         "      use `IsaacRtxRendererCfg`, the Kit-compatible renderer\n"
-        "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
-        "    (and avoid `--visualizer kit`):\n"
-        "      use `NewtonCfg` or `OvPhysxCfg` with `OVRTXRendererCfg`\n"
+        "  * Keep OVRTX (`OVRTXRendererCfg` or `--visualizer newton_rtx`) and remove every Kit source\n"
     )
 
 
@@ -519,6 +517,11 @@ def launch_simulation(
 
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
     _validate_runtime(config_scan, kit_sources)
+    if config_scan.has_ovrtx:
+        # USD discovers schema plugins once, so load OVRTX only after rejecting incompatible Kit runtimes.
+        import ovrtx
+
+        ovrtx.register_schema_paths()
     needs_kit = bool(kit_sources)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
 

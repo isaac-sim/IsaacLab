@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.galbot.stack_rmp_rel_env_cfg import (
     RmpFlowGalbotLeftArmCubeStackEnvCfg,

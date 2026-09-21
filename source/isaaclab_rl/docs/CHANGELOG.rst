@@ -1,6 +1,127 @@
 Changelog
 ---------
 
+1.1.0 (2026-09-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_rl.torchrl.IsaacLabTorchRLWrapper` to wrap Isaac Lab environments for the
+  `TorchRL <https://github.com/pytorch/rl>`_ library. The wrapper implements :class:`~torchrl.envs.EnvBase`
+  directly, preserving per-group observation structure (e.g. ``"policy"``/``"critic"``) as a
+  :class:`~torchrl.data.Composite` spec and exposing ``done``/``terminated``/``truncated`` as separate spec
+  keys. Reset requests that TorchRL issues after a step with done environments are served from the current
+  observations, since Isaac Lab already reset those environments inside ``step()``, and the terminal
+  observation (``extras["final_obs"]``, when ``cfg.compute_final_obs`` is enabled) is reported for done
+  transitions so that time-limit bootstrapping is correct.
+* Added :func:`~isaaclab_rl.torchrl.train_ppo` with :class:`~isaaclab_rl.torchrl.TorchRlPpoCfg`, a PPO example
+  built from TorchRL's collector, GAE, and clipped PPO loss, and the ``torchrl`` backend of the unified ``train``
+  and ``play`` entrypoints (``--rl_library torchrl``). Training supports named runs, optional clipped value loss
+  and adaptive KL learning rates, and records policy and throughput diagnostics in TensorBoard.
+* Added automatic Weights & Biases checkpoint resolution to the RSL-RL ``train`` and ``play``
+  entrypoints. Passing a wandb run URL (``https://wandb.ai/<entity>/<project>/runs/<run_id>``,
+  optionally with a ``?checkpoint=<iteration>`` query) or a ``wandb:<entity>/<project>/<run_id>``
+  shorthand as ``--checkpoint`` downloads and loads that run's checkpoint with no extra arguments.
+* Starting a new ``--logger wandb`` training run with RSL-RL now prints the
+  ``wandb:<entity>/<project>/<run_id>`` shorthand for the run being created, so it can be copied
+  straight into a later ``--checkpoint``.
+
+Changed
+^^^^^^^
+
+* Restructured the ``isaaclab_rl.entrypoints`` backends so that every train, play, and export module exposes the
+  same ``run(argv)`` function with module-level imports; the play backends are no longer module-level scripts
+  executed through ``runpy``. Shared playback pieces moved to ``isaaclab_rl.entrypoints.common``
+  (``add_common_play_args``, ``run_playback``, ``resolve_published_checkpoint``, ``resolve_seed``,
+  ``normalize_task_name``) and the LEAPP exporters share ``run_export``, ``prepare_export_env``, and
+  ``leapp_capture`` from ``export_common``. Downstream code that imported the play modules as scripts should
+  call their ``run(argv)`` function instead.
+* Added :func:`~isaaclab_rl.rsl_rl.check_rsl_rl_version` and :func:`~isaaclab_rl.rsl_rl.create_rsl_rl_runner`,
+  :func:`~isaaclab_rl.skrl.check_skrl_version` and :func:`~isaaclab_rl.skrl.import_skrl_runner`, and
+  :meth:`~isaaclab_rl.rl_games.RlGamesVecEnvWrapper.from_agent_cfg` with
+  :func:`~isaaclab_rl.rl_games.register_rl_games_env`, which the entrypoints now share. The RSL-RL play and
+  export backends require ``rsl-rl-lib`` 5.0.1 or newer like training already did; the legacy
+  ``export_policy_as_jit``/``export_policy_as_onnx`` path for older releases was dropped from playback.
+* The framework wrappers validate their environment through :func:`isaaclab_rl.utils.env_types.check_env_type`
+  instead of repeating the type check.
+* ``apply_env_overrides`` now also applies ``--disable_fabric`` and ``--export_io_descriptors``, so the
+  ``--disable_fabric`` flag of the play entrypoints is functional and IO descriptors are only enabled when the
+  flag is passed. The zero and random agents honor ``--deterministic``.
+* Population-Based Training restarts re-execute :data:`sys.executable` instead of the legacy
+  ``_isaac_sim/python.sh`` launcher.
+
+Removed
+^^^^^^^
+
+* Removed the unused ``dispatch_library_entrypoint``, ``import_local_module``, ``configure_io_descriptors``, and
+  ``wrap_training_capture`` helpers from ``isaaclab_rl.entrypoints.common``. Use the unified
+  ``isaaclab_rl.entrypoints.run_train_cli``/``run_play_cli`` dispatchers, ``apply_env_overrides``, and
+  ``wrap_sensor_capture`` instead. ``pre_launch_video_config`` takes ``(env_cfg, args_cli)``; its unused
+  ``log_dir`` parameter was dropped.
+
+
+1.0.0 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``Sb3VecEnvWrapper`` to expose normalized ``[-1, 1]`` bounds instead of the artificial
+  ``[-100, 100]`` fallback for unbounded continuous action spaces. Pass ``action_bounds=(-100, 100)``
+  to preserve the previous action space when loading an existing Stable-Baselines3 checkpoint.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``--export_io_descriptors`` training option. It remains
+  available for compatibility and will be removed in Isaac Lab 3.2. Use the
+  LEAPP export workflow for supported RSL-RL/PyTorch deployments.
+
+
+0.17.5 (2026-09-16)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated legacy RSL-RL configurations. They will no longer be supported in Isaac Lab 3.1; migrate to the current
+  RSL-RL configuration schema.
+
+
+0.17.4 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Moved the LEAPP policy exporters into the installed ``isaaclab_rl`` package.
+
+Fixed
+^^^^^
+
+* Fixed RL environment wrapper validation errors reporting the outer Gymnasium wrapper type instead
+  of the rejected unwrapped environment type.
+* Rejected incompatible agent configurations in RL-Games playback before launching simulation,
+  with guidance to select a matching RL library instead of failing with an opaque ``TypeError``.
+  Camera feature presets use ``--rl_library rsl_rl --agent rsl_rl_cfg_entry_point`` with
+  ``presets=resnet18`` or ``presets=theia_tiny``.
+* Restored launch-safe lazy imports for RSL-RL LEAPP exports, preventing Isaac Sim 6.1 PhysX exports from exiting
+  without producing ONNX artifacts.
+
+
+0.17.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed SKRL train, play, and LEAPP export to default to the canonical task config and derive the algorithm from
+  ``agent.class``. ``--algorithm`` now explicitly selects an algorithm recipe and is rejected when ``--agent`` resolves
+  to a different class. Older runs named after a config suffix such as ``box_discrete`` require an explicit checkpoint
+  path.
+
+
 0.17.2 (2026-09-09)
 ~~~~~~~~~~~~~~~~~~~
 
