@@ -52,7 +52,7 @@ def tcp_to_grasp_position_c_obs(env: FrankaPourEnv) -> torch.Tensor:
     return torch.nan_to_num(desired_position_c - tcp_position_c)
 
 
-def _nearest_grasp_to_tcp_quat(env: FrankaPourEnv) -> torch.Tensor:
+def nearest_grasp_to_tcp_quat(env: FrankaPourEnv) -> torch.Tensor:
     """Return TCP error from the nearest of four equivalent cup-side grasp frames.
 
     The source cup is rotationally symmetric for grasping from its four horizontal sides. The
@@ -96,7 +96,7 @@ def _nearest_grasp_to_tcp_quat(env: FrankaPourEnv) -> torch.Tensor:
 
 def grasp_to_tcp_quat_obs(env: FrankaPourEnv) -> torch.Tensor:
     """TCP orientation relative to the nearest equivalent source-cup grasp frame."""
-    return _nearest_grasp_to_tcp_quat(env)
+    return nearest_grasp_to_tcp_quat(env)
 
 
 def target_position_c_obs(env: FrankaPourEnv) -> torch.Tensor:

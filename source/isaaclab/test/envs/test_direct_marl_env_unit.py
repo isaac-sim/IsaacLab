@@ -55,6 +55,17 @@ def test_agent_and_space_configuration():
     assert env.state_space.shape == (7,)
 
 
+def test_zero_state_space_disables_centralized_state():
+    """A zero state-space follows the documented no-centralized-state contract."""
+    cfg = make_empty_direct_marl_env_cfg(device="cpu")
+    cfg.state_space = 0
+    env = _StubMARLEnv(cfg)
+
+    env._configure_env_spaces()
+
+    assert env.state_space is None
+
+
 class _DebugVisStubMARLEnv(_StubMARLEnv):
     """Stub whose debug visualization is implemented, so ``set_debug_vis`` runs its handle logic."""
 

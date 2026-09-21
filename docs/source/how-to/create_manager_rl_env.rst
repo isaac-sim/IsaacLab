@@ -38,7 +38,7 @@ For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.c
 
    .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
       :language: python
-      :emphasize-lines: 117-141, 144-154, 172-174
+      :emphasize-lines: 67-84, 87-110, 174-184
       :linenos:
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the

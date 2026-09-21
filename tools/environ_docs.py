@@ -49,7 +49,7 @@ _BACKEND_MIRROR_NAMES = frozenset(
 )
 
 # RL libraries listed in a stable order across generated docs.
-_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
+_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf", "torchrl")
 _ALGORITHM_LABELS = {"": "PPO", "ppo": "PPO", "amp": "AMP", "ippo": "IPPO", "mappo": "MAPPO"}
 
 # Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated

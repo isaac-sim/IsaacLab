@@ -25,11 +25,11 @@ from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import (
-    resolve_task_config,
-    setup_preset_cli,
-)
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
+from .common import apply_env_overrides
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
@@ -58,63 +58,44 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         raise ValueError(f"Unsupported policy {policy!r}. Expected one of: {sorted(_DESCRIPTIONS)}.")
 
     args_cli = _parse_args(argv, policy)
-
     torch.manual_seed(_SEED)
 
-    # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
-
-    # override with CLI arguments and reject unsupported configurations before
-    # launching Kit or initializing a native physics backend.
-    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
-    # Pass the resolved task device through to AppLauncher.
+    apply_env_overrides(args_cli, env_cfg)
+    # pass the resolved task device through to the launcher
     args_cli.device = env_cfg.sim.device
-    if args_cli.disable_fabric:
-        env_cfg.sim.use_fabric = False
+    # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         env_cfg.validate()
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    with launch_simulation(env_cfg, args_cli):
-        # create environment
-        env = gym.make(args_cli.task, cfg=env_cfg)
-
-        # print info (this is vectorized environment)
-        print(f"[INFO]: Gym observation space: {env.observation_space}")
-        print(f"[INFO]: Gym action space: {env.action_space}")
-        # reset environment
-        env.reset()
-        zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
-        if policy == "zero":
-            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
-        else:
-            print("[INFO] Random agent is running, press Ctrl+C to exit...")
-        # simulate environment
-        # keep running while any visualizer is open, and until the step budget is exhausted
-        sim = env.unwrapped.sim
-        device = env.unwrapped.device
-        step = 0
-        while sim.is_headless_or_exist_active_visualizer():
-            if args_cli.max_steps is not None and step >= args_cli.max_steps:
-                break
-            step += 1
-            # run everything in inference mode
-            with torch.inference_mode():
+    try:
+        with launch_simulation(env_cfg, args_cli):
+            with contextlib.closing(gym.make(args_cli.task, cfg=env_cfg)) as env:
+                print(f"[INFO]: Gym observation space: {env.observation_space}")
+                print(f"[INFO]: Gym action space: {env.action_space}")
+                env.reset()
                 if policy == "zero":
-                    actions = zero_action_policy()
+                    action_policy = create_zero_action_policy(env)
                 else:
-                    # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
-                # apply actions
-                env.step(actions)
-        # close the simulator
-        env.close()
+                    action_policy = create_random_action_policy(env)
+                print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
+
+                # keep running while any visualizer is open and the step budget is not exhausted
+                sim = env.unwrapped.sim
+                step = 0
+                while sim.is_headless_or_exist_active_visualizer():
+                    if args_cli.max_steps is not None and step >= args_cli.max_steps:
+                        break
+                    step += 1
+                    with torch.inference_mode():
+                        env.step(action_policy())
+    except KeyboardInterrupt:
+        print(f"\n[INFO] {policy.capitalize()} agent stopped.")
 
 
-def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
+def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     """Create a policy that emits finite actions for passive environment playback.
 
     Manager-based environments infer hold commands for absolute task-space action terms and use literal zeros for all
@@ -135,6 +116,12 @@ def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
 
     actions = sample_space(unwrapped.single_action_space, unwrapped.device, batch_size=unwrapped.num_envs, fill_value=0)
     return lambda: actions
+
+
+def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor]:
+    """Create a policy that samples uniform random actions in ``[-1, 1]``."""
+    device = env.unwrapped.device
+    return lambda: 2 * torch.rand(env.action_space.shape, device=device) - 1
 
 
 def _create_manager_zero_action_policy(action_manager: Any, env: Any) -> Callable[[], torch.Tensor]:
@@ -250,9 +237,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     parser.add_argument(
         "--max_steps", type=int, default=None, help="Number of environment steps to run. Runs unbounded when omitted."
     )
-    # append AppLauncher cli args
     add_launcher_args(parser)
-    # Let task configs select the simulation device and keep checkpoint-free agents on the kitless default path.
+    # let task configs select the simulation device and keep checkpoint-free agents on the kitless default path
     parser.set_defaults(device=None, visualizer=["newton_gl"])
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + hydra_args

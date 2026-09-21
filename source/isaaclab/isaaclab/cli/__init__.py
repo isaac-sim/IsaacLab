@@ -16,6 +16,7 @@ from .commands.install import (
     VALID_EXTRA_FEATURES,
     command_install,
 )
+from .commands.list_envs import command_list_envs
 from .commands.misc import (
     command_build_docs,
     command_build_isaacsim,
@@ -105,6 +106,11 @@ def random_agent(args: list[str] | None = None) -> None:
     _exit_on_error(run_random_agent_cli(args))
 
 
+def list_envs(args: list[str] | None = None) -> None:
+    """List registered Isaac Lab environments."""
+    command_list_envs(args)
+
+
 def teleop(args: list[str] | None = None) -> None:
     """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
 
@@ -156,6 +162,9 @@ def cli() -> None:
         "zero_agent": zero_agent,
         "random_agent": random_agent,
     }
+    if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
+        list_envs(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         _load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
@@ -176,6 +185,7 @@ def cli() -> None:
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  leapp           Export or deploy a policy with LEAPP\n"
+            "  list_envs       List registered environments and presets\n"
             "  train           Train an RL policy\n"
             "  train_multigpu  Train an RL policy across multiple GPUs\n"
             "  play            Play a trained RL policy\n"

@@ -1069,7 +1069,7 @@ def _force_newton_transforms_resync() -> None:
     with contextlib.suppress(Exception):
         from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
 
-        if NewtonManager._usdrt_stage is not None and NewtonManager._state_0 is not None:
+        if NewtonManager._usdrt_stage is not None and NewtonManager.backend is not None:
             NewtonManager._transforms_dirty = True
             NewtonManager.sync_transforms_to_usd()
             NewtonManager._particles_dirty = True
