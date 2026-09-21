@@ -78,8 +78,5 @@
     },
     "[restructuredtext]": {
         "editor.tabSize": 2
-    },
-    // Python extra paths
-    // Note: this is filled up when "./isaaclab.sh -i" is run
-    "python.analysis.extraPaths": []
+    }
 }

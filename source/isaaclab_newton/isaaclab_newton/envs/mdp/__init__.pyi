@@ -6,6 +6,8 @@
 __all__ = [
     "NewtonInverseKinematicsAction",
     "NewtonInverseKinematicsActionCfg",
+    "randomize_visual_shape",
 ]
 
 from .actions import NewtonInverseKinematicsAction, NewtonInverseKinematicsActionCfg
+from .events import randomize_visual_shape

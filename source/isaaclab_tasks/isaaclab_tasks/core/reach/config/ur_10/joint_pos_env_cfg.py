@@ -3,18 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the UR10 reach environment."""
+
 import math
 
 import isaaclab.envs.mdp as mdp
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
+from isaaclab_assets import UR10_CFG
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets import UR10_CFG  # isort: skip
-
+from ...reach_env_cfg import ReachEnvCfg
 
 ##
 # Environment configuration
@@ -23,8 +21,9 @@ from isaaclab_assets import UR10_CFG  # isort: skip
 
 @configclass
 class UR10ReachEnvCfg(ReachEnvCfg):
+    """UR10 reach configuration with joint position control."""
+
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
         # switch robot to ur10
@@ -33,8 +32,8 @@ class UR10ReachEnvCfg(ReachEnvCfg):
         self.events.reset_robot_joints.params["position_range"] = (0.75, 1.25)
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["ee_link"]
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["ee_link"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["ee_link"]
+        self.rewards.joint_vel.params["asset_cfg"].joint_names = [".*"]
         # override actions
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True

@@ -106,10 +106,12 @@ def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
     # Create camera configuration
     sim, camera_cfg, dt = setup_sim_camera
+    sim.set_setting("/physics/fabricUpdateTransformations", False)
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    assert sim.get_setting("/physics/fabricUpdateTransformations")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -323,11 +325,11 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     )
 
 
-def test_camera_set_world_poses(setup_sim_camera):
-    """Test camera function to set specific world pose."""
+@pytest.mark.parametrize("update_latest_camera_pose", [False, True])
+def test_camera_set_world_poses(setup_sim_camera, update_latest_camera_pose):
+    """Test that an explicitly set world pose is reflected in the data buffers."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
+    camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
@@ -343,11 +345,11 @@ def test_camera_set_world_poses(setup_sim_camera):
     _assert_quat_close(camera.data.quat_w_world.warp.numpy(), orientation, rtol=1e-5, atol=1e-5)
 
 
-def test_camera_set_world_poses_from_view(setup_sim_camera):
-    """Test camera function to set specific world pose from view."""
+@pytest.mark.parametrize("update_latest_camera_pose", [False, True])
+def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera_pose):
+    """Test that a pose set from eye/target is reflected in the data buffers."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
+    camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
@@ -852,7 +854,7 @@ def test_camera_multi_regex_init(setup_camera_device, device):
         sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -907,7 +909,7 @@ def test_camera_all_annotators(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -970,7 +972,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation", "instance_id_segmentation_fast"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
@@ -1000,7 +1002,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["normals"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -1090,11 +1092,8 @@ def test_camera_frame_offset(setup_camera_device, device):
     del camera
 
 
-def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
-    """Test Camera warns once and drops data types its renderer cannot produce."""
-    import logging
-
-    from isaaclab.renderers import Renderer
+def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
+    """Test Camera rejects data types its runtime renderer cannot produce."""
     from isaaclab.renderers.base_renderer import BaseRenderer
 
     sim, camera_cfg, dt = setup_sim_camera
@@ -1139,43 +1138,13 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
         def cleanup(self, render_data):
             pass
 
-    backend = Renderer._get_backend(camera_cfg.renderer_cfg)
-    original = Renderer._registry.get(backend)
-    Renderer._registry[backend] = _PartialRenderer
-    try:
-        camera = Camera(camera_cfg)
-        caplog.clear()
-        with caplog.at_level(logging.WARNING, logger="isaaclab.sensors.camera.camera"):
-            sim.reset()
-            # Step a few frames and confirm the warning is emitted once at init.
-            for _ in range(3):
-                sim.step()
-                camera.update(dt)
+    camera_cfg.renderer_cfg.class_type = _PartialRenderer
+    camera = Camera(camera_cfg)
+    with pytest.raises(ValueError, match="_PartialRenderer") as exc_info:
+        sim.reset()
+    assert "Hint:" not in str(exc_info.value)
 
-        warning_records = [
-            r for r in caplog.records if r.levelno == logging.WARNING and "does not support" in r.getMessage()
-        ]
-        assert len(warning_records) == 1, (
-            f"Expected exactly one 'does not support' warning, got {len(warning_records)}:"
-            f" {[r.getMessage() for r in warning_records]}"
-        )
-        msg = warning_records[0].getMessage()
-        assert "_PartialRenderer" in msg
-        assert "depth" in msg
-        assert "normals" in msg
-        assert "rgba" not in msg
-
-        # Only the supported subset is in ``data.output``; the rest were dropped.
-        assert set(camera.data.output.keys()) == {"rgba"}
-        # ``data.info`` mirrors the ``data.output`` keys.
-        assert set(camera.data.info.keys()) == {"rgba"}
-
-        del camera
-    finally:
-        if original is not None:
-            Renderer._registry[backend] = original
-        else:
-            Renderer._registry.pop(backend, None)
+    del camera
 
 
 def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
@@ -1253,6 +1222,17 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
         del camera
 
 
+def test_camera_invalidate_before_initialize(setup_sim_camera):
+    """Invalidation on a camera that never initialized does not raise."""
+    _, camera_cfg, _ = setup_sim_camera
+    camera = Camera(camera_cfg.replace(prim_path="/World/NeverInitialized", spawn=None))
+    try:
+        assert camera._view is None
+        camera._invalidate_initialize_callback(None)
+    finally:
+        del camera
+
+
 def _populate_scene():
     """Add prims to the scene."""
     # Ground-plane
@@ -1285,6 +1265,6 @@ def _populate_scene():
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid body and collision properties using Isaac Lab schemas
         prim_path = f"/World/Objects/Obj_{i:02d}"
-        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
-        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
-        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())
+        sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
+        sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
+        sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)

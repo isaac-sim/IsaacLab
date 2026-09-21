@@ -26,6 +26,9 @@ Motor spec sheets:
     https://files.seeedstudio.com/products/Damiao/DM-J4310-en.pdf
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -34,15 +37,13 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 OPENARM_BI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/OpenArm/openarm_bimanual/openarm_bimanual.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -65,7 +66,7 @@ OPENARM_BI_CFG = ArticulationCfg(
                 "openarm_left_joint[1-7]",
                 "openarm_right_joint[1-7]",
             ],
-            velocity_limit_sim={
+            joint_velocity_limit={
                 "openarm_left_joint[1-2]": 2.175,
                 "openarm_right_joint[1-2]": 2.175,
                 "openarm_left_joint[3-4]": 2.175,
@@ -73,7 +74,7 @@ OPENARM_BI_CFG = ArticulationCfg(
                 "openarm_left_joint[5-7]": 2.61,
                 "openarm_right_joint[5-7]": 2.61,
             },
-            effort_limit_sim={
+            joint_effort_limit={
                 "openarm_left_joint[1-2]": 40.0,
                 "openarm_right_joint[1-2]": 40.0,
                 "openarm_left_joint[3-4]": 27.0,
@@ -89,8 +90,8 @@ OPENARM_BI_CFG = ArticulationCfg(
                 "openarm_left_finger_joint.*",
                 "openarm_right_finger_joint.*",
             ],
-            velocity_limit_sim=0.2,
-            effort_limit_sim=333.33,
+            joint_velocity_limit=0.2,
+            joint_effort_limit=333.33,
             stiffness=2e3,
             damping=1e2,
         ),
@@ -102,15 +103,13 @@ OPENARM_BI_CFG = ArticulationCfg(
 OPENARM_UNI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/OpenArm/openarm_unimanual/openarm_unimanual.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -127,12 +126,12 @@ OPENARM_UNI_CFG = ArticulationCfg(
     actuators={
         "openarm_arm": ImplicitActuatorCfg(
             joint_names_expr=["openarm_joint[1-7]"],
-            velocity_limit_sim={
+            joint_velocity_limit={
                 "openarm_joint[1-2]": 2.175,
                 "openarm_joint[3-4]": 2.175,
                 "openarm_joint[5-7]": 2.61,
             },
-            effort_limit_sim={
+            joint_effort_limit={
                 "openarm_joint[1-2]": 40.0,
                 "openarm_joint[3-4]": 27.0,
                 "openarm_joint[5-7]": 7.0,
@@ -142,8 +141,8 @@ OPENARM_UNI_CFG = ArticulationCfg(
         ),
         "openarm_gripper": ImplicitActuatorCfg(
             joint_names_expr=["openarm_finger_joint.*"],
-            velocity_limit_sim=0.2,
-            effort_limit_sim=333.33,
+            joint_velocity_limit=0.2,
+            joint_effort_limit=333.33,
             stiffness=2e3,
             damping=1e2,
         ),

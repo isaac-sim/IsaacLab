@@ -11,7 +11,11 @@ from pathlib import Path
 from isaaclab.app import AppLauncher
 
 # launch Kit app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+simulation_app = AppLauncher(
+    headless=True,
+    enable_cameras=True,
+    visualizer_intent={"has_any_visualizers": True, "has_kit_visualizer": True},
+).app
 
 import pytest  # noqa: E402
 

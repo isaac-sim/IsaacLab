@@ -3,52 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
+"""Configuration for the Unitree H1 velocity-tracking environment on flat terrain."""
 
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
-
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab.utils import configclass
 
 from .rough_env_cfg import H1RoughEnvCfg
 
 
 @configclass
-class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=500,
-            nconmax=50,
-            cone="pyramidal",
-            impratio=1,
-            integrator="implicitfast",
-            use_mujoco_contacts=False,
-        ),
-        num_substeps=2,
-        debug_mode=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
-    )
-    physx = default
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
-
-
-@configclass
 class H1FlatEnvCfg(H1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+    """Configuration for the Unitree H1 velocity-tracking environment on flat terrain."""
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # change terrain to flat
+        # physics
+        newton_mjwarp = self.sim.physics.newton_mjwarp
+        newton_mjwarp.solver_cfg.njmax = 65
+        newton_mjwarp.solver_cfg.nconmax = 15
+        self.sim.physics.default = newton_mjwarp
+        # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        # no height scan
         self.scene.height_scanner = None
+        # observations
         self.observations.policy.height_scan = None
-        # no terrain curriculum
-        self.curriculum.terrain_levels = None
+        # rewards
         self.rewards.feet_air_time.weight = 1.0
         self.rewards.feet_air_time.params["threshold"] = 0.6
+        # curriculum
+        self.curriculum.terrain_levels = None

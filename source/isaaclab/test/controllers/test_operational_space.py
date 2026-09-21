@@ -12,6 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from types import SimpleNamespace
+
+import numpy as np
 import pytest
 import torch
 from flaky import flaky
@@ -21,6 +24,7 @@ pytestmark = pytest.mark.arm_ci
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import Articulation
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
@@ -30,6 +34,7 @@ from isaaclab.controllers import OperationalSpaceController, OperationalSpaceCon
 ##
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
+from isaaclab.envs.mdp.actions.task_space_actions import OperationalSpaceControllerAction
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -38,7 +43,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass as lab_configclass
+from isaaclab.utils import configclass as lab_configclass
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
@@ -87,18 +92,25 @@ def sim():
     # Create environment clones using Isaac Lab's cloner utilities
     env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0)
     # create source prim
     stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-    robot_cfg.actuators["panda_shoulder"].damping = 0.0
-    robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-    robot_cfg.actuators["panda_forearm"].damping = 0.0
+    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # Explicit torque actuators enforce effort limits on the commands sent to the simulator.
+    for actuator_name in ("panda_shoulder", "panda_forearm"):
+        actuator_cfg = robot_cfg.actuators[actuator_name]
+        robot_cfg.actuators[actuator_name] = IdealPDActuatorCfg(
+            joint_names_expr=actuator_cfg.joint_names_expr,
+            joint_effort_limit=actuator_cfg.joint_effort_limit,
+            joint_velocity_limit=actuator_cfg.joint_velocity_limit,
+            armature=actuator_cfg.armature,
+            stiffness=0.0,
+            damping=0.0,
+        )
     robot_cfg.spawn.rigid_props.disable_gravity = True
 
     # Define the ContactSensor
@@ -563,31 +575,31 @@ def test_franka_wrench_abs_open_loop(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(0.7, 0.7, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(0.2, 0.0, 0.93),
         orientation=(0.0, -0.1736, 0.0, 0.9848),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle2",
+        "/World/envs/env_[^/]+/obstacle2",
         obstacle_spawn_cfg,
         translation=(0.2, 0.35, 0.7),
         orientation=(0.707, 0.0, 0.0, 0.707),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle3",
+        "/World/envs/env_[^/]+/obstacle3",
         obstacle_spawn_cfg,
         translation=(0.55, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/obstacle.*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=50,
         debug_vis=False,
@@ -644,31 +656,31 @@ def test_franka_wrench_abs_closed_loop(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(0.7, 0.7, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(0.2, 0.0, 0.93),
         orientation=(0.0, -0.1736, 0.0, 0.9848),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle2",
+        "/World/envs/env_[^/]+/obstacle2",
         obstacle_spawn_cfg,
         translation=(0.2, 0.35, 0.7),
         orientation=(0.707, 0.0, 0.0, 0.707),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle3",
+        "/World/envs/env_[^/]+/obstacle3",
         obstacle_spawn_cfg,
         translation=(0.55, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/obstacle.*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -733,19 +745,19 @@ def test_franka_hybrid_decoupled_motion(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/obstacle.*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -810,19 +822,19 @@ def test_franka_hybrid_variable_kp_impedance(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/obstacle.*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -858,6 +870,23 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         frame,
         convergence_steps=750,
     )
+
+
+@pytest.mark.isaacsim_ci
+def test_task_frame_conversion_preserves_absolute_target():
+    """A rounded pose command must resolve to the same target through either reference frame."""
+    osc_cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"])
+    osc = OperationalSpaceController(osc_cfg, num_envs=1, device="cpu")
+    target_b = torch.tensor([[0.5, -0.4, 0.6, 0.707, 0.0, 0.0, 0.707]])
+    command = target_b.clone()
+    resolved_targets = []
+    for frame in ("root", "task"):
+        converted_command, task_frame_pose_b = _convert_to_task_frame(osc, command, target_b, frame)
+        osc.set_command(converted_command, current_task_frame_pose_b=task_frame_pose_b)
+        resolved_targets.append(osc.desired_ee_pose_b.clone())
+
+    torch.testing.assert_close(resolved_targets[0], resolved_targets[1], atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(command, target_b, atol=0.0, rtol=0.0)
 
 
 @pytest.mark.isaacsim_ci
@@ -990,19 +1019,19 @@ def test_franka_taskframe_hybrid(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(2.0, 1.5, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
         orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/obstacle.*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -1222,19 +1251,19 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
 
     obstacle_spawn_cfg = sim_utils.CuboidCfg(
         size=(2.0, 1.5, 0.01),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_.*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
         orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/obstacle.*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -1293,7 +1322,7 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.robot.spawn.articulation_props.fix_root_link = False
+        self.robot.spawn.fix_root_link = False
         self.robot.spawn.rigid_props.disable_gravity = True
 
 
@@ -1333,6 +1362,51 @@ class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
     observations: _FloatingBaseOscObsCfg = _FloatingBaseOscObsCfg()
     decimation: int = 1
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=0.01)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("feedback_source", ["test_helper", "action"])
+def test_franka_velocity_feedback_matches_jacobian(sim, feedback_source):
+    """Both OSC callers must measure velocity at the link origin used by the Jacobian."""
+    sim_context, num_envs, robot_cfg, *_ = sim
+    robot = Articulation(cfg=robot_cfg)
+    sim_context.reset()
+    arm_joint_ids, _ = robot.find_joints("panda_joint.*")
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+
+    joint_vel = torch.zeros_like(robot.data.default_joint_vel.torch)
+    joint_vel[:, arm_joint_ids] = torch.linspace(0.1, 0.7, len(arm_joint_ids), device=sim_context.device)
+    robot.write_joint_state_to_sim_index(position=robot.data.default_joint_pos.torch, velocity=joint_vel)
+    sim_context.step(render=False)
+    robot.update(sim_context.get_physics_dt())
+
+    # Angular motion and the hand's COM offset must expose the reference-point mismatch.
+    assert not torch.allclose(
+        robot.data.body_com_vel_w.torch[:, ee_frame_idx, :3],
+        robot.data.body_link_vel_w.torch[:, ee_frame_idx, :3],
+        atol=1e-4,
+        rtol=1e-4,
+    )
+    if feedback_source == "test_helper":
+        states = _update_states(robot, ee_frame_idx, arm_joint_ids, sim_context, None, num_envs)
+        jacobian_b, _, _, _, ee_vel_b, _, _, _, _, joint_vel = states
+    else:
+        env = SimpleNamespace(scene={"robot": robot}, sim=sim_context, num_envs=num_envs, device=sim_context.device)
+        action_cfg = OperationalSpaceControllerActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            body_name="panda_hand",
+            controller_cfg=OperationalSpaceControllerCfg(target_types=["pose_abs"]),
+        )
+        action_term = OperationalSpaceControllerAction(action_cfg, env)
+        action_term._compute_ee_jacobian()
+        action_term._compute_ee_velocity()
+        jacobian_b, ee_vel_b = action_term._jacobian_b, action_term._ee_vel_b
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+
+    # With a stationary fixed base, the link twist must equal J(q) * q_dot.
+    expected_vel_b = torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+    torch.testing.assert_close(ee_vel_b, expected_vel_b, atol=1e-4, rtol=1e-4)
 
 
 @pytest.mark.isaacsim_ci
@@ -1634,9 +1708,9 @@ def _update_states(
     )
     ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
-    # Compute the current velocity of the end-effector
-    ee_vel_w = robot.data.body_vel_w.torch[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
-    root_vel_w = robot.data.root_vel_w.torch  # Extract root velocity in the world frame
+    # Match the link-origin reference point used by the pose and Jacobian.
+    ee_vel_w = robot.data.body_link_vel_w.torch[:, ee_frame_idx, :]
+    root_vel_w = robot.data.root_link_vel_w.torch
     relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
     ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 0:3])  # From world to root frame
     ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 3:6])
@@ -1649,7 +1723,7 @@ def _update_states(
         contact_forces.update(sim_dt)  # update contact sensor
         # Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and
         # taking the max of three surfaces as only one should be the contact of interest
-        ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_forces_w_history.torch, dim=1), dim=1)
+        ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_normal_forces_w_history.torch, dim=1), dim=1)
 
     # This is a simplification, only for the sake of testing.
     ee_force_b = ee_force_w
@@ -1753,6 +1827,8 @@ def _convert_to_task_frame(
         # Convert target commands from base to the task frame
         command = command.clone()
         task_frame_pose_b = ee_target_pose_b.clone()
+        # Rounded goal quaternions must define a unit rotation when used as a reference frame.
+        task_frame_pose_b[:, 3:] /= torch.linalg.vector_norm(task_frame_pose_b[:, 3:], dim=-1, keepdim=True)
 
         cmd_idx = 0
         for target_type in osc.cfg.target_types:

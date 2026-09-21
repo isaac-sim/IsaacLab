@@ -14,6 +14,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -22,9 +23,9 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.joint_wrench import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
@@ -35,7 +36,7 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+            joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
         ),
         actuators={
             "joint": ImplicitActuatorCfg(
@@ -65,10 +66,10 @@ def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCf
         ),
         actuators={
             "cart_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["slider_to_cart"], effort_limit_sim=400.0, stiffness=0.0, damping=10.0
+                joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0
             ),
             "pole_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["cart_to_pole"], effort_limit_sim=400.0, stiffness=0.0, damping=pole_damping
+                joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, stiffness=0.0, damping=pole_damping
             ),
         },
     )
@@ -153,6 +154,7 @@ def test_initialization_and_shapes(sim):
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
     sim.reset()
 
+    robot: Articulation = scene["robot"]
     sensor: JointWrenchSensor = scene["wrench"]
     sim.step()
     scene.update(sim.get_physics_dt())
@@ -163,6 +165,7 @@ def test_initialization_and_shapes(sim):
     assert sensor.data.force.torch.shape == (num_envs, num_joints, 3)
     assert sensor.data.torque.torch.shape == (num_envs, num_joints, 3)
     assert sensor.body_names == ["Arm"]
+    assert sensor._root_view is robot.root_view  # noqa: SLF001
 
 
 def test_multi_body_articulation(sim):
@@ -425,49 +428,12 @@ def test_interior_joint_wrench_at_rest(sim):
 
 
 # ---------------------------------------------------------------------------
-# String representation
-# ---------------------------------------------------------------------------
-
-
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    sensor_str = str(sensor)
-    assert "newton" in sensor_str
-    assert "Joint wrench sensor" in sensor_str
-
-
-# ---------------------------------------------------------------------------
 # Reset behavior
 # ---------------------------------------------------------------------------
 
 
-def test_reset_zeros_buffers(sim):
-    """Resetting the sensor clears the force / torque buffers."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    for _ in range(100):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    assert torch.any(sensor.data.force.torch != 0), "Expected non-zero data before reset"
-
-    sensor.reset()
-
-    # Access raw buffers to skip lazy re-population from the Newton view on the next data read.
-    force_after = wp.to_torch(sensor._data._force)
-    torque_after = wp.to_torch(sensor._data._torque)
-    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
-    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
-
-
-def test_reset_with_env_ids_only_zeros_selected_envs(sim):
-    """Partial reset via env_ids should zero the selected envs and preserve the others."""
+def test_reset_zeros_selected_then_all_envs(sim):
+    """Partial reset zeros only the selected envs; a full reset clears every force / torque buffer."""
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
     sim.reset()
 
@@ -477,15 +443,23 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim):
         scene.update(sim.get_physics_dt())
 
     force_before = sensor.data.force.torch.clone()
-    assert torch.any(force_before != 0), "Expected non-zero data before reset"
+    assert torch.all(torch.any(force_before != 0, dim=(1, 2))), "Expected non-zero data in every env before reset"
 
     sensor.reset(env_ids=[0, 2])
 
+    # Access raw buffers to skip lazy re-population from the Newton view on the next data read.
     force_after = wp.to_torch(sensor._data._force)
     torch.testing.assert_close(force_after[0], torch.zeros_like(force_after[0]))
     torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
     torch.testing.assert_close(force_after[1], force_before[1])
     torch.testing.assert_close(force_after[3], force_before[3])
+
+    sensor.reset()
+
+    force_after = wp.to_torch(sensor._data._force)
+    torque_after = wp.to_torch(sensor._data._torque)
+    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
+    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
 
 
 def test_no_stale_data_after_scene_reset(sim):

@@ -8,7 +8,7 @@
 import cProfile
 import os
 
-from isaaclab.test.benchmark.profiling import parse_cprofile_stats
+from isaaclab.benchmark.profiling import parse_cprofile_stats
 
 
 def _profiled():

@@ -18,7 +18,6 @@ from isaaclab_newton.sim.spawners.materials import (
 from isaaclab_physx.sim.schemas import (
     OmniPhysicsDeformableBodyPropertiesCfg,
     PhysxDeformableBodyPropertiesCfg,
-    PhysxDeformableCollisionPropertiesCfg,
 )
 from isaaclab_physx.sim.schemas.schemas_cfg import PhysXDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import (
@@ -94,8 +93,8 @@ def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     assert PhysXDeformableBodyPropertiesCfg._usd_applied_schema == "PhysxBaseDeformableBodyAPI"
     assert OmniPhysicsDeformableBodyPropertiesCfg._usd_namespace == "omniphysics"
     assert OmniPhysicsDeformableBodyPropertiesCfg._usd_applied_schema is None
-    assert PhysxDeformableCollisionPropertiesCfg._usd_namespace == "physxCollision"
-    assert PhysxDeformableCollisionPropertiesCfg._usd_applied_schema == "PhysxCollisionAPI"
+    # collision offsets belong on the collider (the simulation mesh), not the deformable body cfg
+    assert not {"contact_offset", "rest_offset"} & _field_names(type(props))
     assert {"deformable_body_enabled", "kinematic_enabled", "mass"}.issubset(_field_names(type(props)))
     assert {"density", "static_friction", "dynamic_friction", "youngs_modulus", "poissons_ratio"}.issubset(
         _field_names(type(material))

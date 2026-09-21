@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from contextlib import contextmanager
 
 
 def resolve_python_logging_level(launcher_args: argparse.Namespace | dict | None = None) -> int:
@@ -46,6 +47,27 @@ def resolve_python_logging_level(launcher_args: argparse.Namespace | dict | None
 
     level = logging.getLogger().getEffectiveLevel()
     return logging.WARNING if level == logging.NOTSET else level
+
+
+@contextmanager
+def force_log_level(level: int):
+    """Context manager that temporarily lowers the root logger and its handlers to *level*, then restores them.
+
+    Args:
+        level: The logging level to enforce inside the block (e.g. :data:`logging.INFO`).
+    """
+    root = logging.getLogger()
+    saved_root = root.level
+    saved_handlers = [(h, h.level) for h in root.handlers]
+    root.setLevel(level)
+    for h, _ in saved_handlers:
+        h.setLevel(level)
+    try:
+        yield
+    finally:
+        root.setLevel(saved_root)
+        for h, saved in saved_handlers:
+            h.setLevel(saved)
 
 
 def apply_python_logging_level(level: int) -> None:

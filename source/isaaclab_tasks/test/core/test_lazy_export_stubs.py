@@ -18,15 +18,17 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from isaaclab.utils.module import _parse_stub
 
 _SOURCE_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-def _find_lazy_export_calls() -> list[tuple[Path, int, str]]:
-    """Return ``(file, lineno, source_line)`` for every ``lazy_export(...)`` with args."""
+def _find_lazy_export_calls() -> tuple[int, list[tuple[Path, int, str]]]:
+    """Return the number of ``lazy_export`` call sites and every call that passes arguments.
+
+    Each violation is reported as ``(file, lineno, source_line)``.
+    """
+    num_calls = 0
     results: list[tuple[Path, int, str]] = []
     for root, _dirs, files in os.walk(_SOURCE_ROOT):
         for fname in files:
@@ -50,39 +52,23 @@ def _find_lazy_export_calls() -> list[tuple[Path, int, str]]:
                 )
                 if not is_lazy_export:
                     continue
+                num_calls += 1
                 if node.args or node.keywords:
                     line = source.splitlines()[node.lineno - 1].strip()
                     results.append((path, node.lineno, line))
 
-    return sorted(results)
+    return num_calls, sorted(results)
 
 
-_VIOLATIONS = _find_lazy_export_calls()
-_IDS = [f"{p.relative_to(_SOURCE_ROOT)}:{lineno}" for p, lineno, _ in _VIOLATIONS]
-
-
-@pytest.mark.parametrize("violation", _VIOLATIONS or [None], ids=_IDS or ["no-violations"])
-def test_lazy_export_has_no_args(violation: tuple[Path, int, str] | None):
-    """lazy_export() must be called with no arguments."""
-    if violation is None:
-        return
-    path, lineno, line = violation
-    pytest.fail(
-        f"{path.relative_to(_SOURCE_ROOT)}:{lineno}: {line}\n\n"
-        "lazy_export() should take no arguments. Move fallback packages into\n"
-        "the .pyi stub as 'from <pkg> import *' and remove the packages= arg."
+def test_lazy_export_has_no_args():
+    """Every ``lazy_export()`` call must pass no arguments; fallback packages belong in the ``.pyi`` stub."""
+    num_calls, violations = _find_lazy_export_calls()
+    assert num_calls > 0, "No lazy_export() call sites found; the discovery may be broken."
+    formatted = "\n".join(f"{path.relative_to(_SOURCE_ROOT)}:{lineno}: {line}" for path, lineno, line in violations)
+    assert not violations, (
+        f"{formatted}\n\nlazy_export() should take no arguments. Move fallback packages into the .pyi stub as"
+        " 'from <pkg> import *' and remove the packages= argument."
     )
-
-
-def test_no_lazy_export_violations_found():
-    """Canary: confirm we actually scanned files (guard against broken discovery)."""
-    init_count = sum(
-        1
-        for root, _dirs, files in os.walk(_SOURCE_ROOT)
-        for f in files
-        if f == "__init__.py" and "lazy_export" in (Path(root) / f).read_text(errors="ignore")
-    )
-    assert init_count > 0, "No __init__.py files with lazy_export() found — discovery may be broken"
 
 
 # ---------------------------------------------------------------------------

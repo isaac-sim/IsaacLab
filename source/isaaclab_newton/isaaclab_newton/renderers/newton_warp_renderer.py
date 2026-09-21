@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -17,6 +18,7 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 
@@ -130,10 +132,24 @@ class RenderData:
         # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
         # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
         # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
-        spawn = getattr(spec.cfg, "spawn", None)
+        spawn = spec.cfg.spawn
         clipping_range = getattr(spawn, "clipping_range", None)
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
+
+        # ABGR clear color packed as uint32 — Newton's SensorTiledCamera reads the low byte as R,
+        # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
+        # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
+        background_color = getattr(spec.cfg, "background_color", None)
+        if background_color is not None:
+            r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
+            self.clear_color: int = (0xFF << 24) | (b << 16) | (g << 8) | r
+        else:
+            self.clear_color = 0xFFEEEEEE
+
+        # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
+        # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
+        self._distortion = spawn.distortion if spawn is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -345,13 +361,71 @@ class RenderData:
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics.torch[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
+            if self._distortion is not None:
+                self.camera_rays = self._build_distortion_rays()
+            else:
+                first_focal_length = intrinsics.torch[:, 1, 1][0:1]
+                fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
-                self.width, self.height, camera_fovs=fov_warp
+                fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
+                self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
+                    self.width, self.height, camera_fovs=fov_warp
+                )
+
+    def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
+        """Build the ``(1, H, W, 2)`` camera-space ray field for an OpenCV lens-distortion camera.
+
+        Uses Newton's native OpenCV pinhole and fisheye ray helpers. Both paths honor calibrated
+        ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
+        :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are treated
+        as zero while the calibrated intrinsics remain active, matching the RTX/OVRTX behavior.
+        """
+        cfg = self._distortion
+        image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
+
+        def _coefficient(value: float) -> float:
+            return float(value) if cfg.apply_lens_distortion else 0.0
+
+        if cfg.model == "opencvFisheye":
+            return self.newton_sensor.utils.compute_camera_rays_fisheye_opencv(
+                self.width,
+                self.height,
+                float(cfg.fx),
+                float(cfg.fy),
+                float(cfg.cx),
+                float(cfg.cy),
+                image_width=image_width,
+                image_height=image_height,
+                k1=_coefficient(cfg.k1),
+                k2=_coefficient(cfg.k2),
+                k3=_coefficient(cfg.k3),
+                k4=_coefficient(cfg.k4),
+                # Limit fisheye rays to the forward hemisphere.
+                max_fov=math.pi,
             )
+
+        return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
+            self.width,
+            self.height,
+            float(cfg.fx),
+            float(cfg.fy),
+            float(cfg.cx),
+            float(cfg.cy),
+            image_width=image_width,
+            image_height=image_height,
+            k1=_coefficient(cfg.k1),
+            k2=_coefficient(cfg.k2),
+            k3=_coefficient(cfg.k3),
+            k4=_coefficient(cfg.k4),
+            k5=_coefficient(cfg.k5),
+            k6=_coefficient(cfg.k6),
+            p1=_coefficient(cfg.p1),
+            p2=_coefficient(cfg.p2),
+            s1=_coefficient(cfg.s1),
+            s2=_coefficient(cfg.s2),
+            s3=_coefficient(cfg.s3),
+            s4=_coefficient(cfg.s4),
+        )
 
     @wp.kernel
     def _update_transforms(
@@ -368,18 +442,8 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
-    @classmethod
-    def provides_temporal_camera_data(cls, data_type: str) -> bool:
-        # Pure rasterizer: no temporal accumulation on any output.
-        return False
-
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
-        from isaaclab.physics.scene_data_requirements import (
-            aggregate_requirements,
-            requirement_for_renderer_type,
-        )
-
         self.cfg = cfg
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
         # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
@@ -388,11 +452,9 @@ class NewtonWarpRenderer(BaseRenderer):
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
         sim = SimulationContext.instance()
-        current_req = sim.get_scene_data_requirements()
-        renderer_req = requirement_for_renderer_type("newton_warp")
-        merged = aggregate_requirements([current_req, renderer_req])
-        if merged != current_req:
-            sim.update_scene_data_requirements(merged)
+        requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
+        sim.requires_usd_stage |= requires_stage
+        sim.requires_newton_model |= requires_model
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
@@ -431,27 +493,15 @@ class NewtonWarpRenderer(BaseRenderer):
         if self.cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
+    @property
+    def visual_material_writer(self):
+        """Return the shared Newton model color-writer factory."""
+        return NewtonManager.create_visual_material_writer
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
-
-        def seg_spec(colorize: bool) -> RenderBufferSpec:
-            # Colorized segmentation is RGBA uint8; raw segmentation is a single int32 id channel
-            # (matching the Isaac RTX / OVRTX contract so backend-independent consumers see the same dtype).
-            return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
-
-        return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: seg_spec(self.cfg.colorize_semantic_segmentation),
-            RenderBufferKind.INSTANCE_SEGMENTATION: seg_spec(self.cfg.colorize_instance_segmentation),
-        }
+        return self.cfg.supported_output_types()
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg before rendering.
@@ -462,6 +512,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         Also captures the USD ``stage`` so the segmentation mapper can read the scene's
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
+
         """
         self._stage = stage
         if spec.cfg.isp_cfg is None:
@@ -490,7 +541,8 @@ class NewtonWarpRenderer(BaseRenderer):
             or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         ):
             if self._seg_mapper is None:
-                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg)
+                clone_plan = SimulationContext.instance().get_clone_plan()
+                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg, clone_plan)
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
@@ -533,11 +585,16 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        # Refresh the shadow state under PhysX before the manager refits the BVH.
-        NewtonManager.get_state()
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            NewtonManager._register_sensor_task(render_data.sensor_task_name, lambda: self._launch_render(render_data))
+            tri_indices = self._newton_model.tri_indices
+            # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
+            graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
+            NewtonManager._register_sensor_task(
+                render_data.sensor_task_name,
+                lambda: self._launch_render(render_data),
+                graph_capturable=graph_capturable,
+            )
         NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
@@ -582,7 +639,7 @@ class NewtonWarpRenderer(BaseRenderer):
             shape_index_image=render_data.outputs.shape_index_image,
             # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
             clear_data=newton.sensors.SensorTiledCamera.ClearData(
-                clear_color=0xFFEEEEEE,
+                clear_color=render_data.clear_color,
                 **({"clear_depth": render_data.far_clip} if _use_depth_clear else {}),
             ),
             kernel_block_dim=self.cfg.kernel_block_dim,

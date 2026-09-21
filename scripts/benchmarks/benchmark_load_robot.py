@@ -62,10 +62,10 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app import launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene

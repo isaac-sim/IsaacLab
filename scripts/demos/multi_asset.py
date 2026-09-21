@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    uv run python scripts/demos/multi_asset.py --num_envs 1024
+    uv run --extra isaacsim python scripts/demos/multi_asset.py --num_envs 1024
 
-    # Usage with Newton visualizer and default PhysX physics.
-    uv run python scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
+    # Usage with Newton GL visualizer and default PhysX physics.
+    uv run --extra isaacsim python scripts/demos/multi_asset.py --visualizer newton_gl --num_envs 1024
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    uv run python scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
+    uv run --extra isaacsim python scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
 
-    # Usage with Newton visualizer and Newton (MJWarp) physics.
-    uv run python scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
+    # Usage with Newton GL visualizer and Newton (MJWarp) physics.
+    uv run python scripts/demos/multi_asset.py --visualizer newton_gl --physics newton_mjwarp --num_envs 1024
 
 """
 
@@ -36,7 +36,9 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=512, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 add_launcher_args(parser)
 # demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])
@@ -54,9 +56,8 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.utils import Timer
+from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
-from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection

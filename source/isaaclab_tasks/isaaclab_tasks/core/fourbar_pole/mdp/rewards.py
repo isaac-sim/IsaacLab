@@ -3,89 +3,47 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Functions specific to the fourbar-pole swing-up environments.
-
-This module holds both observation helpers (``joint_pos_cos`` / ``joint_pos_sin``)
-that encode an angle without the ``+-pi`` wrap discontinuity, and the swing-up
-reward / success-metric terms.
-"""
+"""Reward terms for the fourbar-pole swing-up environment."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import CommandTerm, CommandTermCfg, SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def joint_pos_cos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Cosine of the selected joint positions.
+class pole_upright(ManagerTermBase):
+    """Pole-uprightness reward that also logs a sustained-upright success metric.
 
-    Encodes the angle without the wrap-around discontinuity at ``+-pi`` so the
-    policy sees a smooth signal as the pole swings through the bottom.
+    The reward is ``sum(cos(pole_angle))``: ``+1`` upright and ``-1`` hanging. On reset it flushes
+    ``Metrics/success_rate`` into ``extras["log"]``: the fraction of environments that held the pole
+    within the upright cone (``cos > success_threshold``) for at least the final ``hold_time_s``
+    seconds. Both parameters shape only the metric, not the reward.
     """
-    asset: Articulation = env.scene[asset_cfg.name]
-    return torch.cos(asset.data.joint_pos.torch[:, asset_cfg.joint_ids])
 
-
-def joint_pos_sin(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Sine of the selected joint positions (companion to :func:`joint_pos_cos`)."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sin(asset.data.joint_pos.torch[:, asset_cfg.joint_ids])
-
-
-def pole_upright(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Uprightness reward for the pole, maximal (``+1``) when fully upright.
-
-    The pole joint is zero when upright and ``+-pi`` when hanging, so ``cos`` gives
-    a dense shaping signal in ``[-1, 1]`` that drives the swing-up.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.cos(asset.data.joint_pos.torch[:, asset_cfg.joint_ids]), dim=1)
-
-
-class UprightSuccessRateCommand(CommandTerm):
-    """Command term that tracks pole-upright terminal success as a metric."""
-
-    cfg: UprightSuccessRateCommandCfg
-
-    def __init__(self, cfg: UprightSuccessRateCommandCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._asset_cfg = cfg.asset_cfg
-        self._asset_cfg.resolve(env.scene)
-        self._asset: Articulation = env.scene[self._asset_cfg.name]
+        self._consecutive_upright = torch.zeros(env.num_envs, device=env.device)
+        self._success = torch.zeros(env.num_envs, device=env.device)
+        hold_time_s: float = cfg.params.get("hold_time_s", 0.5)
+        self._hold_steps = max(1, round(hold_time_s / env.step_dt))
 
-        self._command = torch.zeros((self.num_envs, 1), device=self.device)
-        self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
+    def reset(self, env_ids: torch.Tensor):
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._success[env_ids].mean().item()
+        self._consecutive_upright[env_ids] = 0.0
 
-    @property
-    def command(self) -> torch.Tensor:
-        return self._command
-
-    def _update_metrics(self):
-        pole_pos = self._asset.data.joint_pos.torch[:, self._asset_cfg.joint_ids]
-        self.metrics["success_rate"] = (torch.cos(pole_pos) > self.cfg.threshold).all(dim=1).float()
-
-    def _resample_command(self, env_ids: Sequence[int]):
-        pass
-
-    def _update_command(self):
-        pass
-
-
-@configclass
-class UprightSuccessRateCommandCfg(CommandTermCfg):
-    """Configuration for :class:`UprightSuccessRateCommand`."""
-
-    class_type: type[UprightSuccessRateCommand] | str = "{DIR}.rewards:UprightSuccessRateCommand"
-    resampling_time_range: tuple[float, float] = (1e6, 1e6)
-
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", joint_names=["coupler_to_pole"])
-    threshold: float = 0.95
+    def __call__(
+        self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float, hold_time_s: float = 0.5
+    ) -> torch.Tensor:
+        cos_pole = torch.cos(env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids])
+        upright = (cos_pole > success_threshold).all(dim=1)
+        self._consecutive_upright = torch.where(
+            upright, self._consecutive_upright + 1.0, torch.zeros_like(self._consecutive_upright)
+        )
+        self._success = (self._consecutive_upright >= self._hold_steps).float()
+        return torch.sum(cos_pole, dim=1)

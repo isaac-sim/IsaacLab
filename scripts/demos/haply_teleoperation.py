@@ -51,7 +51,9 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 parser.add_argument(
     "--websocket_uri",
     type=str,
@@ -83,8 +85,8 @@ from isaaclab.devices import HaplyDeviceCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
@@ -359,8 +361,8 @@ def run_simulator(
         count += 1
 
         # get contact forces and apply force feedback
-        left_finger_forces = left_finger_sensor.data.net_forces_w[0, 0]
-        right_finger_forces = right_finger_sensor.data.net_forces_w[0, 0]
+        left_finger_forces = left_finger_sensor.data.net_normal_forces_w[0, 0]
+        right_finger_forces = right_finger_sensor.data.net_normal_forces_w[0, 0]
         total_contact_force = (left_finger_forces + right_finger_forces) * 0.5
         haply_device.push_force(forces=total_contact_force.unsqueeze(0), position=torch.tensor([0]))
 

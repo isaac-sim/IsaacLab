@@ -7,7 +7,7 @@
 
 import pytest
 
-from isaaclab.test.benchmark.metrics import (
+from isaaclab.benchmark.metrics import (
     RL_LIBRARY_DESCRIPTORS,
     SUCCESS_RATE_LOG_TAGS,
     SuccessRateTracker,
@@ -19,7 +19,7 @@ from isaaclab.test.benchmark.metrics import (
     parse_tf_logs,
     success_rate_step_value,
 )
-from isaaclab.test.benchmark.schema import MeanStd
+from isaaclab.benchmark.schema import MeanStd
 
 
 @pytest.mark.parametrize(

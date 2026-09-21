@@ -6,27 +6,25 @@
 """Tests for benchmark capture helpers (Isaac-Sim-free, fake recorders)."""
 
 from types import SimpleNamespace
-from typing import Literal
 
 import pytest
 
-import isaaclab.test.benchmark.capture as capture
-from isaaclab.test.benchmark.capture import (
+from isaaclab.benchmark.capture import (
     capture_hardware,
     capture_resources,
     capture_versions,
-    run_config_from_presets,
+    run_config_from_env_cfg,
     synth_run_id,
 )
-from isaaclab.test.benchmark.interfaces import MeasurementData
-from isaaclab.test.benchmark.measurements import (
+from isaaclab.benchmark.interfaces import MeasurementData
+from isaaclab.benchmark.measurements import (
     DictMetadata,
     FloatMetadata,
     IntMetadata,
     SingleMeasurement,
     StringMetadata,
 )
-from isaaclab.test.benchmark.schema import Hardware, Resources, Versions
+from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
 
 class _Rec:
@@ -209,39 +207,25 @@ def test_synth_run_id():
     assert "rsl_rl" in rid and "physx" in rid and "42" in rid
 
 
-def test_run_config_from_presets_resolves_backend_configuration(monkeypatch):
-    cases = [
-        ([], "physx", "none", []),
-        (
-            ["newton_mjwarp", "ovrtx_renderer", "rgb"],
-            "newton_mjwarp",
-            "ovrtx",
-            ["newton_mjwarp", "ovrtx_renderer", "rgb"],
-        ),
-        (["newton"], "newton_mjwarp", "none", ["newton"]),
-        (
-            ["physics=newton_mjwarp", "renderer=ovrtx_renderer", "presets=rgb,depth"],
-            "newton_mjwarp",
-            "ovrtx",
-            ["newton_mjwarp", "ovrtx_renderer", "rgb", "depth"],
-        ),
-    ]
-    for tokens, physics, rendering, presets in cases:
-        cfg = run_config_from_presets(tokens)
-        assert cfg.physics_backend == physics
-        assert cfg.rendering_backend == rendering
-        assert cfg.presets == presets
-
-    monkeypatch.setattr(capture, "PhysicsBackend", Literal["physx", "newton_mjwarp_vbd"], raising=False)
-    assert run_config_from_presets(["newton_mjwarp_vbd"]).physics_backend == "newton_mjwarp_vbd"
-
+def test_run_config_uses_concrete_backend_configuration():
     env_cfg = SimpleNamespace(
         sim=SimpleNamespace(physics=SimpleNamespace(class_type="isaaclab_newton.physics:NewtonMJWarpManager")),
         camera=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="isaac_rtx")),
     )
-    cfg = run_config_from_presets([], env_cfg=env_cfg)
+    cfg = run_config_from_env_cfg(env_cfg)
     assert cfg.physics_backend == "newton_mjwarp"
     assert cfg.rendering_backend == "isaacsim_rtx"
+    assert cfg.presets == []
+
+    physx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="PhysXManager")))
+    cfg = run_config_from_env_cfg(physx_env_cfg)
+    assert cfg.physics_backend == "physx"
+
+    default_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
+    assert run_config_from_env_cfg(default_env_cfg).physics_backend == "physx"
+
+    with pytest.raises(ValueError, match="Unsupported concrete physics config"):
+        run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():

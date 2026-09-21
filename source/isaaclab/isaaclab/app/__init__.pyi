@@ -13,8 +13,11 @@ __all__ = [
     "make_physics_cfg",
     "scan",
     "Scan",
+    "LoadingScreen",
+    "report_activity",
 ]
 
 from .app_launcher import AppLauncher
+from .loading_screen import LoadingScreen, report_activity
 from .settings_manager import SettingsManager, get_settings_manager, initialize_carb_settings
 from .sim_launcher import Scan, add_launcher_args, launch_simulation, make_physics_cfg, scan

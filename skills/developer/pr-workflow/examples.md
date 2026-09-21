@@ -23,7 +23,7 @@ Input: a PR modifies `docs/source/overview/`.
 
 Expected workflow:
 
-1. Run `uv run isaaclab -d` and require the build to complete without warnings or errors.
+1. Run `uv run --isolated --extra test -- make -C docs current-docs` and require the build to complete without warnings or errors.
 2. Run `uv run isaaclab -f`.
 3. Do not add a package changelog fragment unless `source/<package>/` changed.
 

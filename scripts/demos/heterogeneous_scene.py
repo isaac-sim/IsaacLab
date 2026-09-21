@@ -44,7 +44,7 @@ parser.add_argument(
     default=None,
     help="Number of tasks to use from the default order. Omit to use all tasks.",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = parser.parse_known_args()
@@ -57,8 +57,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as scene_add
 
-from isaaclab_tasks.utils.hydra import resolve_presets
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils import resolve_task_config
 
 # Tasks composed by default. The selection criterion is simple: every listed
 # scene is a PhysX task whose floor is a single flat plane at height zero, so
@@ -103,8 +102,7 @@ def _load_task_scenes() -> tuple[list[str], list[InteractiveSceneCfg]]:
         raise ValueError("Select at least two task scenes.")
     scene_cfgs = []
     for task_id in task_ids:
-        # resolve preset placeholders (e.g. object-set choices) to their defaults
-        env_cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"))
+        env_cfg, _ = resolve_task_config(task_id, "", overrides=hydra_args)
         scene_cfgs.append(env_cfg.scene)
     return task_ids, scene_cfgs
 

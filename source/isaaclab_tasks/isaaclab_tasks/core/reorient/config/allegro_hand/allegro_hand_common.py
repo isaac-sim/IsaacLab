@@ -10,29 +10,30 @@ presets, and the sim mixin. No task tunables.
 """
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.physics import PhysxAutoCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
+ALLEGRO_HAND_ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-@configclass
-class ObjectCfg(PresetCfg):
-    physx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
+CUBE_CFG = RigidObjectCfg(
+    prim_path="{ENV_REGEX_NS}/object",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
                 disable_gravity=False,
                 enable_gyroscopic_forces=True,
                 solver_position_iteration_count=8,
@@ -41,49 +42,34 @@ class ObjectCfg(PresetCfg):
                 stabilization_threshold=0.0025,
                 max_depenetration_velocity=1000.0,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-            scale=(1.2, 1.2, 1.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    newton_mjwarp = ArticulationCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
+        ],
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
+        scale=(1.2, 1.2, 1.2),
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
+)
+"""In-hand cube for the Allegro reorientation task."""
+
+GOAL_OBJECT_CFG = VisualizationMarkersCfg(
+    prim_path="/Visuals/goal_marker",
+    markers={
+        "goal": sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
             scale=(1.2, 1.2, 1.2),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, -0.17, 0.565), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
-        ),
-        actuators={},
-        articulation_root_prim_path="",
-    )
-    ovphysx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-            scale=(1.2, 1.2, 1.2),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    default = newton_mjwarp
+        )
+    },
+)
+"""Goal cube marker for the reorientation environments."""
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    physx = PhysxCfg(
+    """Physics backend presets for the Allegro Hand reorientation environments."""
+
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
     )
     newton_mjwarp = NewtonCfg(
@@ -98,37 +84,5 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
     ovphysx = OvPhysxCfg()
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
-
-
-@configclass
-class AllegroSceneCfg(PresetCfg):
-    """Scene configuration with preset variants for PhysX and Newton.
-
-    PhysX supports ``clone_in_fabric=True`` for faster scene cloning via the Fabric layer.
-    Newton does not support Fabric cloning, so ``clone_in_fabric`` must be ``False``.
-    """
-
-    physx: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
-    )
-    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
-    )
-    default: InteractiveSceneCfg = physx
-    ovphysx = physx
-    newton_kamino = newton_mjwarp
-
-
-# Scene pieces shared verbatim by the manager-based variant.
-ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-OBJECT_CFG = ObjectCfg()
-GOAL_OBJECT_CFG = VisualizationMarkersCfg(
-    prim_path="/Visuals/goal_marker",
-    markers={
-        "goal": sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(1.2, 1.2, 1.2),
-        )
-    },
-)

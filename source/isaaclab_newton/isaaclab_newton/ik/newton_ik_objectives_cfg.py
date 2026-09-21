@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

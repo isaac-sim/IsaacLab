@@ -10,7 +10,7 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -58,6 +58,14 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     disable_contacts: bool = False
     """Whether to disable contact computation in MuJoCo."""
 
+    disable_sensors: bool = False
+    """Whether to disable MuJoCo Warp's internal sensor computation.
+
+    This must be ``True`` when :attr:`NewtonCfg.deterministic_mode` requests a
+    determinism guarantee. Isaac Lab sensors use Newton state directly and do
+    not depend on MuJoCo Warp's internal sensor data.
+    """
+
     default_actuator_gear: float | None = None
     """Default gear ratio for all actuators."""
 
@@ -87,6 +95,21 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
     Increase this if you see warnings about ``opt.ccd_iterations`` needing to be increased,
     which typically occurs with complex collision geometries (e.g. multi-finger hands).
+    """
+
+    enable_multiccd: bool = False
+    """Whether to enable multiple-contact convex collision detection. Defaults to False.
+
+    With :attr:`use_mujoco_contacts` enabled, supported convex geometry pairs can generate
+    a contact manifold (several points across a touching surface) instead of a single point.
+    This can improve stability for flat mesh contacts in stacking and grasping. It does not
+    enable continuous collision detection or prevent tunneling between simulation steps.
+
+    MuJoCo Warp's supported pairs and contact-margin restrictions differ from MuJoCo CPU.
+    Primitive colliders can already produce multiple contacts with this option disabled.
+    Additional contacts can increase solver work and the required :attr:`nconmax` and
+    :attr:`njmax` capacities. See MuJoCo's `multiple-contact documentation
+    <https://mujoco.readthedocs.io/en/stable/computation/index.html#multiple-contacts>`__.
     """
 
     ls_parallel: bool = False

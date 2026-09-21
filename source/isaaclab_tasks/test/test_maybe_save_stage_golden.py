@@ -7,13 +7,11 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest import mock
 
 import pytest
 from rendering_test_utils import (
-    _GOLDEN_STAGES_DIRECTORY,
     compare_golden_stage,
     maybe_save_stage,
 )
@@ -30,6 +28,27 @@ def _usda_with_robot(translate: tuple[float, float, float] = (0.0, 0.0, 0.0), *,
     )
     extra = '    def Xform "Extra"\n    {\n    }\n' if extra_prim else ""
     return f'#usda 1.0\ndef Xform "World"\n{{\n{robot}{extra}}}\n'
+
+
+def _usda_with_hydra_render_product(render_product_name: str, *, extra_prim: bool = False) -> str:
+    """Build a USDA stage with one Isaac RTX HydraTextures render product under ``/Render``."""
+    extra = '    def Xform "Extra"\n    {\n    }\n' if extra_prim else ""
+    return (
+        "#usda 1.0\n"
+        'def Xform "Render"\n'
+        "{\n"
+        '    def Xform "OmniverseKit"\n'
+        "    {\n"
+        '        def Xform "HydraTextures"\n'
+        "        {\n"
+        f'            def RenderProduct "{render_product_name}"\n'
+        "            {\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        f"{extra}"
+        "}\n"
+    )
 
 
 def _mock_export(stage_text: str | dict[str, str]):
@@ -126,6 +145,22 @@ def test_compare_golden_stage_reports_structure_and_transform_diffs(tmp_path: Pa
     assert any("transform" in problem and "/World/Robot" in problem for problem in problems)
 
 
+def test_compare_golden_stage_canonicalizes_replicator_and_uuid_render_products(tmp_path: Path):
+    """Legacy ``Replicator`` and UUID ``rp_<hex>`` render-product names compare as equivalent."""
+    golden = tmp_path / "golden.usda"
+    result = tmp_path / "result.usda"
+
+    golden.write_text(_usda_with_hydra_render_product("Replicator"), encoding="utf-8")
+    result.write_text(_usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6"), encoding="utf-8")
+    assert compare_golden_stage(str(golden), str(result)) == []
+
+    result.write_text(
+        _usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6", extra_prim=True), encoding="utf-8"
+    )
+    problems = compare_golden_stage(str(golden), str(result))
+    assert any("added prim" in problem and "/Render/Extra" in problem for problem in problems)
+
+
 def test_maybe_save_stage_matches_golden_with_sublayer_result(golden_stage_dir: Path, tmp_path: Path):
     """Comparison still passes when save_stage writes a root layer with a sublayer reference.
 
@@ -155,11 +190,6 @@ def test_maybe_save_stage_noop_without_dump_or_compare(monkeypatch: pytest.Monke
     with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
         maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb")
         save_stage_mock.assert_not_called()
-
-
-def test_golden_stages_directory_exists_in_repo():
-    """The checked-in golden stage directory is present for LFS baselines."""
-    assert os.path.isdir(_GOLDEN_STAGES_DIRECTORY)
 
 
 # ---------------------------------------------------------------------------

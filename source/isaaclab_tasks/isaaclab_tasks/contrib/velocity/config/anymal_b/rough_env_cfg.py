@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
@@ -17,9 +17,9 @@ from isaaclab_assets import ANYMAL_B_CFG  # isort: skip
 @configclass
 class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
-        # switch robot to anymal-b
+
+        # scene
         self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # MuJoCo Menagerie ANYmal: distal leg links are named *SHANK, not *FOOT (matches contact sensor bodies).
         self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*SHANK"

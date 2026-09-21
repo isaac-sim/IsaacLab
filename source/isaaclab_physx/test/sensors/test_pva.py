@@ -18,7 +18,9 @@ import pathlib
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -28,7 +30,7 @@ from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG, RED_ARROW_X_MARKER
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
@@ -62,9 +64,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -74,9 +76,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -95,9 +97,12 @@ class MySceneCfg(InteractiveSceneCfg):
             merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
             ),
@@ -117,9 +122,12 @@ class MySceneCfg(InteractiveSceneCfg):
             merge_fixed_joints=True,
             make_instanceable=False,
             asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
                 gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
             ),
@@ -190,9 +198,12 @@ class MySceneCfg(InteractiveSceneCfg):
 
         # change asset
         self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
-        # change iterations
-        self.robot.spawn.articulation_props.solver_position_iteration_count = 32
-        self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
+        # change iterations -- the solver counts live on the PhysX articulation fragment
+        physx_articulation = next(
+            frag for frag in self.robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+        )
+        physx_articulation.solver_position_iteration_count = 32
+        physx_articulation.solver_velocity_iteration_count = 32
 
 
 @pytest.fixture
@@ -319,16 +330,17 @@ def test_constant_velocity(setup_sim):
 
 @pytest.mark.isaacsim_ci
 def test_constant_acceleration(setup_sim):
-    """Test the PVA sensor with a constant acceleration."""
+    """A constant applied force yields the solver acceleration F/m on top of free fall."""
     sim, scene = setup_sim
-    for idx in range(100):
-        # set acceleration
-        scene.rigid_objects["balls"].write_root_velocity_to_sim(
-            torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
-        )
+    balls = scene.rigid_objects["balls"]
+    force = 0.25  # [N] on a 0.5 kg ball -> 0.5 m/s^2
+    expected_acc = force / 0.5
+    forces = torch.zeros((scene.num_envs, 1, 3), dtype=torch.float32, device=scene.device)
+    forces[..., 0] = force
+    # keep the window short so the ball stays airborne: PVA reports kinematic acceleration,
+    # so the vertical component is the free-fall -g
+    for idx in range(10):
+        balls.set_external_force_and_torque(forces, torch.zeros_like(forces))
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -336,7 +348,7 @@ def test_constant_acceleration(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
@@ -345,8 +357,9 @@ def test_constant_acceleration(setup_sim):
             scene.sensors["pva_ball"].data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 scene.rigid_objects["balls"].data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
-                / sim.get_physics_dt(),
+                torch.tensor([[expected_acc, 0.0, -9.81]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -367,6 +380,8 @@ def test_single_dof_pendulum(setup_sim):
     sim, scene = setup_sim
     # pendulum length
     pend_length = PEND_POS_OFFSET[0]
+    pendulum = scene.articulations["pendulum"]
+    pendulum_link_id = pendulum.find_bodies("link_1")[0][0]
 
     # should achieve same results between the two pva sensors on the robot
     for idx in range(500):
@@ -378,9 +393,11 @@ def test_single_dof_pendulum(setup_sim):
         scene.update(sim.get_physics_dt())
 
         # get pendulum joint state
-        joint_pos = scene.articulations["pendulum"].data.joint_pos.torch
-        joint_vel = scene.articulations["pendulum"].data.joint_vel.torch
-        joint_acc = scene.articulations["pendulum"].data.joint_acc.torch
+        joint_pos = pendulum.data.joint_pos.torch
+        joint_vel = pendulum.data.joint_vel.torch
+        # Use the solver-reported link acceleration as the reference. The public joint
+        # acceleration is finite-differenced and intentionally differs from PVA semantics.
+        joint_ang_acc_w_y = pendulum.data.body_com_acc_w.torch[:, pendulum_link_id, 4].unsqueeze(-1)
 
         # PVA and base data
         pva_data = scene.sensors["pva_pendulum_imu_link"].data
@@ -400,9 +417,9 @@ def test_single_dof_pendulum(setup_sim):
         vz = -joint_vel * pend_length * torch.cos(joint_pos)
         gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
 
-        ax = -joint_acc * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
+        ax = -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
         ay = torch.zeros(2, 1, device=scene.device)
-        az = -joint_acc * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
+        az = -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
@@ -424,9 +441,9 @@ def test_single_dof_pendulum(setup_sim):
             rtol=1e-1,
             atol=1e-3,
         )
-        # compare pva angular acceleration with joint acceleration
+        # compare pva angular acceleration with solver-reported link acceleration
         torch.testing.assert_close(
-            joint_acc,
+            joint_ang_acc_w_y,
             joint_acc_pva,
             rtol=1e-1,
             atol=1e-3,
@@ -500,6 +517,8 @@ def test_indirect_attachment(setup_sim):
     sim, scene = setup_sim
     # pendulum length
     pend_length = PEND_POS_OFFSET[0]
+    pendulum = scene.articulations["pendulum2"]
+    pendulum_link_id = pendulum.find_bodies("link_1")[0][0]
 
     # should achieve same results between the two pva sensors on the robot
     for idx in range(500):
@@ -511,9 +530,11 @@ def test_indirect_attachment(setup_sim):
         scene.update(sim.get_physics_dt())
 
         # get pendulum joint state
-        joint_pos = scene.articulations["pendulum2"].data.joint_pos.torch
-        joint_vel = scene.articulations["pendulum2"].data.joint_vel.torch
-        joint_acc = scene.articulations["pendulum2"].data.joint_acc.torch
+        joint_pos = pendulum.data.joint_pos.torch
+        joint_vel = pendulum.data.joint_vel.torch
+        # Use the solver-reported link acceleration as the reference. The public joint
+        # acceleration is finite-differenced and intentionally differs from PVA semantics.
+        joint_ang_acc_w_y = pendulum.data.body_com_acc_w.torch[:, pendulum_link_id, 4].unsqueeze(-1)
 
         pva = scene.sensors["pva_indirect_pendulum_link"]
         pva_base = scene.sensors["pva_indirect_pendulum_base"]
@@ -546,9 +567,9 @@ def test_indirect_attachment(setup_sim):
         vz = -joint_vel * pend_length * torch.cos(joint_pos)
         gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
 
-        ax = -joint_acc * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
+        ax = -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
         ay = torch.zeros(2, 1, device=scene.device)
-        az = -joint_acc * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
+        az = -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
@@ -570,9 +591,9 @@ def test_indirect_attachment(setup_sim):
             rtol=1e-1,
             atol=1e-3,
         )
-        # compare pva angular acceleration with joint acceleration
+        # compare pva angular acceleration with solver-reported link acceleration
         torch.testing.assert_close(
-            joint_acc,
+            joint_ang_acc_w_y,
             joint_acc_pva,
             rtol=1e-1,
             atol=1e-3,
@@ -771,9 +792,9 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
     )
     pva_cube: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/cube")
@@ -784,8 +805,8 @@ def test_no_stale_data_after_scene_reset():
 
     Mirrors the ``ManagerBasedRLEnv._reset_idx`` flow where reset runs inside a step
     without a subsequent physics step. The PVA sensor's lazy ``data`` accessor must not
-    refetch from the PhysX rigid-body view here (the velocity buffer reflects the previous
-    physics step and would produce spurious finite-difference accelerations).
+    refetch from the PhysX rigid-body view here (its buffers still reflect the previous
+    physics step and would surface pre-reset velocities and accelerations).
     """
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -826,3 +847,46 @@ def test_sensor_print(setup_sim):
     sensor = scene.sensors["pva_ball"]
     # print info
     print(sensor)
+
+
+@pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))
+def test_velocity_writes_do_not_produce_spurious_acceleration(setup_sim, access_mode):
+    """Directly written (teleported) velocities do not show up as fake accelerations.
+
+    The PVA sensor reports the solver acceleration, so a velocity write — which involves no
+    force — must not spike the sensor. This was a known artifact of the previous
+    finite-difference implementation (e.g. on environment resets). The airborne ball is in
+    free fall throughout, so the only acceleration left is ``-g`` along the world z axis.
+    """
+    sim, scene = setup_sim
+    dt = sim.get_physics_dt()
+    body = scene.rigid_objects["balls"]
+    sensor = scene.sensors["pva_ball"]
+    velocity = torch.zeros((scene.num_envs, 6), dtype=torch.float32, device=scene.device)
+
+    body.write_root_velocity_to_sim_index(root_velocity=velocity)
+    scene.write_data_to_sim()
+    sim.step()
+    scene.update(dt)
+    _ = sensor.data
+
+    scene.cfg.lazy_sensor_update = True
+    if access_mode == "update_period":
+        sensor.cfg.update_period = 4 * dt
+
+    for step in range(4):
+        velocity[:, 0] = 0.1 * (step + 1)
+        velocity[:, 5] = 0.2 * (step + 1)
+        body.write_root_velocity_to_sim_index(root_velocity=velocity)
+        scene.write_data_to_sim()
+        sim.step()
+        scene.update(dt)
+        if access_mode == "update_period":
+            _ = sensor.data
+
+    expected_lin_acc = torch.tensor([[0.0, 0.0, -9.81]], device=scene.device).repeat(scene.num_envs, 1)
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch, expected_lin_acc, rtol=0.0, atol=1e-2)
+    # The angular acceleration is not exactly zero because PhysX's default angular damping
+    # opposes the written spin, so bound it well below the 0.2 / dt spike finite differencing
+    # would report for the same velocity writes.
+    assert torch.all(sensor.data.ang_acc_b.torch.abs() < 0.01 * 0.2 / dt)

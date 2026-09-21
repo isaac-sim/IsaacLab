@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,7 +16,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
@@ -84,10 +85,10 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             prim_path="{ENV_REGEX_NS}/Robot",
             mesh_prim_paths=[
                 "/World/Ground",
-                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
-                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
-                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
-                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LF_[^/]*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RF_[^/]*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/LH_[^/]*/visuals"),
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/RH_[^/]*/visuals"),
                 MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
             ],
             ray_alignment="world",
@@ -115,7 +116,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 target_cfg = cfg.RaycastTargetCfg(prim_expr=target, track_mesh_transforms=False)
             else:
                 target_cfg = target
-            target_cfg.prim_expr = target_cfg.prim_expr.format(ENV_REGEX_NS="/World/envs/env_.*")
+            target_cfg.prim_expr = cloner.expand_env_regex_ns(target_cfg.prim_expr)
             self._raycast_targets_cfg.append(target_cfg)
 
         self._data = MultiMeshRayCasterData()
@@ -211,11 +212,14 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         if plan is not None and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
             prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in iter_clone_plan_matches(plan, prim_expr):
+            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(plan, prim_expr):
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.
-                source_prims = sim_utils.find_matching_prims(source_path)
+                source_pattern = re.compile(source_path)
+                source_prims = sim_utils.get_all_matching_child_prims(
+                    source_root, lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None
+                )
                 if not source_prims:
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
 
@@ -255,7 +259,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                                 f"Tracked target owner '{owner_path}' is not under ClonePlan source root "
                                 f"'{source_root}'."
                             )
-                        row_tracked_target_exprs.append(destination_template.format(".*") + owner_suffix)
+                        row_tracked_target_exprs.append(destination_template.format("[^/]+") + owner_suffix)
 
                 if len(row_tracked_target_exprs) > len(plan_tracked_target_exprs):
                     plan_tracked_target_exprs = row_tracked_target_exprs

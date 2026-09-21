@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-torch-array:
 
 Working with ProxyArray
@@ -20,7 +22,7 @@ Quick Start
 ~~~~~~~~~~~
 
 Every property on asset and sensor data classes (e.g., ``robot.data.joint_pos``,
-``sensor.data.net_forces_w``) returns a ``ProxyArray``:
+``sensor.data.net_normal_forces_w``) returns a ``ProxyArray``:
 
 .. code-block:: python
 

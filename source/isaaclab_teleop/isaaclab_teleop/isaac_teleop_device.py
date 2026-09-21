@@ -360,6 +360,20 @@ class IsaacTeleopDevice:
         """
         self._session_lifecycle.push_haptic(endpoint, values)
 
+    def send_client_message(self, message: dict) -> None:
+        """Queue a JSON message for delivery to the connected XR client.
+
+        Delivery is deferred until the control channel is connected, so a
+        message queued before the headset connects still reaches the client.
+        This is a no-op unless a control channel is configured.
+
+        Args:
+            message: A JSON-serializable dict carrying a ``"type"``
+                discriminator the client recognizes, e.g.
+                ``{"type": "system_notice", "message": {...}}``.
+        """
+        self._session_lifecycle.send_client_message(message)
+
     # ------------------------------------------------------------------
     # Debug visualization
     # ------------------------------------------------------------------

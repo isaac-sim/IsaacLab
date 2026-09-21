@@ -17,6 +17,7 @@ from newton.solvers import SolverMuJoCo
 from isaaclab.physics import PhysicsManager
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,8 @@ class NewtonMJWarpManager(NewtonManager):
     convergence logging emitted from :meth:`_log_solver_debug` when
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
+
+    _builder_attribute_solvers = (SolverMuJoCo,)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
@@ -52,6 +55,7 @@ class NewtonMJWarpManager(NewtonManager):
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+        NewtonManager._supports_rigid_body_force_input = True
 
         cfg = PhysicsManager._cfg
         # Cross-config validation that needs both halves.
@@ -61,6 +65,18 @@ class NewtonMJWarpManager(NewtonManager):
                 "solver_cfg.use_mujoco_contacts=True. Either set "
                 "use_mujoco_contacts=False or remove collision_cfg."
             )
+
+    @classmethod
+    def create_fixed_tendon_control(cls, articulation):
+        """Build the MuJoCo tendon adapter for ``articulation``.
+
+        Args:
+            articulation: Newton articulation to drive.
+
+        Returns:
+            The adapter, or None when no MuJoCo actuator transmits to any of its tendons.
+        """
+        return MjWarpTendonControl.create(articulation, cls.get_model())
 
     @classmethod
     def _initialize_contacts(cls) -> None:
@@ -81,7 +97,7 @@ class NewtonMJWarpManager(NewtonManager):
                 rigid_contact_max=cls._solver.get_max_contact_count(),
                 soft_contact_max=0,
                 device=PhysicsManager._device,
-                requested_attributes=cls._model.get_requested_contact_attributes(),
+                requested_attributes=cls.backend.model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -106,9 +122,9 @@ class NewtonMJWarpManager(NewtonManager):
         step.
 
         Args:
-            world_mask: Per-world bool mask of shape ``(world_count,)``;
-                ``True`` for worlds that need their MJWarp internals cleared.
-                ``None`` is treated as a no-op.
+            world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
+                Entries before the last select local worlds; the final entry
+                selects global entities in world -1. ``None`` is a no-op.
         """
         if world_mask is None:
             return
@@ -116,7 +132,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
-        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

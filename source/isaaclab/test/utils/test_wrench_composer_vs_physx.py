@@ -69,18 +69,18 @@ def generate_dual_cube_scene(
 
     spawn_cfg = sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
     )
 
     cube_composer_cfg = RigidObjectCfg(
-        prim_path="/World/Composer_.*/Object",
+        prim_path="/World/Composer_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
     cube_composer = RigidObject(cfg=cube_composer_cfg)
 
     cube_raw_cfg = RigidObjectCfg(
-        prim_path="/World/Raw_.*/Object",
+        prim_path="/World/Raw_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, y_offset, height), rot=initial_rot),
     )
