@@ -1,0 +1,4 @@
+# Include the USD geometry and textures required by this task.
+!assets/*.usda
+!assets/*.usdc
+!assets/overrides/*.usda

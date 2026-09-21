@@ -1,0 +1,2 @@
+assets/*.usdc filter=lfs diff=lfs merge=lfs -text
+assets/*.npz filter=lfs diff=lfs merge=lfs -text
