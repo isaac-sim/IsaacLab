@@ -1071,7 +1071,7 @@ def _force_newton_transforms_resync() -> None:
 
         if NewtonManager._usdrt_stage is not None and NewtonManager.backend is not None:
             NewtonManager._transforms_dirty = True
-            NewtonManager.sync_transforms_to_usd()
+            NewtonManager.sync_transforms_to_fabric()
             NewtonManager._particles_dirty = True
             NewtonManager.sync_particles_to_usd()
 
@@ -1369,7 +1369,6 @@ def _capture_visualizer_tiled_camera_rgb(
     if force_recompute and getattr(visualizer, "_camera_is_owned", False):
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
-            visualizer._sync_camera_pose_updates_to_kit()
             # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
             # after the first iteration; on PhysX it is never set so we skip the full drain and
             # let _pump_tiled_until_stable handle convergence instead.
