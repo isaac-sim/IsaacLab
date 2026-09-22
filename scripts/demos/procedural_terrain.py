@@ -70,6 +70,7 @@ import random
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -165,7 +166,10 @@ def main():
         # Set main camera
         sim.set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
         # design scene
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Light", "/World/ground"))
+        sim.set_clone_plan(plan)
         scene_entities, scene_origins = design_scene()
+        cloner.replicate(plan, replicate_physics=False)
         # Play the simulator
         sim.reset()
         # Now we are ready!

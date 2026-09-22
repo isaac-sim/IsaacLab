@@ -44,6 +44,9 @@ class VisualizerCfg:
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
+    cloning_contexts: tuple[type | str, ...] = ()
+    """Clone contexts that build this visualizer's scene representation from the asset plan."""
+
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Interactive visualizer camera eye position in world coordinates."""

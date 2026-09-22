@@ -22,7 +22,7 @@ from isaaclab.visualizers import VisualizerCfg
 
 @configclass
 class BackendCfg:
-    """Construction inputs and value identity for a simulation-owned native resource.
+    """Construction inputs and value identity for a simulation-owned resource.
 
     Finalize all fields before registration and treat them as read-only afterward.
     """
