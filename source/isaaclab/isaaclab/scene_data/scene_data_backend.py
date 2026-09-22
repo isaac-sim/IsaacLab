@@ -81,16 +81,19 @@ class SceneDataFormat:
 
     @dataclass(slots=True)
     class FabricMatrix44:
-        """Native Fabric world matrices, or indexed conversion destinations with authored scale."""
+        """Native Fabric world matrices, with SDP-owned bindings for foreign physics."""
 
         matrices: Any = None
         """Transposed double-precision ``omni:fabric:worldMatrix`` values [m]."""
 
-        mapping: wp.array | None = None
-        """Native-to-output indices; solver-only bodies without rigid destinations map to -1."""
+        local_matrices: Any = None
+        """Writable local matrices [m] for conversion; native Fabric needs no conversion destinations."""
+
+        indices: Any = None
+        """Native source index per Fabric destination; solver-only bodies have no destination."""
 
         scales: wp.array | None = None
-        """Authored world scales captured once per SDP-owned destination layout, shape [count]."""
+        """Authored world scales captured once, indexed by native source, shape [transform_count]."""
 
     @wp_struct
     class Points:

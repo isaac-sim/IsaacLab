@@ -13,6 +13,8 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+from unittest.mock import patch
+
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
@@ -255,7 +257,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
 
 @pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
 def test_env_reset_invalidates_renderer_scene_state_cadence(env_type):
-    """A same-step reset must force the next camera read to republish scene state."""
+    """A same-step reset must invalidate the renderer's geometry cadence."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -266,10 +268,9 @@ def test_env_reset_invalidates_renderer_scene_state_cadence(env_type):
         else:
             env = create_direct_rl_env(render_interval=1)
 
-        env.sim.render_context._last_scene_state_step = 7
-        env.reset()
-
-        assert env.sim.render_context._last_scene_state_step is None
+        with patch.object(type(env.sim.render_context), "reset_scene_state_cadence", autospec=True) as reset_cadence:
+            env.reset()
+            reset_cadence.assert_called_once_with(env.sim.render_context)
     finally:
         if env is not None:
             env.close()

@@ -212,17 +212,16 @@ class KitVisualizer(BaseVisualizer):
         """
         if not self._is_initialized:
             return
-        self._scene_data_provider.request_transforms(SceneDataFormat.FabricMatrix44)
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
-        # Update dynamic asset tracking before the frame renders.
-        if self.cfg.origin_type == "asset":
-            self._update_asset_tracking_camera()
         # Headless mode: skip the app update and camera panel refresh; rendering is
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
+        self._scene_data_provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
         if not _externally_paused:
             try:
@@ -293,6 +292,8 @@ class KitVisualizer(BaseVisualizer):
         import omni.replicator.core as rep
 
         self._scene_data_provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        if self._runtime_headless and self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 
@@ -1238,7 +1239,7 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called every :meth:`step` when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
+        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
         Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
         ``"asset_name/body_name"`` tracks a specific body.
         """

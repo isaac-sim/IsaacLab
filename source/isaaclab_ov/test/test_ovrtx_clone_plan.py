@@ -13,7 +13,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import torch
 
 from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -362,31 +361,31 @@ def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.Mon
         _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
 
 
-def test_capture_object_scales_populates_source_and_destination_scale_array():
-    """Projected source scales reach the body array without replacing a real destination scale."""
+@pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/World/Instances/World_{}"])
+def test_capture_object_scales_populates_source_and_destination_scale_array(env_template):
+    """Only declared prototype and shared scales reach the body array, independent of namespace."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/envs")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_2")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Object").AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 8.0))
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1/Object").AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 4.0))
+    UsdGeom.Xform.Define(stage, f"{env_template.format(0)}/Object").AddScaleOp().Set(Gf.Vec3d(1, 1, 8))
+    UsdGeom.Xform.Define(stage, f"{env_template.format(1)}/Object").AddScaleOp().Set(Gf.Vec3d(1, 1, 4))
+    UsdGeom.Xform.Define(stage, "/World/Shared").AddScaleOp().Set(Gf.Vec3d(2, 3, 4))
+    UsdGeom.Xform.Define(stage, "/World/envs/Unplanned").AddScaleOp().Set(Gf.Vec3d(5, 6, 7))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
     plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 3), dtype=torch.bool),
-        env_ids=torch.arange(3),
+        sources=(env_template.format(0), env_template.format(1)),
+        destinations=(env_template, env_template),
+        clone_mask=np.array([[True, False, True], [False, True, False]]),
+        env_ids=np.arange(3),
+        global_paths=("/World/Shared",),
     )
 
     renderer._capture_object_scales(stage, plan)
     scales = renderer._create_object_scale_array(
-        ["/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_2/Object"]
+        [f"{env_template.format(index)}/Object" for index in range(3)] + ["/World/Shared"]
     )
 
-    np.testing.assert_allclose(scales.numpy(), np.array([[1.0, 1.0, 8.0], [1.0, 1.0, 4.0], [1.0, 1.0, 8.0]]))
+    np.testing.assert_allclose(scales.numpy(), [[1, 1, 8], [1, 1, 4], [1, 1, 8], [2, 3, 4]])
+    assert "/World/envs/Unplanned" not in renderer._object_scales_by_path
 
 
 def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: pytest.MonkeyPatch):

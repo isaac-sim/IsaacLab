@@ -579,10 +579,9 @@ class NewtonWarpRenderer(BaseRenderer):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
-    def update_transforms(self):
-        """Sync Newton scene state before rendering.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        NewtonManager.get_state()
+    def update_transforms(self) -> None:
+        """No-op: the shared sensor pipeline refreshes transforms immediately before rendering."""
+        pass
 
     def update_geometries(self) -> None:
         """No-op for Newton Warp - geometry is read directly from Newton state during render.

@@ -474,7 +474,7 @@ class OVRTXRenderer(BaseRenderer):
         return any(destination.format(0) == "/World/envs/env_0" for destination in self._clone_plan.destinations)
 
     def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
-        """Record composed world scales of scaled environment prims before the stage is exported.
+        """Record composed world scales beneath the plan's prototypes and shared roots before export.
 
         The per-frame object transform write rebuilds each body's matrix from an SDP
         pose, which carries only translation and rotation, so any scale authored on the
@@ -493,18 +493,15 @@ class OVRTXRenderer(BaseRenderer):
 
         from pxr import Gf, Usd, UsdGeom
 
-        envs_prim = stage.GetPrimAtPath("/World/envs")
-        if not envs_prim.IsValid():
-            return
-
         xform_cache = UsdGeom.XformCache()
-        for prim in Usd.PrimRange(envs_prim):
-            if not prim.IsA(UsdGeom.Xformable):
-                continue
-            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
-            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
-            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
-                self._object_scales_by_path[str(prim.GetPath())] = scale
+        for root in (*plan.sources, *plan.global_paths):
+            for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
+                if not prim.IsA(UsdGeom.Xformable):
+                    continue
+                scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+                scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+                if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                    self._object_scales_by_path[str(prim.GetPath())] = scale
 
         # OVRTX creates non-source rows after this stage is exported, so those destination prims
         # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.

@@ -139,7 +139,7 @@ def view_factory(request):
 
 @pytest.mark.parametrize("device", [device for device in test_devices() if device.startswith("cuda")])
 def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request):
-    """First binding borrows live GPU matrices without resetting them from authored USD."""
+    """Native GPU binding preserves live poses and publishes same-step writes without forward()."""
     _skip_if_unavailable(device)
     prim = UsdGeom.Cube.Define(sim_utils.get_current_stage(), "/World/Cube").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(prim)
@@ -166,6 +166,18 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     assert provider.request_transforms(SceneDataFormat.FabricMatrix44).matrices.shape == (1,)
     for value, expected in zip(frame_view.get_world_poses(), before, strict=True):
         torch.testing.assert_close(value.torch, expected, rtol=0, atol=0)
+
+    step_count = sim.get_physics_step_count()
+    view.set_transforms(
+        wp.array([[-2, 0.5, 4, 0, 0, 0, 1]], dtype=wp.float32, device=device),
+        indices=wp.array([0], dtype=wp.int32, device=device),
+    )
+    sim.physics_manager.invalidate_transforms()
+    provider.request_transforms(SceneDataFormat.FabricMatrix44)
+    torch.testing.assert_close(
+        frame_view.get_world_poses()[0].torch, torch.tensor([[-2, 0.5, 4]], dtype=torch.float32, device=device)
+    )
+    assert sim.get_physics_step_count() == step_count
 
 
 @pytest.mark.parametrize("device", test_devices())

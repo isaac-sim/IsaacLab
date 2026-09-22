@@ -15,6 +15,7 @@ import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
@@ -219,30 +220,23 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if sim is None:
         return
 
-    render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
-    key = (id(sim), sim._physics_step_count, render_generation)
+    key = (id(sim), sim.get_physics_step_count(), sim.render_generation)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
 
-    # If a visualizer already pumps the Kit app loop, mark as done and skip.
-    # However, on the very first call for a new SimulationContext, the visualizer
-    # has not had a chance to pump yet (sim.render() was never called), so we
-    # must perform the initial app.update() ourselves to populate annotator buffers.
+    # Prime annotators once; afterward the Kit visualizer owns its app updates.
     first_call_for_sim = _last_render_update_key[0] != id(sim)
     if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
         _last_render_update_key = key
         return
 
-    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
-    # excludes headless offscreen rendering so the per-step loop does not pump between frames.
-    # Offscreen frames are produced on demand: the ``--video`` / ``rgb_array`` path calls this with
-    # ``force=True`` (see :func:`pump_kit_app_for_headless_video_render_if_needed`) to pump exactly
-    # when a frame is requested, without making every step pump.
+    # Headless offscreen capture requests a frame explicitly with force=True.
     if not force and not sim.is_rendering:
         return
 
-    # Publish current poses through SDP before RTX consumes Fabric.
-    sim.physics_manager.forward()
+    provider = sim.get_scene_data_provider()
+    provider._prepare_fabric(sim.stage, sim.device)
+    provider.request_transforms(SceneDataFormat.FabricMatrix44)
 
     import omni.kit.app
 

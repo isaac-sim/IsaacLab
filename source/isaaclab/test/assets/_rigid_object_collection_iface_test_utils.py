@@ -29,6 +29,7 @@ try:
         RigidObjectCollectionData as PhysXRigidObjectCollectionData,
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
+    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
 except ImportError:
     pass
@@ -37,6 +38,7 @@ else:
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
+    SimulationManager._scene_data_backend = PhysxSceneDataBackend()
 
     BACKENDS.append("physx")
 

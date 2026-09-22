@@ -30,6 +30,8 @@ if "omni.usd" not in sys.modules:
 import isaaclab_physx.renderers.isaac_rtx_renderer_utils as rtx_utils  # noqa: E402
 import pytest  # noqa: E402
 
+from isaaclab.scene_data import SceneDataFormat  # noqa: E402
+
 # test-specific timeout overrides for _STREAMING_WAIT_TIMEOUT_S
 STREAMING_TIMEOUT_S = 0.1
 STREAMING_TIMEOUT_SHORT_S = 0.01
@@ -219,6 +221,7 @@ class TestEnsureIsaacRtxRenderUpdate:
         """A minimal mock of :class:`SimulationContext`."""
         sim = MagicMock()
         sim._physics_step_count = 0
+        sim.get_physics_step_count.side_effect = lambda: sim._physics_step_count
         sim._render_generation = 0
         sim.render_generation = 0
         sim.is_rendering = True
@@ -254,6 +257,10 @@ class TestEnsureIsaacRtxRenderUpdate:
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
         mock_sim_context.instance.return_value = mock_sim
+        provider = mock_sim.get_scene_data_provider.return_value
+        mock_app.update.side_effect = lambda: provider.request_transforms.assert_called_once_with(
+            SceneDataFormat.FabricMatrix44
+        )
 
         with (
             patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False),
@@ -261,6 +268,8 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_called_once()
+        provider._prepare_fabric.assert_called_once_with(mock_sim.stage, mock_sim.device)
+        mock_sim.physics_manager.forward.assert_not_called()
 
     def test_second_call_with_visualizer_skips_pump(
         self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
@@ -310,13 +319,18 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         mock_app.update.assert_not_called()
 
-    def test_not_rendering_skips(self, mock_sim, mock_sim_context, mock_omni_kit_app):
-        """No ``app.update()`` when rendering is disabled."""
+    @pytest.mark.parametrize("force", [False, True])
+    def test_not_rendering_pumps_only_when_forced(self, mock_sim, mock_sim_context, mock_omni_kit_app, force):
+        """Offscreen capture publishes through SDP only when a frame is requested."""
         mock_sim.is_rendering = False
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
         mock_sim_context.instance.return_value = mock_sim
 
-        rtx_utils.ensure_isaac_rtx_render_update()
+        with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
+            rtx_utils.ensure_isaac_rtx_render_update(force=force)
 
-        mock_app.update.assert_not_called()
+        assert mock_app.update.call_count == int(force)
+        provider = mock_sim.get_scene_data_provider.return_value
+        assert provider.request_transforms.call_count == int(force)
+        mock_sim.physics_manager.forward.assert_not_called()

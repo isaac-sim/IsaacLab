@@ -108,8 +108,14 @@ The deformable and cable geometry bridge remains separate from this rigid-transf
 OVRTX still uses Newton geometry metadata for those features.
 
 Native PhysX-to-Fabric updates use the engine-owned Fabric interface through SDP. Other
-physics publications convert directly into SDP's bound Fabric matrices. Renderers do not
-select a physics-specific synchronization path.
+physics publications convert directly into SDP's bound Fabric local matrices, followed by GPU
+hierarchy propagation. SDP binds rigid destinations as Fabric-only reset-stack roots because
+physics publishes absolute poses, including for nested bodies. Visual descendants still inherit
+their body's transform; authored USD is unchanged. Native source indices and world scales are
+bound once. Fabric's selection reuse API reports scene-wide structural changes; SDP refreshes
+array views without repeating path matching or scale capture. Otherwise GPU propagation
+reuses the hierarchy topology. Clean requests never acquire writable Fabric arrays.
+Renderers do not select a physics-specific synchronization path.
 
 Newton backend
 --------------
@@ -117,6 +123,11 @@ Newton backend
 When Newton is the active physics backend, the backend wraps the Newton model's ``body_q``
 directly. No shadow model or per-frame sync is needed: Newton already owns the authoritative
 model and state, and the provider exposes that state as :class:`SceneDataFormat.Transform`.
+
+Native reads reconcile pending authored state writes once. A new physics publication does not
+itself request forward kinematics. Kit/RTX requests current Fabric transforms through SDP
+before rendering, without issuing an additional physics ``forward()``. Headless viewport
+capture requests these transforms on demand rather than on every visualizer step.
 
 Externally replayed CUDA graphs do not call Python write hooks. After writes have been captured,
 Newton conservatively republishes transforms when read so an unannounced replay cannot leave

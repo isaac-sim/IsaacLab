@@ -335,14 +335,9 @@ class NewtonSceneDataBackend(SceneDataBackend):
     @property
     def state(self) -> State:
         """Return native physics state without entering the rendering consumer path."""
-        state = NewtonManager.get_state_0()
-        if self._transforms.transforms is not state.body_q or NewtonManager._transforms_may_change_on_graph_replay:
+        if NewtonManager._transforms_may_change_on_graph_replay:
             self.transforms_dirty = True
-        if (
-            self.transforms_dirty
-            and NewtonManager._fk_reset_mask is not None
-            and NewtonManager._eval_fk is not _eval_fk_unbound
-        ):
+        if NewtonManager._eval_fk is not _eval_fk_unbound:
             NewtonManager.forward()
         return NewtonManager.get_state_0()
 
@@ -431,6 +426,7 @@ class NewtonManager(PhysicsManager):
     # Newton reserves the final slot for global entities in world -1.
     _world_reset_mask: wp.array | None = None  # (num_envs + 1,) wp.bool
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
+    _reconciliation_pending: bool = False
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
     # Solver-specialized reset delegate. Like _eval_fk, this must dispatch correctly through the base manager.
@@ -630,12 +626,17 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
+        if cls._eval_fk is not _eval_fk_unbound and not (
+            cls._reconciliation_pending or cls._transforms_may_change_on_graph_replay
+        ):
+            return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
             cls._world_reset_mask.zero_()
+        NewtonManager._reconciliation_pending = False
         cls._mark_sensor_state_dirty()
 
     @classmethod
@@ -645,12 +646,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def pre_render(cls) -> None:
-        """Refresh derived Newton state before cameras and visualizers read it."""
-        if cls._fk_reset_mask is not None:
-            cls.forward()
-            if NewtonManager._transforms_may_change_on_graph_replay:
-                cls._mark_transforms_dirty()
-        cls.sync_transforms_to_fabric()
+        """Refresh legacy cable and particle geometry; rigid transforms are requested through SDP."""
         cls.sync_cables_to_usd()
         cls.sync_particles_to_usd()
 
@@ -680,7 +676,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def sync_cables_to_usd(cls) -> None:
         """Write Newton cable segment endpoints to Fabric curve points."""
-        if not cls._cables_dirty:
+        if not (cls._cables_dirty or cls._transforms_may_change_on_graph_replay):
             return
         if cls._usdrt_stage is None or cls._cable_shape_ids is None:
             NewtonManager._cables_dirty = False
@@ -701,7 +697,7 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._cables_dirty = False
                 return
             _, _, body_q, _, _ = cls._cable_sync_cpu_buffers
-            wp.copy(body_q, cls.backend.state_0.body_q)
+            wp.copy(body_q, cls._scene_data_backend.state.body_q)
             wp.launch(
                 _sync_cable_points,
                 dim=selection.GetCount(),
@@ -1029,6 +1025,7 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
+        NewtonManager._reconciliation_pending = False
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._sensor_tasks = {}
@@ -1340,6 +1337,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
+        NewtonManager._reconciliation_pending = True
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
@@ -1377,6 +1375,7 @@ class NewtonManager(PhysicsManager):
         cls._mark_transforms_dirty()
         if cls._world_reset_mask is None:
             return
+        NewtonManager._reconciliation_pending = True
         if env_mask is not None:
             wp.launch(
                 _or_world_reset_mask_from_mask,
@@ -1512,9 +1511,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._world_reset_mask = wp.zeros(cls.backend.model.world_count + 1, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls.backend.model.articulation_count, dtype=wp.bool, device=device)
 
-        logger.info("Dispatching PHYSICS_READY callbacks")
-        cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
-
         # Setup USD/Fabric sync for Kit viewport rendering
         if not cls._clone_physics_only:
             import usdrt
@@ -1532,6 +1528,12 @@ class NewtonManager(PhysicsManager):
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
             NewtonManager._initialize_fabric_cable_prims(cls._usdrt_stage, fabric_hierarchy, usdrt)
+
+        logger.info("Dispatching PHYSICS_READY callbacks")
+        cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
+
+        # MPM assets register their particle visualizations during PHYSICS_READY.
+        if not cls._clone_physics_only:
             NewtonManager._initialize_fabric_particle_prims(
                 cls._usdrt_stage,
                 fabric_hierarchy,
@@ -1540,7 +1542,6 @@ class NewtonManager(PhysicsManager):
             )
 
             cls._mark_state_dirty()
-            cls.sync_transforms_to_fabric()
             cls.sync_cables_to_usd()
             cls.sync_particles_to_usd()
 
@@ -1557,9 +1558,7 @@ class NewtonManager(PhysicsManager):
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 xformable_prim.CreateFabricHierarchyWorldMatrixAttr()
 
-            # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
-            # applies Inverse propagation (preserves Newton's world transforms and derives
-            # local) instead of Forward.
+            # Include native bodies absent from USD in the SDP rigid-transform binding.
             prim.AddAppliedSchema("PhysicsRigidBodyAPI")
 
         fabric_hierarchy.update_world_xforms()

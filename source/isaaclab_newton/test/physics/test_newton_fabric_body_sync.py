@@ -18,6 +18,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Gf as UsdGf
@@ -25,8 +26,9 @@ from pxr import UsdGeom
 from usdrt import Gf, Rt
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import CableObjectCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
@@ -36,6 +38,14 @@ from isaaclab.utils import math as math_utils
 
 @configclass
 class _RenderSceneCfg(InteractiveSceneCfg):
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=16,
+        width=16,
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(),
+        renderer_cfg=IsaacRtxRendererCfg(),
+    )
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
@@ -248,7 +258,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
         try:
             sim.reset()
             scene.reset()
-            sim.render()
+            _render(sim, scene)
 
             cube = scene["cube"]
             body_path = "/World/envs/env_0/Cube"
@@ -261,8 +271,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             cube.write_root_link_pose_to_sim_index(root_pose=target_pose)
 
             physics_steps = sim.get_physics_step_count()
-            sim.render()
-            wp.synchronize_device(device)
+            _render(sim, scene)
 
             assert sim.get_physics_step_count() == physics_steps
             torch.testing.assert_close(
@@ -279,13 +288,13 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             env_mask = wp.ones(1, dtype=wp.bool, device=device)
             pose_buffer = target_pose.clone()
             cube.write_root_link_pose_to_sim_mask(root_pose=pose_buffer, env_mask=env_mask)
-            sim.render()
+            _render(sim, scene)
 
             torch.cuda.synchronize(device)
             with wp.ScopedCapture(device=device) as capture:
                 cube.write_root_link_pose_to_sim_mask(root_pose=pose_buffer, env_mask=env_mask)
 
-            sim.render()
+            _render(sim, scene)
 
             replay_targets = (
                 torch.tensor([2.5, 0.5, 1.25, 0.0, 0.0, 0.0, 1.0], device=device),
@@ -298,8 +307,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                 wp.synchronize_device(device)
 
                 physics_steps = sim.get_physics_step_count()
-                sim.render()
-                wp.synchronize_device(device)
+                _render(sim, scene)
 
                 assert sim.get_physics_step_count() == physics_steps
                 torch.testing.assert_close(
@@ -314,9 +322,9 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_root_pose_sync_preserves_authored_scale():
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_root_pose_sync_preserves_authored_scale(device):
     """Newton body pose synchronization must preserve authored USD scale in Kit/RTX."""
-    device = "cuda:0"
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
@@ -335,8 +343,7 @@ def test_root_pose_sync_preserves_authored_scale():
 
             sim.reset()
             scene.reset()
-            sim.render()
-            wp.synchronize_device(device)
+            _render(sim, scene)
 
             torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
 
@@ -346,11 +353,44 @@ def test_root_pose_sync_preserves_authored_scale():
                 device=device,
             )
             scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
-            sim.render()
-            wp.synchronize_device(device)
+            _render(sim, scene)
 
             torch.testing.assert_close(_fabric_position(body_path), target_pose[0, :3].cpu(), rtol=0.0, atol=1.0e-4)
             torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
+        finally:
+            sim.register_interactive_scene(None)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_nested_bodies_keep_independent_world_poses():
+    """A nested rigid body must not inherit its parent's independently published motion."""
+    sim_cfg = SimulationCfg(
+        device="cuda:0",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
+    )
+    scene_cfg = _RenderSceneCfg(num_envs=1, env_spacing=2.0)
+    scene_cfg.child = scene_cfg.cube.replace(prim_path="{ENV_REGEX_NS}/Cube/Child")
+    scene_cfg.cube = AssetBaseCfg(prim_path=scene_cfg.cube.prim_path, spawn=scene_cfg.cube.spawn)
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(scene_cfg)
+        sim.register_interactive_scene(scene)
+        try:
+            sim.reset()
+            scene.reset()
+            _render(sim, scene)
+            paths = ["/World/envs/env_0/Cube", "/World/envs/env_0/Cube/Child"]
+            targets = torch.tensor([[1.5, -0.75, 2.0], [-0.25, 1.0, 3.0]], device=sim.device)
+            state = wp.to_torch(NewtonManager.get_state_0().body_q)
+            indices = [NewtonManager.get_model().body_label.index(path) for path in paths]
+            state[indices, :3] = targets
+            NewtonManager.invalidate_body_state()
+            _render(sim, scene)
+            for path, target in zip(paths, targets.cpu()):
+                _assert_position(_fabric_position(path), target)
+                assert not UsdGeom.Xformable(sim.stage.GetPrimAtPath(path)).GetResetXformStack()
         finally:
             sim.register_interactive_scene(None)
 
@@ -468,16 +508,17 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
             view = FrameView(frame_path, device=device)
             sim.reset()
             scene.reset()
-            _render(sim, device)
+            _render(sim, scene)
             yield sim, scene, view
         finally:
             sim.register_interactive_scene(None)
 
 
-def _render(sim, device: str = "cuda:0") -> None:
-    """Render and wait for the write to land in Fabric."""
+def _render(sim, scene) -> None:
+    """Render through the camera's public data path and wait for Fabric writes."""
     sim.render()
-    wp.synchronize_device(device)
+    scene["camera"].update(sim.get_rendering_dt(), force_recompute=True)
+    wp.synchronize_device(sim.device)
 
 
 def _world_pose(position: torch.Tensor) -> tuple[wp.array, wp.array]:
@@ -514,11 +555,11 @@ def test_frame_view_pose_write_reaches_fabric():
     spawn_position = torch.tensor([0.0, 0.0, 2.0])
     target_position = torch.tensor([1.0, -0.5, 8.0])
 
-    with _frame_scene(frame_path, tuple(spawn_position.tolist()), device) as (sim, _, view):
+    with _frame_scene(frame_path, tuple(spawn_position.tolist()), device) as (sim, scene, view):
         _assert_position(_fabric_position(frame_path), spawn_position)
 
         _write_frame_world_position(view, target_position.to(device))
-        _render(sim, device)
+        _render(sim, scene)
 
         _assert_position(_reported_position(view), target_position)
         _assert_position(_fabric_position(frame_path), target_position)
@@ -532,12 +573,12 @@ def test_frame_view_pose_write_reaches_fabric_when_the_scope_raises():
     frame_path = "/World/Frame"
     target_position = torch.tensor([1.0, -0.5, 8.0])
 
-    with _frame_scene(frame_path, (0.0, 0.0, 2.0), device) as (sim, _, view):
+    with _frame_scene(frame_path, (0.0, 0.0, 2.0), device) as (sim, scene, view):
         with pytest.raises(RuntimeError, match="boom"):  # noqa: PT012 -- the raise is the scenario
             with view.xform_world_space_writer() as writer:
                 writer.set_poses(*_world_pose(target_position.to(device)))
                 raise RuntimeError("boom")
-        _render(sim, device)
+        _render(sim, scene)
 
         _assert_position(_fabric_position(frame_path), target_position)
 
@@ -554,13 +595,13 @@ def test_frame_view_pose_write_on_body_child_survives_body_motion():
         body_start = torch.tensor([0.0, 0.0, 1.0])
         written_position = body_start + torch.tensor([0.5, 0.0, 0.0])
         _write_frame_world_position(view, written_position.to(device))
-        _render(sim, device)
+        _render(sim, scene)
 
         _assert_position(_fabric_position(frame_path), written_position)
 
         body_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
         scene["cube"].write_root_link_pose_to_sim_index(root_pose=body_pose)
-        _render(sim, device)
+        _render(sim, scene)
 
         expected = body_pose[0, :3].cpu() + (written_position - body_start)
         _assert_position(_reported_position(view), expected)
@@ -579,15 +620,19 @@ def test_first_frame_pose_write_after_body_move_leaves_the_body_rendered():
         body_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
         body_target = body_pose[0, :3].cpu()
         scene["cube"].write_root_link_pose_to_sim_index(root_pose=body_pose)
-        _render(sim, device)
+        _render(sim, scene)
         _assert_position(_fabric_position(body_path), body_target)
 
+        late_child = f"{frame_path}/LateChild"
+        offset = torch.tensor([0.0, 0.0, 0.25])
+        sim_utils.create_prim(late_child, "Xform", translation=tuple(offset.tolist()))
         written_position = body_target + torch.tensor([0.5, 0.0, 0.0])
         _write_frame_world_position(view, written_position.to(device))
-        _render(sim, device)
+        _render(sim, scene)
 
         _assert_position(_fabric_position(body_path), body_target)
         _assert_position(_fabric_position(frame_path), written_position)
+        _assert_position(_fabric_position(late_child), written_position + offset)
 
 
 @pytest.mark.isaacsim_ci
@@ -608,7 +653,7 @@ def test_frame_view_pose_write_after_unrendered_steps_reaches_fabric():
 
         target_position = torch.tensor([0.0, 0.0, 1.5])
         _write_frame_world_position(view, target_position.to(device))
-        _render(sim, device)
+        _render(sim, scene)
 
         _assert_position(_reported_position(view), target_position)
         _assert_position(_fabric_position(frame_path), target_position)

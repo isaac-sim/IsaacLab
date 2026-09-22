@@ -391,8 +391,11 @@ def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkey
     state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
     backend = NewtonSceneDataBackend()
     provider = SceneDataProvider(backend)
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(body_count=1), state_0=state))
+    monkeypatch.setattr(
+        NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
+    )
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", wp.zeros(2, dtype=wp.bool, device="cpu"))
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", wp.zeros(1, dtype=wp.bool, device="cpu"))
     # Fabric may bind between native allocation and the solver's FK-hook initialization.
     assert backend.transforms.transforms is state.body_q
@@ -402,6 +405,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkey
 
     output = provider.request_transforms(SceneDataFormat.Matrix44)
     NewtonManager.pre_render()
+    NewtonManager._eval_fk.assert_not_called()
     NewtonManager._sensor_state_dirty = False
     fk_calls = NewtonManager._eval_fk.call_count
     NewtonManager.get_state(provider)
@@ -410,6 +414,14 @@ def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkey
     assert NewtonManager._eval_fk.call_count == fk_calls
     assert not NewtonManager._sensor_state_dirty
 
+    NewtonManager.invalidate_fk()
+    assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    NewtonManager._eval_fk.assert_called_once()
+    assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    NewtonManager.pre_render()
+    NewtonManager._eval_fk.assert_called_once()
+    assert wp.launch.call_count == 2
+
     with monkeypatch.context() as capture:
         capture.setattr(PhysicsManager, "_device", "capturing-device")
         capture.setattr(
@@ -417,13 +429,13 @@ def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkey
         )
         NewtonManager.invalidate_body_state()
     provider.request_transforms(SceneDataFormat.Matrix44)
-    assert wp.launch.call_count == 2
+    assert wp.launch.call_count == 3
 
     # A captured write replays without calling its Python invalidation hook again.
     state.body_q.assign([[3, 2, 1, 0, 0, 0, 1]])
     NewtonManager.pre_render()
     assert provider.request_transforms(SceneDataFormat.Matrix44) is output
-    assert wp.launch.call_count == 3
+    assert wp.launch.call_count == 4
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [3, 2, 1])
 
 
