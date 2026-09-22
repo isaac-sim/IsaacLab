@@ -77,6 +77,11 @@ class _FakeRenderer:
         return {}
 
 
+# The renderer passes the same render data object for a camera on every frame. The tests do the
+# same, since priming is tracked per camera.
+_DEFAULT_CAMERA = object()
+
+
 @pytest.fixture()
 def timeline() -> _Timeline:
     return _Timeline()
@@ -89,12 +94,14 @@ def strategy() -> _AsyncRenderStrategy:
     return strategy
 
 
-def _render(strategy: Any, renderer: _FakeRenderer, ordinal: int, consumed: list[int]) -> None:
+def _render(
+    strategy: Any, renderer: _FakeRenderer, ordinal: int, consumed: list[int], camera: object = _DEFAULT_CAMERA
+) -> None:
     strategy.render(
         renderer,
         {"/Render/Product"},
         1.0 / 60.0,
-        object(),
+        camera,
         lambda render_data, products: consumed.append(ordinal),
     )
 
@@ -260,6 +267,41 @@ def test_staged_buffers_are_double_buffered_per_frame(timeline, camera_first):
     for buffers in (camera_buffers, object_buffers):
         assert buffers[0] is not buffers[1]
         assert buffers[0] is buffers[2]
+
+
+def test_two_cameras_pipeline_together_with_one_frame_latency(timeline):
+    """Cameras share the strategy: both prime their first frame, and a frame's renders drain
+    together when the next frame's renders are enqueued. Each camera stages into its own buffers."""
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+    renderer = _FakeRenderer(timeline)
+    camera_a, camera_b = object(), object()
+    binding_a, binding_b = _FakeBinding(), _FakeBinding()
+    delivered: list[object] = []
+
+    def consume(render_data, products):
+        delivered.append(render_data)
+
+    def frame():
+        buffer_a = _stage_camera(strategy, binding_a)
+        buffer_b = _stage_camera(strategy, binding_b)
+        strategy.render(renderer, {"/A"}, 1.0 / 60.0, camera_a, consume)
+        strategy.render(renderer, {"/B"}, 1.0 / 60.0, camera_b, consume)
+        return buffer_a, buffer_b
+
+    frame_0 = frame()
+    assert delivered == [camera_a, camera_b], "each camera's first frame is primed"
+    assert frame_0[0] is not frame_0[1], "cameras must not share a staging buffer within a frame"
+
+    delivered.clear()
+    frame_1 = frame()
+    assert delivered == [], "the second frame stays in flight"
+    assert frame_1[0] is not frame_0[0], "consecutive frames must not share a staging buffer"
+
+    delivered.clear()
+    frame_2 = frame()
+    assert delivered == [camera_a, camera_b], "a frame drains when the next frame is enqueued"
+    assert frame_2[0] is frame_0[0], "staging buffers double-buffer across frames"
 
 
 def test_cleanup_survives_failed_slot_writes(strategy, timeline):

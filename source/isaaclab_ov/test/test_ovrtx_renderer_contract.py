@@ -302,6 +302,111 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
+def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
+    """Two asynchronous cameras render independent views with one shared frame of latency."""
+    from isaaclab_newton.physics import NewtonManager
+
+    from pxr import Gf, Usd, UsdGeom, UsdLux
+
+    from isaaclab.cloner.clone_plan import ClonePlan
+    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.utils.math import convert_camera_frame_orientation_convention
+    from isaaclab.utils.warp import ProxyArray
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX rendering requires CUDA")
+    # This static USD scene has no physics model or scene-data provider.
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: None))
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+    for index, x in enumerate((0.0, 2.0)):
+        camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
+        camera.CreateProjectionAttr("orthographic")
+        camera.CreateHorizontalApertureAttr(20.0)
+        camera.CreateVerticalApertureAttr(20.0)
+        camera.AddTranslateOp().Set(Gf.Vec3d(x, 0, 5))
+        cube = UsdGeom.Cube.Define(stage, f"/World/envs/env_0/cube{index}")
+        cube.CreateSizeAttr(1.0)
+        cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, index))
+
+    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=True))
+    renderer._exported_usd_string = stage.ExportToString()
+    renderer._clone_plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
+    )
+
+    def center_depth(rd, data):
+        return data.output["distance_to_image_plane"].torch[:, rd.height // 2, rd.width // 2, 0]
+
+    def assert_depth(rd, data, expected):
+        torch.testing.assert_close(
+            center_depth(rd, data), torch.full((2,), expected, device="cuda:0"), atol=0.02, rtol=0
+        )
+
+    cameras = []
+    try:
+        for index in range(2):
+            cfg = _make_camera_cfg(["rgb", "distance_to_image_plane"])
+            cfg.height, cfg.width = 480, 640
+            spec = CameraRenderSpec(
+                cfg=cfg,
+                device="cuda:0",
+                num_instances=2,
+                camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
+                view_count=2,
+                camera_path_relative_to_env_0=f"cam{index}",
+            )
+            rd = renderer.create_render_data(spec)
+            data = CameraData.allocate(
+                data_types=cfg.data_types,
+                height=cfg.height,
+                width=cfg.width,
+                num_views=2,
+                device="cuda:0",
+                supported_specs=renderer.supported_output_types(),
+            )
+            renderer.set_outputs(rd, data.output)
+            cameras.append((rd, data))
+
+        # Each camera's first frame is primed, so the first read is already valid and independent.
+        for index, (rd, data) in enumerate(cameras):
+            renderer.render(rd)
+            assert_depth(rd, data, 5.0 - index - 0.5)
+
+        # Move only cam1 up. The next renders are pipelined, so both reads still show the
+        # previous frame.
+        positions = ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0"))
+        quats = convert_camera_frame_orientation_convention(
+            torch.tensor([[0.0, 0, 0, 1.0]] * 2, device="cuda:0"), origin="opengl", target="world"
+        )
+        orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
+        renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
+        for rd, _data in cameras:
+            renderer.render(rd)
+        assert_depth(*cameras[0], 4.5)
+        assert_depth(*cameras[1], 3.5)
+
+        # The next frame's renders drain the moved frame into both cameras together.
+        for rd, _data in cameras:
+            renderer.render(rd)
+        assert_depth(*cameras[0], 4.5)
+        assert_depth(*cameras[1], 5.5)
+    finally:
+        renderer.close()
+        SimulationContext.instance().close_backend(renderer.backend)
+
+
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     """OVRTXRenderer.set_outputs publishes warp views over the caller's warp storage."""
     renderer = _make_ovrtx_renderer_without_backend()

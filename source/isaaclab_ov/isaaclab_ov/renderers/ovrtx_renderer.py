@@ -1019,16 +1019,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Add another tiled product and camera binding without reloading the shared scene."""
-        if isinstance(self._strategy, _AsyncRenderStrategy):
-            # The asynchronous strategy stages and pipelines one render per frame, so a shared
-            # renderer with several cameras must render synchronously.
-            logger.warning(
-                "Asynchronous rendering supports one camera per OVRTX renderer. This renderer now"
-                " has several cameras, so it falls back to synchronous rendering."
-            )
-            self._strategy.settle_before_scene_write()
-            self._strategy = _SyncRenderStrategy()
-            self._strategy.set_device(self._warp_device)
+        # Registration mutates the shared scene (a new product and camera bindings), so any
+        # in-flight render must finish first.
+        self._strategy.settle_before_scene_write()
         camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
         if not camera_paths:
             raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
