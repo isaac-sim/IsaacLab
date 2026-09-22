@@ -22,10 +22,13 @@ parser = argparse.ArgumentParser(description="Showcase several robot families in
 parser.add_argument(
     "--physics", default="newton_mjwarp", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
 )
+parser.add_argument("--num_envs", type=int, default=1, help="Number of zoo environments to spawn.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
+if args_cli.num_envs < 1:
+    parser.error("--num_envs must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
@@ -233,8 +236,9 @@ def main() -> None:
         sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
         )
-        sim.set_camera_view(eye=(6.0, -7.5, 4.5), target=(0.0, 0.0, 0.7))
-        scene_cfg = ZooSceneCfg(num_envs=1, env_spacing=1.0, replicate_physics=True)
+        camera_scale = math.ceil(math.sqrt(args_cli.num_envs))
+        sim.set_camera_view(eye=(6.0 * camera_scale, -7.5 * camera_scale, 4.5 * camera_scale), target=(0.0, 0.0, 0.7))
+        scene_cfg = ZooSceneCfg(num_envs=args_cli.num_envs, env_spacing=6.0, replicate_physics=True)
         scene = scene_cfg.class_type(scene_cfg)
         sim.reset()
         print("[INFO]: Robot zoo ready.")
