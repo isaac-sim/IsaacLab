@@ -208,7 +208,7 @@ Visualizer Overview
              <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
                <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_gl_dominoes.mp4" type="video/mp4">
              </video>
-             <p class="viz-cap">newton_viewer_dominoes demo<br>Right-click dragging the first domino
+             <p class="viz-cap">newton-dominoes demo<br>Right-click dragging the first domino
              triggers the cascade across an NVIDIA-logo domino layout</p>
            </div>
          </div>

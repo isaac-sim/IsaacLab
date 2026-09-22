@@ -153,8 +153,7 @@ In this tutorial, we learned how to create and interact with a simple articulati
 of an articulation (its root and joint state) and how to apply commands to it. We also saw how to update its
 buffers to read the latest state from the simulation.
 
-In addition to this tutorial, we also provide a few other scripts that spawn different robots. These are included
-through the packaged demo command. You can run them as:
+The packaged Zoo demo also animates several robot families in one scene:
 
 .. tab-set::
 
@@ -162,17 +161,9 @@ through the packaged demo command. You can run them as:
 
       .. code-block:: bash
 
-         # Spawn many different single-arm manipulators
-         uv run isaaclab demo arms --viz kit
-
-         # Spawn many different quadrupeds
-         uv run isaaclab demo quadrupeds --viz kit
+         uv run --extra isaacsim isaaclab demo zoo --viz kit
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         # Spawn many different single-arm manipulators
-         ./isaaclab.sh demo arms --viz kit
-
-         # Spawn many different quadrupeds
-         ./isaaclab.sh demo quadrupeds --viz kit
+         ./isaaclab.sh demo zoo --viz kit

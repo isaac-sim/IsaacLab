@@ -137,8 +137,8 @@ sensor contacts but does not change the reported data.
    :figwidth: 100%
    :alt: Contact sensor debug visualization
 
-A complete runnable example is available as the ``contact-sensor`` demo:
+A complete runnable example is available as ``contact-sensor``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab demo contact-sensor
+   uv run isaaclab example contact-sensor

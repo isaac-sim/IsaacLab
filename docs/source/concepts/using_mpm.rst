@@ -5,7 +5,8 @@ Using Implicit MPM
 
 Newton's implicit Material Point Method (MPM) solver models particle materials
 such as granular media. MPM support and rigid-MPM coupling are experimental.
-Start with the compact ``mpm-granular`` demo; ``snowball-smash`` adds coupling and ``teapot-fill`` adds cavity sampling.
+Start with the compact ``mpm-granular`` example; the ``snowball-smash`` and ``teapot-fill`` demos provide polished
+coupling and cavity-sampling showcases.
 
 
 .. _franka-pour-reset-artifact:
@@ -162,7 +163,7 @@ dynamic topology in one reusable helper:
 .. dropdown:: ``FluidSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../demos/mpm/teapot_fill.py
+   .. literalinclude:: ../../../source/isaaclab/isaaclab/demos/mpm/teapot_fill.py
       :language: python
       :pyobject: FluidSurfaceRenderer
 

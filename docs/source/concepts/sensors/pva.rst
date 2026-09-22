@@ -72,8 +72,8 @@ where Torch operations are required:
 Like the IMU, acceleration uses state from consecutive simulation updates. Reset the scene and sensor
 state together at episode boundaries.
 
-A complete runnable example is available as the ``pva`` demo:
+A complete runnable example is available as ``pva``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab demo pva
+   uv run --extra isaacsim isaaclab example pva

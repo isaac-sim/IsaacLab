@@ -66,8 +66,8 @@ the offset source frame in world coordinates. Positions are in meters; quaternio
    :figwidth: 100%
    :alt: Frame transformer debug visualization
 
-A complete runnable example is available as the ``frame-transformer`` demo:
+A complete runnable example is available as ``frame-transformer``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab demo frame-transformer
+   uv run --extra isaacsim isaaclab example frame-transformer

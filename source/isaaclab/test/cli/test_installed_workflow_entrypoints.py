@@ -15,8 +15,8 @@ import pytest
 
 import isaaclab
 import isaaclab.__main__ as package_main
+import isaaclab._programs as programs
 import isaaclab.cli as cli
-import isaaclab.demo_registry as demo_registry
 import isaaclab.paths as paths
 
 pytestmark = pytest.mark.unit
@@ -100,68 +100,113 @@ def test_demo_catalog_lists_packaged_demos(capsys):
     cli.demo(["list"])
 
     output = capsys.readouterr().out
-    assert "arms" in output
+    assert "zoo" in output
     assert "teapot-fill" in output
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab demo camera" in output
-    assert "ppisp_camera_ovrtx" not in output
+    assert "bin-packing" not in output
 
 
-def test_demo_catalog_resolves_repository_scripts():
-    """Every catalog entry must resolve to a script in the repository demo directory."""
-    assert all(demo.path.is_file() for demo in demo_registry.list_demos())
+def test_example_catalog_lists_packaged_examples(capsys):
+    """The example command must distinguish focused programs from showcases."""
+    cli.example(["list"])
+
+    output = capsys.readouterr().out
+    assert "bin-packing" in output
+    assert "mpm-two-way-coupling" in output
+    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
+    assert "teapot-fill" not in output
 
 
-def test_demo_command_dispatches_to_packaged_script():
-    """The demo command must forward all remaining arguments to the selected demo."""
-    with mock.patch("isaaclab.demo_registry.run_demo") as run_demo:
-        cli.demo(["arms", "--physics", "newton_mjwarp"])
-
-    run_demo.assert_called_once_with("arms", ["--physics", "newton_mjwarp"])
-
-
-def test_demo_command_forwards_help_to_selected_demo():
-    """Help after a demo name belongs to that demo, not the catalog parser."""
-    with mock.patch("isaaclab.demo_registry.run_demo") as run_demo:
-        cli.demo(["arms", "--help"])
-
-    run_demo.assert_called_once_with("arms", ["--help"])
+@pytest.mark.parametrize("catalog", [programs.DEMOS, programs.EXAMPLES])
+def test_program_catalog_resolves_modules(catalog):
+    """Every core catalog entry must resolve to a packaged Python module."""
+    core_programs = (program for program in catalog if program.module.startswith("isaaclab."))
+    assert all(programs.find_spec(program.module) is not None for program in core_programs)
 
 
-def test_demo_runner_restores_process_arguments():
-    """Running a demo programmatically must not leak its arguments to the caller."""
+def test_owned_examples_resolve_from_their_packages():
+    """Integration examples must stay with the package that owns their implementation."""
+    modules_by_name = {program.name: program.module for program in programs.EXAMPLES}
+    assert modules_by_name["arl-robot-1"] == "isaaclab_contrib.examples.arl_robot_1"
+    assert modules_by_name["haply-teleoperation"] == "isaaclab_teleop.examples.haply_teleoperation"
+    assert modules_by_name["ppisp-camera"] == "isaaclab_ppisp.examples.ppisp_camera"
+    assert modules_by_name["tactile-sensor"] == "isaaclab_contrib.examples.tacsl_sensor"
+
+
+def test_newton_raycast_scenes_share_one_example():
+    """Newton ray-cast variants must stay behind one focused example entry."""
+    modules_by_name = {program.name: program.module for program in programs.EXAMPLES}
+    assert modules_by_name["newton-raycast"] == "isaaclab.examples.sensors.newton_raycast"
+    assert "newton-raycast-heightfield" not in modules_by_name
+    assert "newton-raycast-moving-geometry" not in modules_by_name
+
+
+@pytest.mark.parametrize("catalog", [programs.DEMOS, programs.EXAMPLES])
+def test_program_catalog_names_are_unique(catalog):
+    """Each CLI program name must select exactly one module."""
+    names = [program.name for program in catalog]
+    assert len(names) == len(set(names))
+
+
+@pytest.mark.parametrize(
+    ("command", "command_name", "program_name"),
+    [(cli.demo, "demo", "zoo"), (cli.example, "example", "cables")],
+)
+def test_program_command_dispatches_to_packaged_module(command, command_name, program_name):
+    """Program commands must forward all remaining arguments to the selected module."""
+    with mock.patch.object(programs, "run_program") as run_program:
+        command([program_name, "--physics", "newton_mjwarp"])
+
+    catalog = programs.DEMOS if command_name == "demo" else programs.EXAMPLES
+    selected = next(program for program in catalog if program.name == program_name)
+    run_program.assert_called_once_with(command_name, selected, ["--physics", "newton_mjwarp"])
+
+
+def test_program_command_forwards_help_to_selected_module():
+    """Help after a program name belongs to that program, not the catalog parser."""
+    with mock.patch.object(programs, "run_program") as run_program:
+        cli.demo(["zoo", "--help"])
+
+    run_program.assert_called_once_with("demo", programs.DEMOS[0], ["--help"])
+
+
+def test_program_runner_restores_process_arguments():
+    """Running a program must not leak its arguments to the caller."""
     original_argv = sys.argv
-    with mock.patch.object(demo_registry.runpy, "run_path") as run_path:
-        demo_registry.run_demo("arms", ["--physics", "newton_mjwarp"])
+    program = programs.DEMOS[0]
+    with mock.patch.object(programs.runpy, "run_module") as run_module:
+        programs.run_program("demo", program, ["--physics", "newton_mjwarp"])
 
-    run_path.assert_called_once_with(str(demo_registry.get_demo("arms").path), run_name="__main__")
+    run_module.assert_called_once_with(program.module, run_name="__main__")
     assert sys.argv is original_argv
 
 
-def test_demo_command_rejects_unknown_name():
-    """Unknown demo names must fail before attempting a module import."""
+@pytest.mark.parametrize("command", [cli.demo, cli.example])
+def test_program_command_rejects_unknown_name(command):
+    """Unknown program names must fail before attempting a module import."""
     with pytest.raises(SystemExit, match="2"):
-        cli.demo(["does-not-exist"])
+        command(["does-not-exist"])
 
 
-def test_demo_command_reports_missing_optional_dependencies(capsys):
-    """A demo with missing extras must print its complete uvx installation command."""
-    with mock.patch("isaaclab.demo_registry.find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
-        cli.demo(["camera"])
+def test_program_command_reports_missing_optional_dependencies(capsys):
+    """A program with missing extras must print its complete uvx installation command."""
+    with mock.patch.object(programs, "find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
+        cli.example(["camera"])
 
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab demo camera" in capsys.readouterr().err
+    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
 
 
-def test_cli_routes_demo_without_loading_external_tasks():
-    """Demos do not need task plug-in discovery before dispatch."""
+@pytest.mark.parametrize(("command_name", "args"), [("demo", ["zoo", "--headless"]), ("example", ["cables"])])
+def test_cli_routes_program_without_loading_external_tasks(command_name, args):
+    """Packaged programs do not need task plug-in discovery before dispatch."""
     with (
         mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
-        mock.patch.object(cli, "demo") as demo,
-        mock.patch.object(sys, "argv", ["isaaclab", "demo", "arms", "--headless"]),
+        mock.patch.object(cli, command_name) as command,
+        mock.patch.object(sys, "argv", ["isaaclab", command_name, *args]),
     ):
         cli.cli()
 
     load_external_tasks.assert_not_called()
-    demo.assert_called_once_with(["arms", "--headless"])
+    command.assert_called_once_with(args)
 
 
 def test_cli_loads_downstream_tasks_before_benchmark():

@@ -117,38 +117,20 @@ def demo(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    from isaaclab.demo_registry import get_demo, list_demos, run_demo
+    from isaaclab._programs import DEMOS, run_program_cli
 
-    demos = list_demos()
-    parser = argparse.ArgumentParser(
-        description="Run a packaged Isaac Lab demo.",
-        prog=f"{Path(sys.argv[0]).name} demo",
-    )
-    parser.add_argument("name", nargs="?", help="Demo name, or 'list' to show the catalog.")
-    if args is None:
-        args = sys.argv[1:]
-    if args and args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
+    run_program_cli("demo", DEMOS, args)
 
-    if parsed_args.name in (None, "list"):
-        if len(args) > 1:
-            parser.error("the list command does not accept additional arguments")
-        name_width = max(len(item.name) for item in demos)
-        for item in demos:
-            install_hint = f"  [{item.uvx_command}]" if item.extras else ""
-            print(f"{item.name:<{name_width}}  {item.summary}{install_hint}")
-        return
 
-    try:
-        selected_demo = get_demo(parsed_args.name)
-    except KeyError:
-        parser.error(f"unknown demo {parsed_args.name!r}; run '{parser.prog} list' to see available demos")
-    missing_modules = selected_demo.missing_modules()
-    if missing_modules:
-        missing = ", ".join(missing_modules)
-        parser.error(f"demo {selected_demo.name!r} requires missing module(s): {missing}. Run: {selected_demo.uvx_command}")
-    run_demo(parsed_args.name, args[1:])
+def example(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab example.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab._programs import EXAMPLES, run_program_cli
+
+    run_program_cli("example", EXAMPLES, args)
 
 
 def teleop(args: list[str] | None = None) -> None:
@@ -208,6 +190,9 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "demo":
         demo(sys.argv[2:])
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "example":
+        example(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         _load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
@@ -228,6 +213,7 @@ def cli() -> None:
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  demo            List or run packaged demonstrations\n"
+            "  example         List or run packaged standalone examples\n"
             "  leapp           Export or deploy a policy with LEAPP\n"
             "  list_envs       List registered environments and presets\n"
             "  train           Train an RL policy\n"

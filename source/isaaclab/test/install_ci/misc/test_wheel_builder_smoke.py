@@ -18,6 +18,31 @@ Tests:
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
+    - python -c "from importlib.util import find_spec; from isaaclab._programs import DEMOS, EXAMPLES;
+        assert all(find_spec(program.module) for program in (*DEMOS, *EXAMPLES))"
+        -> verify packaged program catalogs resolve
+    - python -c "import contextlib
+        import io
+        import runpy
+        import sys
+        import isaaclab.app as app
+        from isaaclab._programs import DEMOS, EXAMPLES
+        def fail_launch(*args, **kwargs):
+            raise AssertionError(f'{sys.argv[0]} launched simulation while handling --help')
+        app.AppLauncher.__init__ = fail_launch
+        app.launch_simulation = fail_launch
+        for command, catalog in (('demo', DEMOS), ('example', EXAMPLES)):
+            for program in catalog:
+                sys.argv = [f'isaaclab {command} {program.name}', '--help']
+                with contextlib.redirect_stdout(io.StringIO()):
+                    try:
+                        runpy.run_module(program.module, run_name='__main__')
+                    except SystemExit as error:
+                        if error.code != 0:
+                            raise AssertionError(f'{sys.argv[0]} --help exited with {error.code}') from error
+                    else:
+                        raise AssertionError(f'{sys.argv[0]} --help did not exit')"
+        -> verify packaged programs expose help without launching simulation
     - verify project-generator resources are installed
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
@@ -112,9 +137,10 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
         assert "isaaclab/app/__init__.py" in names
         assert "isaaclab/apps/isaaclab.python.kit" in names
-        assert "isaaclab/demo_registry.py" in names
-        assert "isaaclab/_demos/arms.py" in names
-        assert "isaaclab/_demos/assets/nvidia_logo_domino_poses.pth" in names
+        assert "isaaclab/_programs.py" in names
+        assert "isaaclab/demos/zoo.py" in names
+        assert "isaaclab/demos/assets/nvidia_logo_domino_poses.pth" in names
+        assert "isaaclab/examples/cables.py" in names
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 
@@ -167,17 +193,52 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
 
-    def test_installed_demo_catalog_resolves_packaged_scripts(self):
-        """Verify the installed CLI resolves demos without a source checkout."""
+    def test_installed_program_catalogs_resolve_packaged_modules(self):
+        """Verify the installed CLI resolves programs without a source checkout."""
         result = self.run_in_uv_env(
             [
                 "python",
                 "-c",
-                "from isaaclab.demo_registry import list_demos; "
-                "assert all(demo.path.is_file() for demo in list_demos())",
+                "from importlib.util import find_spec; "
+                "from isaaclab._programs import DEMOS, EXAMPLES; "
+                "assert all(find_spec(program.module) for program in (*DEMOS, *EXAMPLES))",
             ]
         )
-        assert result.returncode == 0, f"installed demo catalog is incomplete:\n{result.stdout}\n{result.stderr}"
+        assert result.returncode == 0, f"installed program catalogs are incomplete:\n{result.stdout}\n{result.stderr}"
+
+    def test_installed_programs_expose_help_without_launching(self):
+        """Verify every packaged program handles ``--help`` before launching simulation."""
+        check_help = """
+import contextlib
+import io
+import runpy
+import sys
+
+import isaaclab.app as app
+from isaaclab._programs import DEMOS, EXAMPLES
+
+
+def fail_launch(*args, **kwargs):
+    raise AssertionError(f"{sys.argv[0]} launched simulation while handling --help")
+
+
+app.AppLauncher.__init__ = fail_launch
+app.launch_simulation = fail_launch
+
+for command, catalog in (("demo", DEMOS), ("example", EXAMPLES)):
+    for program in catalog:
+        sys.argv = [f"isaaclab {command} {program.name}", "--help"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            try:
+                runpy.run_module(program.module, run_name="__main__")
+            except SystemExit as error:
+                if error.code != 0:
+                    raise AssertionError(f"{sys.argv[0]} --help exited with {error.code}") from error
+            else:
+                raise AssertionError(f"{sys.argv[0]} --help did not exit")
+"""
+        result = self.run_in_uv_env(["python", "-c", check_help])
+        assert result.returncode == 0, f"packaged program help failed:\n{result.stdout}\n{result.stderr}"
 
     def test_project_generator_is_bundled(self):
         """Verify the installed CLI includes the project generator."""

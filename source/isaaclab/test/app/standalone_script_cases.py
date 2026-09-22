@@ -22,11 +22,17 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from isaaclab.demo_registry import list_demos
+from isaaclab._programs import DEMOS, EXAMPLES
 
 ROOT = Path(__file__).resolve().parents[4]
-DEMO_ROOT = ROOT / "demos"
-SCRIPT_ROOTS = (DEMO_ROOT, ROOT / "scripts" / "tutorials")
+PACKAGE_ROOTS = (
+    ROOT / "source" / "isaaclab" / "isaaclab" / "demos",
+    ROOT / "source" / "isaaclab" / "isaaclab" / "examples",
+    ROOT / "source" / "isaaclab_contrib" / "isaaclab_contrib" / "examples",
+    ROOT / "source" / "isaaclab_teleop" / "isaaclab_teleop" / "examples",
+    ROOT / "source" / "isaaclab_ppisp" / "isaaclab_ppisp" / "examples",
+)
+SCRIPT_ROOTS = (*PACKAGE_ROOTS, ROOT / "scripts" / "tutorials")
 # ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
 # converters are: they build a SimulationContext to preview the converted asset.
 EXTRA_SCRIPTS = (
@@ -37,7 +43,18 @@ VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 DEFAULT_BATCHED_NUM_ENVS = 2
-DEMO_NAMES_BY_PATH = {demo.relative_path: demo.name for demo in list_demos()}
+
+
+def _program_path(module: str) -> Path:
+    """Return the source path for a packaged program module."""
+    package, *module_parts = module.split(".")
+    return ROOT / "source" / package / package / Path(*module_parts).with_suffix(".py")
+
+
+PROGRAMS_BY_PATH = {
+    **{_program_path(program.module): ("demo", program.name) for program in DEMOS},
+    **{_program_path(program.module): ("example", program.name) for program in EXAMPLES},
+}
 
 _FATAL_PATTERNS = (
     "Traceback (most recent call last):",
@@ -80,12 +97,9 @@ class ScriptSpec:
     required_modules: tuple[str, ...]
 
     @property
-    def demo_name(self) -> str | None:
-        """Return the public CLI name when this specification describes a demo."""
-        if not self.path.is_relative_to(DEMO_ROOT):
-            return None
-        relative_path = self.path.relative_to(DEMO_ROOT).as_posix()
-        return DEMO_NAMES_BY_PATH.get(relative_path)
+    def program(self) -> tuple[str, str] | None:
+        """Return the CLI command and public name for a packaged program."""
+        return PROGRAMS_BY_PATH.get(self.path)
 
     @property
     def relative_path(self) -> str:
@@ -133,10 +147,19 @@ class LaunchCase:
 
     def command(self) -> list[str]:
         """Build the repository launcher command for this case."""
-        if self.spec.demo_name is None:
+        if self.spec.program is None:
             command = [str(ROOT / "isaaclab.sh"), "-p", self.spec.relative_path, *self.spec.args]
         else:
-            command = [str(ROOT / "isaaclab.sh"), "-p", "-m", "isaaclab", "demo", self.spec.demo_name, *self.spec.args]
+            program_command, program_name = self.spec.program
+            command = [
+                str(ROOT / "isaaclab.sh"),
+                "-p",
+                "-m",
+                "isaaclab",
+                program_command,
+                program_name,
+                *self.spec.args,
+            ]
         if "--num_envs" in self.spec.options and "--num_envs" not in self.spec.args:
             command.extend(("--num_envs", str(DEFAULT_BATCHED_NUM_ENVS)))
         if self.physics_option is not None:
@@ -163,20 +186,22 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
-    "demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
-    "demos/arms.py": ScriptOverride(startup_timeout=420.0),
-    "demos/h1_locomotion.py": ScriptOverride(
+    "source/isaaclab/isaaclab/demos/zoo.py": ScriptOverride(readiness_pattern=r"Robot zoo ready"),
+    "source/isaaclab/isaaclab/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
     ),
-    "demos/haply_teleoperation.py": ScriptOverride(
+    "source/isaaclab_teleop/isaaclab_teleop/examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),
-    "demos/heterogeneous_scene.py": ScriptOverride(
+    "source/isaaclab_contrib/isaaclab_contrib/examples/arl_robot_1.py": ScriptOverride(
+        readiness_pattern=r"Starting example with Lee Position Controller"
+    ),
+    "source/isaaclab/isaaclab/examples/heterogeneous_scene.py": ScriptOverride(
         args=("--num_task", "2"),
         readiness_pattern=r"Composed \d+ task scenes into \d+ environments",
     ),
-    "demos/deformables.py": ScriptOverride(
+    "source/isaaclab/isaaclab/examples/deformables.py": ScriptOverride(
         case_skip_reasons={
             (
                 "isaacsim_physx",
@@ -192,58 +217,59 @@ OVERRIDES = {
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
-    "demos/mpm/newton_mpm_granular.py": ScriptOverride(
+    "source/isaaclab/isaaclab/examples/mpm/newton_mpm_granular.py": ScriptOverride(
         args=("--max_steps", "20"),
-        readiness_pattern=r"Newton granular MPM demo ready",
+        readiness_pattern=r"Newton granular MPM example ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+    "source/isaaclab/isaaclab/examples/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.2"),
-        readiness_pattern=r"Newton two-way MPM demo ready",
+        readiness_pattern=r"Newton two-way MPM example ready",
         fixed_physics_backend="newton_coupler",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "demos/mpm/snowball_smash.py": ScriptOverride(
+    "source/isaaclab/isaaclab/demos/mpm/snowball_smash.py": ScriptOverride(
         args=("--max_steps", "20"),
         readiness_pattern=r"Newton snowball-smash demo ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "demos/mpm/teapot_fill.py": ScriptOverride(
+    "source/isaaclab/isaaclab/demos/mpm/teapot_fill.py": ScriptOverride(
         args=("--max_steps", "20"),
         readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
-    "demos/newton_viewer_block_and_tackle.py": ScriptOverride(
+    "source/isaaclab/isaaclab/examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
+    "source/isaaclab/isaaclab/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         args=("--max_steps", "20"),
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "demos/newton_viewer_dominoes.py": ScriptOverride(
+    "source/isaaclab/isaaclab/demos/newton_viewer_dominoes.py": ScriptOverride(
         args=("--max_steps", "20"),
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
     ),
-    "demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
-    "demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
+    "source/isaaclab/isaaclab/examples/sensors/cameras.py": ScriptOverride(
+        args=("--num_envs", "1"), startup_timeout=900.0
+    ),
+    "source/isaaclab/isaaclab/examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,
         case_skip_reasons={
             ("newton_mjwarp", "default", "kit"): "Kit viewport fails with the Newton multi-mesh raycaster"
         },
     ),
-    "demos/sensors/newton_raycast_heightfield.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
+    "source/isaaclab/isaaclab/examples/sensors/newton_raycast.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=("none", "newton_gl", "rerun", "viser"),
     ),
-    "demos/sensors/newton_raycast_moving_geometry.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
-    ),
-    "demos/pick_and_place.py": ScriptOverride(
+    "source/isaaclab/isaaclab/demos/pick_and_place.py": ScriptOverride(
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
     ),
-    "demos/sensors/ppisp_camera.py": ScriptOverride(
+    "source/isaaclab_ppisp/isaaclab_ppisp/examples/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
         visualizers=("none",),
@@ -289,7 +315,7 @@ OVERRIDES = {
 
 
 def discover_specs() -> list[ScriptSpec]:
-    """Discover the executable demo, tutorial, and tool scripts and their literal CLI choices."""
+    """Discover executable packaged programs, tutorials, and tools and their literal CLI choices."""
     specs = []
     for group in (*(sorted(root.rglob("*.py")) for root in SCRIPT_ROOTS), EXTRA_SCRIPTS):
         for path in group:
@@ -348,11 +374,12 @@ def build_cases(specs: list[ScriptSpec]) -> list[LaunchCase]:
 
 
 def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]:
-    """Select scripts within a repository-relative demo or tutorial directory.
+    """Select packaged programs or scripts within a tutorial directory.
 
     Args:
         specs: Discovered standalone script specifications.
-        scope: Repository demo category or directory below ``scripts``, or ``"all"`` for every script.
+        scope: Package category, directory below ``scripts``, or ``"all"`` for every script. The ``"demos"``
+            scope selects both packaged catalogs for compatibility with the existing CI job.
 
     Returns:
         Specifications selected by the requested scope.
@@ -362,8 +389,16 @@ def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]
     """
     if scope == "all":
         return specs
-    relative_root = scope if scope.startswith("demos") else f"scripts/{scope}"
-    selected_specs = [spec for spec in specs if spec.relative_path.startswith(f"{relative_root}/")]
+    if scope == "demos":
+        selected_specs = [spec for spec in specs if spec.path in PROGRAMS_BY_PATH]
+    elif scope.startswith(("demos/", "examples/")):
+        catalog, _, subdirectory = scope.partition("/")
+        root_index = 0 if catalog == "demos" else 1
+        relative_root = PACKAGE_ROOTS[root_index] / subdirectory
+        selected_specs = [spec for spec in specs if spec.path.is_relative_to(relative_root)]
+    else:
+        relative_root = f"scripts/{scope}"
+        selected_specs = [spec for spec in specs if spec.relative_path.startswith(f"{relative_root}/")]
     if not selected_specs:
         raise ValueError(f"standalone script scope selected no scripts: {scope!r}")
     return selected_specs
@@ -434,7 +469,7 @@ def run_until_ready(
 ) -> SmokeResult:
     """Run a script until it exits or remains healthy after becoming ready.
 
-    Infinite demos are terminated as a process group after the readiness marker
+    Infinite programs are terminated as a process group after the readiness marker
     has been observed and the soak interval has elapsed.
     """
     start_time = time.monotonic()

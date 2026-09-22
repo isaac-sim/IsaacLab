@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Robustness smoke tests for standalone demo and tutorial scripts.
+"""Robustness smoke tests for packaged programs and standalone tutorial scripts.
 
 Set ``ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1`` to enable the simulator launch
 matrix. GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
@@ -57,7 +57,14 @@ if RUNTIME_GROUP:
 MULTI_MESH_RAYCASTER_CASES = [
     case
     for case in CASES
-    if case.spec.relative_path == "demos/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
+    if case.spec.relative_path == "source/isaaclab/isaaclab/examples/sensors/multi_mesh_raycaster.py"
+    and case.visualizer == "none"
+]
+NEWTON_RAYCAST_CASES = [
+    case
+    for case in CASES
+    if case.spec.relative_path == "source/isaaclab/isaaclab/examples/sensors/newton_raycast.py"
+    and case.visualizer == "none"
 ]
 RUN_LAUNCH_MATRIX = os.environ.get("ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS") == "1"
 SCREENSHOT_DIR = os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DIR")
@@ -67,7 +74,7 @@ SCREENSHOT_DELAY = float(os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DELAY", 
 
 
 def test_every_standalone_script_has_a_readiness_contract_or_exemption():
-    """Every executable demo/tutorial must be runnable or explicitly exempted."""
+    """Every executable program or tutorial must be runnable or explicitly exempted."""
     missing = [spec.relative_path for spec in SPECS if spec.readiness_pattern is None and spec.skip_reason is None]
     assert not missing, f"standalone scripts need a readiness marker or OVERRIDES exemption: {missing}"
 
@@ -112,16 +119,22 @@ def test_runtime_groups_partition_matrix_without_overlap():
 def test_script_scope_rejects_empty_selection():
     """A stale or misspelled scope must not produce a vacuously green launch matrix."""
     assert select_script_scope(SPECS, "all") is SPECS
-    assert all(spec.relative_path.startswith("demos/mpm/") for spec in select_script_scope(SPECS, "demos/mpm"))
+    assert {spec.path for spec in select_script_scope(SPECS, "demos")} == set(script_cases.PROGRAMS_BY_PATH)
+    assert all(
+        spec.relative_path.startswith("source/isaaclab/isaaclab/examples/mpm/")
+        for spec in select_script_scope(SPECS, "examples/mpm")
+    )
     with pytest.raises(ValueError, match="selected no scripts"):
         select_script_scope(SPECS, "missing")
 
 
-def test_every_packaged_demo_is_registered_for_cli_launch():
-    """Every executable module in the demo package must have one public CLI name."""
-    demo_specs = [spec for spec in SPECS if spec.path.is_relative_to(script_cases.DEMO_ROOT)]
-    assert all(spec.demo_name is not None for spec in demo_specs)
-    assert {spec.demo_name for spec in demo_specs} == set(script_cases.DEMO_NAMES_BY_PATH.values())
+def test_every_packaged_program_is_registered_for_cli_launch():
+    """Every executable module in a packaged program directory must have one CLI entry."""
+    packaged_specs = [
+        spec for spec in SPECS if any(spec.path.is_relative_to(root) for root in script_cases.PACKAGE_ROOTS)
+    ]
+    assert all(spec.program is not None for spec in packaged_specs)
+    assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
 
 
 def test_demo_browser_documents_options_for_each_demo():
@@ -140,7 +153,7 @@ def test_demo_browser_documents_options_for_each_demo():
         assert demo_name not in documented_entries, f"demo browser contains a duplicate card for {demo_name}"
         documented_entries[demo_name] = attributes
 
-    demo_specs = {spec.demo_name: spec for spec in SPECS if spec.demo_name in documented_entries}
+    demo_specs = {spec.program[1]: spec for spec in SPECS if spec.program is not None and spec.program[0] == "demo"}
     assert demo_specs.keys() == documented_entries.keys()
     image_paths = re.findall(r'<img src="../../([^"]+)"', demos_page)
     assert image_paths
@@ -158,18 +171,25 @@ def test_demo_browser_documents_options_for_each_demo():
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
-    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "demos/h1_locomotion.py")
+    h1_case = next(
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "source/isaaclab/isaaclab/demos/h1_locomotion.py"
+    )
     assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
     pick_and_place_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "demos/pick_and_place.py"
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "source/isaaclab/isaaclab/demos/pick_and_place.py"
     )
     assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
     camera_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/sensors/cameras.py" and case.visualizer == "none"
+        if case.spec.relative_path == "source/isaaclab/isaaclab/examples/sensors/cameras.py"
+        and case.visualizer == "none"
     )
     num_envs_index = camera_case.command().index("--num_envs")
     assert camera_case.command()[num_envs_index + 1] == "1"
@@ -179,21 +199,23 @@ def test_commands_respect_script_launcher_capabilities():
     renderer_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/sensors/ppisp_camera.py" and case.renderer_backend == "isaac_rtx"
+        if case.spec.relative_path == "source/isaaclab_ppisp/isaaclab_ppisp/examples/ppisp_camera.py"
+        and case.renderer_backend == "isaac_rtx"
     )
     assert renderer_case.command()[-4:] == ["--renderer", "isaac_rtx", "--visualizer", "none"]
 
     newton_renderer_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/sensors/ppisp_camera.py" and case.renderer_backend == "newton_renderer"
+        if case.spec.relative_path == "source/isaaclab_ppisp/isaaclab_ppisp/examples/ppisp_camera.py"
+        and case.renderer_backend == "newton_renderer"
     )
     assert newton_renderer_case.command()[-4:] == ["--renderer", "newton_renderer", "--visualizer", "none"]
 
     physics_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/bin_packing.py"
+        if case.spec.relative_path == "source/isaaclab/isaaclab/examples/bin_packing.py"
         and case.physics_backend == "isaacsim_physx"
         and case.visualizer == "none"
     )
@@ -205,7 +227,7 @@ def test_commands_respect_script_launcher_capabilities():
     multi_asset_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/multi_asset.py"
+        if case.spec.relative_path == "source/isaaclab/isaaclab/examples/multi_asset.py"
         and case.physics_backend == "newton_mjwarp"
         and case.visualizer == "none"
     )
@@ -236,54 +258,50 @@ def test_commands_respect_script_launcher_capabilities():
     assert "--enable_cameras" not in usd_camera_case.command()
 
 
-def test_hands_demo_uses_asset_owned_shadow_hand_configs():
-    """The generic hands demo must not inherit task-specific spawn policy."""
-    path = script_cases.ROOT / "demos/hands.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    imports = {
-        (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names
-    }
-
-    assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
-    assert {
-        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_PHYSX_CFG"),
-        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
-    } <= imports
-
-
 @pytest.mark.parametrize(
     "relative_path",
     [
-        "demos/sensors/cameras.py",
-        "demos/sensors/frame_transformer_sensor.py",
-        "demos/sensors/imu_sensor.py",
-        "demos/sensors/multi_mesh_raycaster_camera.py",
-        "demos/sensors/pva_sensor.py",
-        "demos/sensors/raycaster_sensor.py",
-        "demos/sensors/tacsl_sensor.py",
+        "source/isaaclab/isaaclab/examples/sensors/cameras.py",
+        "source/isaaclab/isaaclab/examples/sensors/frame_transformer_sensor.py",
+        "source/isaaclab/isaaclab/examples/sensors/imu_sensor.py",
+        "source/isaaclab/isaaclab/examples/sensors/multi_mesh_raycaster_camera.py",
+        "source/isaaclab/isaaclab/examples/sensors/pva_sensor.py",
+        "source/isaaclab/isaaclab/examples/sensors/raycaster_sensor.py",
+        "source/isaaclab_contrib/isaaclab_contrib/examples/tacsl_sensor.py",
     ],
 )
-def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path):
-    """PhysX-only sensor demos must accept their documented backend explicitly."""
+def test_physx_only_sensor_examples_accept_explicit_physics_selector(relative_path):
+    """PhysX-only sensor examples must accept their documented backend explicitly."""
     spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
     assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
 
 
-def test_contact_sensor_demo_accepts_physx_and_newton_selectors():
-    """The contact sensor demo exposes both PhysX and Newton MJWarp."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "demos/sensors/contact_sensor.py")
+def test_contact_sensor_example_accepts_physx_and_newton_selectors():
+    """The contact sensor example exposes both PhysX and Newton MJWarp."""
+    spec = next(
+        spec for spec in SPECS if spec.relative_path == "source/isaaclab/isaaclab/examples/sensors/contact_sensor.py"
+    )
     assert spec.physics_backends == (("--physics", "isaacsim_physx"), ("--physics", "newton_mjwarp"))
 
 
-def test_cable_demo_accepts_explicit_newton_vbd_selector():
-    """The Newton-only cable demo must accept its documented backend explicitly."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "demos/cables.py")
+def test_newton_raycast_example_exposes_both_scenes():
+    """The consolidated Newton ray-cast example must retain both scene variants."""
+    spec = next(
+        spec for spec in SPECS if spec.relative_path == "source/isaaclab/isaaclab/examples/sensors/newton_raycast.py"
+    )
+    assert spec.options["--scene"] == ("heightfield", "moving-geometry")
+    assert spec.physics_backends == ((None, "newton_mjwarp"),)
+
+
+def test_cable_example_accepts_explicit_newton_vbd_selector():
+    """The Newton-only cable example must accept its documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "source/isaaclab/isaaclab/examples/cables.py")
     assert spec.physics_backends == (("--physics", "newton_vbd"),)
 
 
 def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
-    """The interactive raycaster demo must let CLI requests create default visualizer configs."""
-    path = script_cases.ROOT / "demos/sensors/multi_mesh_raycaster.py"
+    """The interactive raycaster example must let CLI requests create default visualizer configs."""
+    path = script_cases.ROOT / "source/isaaclab/isaaclab/examples/sensors/multi_mesh_raycaster.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     simulation_cfg_calls = [
         node
@@ -302,7 +320,7 @@ def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
 
 def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy():
     """The H1 demo must select its backend-aware policy without passing None to RSL-RL."""
-    path = script_cases.ROOT / "demos/h1_locomotion.py"
+    path = script_cases.ROOT / "source/isaaclab/isaaclab/demos/h1_locomotion.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
     constants = {
@@ -355,7 +373,9 @@ def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy(
 
 def test_launch_case_reports_script_and_combination_exemptions():
     """Whole-script and individual-combination exemptions must remain distinguishable."""
-    skipped_script = next(spec for spec in SPECS if spec.relative_path == "demos/h1_locomotion.py")
+    skipped_script = next(
+        spec for spec in SPECS if spec.relative_path == "source/isaaclab/isaaclab/demos/h1_locomotion.py"
+    )
     assert build_cases([skipped_script])[0].skip_reason == skipped_script.skip_reason
     spec = next(spec for spec in SPECS if spec.skip_reason is None)
     case = build_cases([spec])[0]
@@ -744,6 +764,27 @@ def test_multi_mesh_raycaster_supports_each_asset_type(case, asset_type):
         pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")
 
     command = [*case.command(), "--asset_type", asset_type]
+    result = run_until_ready(
+        command,
+        case.spec.readiness_pattern,
+        startup_timeout=max(STARTUP_TIMEOUT, case.spec.startup_timeout or 0.0),
+        soak_time=SOAK_TIME,
+    )
+    assert_smoke_passed(result, case)
+
+
+@pytest.mark.integration
+@pytest.mark.rendering
+@pytest.mark.smoke
+@pytest.mark.parametrize("case", NEWTON_RAYCAST_CASES, ids=lambda case: case.physics_backend)
+def test_newton_raycast_supports_moving_geometry(case):
+    """The consolidated Newton ray-cast example must launch its non-default scene."""
+    if not RUN_LAUNCH_MATRIX:
+        pytest.skip("set ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1 to run the launch matrix")
+    if not backend_is_available(case.physics_backend):
+        pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")
+
+    command = [*case.command(), "--scene", "moving-geometry"]
     result = run_until_ready(
         command,
         case.spec.readiness_pattern,

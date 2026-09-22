@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared PPISP camera-selection helpers for demo scripts."""
+"""Shared PPISP camera-selection helpers for packaged examples."""
 
 from __future__ import annotations
 

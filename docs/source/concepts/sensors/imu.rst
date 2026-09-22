@@ -60,8 +60,8 @@ with the control loop that consumes the measurement.
    :figwidth: 100%
    :alt: IMU acceleration debug visualization
 
-A complete runnable example is available as the ``imu`` demo:
+A complete runnable example is available as ``imu``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab demo imu
+   uv run --extra isaacsim isaaclab example imu

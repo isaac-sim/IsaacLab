@@ -206,13 +206,13 @@ The `ThrustAction` term provides flexible preprocessing to support all modes thr
 
 </details>
 
-### Demo Script
+### Standalone Example
 
 A complete demonstration of multirotor simulation is available:
 
 ```bash
-# Run multirotor demo
-uv run isaaclab demo arl-robot-1
+# Run the multirotor example
+uv run --extra isaacsim isaaclab example arl-robot-1
 ```
 
 ## TacSL Tactile Sensor (Detailed)
@@ -451,20 +451,20 @@ solver_velocity_iteration_count=1
 
 </details>
 
-### Demo Script
+### Standalone Example
 
 A complete demonstration of TacSL tactile sensor is available:
 
 ```bash
-# Run TacSL tactile sensor demo with RGB and force field sensing
-uv run isaaclab demo tactile-sensor \
+# Run the TacSL tactile sensor example with RGB and force field sensing
+uv run --extra isaacsim isaaclab example tactile-sensor \
     --use_tactile_rgb \
     --use_tactile_ff \
     --num_envs 16 \
     --contact_object_type nut
 
 # Save visualization data
-uv run isaaclab demo tactile-sensor \
+uv run --extra isaacsim isaaclab example tactile-sensor \
     --use_tactile_rgb \
     --use_tactile_ff \
     --save_viz \
