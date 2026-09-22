@@ -85,6 +85,12 @@ def _assert_export_contains_empty_env_roots(exported: str, env_indices: range | 
         assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
+def _assert_export_omits_env_roots(exported: str, env_indices: range | list[int]) -> None:
+    """Listed environment roots are absent from the export."""
+    for env_idx in env_indices:
+        assert f'def Xform "env_{env_idx}"' not in exported
+
+
 def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: ClonePlan | None) -> None:
     mock_ctx = SimpleNamespace(get_clone_plan=lambda: clone_plan)
     monkeypatch.setattr(
@@ -576,6 +582,28 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
 
     assert renderer._clone_plan is published
 
-    # Only the env_0 source subtree keeps content; legacy OVRTX still needs every root for xform writes.
+    # Only the env_0 source subtree keeps content. The rows clone the env roots themselves, so the
+    # remaining roots are trimmed: OVRTX refuses to clone onto a prim that already exists.
     _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
-    _assert_export_contains_empty_env_roots(renderer._exported_usd_string, [1, 2, 3])
+    _assert_export_omits_env_roots(renderer._exported_usd_string, [1, 2, 3])
+
+
+def test_prepare_stage_keeps_env_roots_when_rows_target_prims_beneath_them(monkeypatch: pytest.MonkeyPatch):
+    """Rows cloning below the env roots keep them, since they carry transforms cloning cannot recreate."""
+    num_envs = 3
+
+    _patch_simulation_context(
+        monkeypatch,
+        ClonePlan(
+            sources=("/World/envs/env_0/Robot",),
+            destinations=("/World/envs/env_{}/Robot",),
+            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
+            env_ids=np.arange(num_envs, dtype=np.int64),
+            positions=np.zeros((num_envs, 3), dtype=np.float32),
+        ),
+    )
+    renderer = _make_ovrtx_renderer_without_backend()
+
+    renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
+
+    _assert_export_contains_empty_env_roots(renderer._exported_usd_string, [1, 2])

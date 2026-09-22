@@ -472,12 +472,19 @@ class OVRTXRenderer(BaseRenderer):
 
         # The clone plan already identifies every source row. Keep those rows independent so
         # backend bindings for dynamic assets retain the paths they were compiled against.
+        # A homogeneous plan clones the env roots themselves, so they must be trimmed: OVRTX 0.6
+        # refuses to clone onto a prim that already exists. Sub-path rows still need the roots,
+        # which carry the env transform that clone does not recreate.
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
             source_paths=self._clone_plan.sources,
-            keep_env_roots=not self._use_ovstage,
+            keep_env_roots=not self._use_ovstage and not self._clone_targets_env_roots(),
         )
+
+    def _clone_targets_env_roots(self) -> bool:
+        """Return whether any clone row replicates an environment root rather than a prim beneath it."""
+        return any(destination.format(0) == "/World/envs/env_0" for destination in self._clone_plan.destinations)
 
     def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
         """Record composed world scales of scaled environment prims before the stage is exported.
