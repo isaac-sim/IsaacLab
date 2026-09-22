@@ -1,6 +1,67 @@
 Changelog
 ---------
 
+27.0.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaaclab list_envs`` to list registered environments and optional presets. From a downstream project,
+  the command automatically limits its output to tasks declared by the nearest ``pyproject.toml``; pass ``--all``
+  to list every installed task or ``--keyword`` to select task ids explicitly.
+* Added a ``Blank`` initial-content option to the external project generator. Blank projects contain packaging,
+  task discovery, tests, and development tooling without the cart-pole example files.
+* Added a package-relative asset directory and path constant to external projects so project-owned USD files can be
+  referenced consistently from editable checkouts and installed wheels.
+* Added an opt-in ``--non_interactive`` template-generator mode with validated arguments for project metadata, initial
+  content, workflows, RL libraries, algorithms, and the optional Isaac Sim UI extension.
+* Added declarative ``cloning_contexts`` to renderer and visualizer configurations and routed their representations
+  through the shared clone plan. Visualizers were constructed before cloning and initialized after physics was ready.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab.sim.SimulationContext` to reject construction while a
+  context already exists, instead of returning it and discarding the requested configuration.
+  This includes no-argument construction and reusing the same configuration. Use
+  :meth:`~isaaclab.sim.SimulationContext.instance` to retrieve the live context, or call
+  :meth:`~isaaclab.sim.SimulationContext.clear_instance` before constructing a replacement.
+* Required ``newton-usd-schemas>=0.5.0`` and exposed the Newton schemas before
+  OpenUSD initializes its schema registry.
+* **Breaking:** Made camera intrinsic setters update runtime device buffers without authoring USD.
+  USD calibration was imported once at initialization; active calibration became independent of USD
+  edit targets and layer composition. To persist calibration, configure
+  ``PinholeCameraCfg.from_intrinsic_matrix`` when spawning cameras instead of exporting runtime USD.
+* Added ``BaseRenderer.update_camera_intrinsics`` for device calibration updates independently of
+  pose updates. Custom renderers must implement this method to support runtime calibration changes.
+* Built initial calibration with NumPy and uploaded it without compiling runtime calibration
+  kernels. Isolated those kernels from pose initialization so compilation occurred only on the
+  first runtime update. Subsequent conversion, selection, and duplicate-index handling reused
+  Warp kernels on the camera device without matrix or index batch readbacks. Accepted NumPy,
+  Torch, and Warp matrices; host inputs were uploaded before runtime updates. OpenCV calibration,
+  synchronous scalar validation, and the centered, square-pixel projection were preserved.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``RenderContext.get_renderer`` and consolidated renderer ownership in the simulation backend
+  registry. Replace ``sim.render_context.get_renderer(renderer_cfg)`` with
+  ``sim.get_or_create_backend(renderer_cfg)``. ``RendererCfg`` extended ``BackendCfg``; ``RenderContext`` retained
+  rendering lifecycle coordination without a separate renderer cache or ownership. Use ``sim.render_context``
+  instead of constructing a standalone ``RenderContext()``, whose constructor now requires the simulation registry.
+
+Fixed
+^^^^^
+
+* Fixed external projects to forward the complete set of optional extras from the active Isaac Lab package, including
+  visualizer extras such as ``rerun`` and ``viser`` and the aggregate ``all`` extra.
+* Fixed mixed single-agent and multi-agent generation to include compatible agent configurations for both workflows.
+* Fixed project environment discovery for entry-point references that use ``module:object`` syntax.
+* Rejected intrinsic matrix shape, batch-cardinality, and index errors before changing any camera.
+  Repeated camera indices retained the last matrix in the batch.
+
+
 26.0.0 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~~
 
