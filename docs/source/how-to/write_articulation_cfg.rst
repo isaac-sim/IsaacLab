@@ -57,27 +57,30 @@ Choosing shared and backend-specific settings
 Use the shared :class:`~assets.ArticulationCfg` for the robot's initial state and actuators.
 The simulation selects the physics backend separately.
 
-For common USD properties, use classes from ``isaaclab.sim.schemas``, such as
-:class:`~sim.schemas.RigidBodyBaseCfg` and :class:`~sim.schemas.ArticulationRootBaseCfg`.
+For common USD properties, use fragments from ``isaaclab.sim.schemas``, such as
+:class:`~sim.schemas.UsdPhysicsRigidBodyCfg`.
 Use ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
 settings. The :ref:`schema-cfgs` guide explains the available classes and their USD namespaces;
 :doc:`../concepts/schema_fragments` shows how to author both backends' attributes
 in one spawn configuration.
 
-The Cartpole below uses the compatibility names ``RigidBodyPropertiesCfg`` and
-``ArticulationRootPropertiesCfg``. Its PhysX solver iterations and sleep thresholds do not
-configure Newton's solver. When adapting it to Newton, retain the shared initial-state and
-actuator configuration and configure the Newton solver separately. For example, to override
-Newton's self-collision setting:
+The Cartpole below combines shared USD, PhysX, and Newton schema fragments. Its PhysX solver
+iterations and sleep thresholds do not configure Newton's solver. When adapting it to Newton,
+retain the shared initial-state and actuator configuration and configure the Newton solver
+separately. To override Newton's self-collision setting, select its fragment while preserving
+the other fragments:
 
 .. code-block:: python
 
    from isaaclab_assets import CARTPOLE_CFG
-   from isaaclab_newton.sim.schemas import NewtonArticulationRootPropertiesCfg
+   from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
    robot_cfg = CARTPOLE_CFG.copy()
-   robot_cfg.spawn.articulation_props = NewtonArticulationRootPropertiesCfg(self_collision_enabled=False)
+   newton_props = next(
+       fragment for fragment in robot_cfg.spawn.articulation_props if isinstance(fragment, NewtonArticulationCfg)
+   )
+   newton_props.self_collision_enabled = True
 
 See :doc:`../concepts/solver-tuning/tune_mjwarp` for solver settings,
 :doc:`prepare_asset_for_newton`
@@ -103,7 +106,7 @@ The last two parameters are optional. If not specified, they are kept at their d
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :lines: 8,10-11,17-34,49
+   :lines: 8-9,11,13-14,20-42,57
    :dedent:
 
 To import articulation from a URDF file instead of a USD file, you can replace the
@@ -131,7 +134,7 @@ Meanwhile, the joint positions and velocities are set to 0.0.
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :lines: 10,17,35-37,49
+   :lines: 13,20,43-45,57
    :dedent:
 
 Defining the actuator configuration
@@ -153,7 +156,7 @@ to combine them into a single actuator model.
 
    .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
       :language: python
-      :lines: 9-10,17,38-49
+      :lines: 12-13,20,46-57
       :dedent:
 
 
