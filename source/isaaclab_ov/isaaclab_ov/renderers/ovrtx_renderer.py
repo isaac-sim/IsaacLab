@@ -79,7 +79,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -90,9 +90,11 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
+    _RTX_MINIMAL_MODES,
     build_render_product_as_string,
     create_scene_partition_attributes,
     export_stage_to_string,
+    render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
@@ -104,7 +106,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
-    from ovrtx import AttributeBinding
+    from ovrtx import AttributeBinding, FrameOutput, RenderVarOutput
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -112,9 +114,8 @@ if TYPE_CHECKING:
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-# ``frame.render_vars`` keys of the render vars read below. Baked at import from the installed
-# OVRTX version, which decides whether frames are keyed by source name or RenderVar prim path.
-_LDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["LdrColor"]
+_RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
+_LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
     "horizontalAperture",
@@ -122,30 +123,23 @@ _CAMERA_INTRINSIC_ATTRIBUTES = (
     "horizontalApertureOffset",
     "verticalApertureOffset",
 )
-_HDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["HdrColor"]
-_ALBEDO_VAR = RENDER_VAR_FRAME_KEYS["DiffuseAlbedoSD"]
-_NORMALS_VAR = RENDER_VAR_FRAME_KEYS["NormalSD"]
-_MOTION_VECTORS_VAR = RENDER_VAR_FRAME_KEYS["TargetMotionSD"]
-_SEMANTIC_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["SemanticSegmentation"]
-_INSTANCE_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["NonStableInstanceSegmentation"]
-_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["SemanticIdMap"]
-_STABLE_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdMap"]
-_STABLE_ID_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdSemanticIdMap"]
+_HDR_COLOR_VAR = "HdrColor"
+_ALBEDO_VAR = "DiffuseAlbedoSD"
+_NORMALS_VAR = "NormalSD"
+_MOTION_VECTORS_VAR = "TargetMotionSD"
+_SEMANTIC_SEGMENTATION_VAR = "SemanticSegmentation"
+_INSTANCE_SEGMENTATION_VAR = "NonStableInstanceSegmentation"
+_SEMANTIC_ID_MAP_VAR = "SemanticIdMap"
+_STABLE_ID_MAP_VAR = "StableIdMap"
+_STABLE_ID_SEMANTIC_ID_MAP_VAR = "StableIdSemanticIdMap"
 
 # Map render vars needed to decode the instance-segmentation info dicts.
 _INSTANCE_SEGMENTATION_MAP_VARS = (_STABLE_ID_SEMANTIC_ID_MAP_VAR, _STABLE_ID_MAP_VAR, _SEMANTIC_ID_MAP_VAR)
 
 # Maps depth render vars to compatible output buffers.
 _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
-    RENDER_VAR_FRAME_KEYS["DistanceToImagePlaneSD"]: ("depth", "distance_to_image_plane"),
-    RENDER_VAR_FRAME_KEYS["DistanceToCameraSD"]: ("distance_to_camera",),
-}
-
-# The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
-_RTX_MINIMAL_MODES = {
-    RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE.value: 1,
-    RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL.value: 2,
-    RenderBufferKind.SIMPLE_SHADING_FULL_MDL.value: 3,
+    "DistanceToImagePlaneSD": ("depth", "distance_to_image_plane"),
+    "DistanceToCameraSD": ("distance_to_camera",),
 }
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
@@ -217,35 +211,6 @@ def _gpu_side_render_var_sync_enabled() -> bool:
     return value == "1"
 
 
-def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
-    """Resolve the RTX minimal mode from data types.
-
-    RTX minimal mode is used to control the rendering quality. The higher the mode, the higher the quality.
-
-    If multiple simple shading data types are requested, the first one in the list is used and a warning is logged.
-
-    If no simple shading data types are requested, None is returned.
-
-    Args:
-        data_types: List of data types.
-
-    Returns:
-        The resolved RTX minimal mode if simple shading data types are requested, otherwise None.
-    """
-    filtered_data_types = [data_type for data_type in data_types if data_type in _RTX_MINIMAL_MODES]
-    if not filtered_data_types:
-        return None
-
-    if len(filtered_data_types) > 1:
-        logger.warning(
-            "Multiple simple shading data types requested (%s). Using the first in the list (%s).",
-            filtered_data_types,
-            filtered_data_types[0],
-        )
-
-    return _RTX_MINIMAL_MODES[filtered_data_types[0]]
-
-
 def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     """Write ``content`` to ``output_dir / file_name``.
 
@@ -262,6 +227,19 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     with open(output_path, "w", encoding="utf-8") as file:
         file.write(content)
         logger.info("Wrote USD file: %s", output_path)
+
+
+def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: str) -> None:
+    """Write the scene and render product prims in one debug layer, preserving scene metadata."""
+    from pxr import Sdf
+
+    scene_layer = Sdf.Layer.CreateAnonymous("scene.usda")
+    scene_layer.ImportFromString(scene_usd)
+    render_layer = Sdf.Layer.CreateAnonymous("render_product.usda")
+    render_layer.ImportFromString(render_product_usd)
+    for prim in render_layer.rootPrims:
+        Sdf.CopySpec(render_layer, prim.path, scene_layer, prim.path)
+    _write_file(output_dir, "ovrtx_renderer_stage.usda", scene_layer.ExportToString())
 
 
 class OVRTXBackend:
@@ -301,9 +279,17 @@ class OVRTXBackend:
 class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and Warp output buffers."""
 
-    def __init__(self, spec: CameraRenderSpec, device):
-        """Create render data from a camera render specification."""
-        self.render_product_path: str | None = None
+    def __init__(self, spec: CameraRenderSpec, device, render_scope_name: str):
+        """Create render data for a camera in its assigned render scope.
+
+        Args:
+            spec: Camera render specification.
+            device: Rendering device.
+            render_scope_name: Root scope containing this camera's render product and RenderVars.
+        """
+        self.render_scope_name = render_scope_name
+        self.render_product_name = "RenderProduct"
+        self.render_product_path = f"/{render_scope_name}/{self.render_product_name}"
         self.camera_xform_binding = None
         self.camera_xform_query = None
         self.resources = contextlib.ExitStack()
@@ -559,12 +545,7 @@ class OVRTXRenderer(BaseRenderer):
             spec: Tiled camera description (resolution, paths, data types).
             render_data: Owner of the initial camera's native resources.
         """
-        width = spec.cfg.width
-        height = spec.cfg.height
         num_envs = spec.num_instances
-        data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
-        if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-            data_types = [*data_types, "rgb_hdr"]
 
         env_0_prefix = "/World/envs/env_0/"
         first_cam_path = spec.camera_prim_paths[0]
@@ -577,32 +558,24 @@ class OVRTXRenderer(BaseRenderer):
         if self._exported_usd_string is None:
             raise RuntimeError("Expected an exported USD string from stage")
 
-        scope = f"RenderCamera_{self._next_camera_id}"
-        render_product_string, render_product_path = build_render_product_as_string(
-            width=width,
-            height=height,
-            num_envs=num_envs,
-            data_types=data_types,
-            minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=self._camera_rel_path,
-            background_color=getattr(spec.cfg, "background_color", None),
+        scope = render_data.render_scope_name
+        render_product_path = render_data.render_product_path
+        render_product_string = build_render_product_as_string(
+            spec,
+            render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
-            render_scope_name=scope,
         )
         self._render_product_paths.append(render_product_path)
 
         # If temp_usd_dir is set, write the combined USD stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
-            combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
-            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
+            _write_combined_stage(Path(self.cfg.temp_usd_dir), self._exported_usd_string, render_product_string)
 
         logger.info("Loading USD into OvRTX...")
         self.backend.renderer.open_usd_from_string(self._exported_usd_string)
         self._exported_usd_string = None  # Free memory
-        reference = self.backend.renderer.add_usd_reference_from_string(
-            f'#usda 1.0\n(defaultPrim = "{scope}")\n' + render_product_string, f"/{scope}"
-        )
+        reference = self.backend.renderer.add_usd_reference_from_string(render_product_string, f"/{scope}")
         render_data.resources.callback(self.backend.renderer.remove_usd, reference)
         logger.info("OVRTX loaded USD from string successfully")
 
@@ -954,11 +927,12 @@ class OVRTXRenderer(BaseRenderer):
             raise ValueError("Cameras sharing an OVRTX renderer must use the same device.")
         self._warp_device = warp_device
         self._device = str(warp_device)
-        render_data = OVRTXCameraRenderData(spec, self._device)
+        render_data = OVRTXCameraRenderData(
+            spec, self._device, render_scope_name=f"RenderCamera_{self._next_camera_id}"
+        )
         try:
             if not self._initialized_scene:
                 self._initialize_camera_render_data_from_spec(spec, render_data)
-                render_data.render_product_path = self._render_product_paths[0]
                 # Move the initial camera's handles into its render data, just like subsequent cameras.
                 if self._use_ovstage:
                     render_data.resources.callback(self.backend.paths.destroy_path_list, self._camera_paths_list)
@@ -993,24 +967,14 @@ class OVRTXRenderer(BaseRenderer):
         camera_paths = list(spec.camera_prim_paths)
         if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
             raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
-        scope = f"RenderCamera_{self._next_camera_id}"
-        data_types = list(spec.cfg.data_types or ["rgb"])
-        if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-            data_types.append("rgb_hdr")
-        usd, product_path = build_render_product_as_string(
-            width=spec.cfg.width,
-            height=spec.cfg.height,
-            num_envs=spec.num_instances,
-            data_types=data_types,
-            minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=spec.camera_path_relative_to_env_0,
-            background_color=getattr(spec.cfg, "background_color", None),
+        scope = render_data.render_scope_name
+        product_path = render_data.render_product_path
+        usd = build_render_product_as_string(
+            spec,
+            render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
-            render_scope_name=scope,
         )
-        usd = f'#usda 1.0\n(defaultPrim = "{scope}")\n' + usd
-        render_data.render_product_path = product_path
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
             render_data.resources.callback(self._remove_camera_reference, reference)
@@ -1305,6 +1269,17 @@ class OVRTXRenderer(BaseRenderer):
         )
         return output_colors
 
+    @staticmethod
+    def _get_render_var_output(
+        render_data: OVRTXCameraRenderData, frame: FrameOutput, source_name: str
+    ) -> RenderVarOutput | None:
+        """Resolve a render-var source name to the installed OVRTX frame key and read its output."""
+        render_var_key = source_name
+        if uses_prim_path_render_vars(OVRTX_VERSION):
+            prim_name = _RENDER_VAR_PRIM_NAMES[source_name]
+            render_var_key = f"/{render_data.render_scope_name}/Vars/{prim_name}"
+        return frame.render_vars.get(render_var_key)
+
     @contextlib.contextmanager
     def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
         """Map ``render_var`` for CUDA reads and yield it as a Warp array.
@@ -1358,11 +1333,11 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
             output_buffers: Destination warp buffers, keyed by data type.
-            render_var_key: ``frame.render_vars`` key of the OVRTX render var to read.
+            render_var_key: Render-var source name.
             buffer_key: Data type key into ``output_buffers``.
             colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
         """
-        render_var = frame.render_vars.get(render_var_key)
+        render_var = self._get_render_var_output(render_data, frame, render_var_key)
         if render_var is None or buffer_key not in output_buffers:
             return
 
@@ -1403,7 +1378,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        semantic_id_map = frame.render_vars.get(_SEMANTIC_ID_MAP_VAR)
+        semantic_id_map = self._get_render_var_output(render_data, frame, _SEMANTIC_ID_MAP_VAR)
         if semantic_id_map is None:
             return
 
@@ -1440,7 +1415,9 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        resolved = {key: frame.render_vars.get(key) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
+        resolved = {
+            key: self._get_render_var_output(render_data, frame, key) for key in _INSTANCE_SEGMENTATION_MAP_VARS
+        }
         missing = [key for key, render_var in resolved.items() if render_var is None]
         if missing:
             raise RuntimeError(
@@ -1577,7 +1554,7 @@ class OVRTXRenderer(BaseRenderer):
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
 
-        ldr_color = frame.render_vars.get(_LDR_COLOR_VAR)
+        ldr_color = self._get_render_var_output(render_data, frame, _LDR_COLOR_VAR)
         if ldr_color is not None:
             buffer_key = None
 
@@ -1596,7 +1573,7 @@ class OVRTXRenderer(BaseRenderer):
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
-            depth_render_var = frame.render_vars.get(depth_var)
+            depth_render_var = self._get_render_var_output(render_data, frame, depth_var)
             if depth_render_var is None:
                 continue
             if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
@@ -1608,12 +1585,12 @@ class OVRTXRenderer(BaseRenderer):
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
-        albedo_var = frame.render_vars.get(_ALBEDO_VAR)
+        albedo_var = self._get_render_var_output(render_data, frame, _ALBEDO_VAR)
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        hdr_color = frame.render_vars.get(_HDR_COLOR_VAR)
+        hdr_color = self._get_render_var_output(render_data, frame, _HDR_COLOR_VAR)
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
@@ -1644,7 +1621,7 @@ class OVRTXRenderer(BaseRenderer):
         if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
-        normals_var = frame.render_vars.get(_NORMALS_VAR)
+        normals_var = self._get_render_var_output(render_data, frame, _NORMALS_VAR)
         if normals_var is not None and "normals" in output_buffers:
             with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
@@ -1652,7 +1629,7 @@ class OVRTXRenderer(BaseRenderer):
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
-        motion_var = frame.render_vars.get(_MOTION_VECTORS_VAR)
+        motion_var = self._get_render_var_output(render_data, frame, _MOTION_VECTORS_VAR)
         if motion_var is not None and "motion_vectors" in output_buffers:
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
@@ -1936,12 +1913,7 @@ class OVRTXRenderer(BaseRenderer):
             spec: Tiled camera description (resolution, paths, data types).
             render_data: Owner of the initial camera's native resources.
         """
-        width = spec.cfg.width
-        height = spec.cfg.height
         num_envs = spec.num_instances
-        data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
-        if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-            data_types = [*data_types, "rgb_hdr"]
 
         env_0_prefix = "/World/envs/env_0/"
         first_cam_path = spec.camera_prim_paths[0]
@@ -1954,25 +1926,19 @@ class OVRTXRenderer(BaseRenderer):
         if self._exported_usd_string is None:
             raise RuntimeError("Expected an exported USD string from stage")
 
-        scope = f"RenderCamera_{self._next_camera_id}"
-        render_product_string, render_product_path = build_render_product_as_string(
-            width=width,
-            height=height,
-            num_envs=num_envs,
-            data_types=data_types,
-            minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=self._camera_rel_path,
+        scope = render_data.render_scope_name
+        render_product_path = render_data.render_product_path
+        render_product_string = build_render_product_as_string(
+            spec,
+            render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
-            render_scope_name=scope,
         )
         self._render_product_paths.append(render_product_path)
 
-        combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
-
         # If temp_usd_dir is set, write the combined USD stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
-            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
+            _write_combined_stage(Path(self.cfg.temp_usd_dir), self._exported_usd_string, render_product_string)
 
         logger.info("Loading USD into OvRTX via ovstage...")
         # Ordinal 0 is the empty/unwritten state in ovstage; the first write must use >= 1.
@@ -1985,7 +1951,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         self._exported_usd_string = None  # Free memory
         reference = ovstage.population.add_usd_reference_from_string(
-            self.backend.stage, f'#usda 1.0\n(defaultPrim = "{scope}")\n' + render_product_string, f"/{scope}"
+            self.backend.stage, render_product_string, f"/{scope}"
         )
         render_data.resources.callback(self._remove_camera_reference, reference)
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)

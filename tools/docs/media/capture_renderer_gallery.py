@@ -268,9 +268,9 @@ def gallery_lighting_override(renderer: str) -> Iterator[None]:
 
     original_builder = ovrtx_renderer.build_render_product_as_string
 
-    def build_render_product_without_ambient_light(*args: Any, **kwargs: Any) -> tuple[str, str]:
-        render_product_usd, render_product_path = original_builder(*args, **kwargs)
-        return override_ovrtx_ambient_light(render_product_usd), render_product_path
+    def build_render_product_without_ambient_light(*args: Any, **kwargs: Any) -> str:
+        render_product_usd = original_builder(*args, **kwargs)
+        return override_ovrtx_ambient_light(render_product_usd)
 
     ovrtx_renderer.build_render_product_as_string = build_render_product_without_ambient_light
     try:
