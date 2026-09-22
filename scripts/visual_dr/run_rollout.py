@@ -11,7 +11,7 @@ silently wrong: that generation happens only on frames a policy consumes, that a
 episode keeps one style, that resetting one environment leaves the others alone,
 and that residency can be handed to a learner and taken back.
 
-    .venv/bin/python scripts/visual_dr/run_rollout.py --num-envs 4 --steps 24
+    .venv/bin/python scripts/visual_dr/run_rollout.py --num_envs 4 --steps 24
 """
 
 from __future__ import annotations
@@ -21,23 +21,23 @@ import argparse
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser("run_rollout")
-parser.add_argument("--num-envs", type=int, default=4)
+parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--steps", type=int, default=24)
 parser.add_argument(
-    "--decision-period",
+    "--decision_period",
     type=int,
     default=None,
     help="Environment actions per policy decision; defaults to the task config",
 )
 parser.add_argument("--probability", type=float, default=None, help="Override the task config's restyle probability")
-parser.add_argument("--episode-length-s", type=float, default=0.5, help="Short, so resets happen mid-rollout")
+parser.add_argument("--episode_length_s", type=float, default=0.5, help="Short, so resets happen mid-rollout")
 parser.add_argument(
     "--workers",
     default="",
     help="Comma-separated GPU indices to run Cosmos workers on, e.g. 3,6. Empty keeps generation in this process.",
 )
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="passthrough")
-parser.add_argument("--offload-at", default="", help="Comma-separated steps at which to offload and re-activate")
+parser.add_argument("--offload_at", default="", help="Comma-separated steps at which to offload and re-activate")
 parser.add_argument(
     "--policy",
     choices=("scripted", "zero"),
@@ -45,7 +45,7 @@ parser.add_argument(
     help="scripted drives a pick-and-stack so the scene actually moves",
 )
 parser.add_argument(
-    "--video-dir",
+    "--video_dir",
     default="",
     help="Directory for per-camera mp4s; empty disables recording. Distinct from\n"
     "AppLauncher's --video, which records Kit's viewport instead.",
@@ -67,8 +67,8 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab_contrib.visual_dr import PassthroughBackend, RemoteCosmosBackendCfg, VisualDRRuntime
-from isaaclab_contrib.visual_dr.demo import FrankaStackRuntimeDRCfg
 
+from isaaclab_tasks.contrib.stack.config.franka.stack_visual_dr_env_cfg import FrankaStackRuntimeDRCfg
 from isaaclab_tasks.utils import PresetCfg
 
 sys.path.insert(0, str(Path(__file__).parent))

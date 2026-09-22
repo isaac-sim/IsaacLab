@@ -5,6 +5,12 @@
 
 """A Franka cube-stacking config with runtime visual DR attached.
 
+Lives here rather than beside the runtime because it is a task configuration:
+it names this task's cameras, semantic classes and scene, and imports
+``isaaclab_tasks``. ``isaaclab_contrib`` cannot depend on ``isaaclab_tasks`` --
+the dependency runs the other way, through ``isaaclab_assets`` -- so the
+runtime stays task-agnostic and the task-coupled parts live with the task.
+
 The scene is already semantically tagged (``robot``, ``table``, ``ground``,
 ``cube_1..3``), so the preserved foreground is a list of class names rather than
 an asset-authoring exercise. The prompts describe only what surrounds the table,
@@ -14,15 +20,15 @@ because that is all the composite is allowed to replace.
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass
 
+from isaaclab_contrib.visual_dr import CameraDRCfg, CosmosBackendCfg, PromptBankCfg, VisualDRCfg
+from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+from isaaclab_contrib.visual_dr.observations import image_runtime_dr
+
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.config.franka.stack_ik_rel_visuomotor_cosmos_env_cfg import (
     FrankaCubeStackVisuomotorCosmosEnvCfg,
 )
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
-
-from .cfg import CameraDRCfg, CosmosBackendCfg, PromptBankCfg, VisualDRCfg
-from .cosmos import CosmosBackend
-from .observations import image_runtime_dr
 
 BACKGROUND_PROMPTS = (
     "A photograph of a biological research laboratory behind the bench, shot on a "

@@ -97,7 +97,8 @@ Fixed
   defaults, which are for the mode that has no control hint. Cosmos tunes
   ``control_guidance`` per hint (depth 1.5, seg 2.0, edge/blur 1.5, wsm 3.0) and
   applies those only when the request omits the field, which this backend never does.
-* Changed the demo to a 640x480 camera driving the segmentation hint, with
+* Changed the stacking demo configuration (now in ``isaaclab_tasks``) to a 640x480
+  camera driving the segmentation hint, with
   ``aspect_ratio="4,3"``. Segmentation names regions instead of pinning geometry, so
   the background keeps the scene's layout and perspective while the prompt is free
   to populate it; the prompt bank is now a biological laboratory with researchers.

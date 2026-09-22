@@ -40,11 +40,11 @@ def parse_args() -> argparse.Namespace:
             "polished concrete floor, softly blurred equipment racks in the background."
         ),
     )
-    p.add_argument("--num-steps", type=int, default=4)
+    p.add_argument("--num_steps", type=int, default=4)
     p.add_argument("--resolution", default="480")
-    p.add_argument("--aspect-ratio", default="1,1")
-    p.add_argument("--control-guidance", type=float, default=0.5)
-    p.add_argument("--control-weight", type=float, default=1.0)
+    p.add_argument("--aspect_ratio", default="1,1")
+    p.add_argument("--control_guidance", type=float, default=0.5)
+    p.add_argument("--control_weight", type=float, default=1.0)
     p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
 
