@@ -50,7 +50,7 @@ The dictionary maps the attribute name in the configuration to the attribute nam
 
 # OpenCV lens-distortion models authored as the ``omni:lensdistortion:*`` USD API. The RTX/OVRTX
 # renderer honors these attributes natively; they are read back into ``camera.data.intrinsic_matrices``
-# by :meth:`~isaaclab.sensors.camera.Camera._update_intrinsic_matrices`.
+# when :class:`~isaaclab.sensors.camera.Camera` imports its initial calibration.
 _OPENCV_DISTORTION_API_SCHEMAS = {
     "opencvPinhole": "OmniLensDistortionOpenCvPinholeAPI",
     "opencvFisheye": "OmniLensDistortionOpenCvFisheyeAPI",

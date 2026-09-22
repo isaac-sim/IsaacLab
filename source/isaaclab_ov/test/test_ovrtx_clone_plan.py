@@ -33,7 +33,7 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _write_file  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer, _write_file  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
 else:
@@ -96,7 +96,10 @@ def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: Clone
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer._renderer = SimpleNamespace(
+    renderer.backend = SimpleNamespace()
+    renderer.backend.renderer = SimpleNamespace(
+        add_usd_reference_from_string=lambda *args, **kwargs: 1,
+        remove_usd=lambda reference: None,
         clone_usd=lambda *args, **kwargs: None,
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
@@ -107,6 +110,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._warp_device = SimpleNamespace(ordinal=0)
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
+    renderer._camera_render_data = []
+    renderer._next_camera_id = 0
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
@@ -162,7 +167,7 @@ def test_clone_sources_in_ovrtx_uses_active_plan_rows():
     def _clone_usd(source: str, target_paths: list[str]) -> None:
         clone_calls.append((source, target_paths))
 
-    renderer._renderer.clone_usd = _clone_usd
+    renderer.backend.renderer.clone_usd = _clone_usd
 
     renderer._clone_sources_in_ovrtx()
 
@@ -189,7 +194,7 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
     def _clone_usd(source: str, target_paths: list[str]) -> None:
         raise OSError("clone failed")
 
-    renderer._renderer.clone_usd = _clone_usd
+    renderer.backend.renderer.clone_usd = _clone_usd
 
     with pytest.raises(RuntimeError, match="Failed to clone row 0 from /World/envs/env_0"):
         renderer._clone_sources_in_ovrtx()
@@ -214,13 +219,13 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
         call_order.append("clone")
         clone_calls.append((source, target_paths))
 
-    renderer._renderer.clone_usd = _clone_usd
+    renderer.backend.renderer.clone_usd = _clone_usd
 
     def _write_attribute(**kwargs):
         call_order.append("write")
         write_calls.append(kwargs)
 
-    renderer._renderer.write_attribute = _write_attribute
+    renderer.backend.renderer.write_attribute = _write_attribute
 
     renderer._clone_sources_in_ovrtx()
 
@@ -265,13 +270,13 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
         events.append(("paths", "envs", paths))
         return "env_paths"
 
-    renderer._stage = SimpleNamespace(
+    renderer.backend.stage = SimpleNamespace(
         query_from_path_list=_query,
         clone=_clone,
         write_attribute=_write,
         release_query=lambda _query: completion,
     )
-    renderer._stage_paths = SimpleNamespace(
+    renderer.backend.paths = SimpleNamespace(
         create_path_list_from_strings=_create_paths,
         destroy_path_list=lambda _paths: None,
     )
@@ -461,24 +466,42 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
     assert write_calls == []
 
 
-def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
-    """_initialize_from_spec writes the combined stage when temp_usd_dir is set."""
+def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_path: Path):
+    """_initialize_camera_render_data_from_spec writes the combined stage when temp_usd_dir is set."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
-    renderer._exported_usd_string = "#usda 1.0\n"
+    scene = _make_multi_env_stage(1)
+    scene.SetDefaultPrim(scene.GetPrimAtPath("/World"))
+    scene.SetMetadata("metersPerUnit", 1.0)
+    scene_usd = scene.GetRootLayer().ExportToString()
+    renderer._exported_usd_string = scene_usd
 
     open_calls: list[str] = []
-    renderer._renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
-    renderer._renderer.bind_attribute = lambda **kwargs: object()
-    renderer._renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
+    reference_calls = []
+    renderer.backend.renderer.add_usd_reference_from_string = lambda usd, path: reference_calls.append((usd, path))
+    renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
+    renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
-    renderer._initialize_from_spec(_make_camera_render_spec(num_envs=1))
+    spec = _make_camera_render_spec(num_envs=1)
+    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
+    renderer._initialize_camera_render_data_from_spec(spec, render_data)
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
-    assert combined_text.startswith("#usda 1.0")
-    assert 'def RenderProduct "RenderProduct"' in combined_text
-    assert open_calls == [combined_text]
+    combined_layer = Sdf.Layer.CreateAnonymous("combined.usda")
+    assert combined_layer.ImportFromString(combined_text)
+    assert combined_layer.defaultPrim == "World"
+    assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
+    assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
+    assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
+    assert open_calls == [scene_usd]
+    reference_text, reference_path = reference_calls[0]
+    assert reference_path == "/RenderCamera_0"
+    reference_layer = Sdf.Layer.CreateAnonymous("reference.usda")
+    assert reference_layer.ImportFromString(reference_text)
+    assert reference_layer.defaultPrim == render_data.render_scope_name
+    assert reference_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
     assert renderer._exported_usd_string is None
 
 
@@ -492,9 +515,9 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     renderer.cfg.temp_usd_dir = str(tmp_path)
     renderer._exported_usd_string = "#usda 1.0\n"
 
-    renderer._renderer.open_usd_from_string = lambda _usd_string: None
-    renderer._renderer.bind_attribute = lambda **kwargs: object()
-    renderer._renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: None
+    renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
+    renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
     class _FakeWarpDevice:
         ordinal = 1
@@ -509,7 +532,7 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     assert "uint[] deviceIds = [1]" in combined_text
 
 
-def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
+def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning():
     """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
     num_envs = 4
     renderer = _make_ovrtx_renderer_without_backend()
@@ -518,7 +541,7 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
     call_order: list[str] = []
     write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
 
-    renderer._renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
+    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
     renderer._clone_sources_in_ovrtx = lambda: call_order.append("clone")
     renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
 
@@ -526,19 +549,20 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
         call_order.append("rewrite_cameras")
         write_array_calls.append((prim_paths, attribute_name, tensors))
 
-    renderer._renderer.write_array_attribute = _write_array_attribute
-    renderer._renderer.bind_attribute = lambda **_kwargs: object()
-    renderer._renderer.write_attribute = lambda **_kwargs: None
-    renderer._setup_xform_bindings = lambda: None
-    renderer._setup_deformable_bindings = lambda _num_envs: None
+    renderer.backend.renderer.write_array_attribute = _write_array_attribute
+    renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
+    renderer.backend.renderer.write_attribute = lambda **_kwargs: None
+    renderer._setup_xform_bindings_legacy = lambda: None
+    renderer._setup_deformable_bindings_legacy = lambda _num_envs: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
-    renderer._initialize_from_spec(spec)
+    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
+    renderer._initialize_camera_render_data_from_spec(spec, render_data)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
     assert write_array_calls == [
         (
-            ["/Render/RenderProduct"],
+            [render_data.render_product_path],
             "camera",
             [[f"/World/envs/env_{env_id}/Camera" for env_id in range(num_envs)]],
         )

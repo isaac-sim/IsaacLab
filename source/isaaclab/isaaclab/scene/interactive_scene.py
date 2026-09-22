@@ -25,6 +25,7 @@ from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
+    Asset,
     AssetBaseCfg,
     CableObject,
     CableObjectCfg,
@@ -37,7 +38,7 @@ from isaaclab.assets import (
     VisualMaterial,
     VisualMaterialCfg,
 )
-from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -108,22 +109,6 @@ class InteractiveScene:
         # access the robot based on its type
         robot = scene.articulations["robot"]
 
-    If the :class:`InteractiveSceneCfg` class does not include asset entities, the cloning process
-    can still be triggered by constructing assets directly on the stage and then calling
-    :func:`isaaclab.cloner.replicate` with a single-source :class:`~isaaclab.cloner.ClonePlan`:
-
-    .. code-block:: python
-
-        from isaaclab import cloner
-        from isaaclab.assets import Articulation
-
-        scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
-        robot = Articulation(robot_cfg)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, pos)
-        cloner.replicate(plan)
-
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
         resetting the internal buffers, writing the buffers to the simulation and updating the buffers from the
@@ -153,13 +138,12 @@ class InteractiveScene:
         self._sensors = dict()
         self._surface_grippers = dict()
         self._visual_materials = dict()
-        self._extras = dict()
+        self._extras: dict[str, Asset | VisualizationMarkers] = {}
         # get stage handle
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
-        requested_viz_types = set(self.sim.resolve_visualizer_types())
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
@@ -205,13 +189,6 @@ class InteractiveScene:
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 
-        # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
-        cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
-        for type_name in requested_viz_types.union(cam_types):
-            requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
-            self.sim.requires_usd_stage |= requires_stage
-            self.sim.requires_newton_model |= requires_model
-
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
             self.filter_collisions(self._global_prim_paths)
@@ -229,9 +206,10 @@ class InteractiveScene:
         scene_asset_names = [name for name, _ in items]
         flat_items: list[tuple[str, Any]] = []
         for asset_name, asset_cfg in items:
-            children = (
+            children = list(
                 asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
             )
+            children.extend(value for value in vars(asset_cfg).values() if isinstance(value, VisualizationMarkersCfg))
             for child in children:
                 child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
                 flat_items.append((asset_name, child))
@@ -259,6 +237,8 @@ class InteractiveScene:
         clone_asset_names: list[str] = []
         variant_counts: list[int] = []
         for asset_name, child in flat_items:
+            if isinstance(child, CameraCfg):
+                self.sim.get_or_create_backend(child.renderer_cfg)
             if id(child) in nested_visual_material_ids:
                 if child.spawn is not None:
                     child.spawn.spawn_path = child.prim_path
@@ -453,12 +433,10 @@ class InteractiveScene:
         return self.sim.get_clone_plan()
 
     @property
-    def extras(self) -> dict[str, AssetBaseCfg]:
-        """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
+    def extras(self) -> dict[str, Asset | VisualizationMarkers]:
+        """A dictionary of scene entities without runtime simulation views.
 
-        The keys are the names of the miscellaneous objects, and the values are their
-        spawned configurations. Static assets create no runtime view: their prims are
-        kept exactly as cloned.
+        The keys are the names of miscellaneous authoring-only assets or visualization markers.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -899,20 +877,8 @@ class InteractiveScene:
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, VisualMaterialCfg):
                 self._visual_materials[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, AssetBaseCfg):
-                # manually spawn asset (into its clone-plan source env only)
-                if asset_cfg.spawn is not None:
-                    asset_cfg.spawn.func(
-                        asset_cfg.spawn.spawn_path,
-                        asset_cfg.spawn,
-                        translation=asset_cfg.init_state.pos,
-                        orientation=asset_cfg.init_state.rot,
-                    )
-                    # static assets have no asset class to queue their own replication:
-                    # queue the USD spread here so clones exist in every planned env
-                    cloner.queue_replication(asset_cfg)
-                # static assets create no view: the prims are kept exactly as cloned
-                self._extras[asset_name] = asset_cfg
+            elif isinstance(asset_cfg, (VisualizationMarkersCfg, AssetBaseCfg)):
+                self._extras[asset_name] = asset_cfg.class_type(asset_cfg)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 

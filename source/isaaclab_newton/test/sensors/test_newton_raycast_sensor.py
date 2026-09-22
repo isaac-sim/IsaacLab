@@ -55,8 +55,8 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/SensorBody",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, SENSOR_HEIGHT)),
     )
@@ -65,9 +65,9 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Box",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(3.0, 0.0, 0.5)),
     )
@@ -172,9 +172,9 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     """Tracked target registration remains valid when discovery returns concrete owner paths."""
     obstacle_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionBaseCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     obstacle_cfg.func("/World/Origin_00/Obstacle", obstacle_cfg)
 
@@ -221,13 +221,15 @@ def test_bvh_refit_tracks_moving_geometry(sim):
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT - 1.0), atol=1e-3, rtol=0)
 
 
-def test_sensor_read_refreshes_fk_after_carrier_pose_write(sim):
-    """The first sensor read after a pose write uses the refreshed carrier pose."""
+def test_sensor_reads_refresh_fk_after_carrier_pose_write(sim):
+    """The first sensor read and the pose getter both resolve pending FK after a carrier pose write."""
     scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
     sim.reset()
     sensor = _step_and_read(sim, scene)
     initial_distances = sensor.data.ray_distances.torch.clone()
+    initial_positions = sensor.get_world_poses()[0].torch.clone()
 
+    # Lift the carrier: the first data read after the write must see the refreshed body_q.
     sensor_body: RigidObject = scene["sensor_body"]
     target_pose = sensor_body.data.root_link_pose_w.torch.clone()
     target_pose[:, 2] += 1.0
@@ -238,22 +240,14 @@ def test_sensor_read_refreshes_fk_after_carrier_pose_write(sim):
     distances = sensor.data.ray_distances.torch
     torch.testing.assert_close(distances, initial_distances + 1.0, atol=1e-3, rtol=0)
 
-
-def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
-    """The ray-caster pose getter resolves pending FK before reading ``body_q``."""
-    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
-    sim.reset()
-    sensor = _step_and_read(sim, scene)
-    initial_positions = sensor.get_world_poses()[0].torch.clone()
-
-    sensor_body: RigidObject = scene["sensor_body"]
-    target_pose = sensor_body.data.root_link_pose_w.torch.clone()
+    # Shift the carrier sideways: the pose getter must resolve pending FK before reading body_q.
     target_pose[:, 0] += 1.0
     sensor_body.write_root_pose_to_sim_index(root_pose=target_pose)
 
     positions = sensor.get_world_poses()[0].torch
     expected_positions = initial_positions.clone()
     expected_positions[:, 0] += 1.0
+    expected_positions[:, 2] += 1.0
     torch.testing.assert_close(positions, expected_positions, atol=1e-3, rtol=0)
 
 

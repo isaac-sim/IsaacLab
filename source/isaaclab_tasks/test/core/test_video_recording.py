@@ -5,25 +5,8 @@
 
 """End-to-end video recording tests covering all VideoRecorder sources.
 
-Each test writes real mp4 clips and reads them back to verify content.
-
-Sources tested:
-  "visualizer:kit"        – Kit Replicator viewport (PhysX)
-  "visualizer:kit"+Newton – logs error, no clip written
-  "visualizer:newton"     – Newton GL framebuffer (Newton physics)
-  "sensor:tiled_camera"   – tiled camera sensor (PhysX, RTX renderer)
-  multiple recorders      – Kit viewport + sensor written simultaneously
-
-Setup:
-    - AppLauncher(headless=True, enable_cameras=True)
-    - CartpoleEnv or CartpoleCameraEnv, stepped for _STEPS env steps per test.
-    - VideoRecorderCfg(video_length=_CLIP, video_interval=0) → one clip per test.
-Tests:
-    - kit_physx      → non-black ✓, motion ✓
-    - kit_newton     → error logged ✓, no clip ✓
-    - newton         → non-black ✓  (motion skipped — Newton GL renders asynchronously)
-    - sensor_physx   → non-black ✓, motion ✓
-    - multi_recorder → kit clip ✓, sensor clip ✓, both non-black and moving
+Each test steps a cartpole environment with one or more recorders attached, writes real mp4 clips and
+reads them back to verify that they are non-black and, for synchronous render sources, show motion.
 """
 
 # Check for moviepy before launching Kit so a missing dependency produces a
@@ -134,7 +117,7 @@ def _run_cartpole_camera(env_cfg) -> None:
     sim_utils.create_new_stage()
     env = CartpoleCameraEnv(env_cfg)
     try:
-        assert env.cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
+        assert env.cfg.scene.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
         env.reset()
         # Nonzero action: guarantees clip motion instead of relying on passive pole fall.
         actions = torch.ones(env.num_envs, *env.action_space.shape[1:], device=env.device)

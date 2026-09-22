@@ -37,7 +37,6 @@ __all__ = [
     "feet_flat",
     "feet_touchdown_vel",
     "root_orientation_exp",
-    "survival_success_rate",
     "walk_success_rate",
 ]
 
@@ -226,24 +225,10 @@ def root_orientation_exp(
     return _exp_se(torch.sum(torch.square(tilt[:, :3]), dim=1), sigma)
 
 
-class survival_success_rate(ManagerTermBase):
-    """Logs ``Metrics/success_rate`` = fraction of environments that survived the full episode."""
-
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        super().__init__(cfg, env)
-
-    def reset(self, env_ids: torch.Tensor):
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
-
-    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
-        return torch.zeros(env.num_envs, device=env.device)
-
-
 class walk_success_rate(ManagerTermBase):
     """Episode-mean velocity-tracking + gait-contact success metric for the walk task."""
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._err_xy_sum = torch.zeros(env.num_envs, device=env.device)
         self._err_yaw_sum = torch.zeros(env.num_envs, device=env.device)

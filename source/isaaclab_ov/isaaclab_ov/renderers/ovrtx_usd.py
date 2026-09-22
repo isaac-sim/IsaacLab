@@ -11,59 +11,62 @@ import logging
 import math
 from collections.abc import Mapping
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd, UsdGeom
+
+if TYPE_CHECKING:
+    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
 
 logger = logging.getLogger(__name__)
 
 
-# Maps camera data types to (prim path, prim name, source name). Shared sources use one config.
+# Maps camera data types to (prim name, source name). Shared sources use one config.
 # OVRTX 0.4 keys ``frame.render_vars`` by source name; 0.5+ keys them by the RenderVar prim path.
-_RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
-    "rgb": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
-    "rgba": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+_RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
+    "rgb": ("LdrColor", "LdrColor"),
+    "rgba": ("LdrColor", "LdrColor"),
     # Simple shading uses LdrColor in per-product RTX Minimal mode.
-    "simple_shading_constant_diffuse": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
-    "simple_shading_diffuse_mdl": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
-    "simple_shading_full_mdl": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
-    "rgb_hdr": ("/Render/Vars/HdrColor", "HdrColor", "HdrColor"),
-    "albedo": ("/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"),
-    "depth": ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
-    "distance_to_image_plane": ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+    "simple_shading_constant_diffuse": ("LdrColor", "LdrColor"),
+    "simple_shading_diffuse_mdl": ("LdrColor", "LdrColor"),
+    "simple_shading_full_mdl": ("LdrColor", "LdrColor"),
+    "rgb_hdr": ("HdrColor", "HdrColor"),
+    "albedo": ("albedo", "DiffuseAlbedoSD"),
+    "depth": ("depth", "DistanceToImagePlaneSD"),
+    "distance_to_image_plane": ("depth", "DistanceToImagePlaneSD"),
     # This source requires a distinct render-var prim.
-    "distance_to_camera": ("/Render/Vars/DistanceToCameraSD", "DistanceToCameraSD", "DistanceToCameraSD"),
-    "normals": ("/Render/Vars/NormalSD", "NormalSD", "NormalSD"),
-    "motion_vectors": ("/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"),
-    "semantic_segmentation": ("/Render/Vars/semantic", "semantic", "SemanticSegmentation"),
+    "distance_to_camera": ("DistanceToCameraSD", "DistanceToCameraSD"),
+    "normals": ("NormalSD", "NormalSD"),
+    "motion_vectors": ("TargetMotionSD", "TargetMotionSD"),
+    "semantic_segmentation": ("semantic", "SemanticSegmentation"),
     "instance_segmentation": (
-        "/Render/Vars/NonStableInstanceSegmentation",
         "NonStableInstanceSegmentation",
         "NonStableInstanceSegmentation",
     ),
 }
 
-# Data types produced by putting the whole render product into RTX Minimal mode.
-_SIMPLE_SHADING_DATA_TYPES = frozenset(
-    {
-        "simple_shading_constant_diffuse",
-        "simple_shading_diffuse_mdl",
-        "simple_shading_full_mdl",
-    }
-)
+# Maps simple shading data types to the render product's ``omni:rtx:minimal:mode``.
+_RTX_MINIMAL_MODES = {
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
+}
 
 _COLOR_DATA_TYPES = frozenset({"rgb", "rgba"})
 
 _DEFAULT_RENDER_VAR = _RENDER_VAR_BY_DATA_TYPE["rgb"]
 
 # Segmentation ID-map vars are authored alongside the pixel AOVs, not as camera data types.
-_SEGMENTATION_MAP_RENDER_VARS: tuple[tuple[str, str, str], ...] = (
-    ("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"),
-    ("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"),
-    ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
+_SEGMENTATION_MAP_RENDER_VARS: tuple[tuple[str, str], ...] = (
+    ("StableIdSemanticIdMap", "StableIdSemanticIdMap"),
+    ("StableIdMap", "StableIdMap"),
+    ("SemanticIdMap", "SemanticIdMap"),
 )
 
-_RENDER_VAR_PRIM_PATH_BY_SOURCE: Mapping[str, str] = MappingProxyType(
-    {source: path for path, _, source in (*_RENDER_VAR_BY_DATA_TYPE.values(), *_SEGMENTATION_MAP_RENDER_VARS)}
+_RENDER_VAR_PRIM_NAME_BY_SOURCE: Mapping[str, str] = MappingProxyType(
+    {source: name for name, source in (*_RENDER_VAR_BY_DATA_TYPE.values(), *_SEGMENTATION_MAP_RENDER_VARS)}
 )
 
 
@@ -77,9 +80,7 @@ def _validate_data_type_combination(data_types: list[str]) -> None:
         ValueError: If color and simple-shading data types are combined, or if more than one
             simple-shading data type is requested.
     """
-    simple_shading = list(
-        dict.fromkeys(data_type for data_type in data_types if data_type in _SIMPLE_SHADING_DATA_TYPES)
-    )
+    simple_shading = list(dict.fromkeys(data_type for data_type in data_types if data_type in _RTX_MINIMAL_MODES))
     color = list(dict.fromkeys(data_type for data_type in data_types if data_type in _COLOR_DATA_TYPES))
 
     if simple_shading and color:
@@ -95,19 +96,20 @@ def _validate_data_type_combination(data_types: list[str]) -> None:
         )
 
 
-def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
+def get_render_var_config(data_types: list[str], render_scope_name: str) -> tuple[str, str, str]:
     """Return the first supported render-var configuration for ``data_types``.
 
     Args:
         data_types: Requested camera data types.
+        render_scope_name: Root scope containing the render product and its render vars.
 
     Returns:
         The render-var config, defaulting to ``LdrColor`` when no entry is supported.
     """
-    return get_render_var_configs(data_types)[0]
+    return get_render_var_configs(data_types, render_scope_name)[0]
 
 
-def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
+def get_render_var_configs(data_types: list[str], render_scope_name: str) -> list[tuple[str, str, str]]:
     """Return render-var configs for the requested camera data types.
 
     Shared sources are de-duplicated. Unsupported data types are logged and skipped; if no
@@ -115,9 +117,10 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
 
     Args:
         data_types: Requested camera data types.
+        render_scope_name: Root scope containing the render product and its render vars.
 
     Returns:
-        Render-var configs to author on the render product.
+        Render-var configs as (absolute prim path, prim name, source name) tuples.
 
     Raises:
         ValueError: If ``data_types`` contains incompatible outputs.
@@ -125,7 +128,7 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     data_types = data_types if data_types else ["rgb"]
     _validate_data_type_combination(data_types)
 
-    render_vars: list[tuple[str, str, str]] = []
+    render_vars: list[tuple[str, str]] = []
     unsupported: list[str] = []
     for data_type in data_types:
         config = _RENDER_VAR_BY_DATA_TYPE.get(data_type)
@@ -150,62 +153,73 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     # instance_segmentation, so it is authored once when either output is requested.
     if "semantic_segmentation" in data_types or "instance_segmentation" in data_types:
         render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[2])
-    return render_vars
+    return [(f"/{render_scope_name}/Vars/{name}", name, source) for name, source in render_vars]
 
 
-def render_var_prim_paths_by_source() -> Mapping[str, str]:
+def render_var_prim_names_by_source() -> Mapping[str, str]:
+    """Return the scope-independent RenderVar prim name of every OVRTX render-var source.
+
+    Returns:
+        Read-only mapping of render-var source name to its RenderVar prim name.
+    """
+    return _RENDER_VAR_PRIM_NAME_BY_SOURCE
+
+
+def render_var_prim_paths_by_source(render_scope_name: str) -> Mapping[str, str]:
     """Return the authored RenderVar prim path of every OVRTX render-var source.
+
+    Args:
+        render_scope_name: Root scope containing the render product and its render vars.
 
     Returns:
         Read-only mapping of render-var source name to the absolute path of the ``RenderVar``
         prim this module authors for it.
     """
-    return _RENDER_VAR_PRIM_PATH_BY_SOURCE
+    return MappingProxyType(
+        {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAME_BY_SOURCE.items()}
+    )
 
 
 def build_render_scope_usd(
-    camera_paths: list[str],
-    render_product_name: str,
-    render_var_path: str,
-    render_var_name: str,
-    source_name: str,
-    tiled_width: int,
-    tiled_height: int,
-    minimal_mode: int | None = None,
-    render_var_configs: list[tuple[str, str, str]] | None = None,
-    background_color: tuple[float, float, float] | None = None,
+    spec: CameraRenderSpec,
+    render_data: OVRTXCameraRenderData,
+    *,
     device_id: int | None = None,
     enable_shadows: bool = False,
 ) -> str:
-    """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
+    """Build the camera's USD scope containing its RenderProduct and Vars.
+
+    The initial camera relationship targets only environment zero, whose camera exists in the
+    trimmed stage. Multi-environment rendering rewrites it after runtime cloning.
 
     Args:
-        camera_paths: List of camera prim paths.
-        render_product_name: Name of the render product.
-        render_var_path: Path of the render variable.
-        render_var_name: Name of the render variable.
-        source_name: Name of the source.
-        tiled_width: Width of the tiled image.
-        tiled_height: Height of the tiled image.
-        minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
-        render_var_configs: Render variables to author. Uses the single render var arguments if not provided.
-        background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
-            When set, the render product uses a solid color background instead of the dome light.
-            When ``None``, the default dome-light background is used.
+        spec: Camera configuration, environment count, and camera paths. ISP configurations
+            automatically request the HDR render variable in addition to the configured outputs.
+        render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
             OVRTX assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored in RTX Minimal
-            mode, that is when ``minimal_mode`` is set; the path-traced modes always cast shadows.
+            mode, selected by ``simple_shading_*`` data types; the path-traced modes always cast shadows.
 
     Returns:
-        The USD string for the render scope.
+        The USD snippet for the render scope, without a layer header or metadata.
     """
-    camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
+    data_types = list(spec.cfg.data_types or ["rgb"])
+    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
+        data_types.append("rgb_hdr")
+    tiled_width, tiled_height = _tiled_resolution(spec.num_instances, spec.cfg.width, spec.cfg.height)
+    camera_path = f"/World/envs/env_0/{spec.camera_path_relative_to_env_0}"
+    render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
+    minimal_mode = next(
+        (_RTX_MINIMAL_MODES[data_type] for data_type in data_types if data_type in _RTX_MINIMAL_MODES), None
+    )
+
     # OVRTX reads ``deviceIds`` as CUDA indices and returns render var buffers on that device. Left
     # unauthored it picks its own device, which on a multi-GPU machine can differ from the device the
     # consuming Warp kernels run on -- an illegal access without peer access, silent garbage with it.
     device_ids_line = "" if device_id is None else f"\n        uint[] deviceIds = [{device_id}]"
 
+    background_color = getattr(spec.cfg, "background_color", None)
     if background_color is None:
         bg_type_line = 'token omni:rtx:background:source:type = "domeLight"'
     else:
@@ -228,8 +242,6 @@ def build_render_scope_usd(
         ]
 
     render_mode_block = "\n        ".join(render_mode_lines)
-    if render_var_configs is None:
-        render_var_configs = [(render_var_path, render_var_name, source_name)]
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
         f'''        def RenderVar "{name}"
@@ -240,12 +252,12 @@ def build_render_scope_usd(
     )
 
     return f'''
-def Scope "Render"
+def Scope "{render_data.render_scope_name}"
 {{
-    def RenderProduct "{render_product_name}" (
+    def RenderProduct "{render_data.render_product_name}" (
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
-        rel camera = [{camera_rel_list}]{device_ids_line}
+        rel camera = [<{camera_path}>]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
@@ -270,33 +282,23 @@ def _tiled_resolution(num_envs: int, width: int, height: int) -> tuple[int, int]
 
 
 def build_render_product_as_string(
-    width: int,
-    height: int,
-    num_envs: int,
-    data_types: list[str],
-    minimal_mode: int | None = None,
-    camera_rel_path: str = "Camera",
-    background_color: tuple[float, float, float] | None = None,
+    spec: CameraRenderSpec,
+    render_data: OVRTXCameraRenderData,
+    *,
     device_id: int | None = None,
     enable_shadows: bool = False,
-) -> tuple[str, str]:
-    """Build the render product USD snippet as a string.
+) -> str:
+    """Build a complete render product USD layer as a string.
 
-    This string is meant to be appended to an exported stage (ASCII) before loading into OVRTX.
+    The layer sets the camera scope as its default prim for referencing into OVRTX.
     The initial camera relationship targets only environment zero, whose camera is guaranteed to
     exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
     resolved camera path after runtime cloning.
 
     Args:
-        width: Tile width from sensor config [px].
-        height: Tile height from sensor config [px].
-        num_envs: Number of environments from scene.
-        data_types: Data types from sensor config.
-        minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
-        camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
-        background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
-            When set, the render product uses a solid color background instead of the dome light.
-            When ``None``, the default dome-light background is used.
+        spec: Camera configuration, environment count, and camera paths. ISP configurations
+            automatically request the HDR render variable in addition to the configured outputs.
+        render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them. When ``None``, OVRTX
             assigns the device automatically.
@@ -304,33 +306,10 @@ def build_render_product_as_string(
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
 
     Returns:
-        Tuple of (render product USD snippet as a string, absolute render product prim path).
+        Render product USD layer, including the USDA header and default prim metadata.
     """
-    data_types = data_types if data_types else ["rgb"]
-    tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
-
-    camera_paths = [f"/World/envs/env_0/{camera_rel_path}"]
-    render_product_name = "RenderProduct"
-    render_product_path = f"/Render/{render_product_name}"
-
-    render_var_configs = get_render_var_configs(data_types)
-    render_var_path, render_var_name, source_name = render_var_configs[0]
-
-    camera_content = build_render_scope_usd(
-        camera_paths,
-        render_product_name,
-        render_var_path,
-        render_var_name,
-        source_name,
-        tiled_width,
-        tiled_height,
-        minimal_mode,
-        render_var_configs,
-        background_color,
-        device_id,
-        enable_shadows,
-    )
-    return camera_content, render_product_path
+    camera_content = build_render_scope_usd(spec, render_data, device_id=device_id, enable_shadows=enable_shadows)
+    return f'#usda 1.0\n(defaultPrim = "{render_data.render_scope_name}")\n' + camera_content
 
 
 def create_scene_partition_attributes(

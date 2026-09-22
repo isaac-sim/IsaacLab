@@ -13,20 +13,23 @@ version = "0.1.0"
 description = "Isaac Lab environments for {{ name }}."
 readme = "README.md"
 license = { file = "LICENSE" }
-authors = [{ name = "Isaac Lab Project Developers" }]
+authors = [
+{% for author in authors %}
+    { name = {{ author | tojson }} },
+{% endfor %}
+]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "{{ isaaclab_dependency }}{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
 ]
 
 [project.entry-points."isaaclab.tasks"]
-"{{ name }}" = "{{ name }}.tasks"
+{{ name }} = "{{ name }}.tasks"
 
 [project.optional-dependencies]
-isaacsim = ["{{ isaaclab_dependency }}[isaacsim]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
-ov = ["{{ isaaclab_dependency }}[ov]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
-ovphysx = ["{{ isaaclab_dependency }}[ovphysx]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
-ovrtx = ["{{ isaaclab_dependency }}[ovrtx]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+{% for extra in isaaclab_optional_extras %}
+{{ extra }} = ["{{ isaaclab_dependency }}[{{ extra }}]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+{% endfor %}
 
 [dependency-groups]
 dev = ["codespell>=2.4", "pre-commit>=4.2", "pytest>=8.3", "ruff>=0.11"]

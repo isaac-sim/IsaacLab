@@ -75,6 +75,7 @@
         "module": "isaaclab.sim.simulation_context",
         "functions": [
             {"function": "SimulationContext.__init__", "color": "0x4CAF50"},
+            {"function": "SimulationContext.get_or_create_backend", "color": "0xFFE082"},
             {"function": "SimulationContext.reset", "color": "0x66BB6A"},
             {"function": "SimulationContext.step", "color": "0x81C784"},
             {"function": "SimulationContext.render", "color": "0xA5D6A7"},
@@ -90,7 +91,6 @@
         "functions": [
             {"function": "RenderContext.render_into_camera", "color": "0xFFC107"},
             {"function": "RenderContext.update_scene_state", "color": "0xFFD54F"},
-            {"function": "RenderContext.get_renderer", "color": "0xFFE082"},
             {"function": "RenderContext.ensure_initialize", "color": "0xFFE082"},
             {"function": "RenderContext.ensure_prepare_stage", "color": "0xFFE082"}
         ]

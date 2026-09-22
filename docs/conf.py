@@ -265,6 +265,7 @@ autodoc_mock_imports = [
     "psutil",
     "tqdm",
     "tensordict",
+    "torchrl",
     "trimesh",
     "toml",
     "pink",
@@ -344,6 +345,7 @@ html_js_files = [
 
 html_theme_options = {
     "path_to_docs": "docs/",
+    "navbar_persistent": [],
     "collapse_navigation": True,
     "repository_url": "https://github.com/isaac-sim/IsaacLab",
     "use_repository_button": True,
@@ -395,6 +397,43 @@ html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
 
+
+# Keep published links working after guide consolidation.
+isaaclab_doc_redirects = {
+    "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/how-to/robots": "source/how-to/write_articulation_cfg",
+    "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
+    "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
+    "source/tutorials/00_sim/spawn_prims": "source/how-to/spawn_prims",
+    "source/tutorials/01_assets/add_new_robot": "source/how-to/write_articulation_cfg",
+    "source/tutorials/01_assets/run_articulation": "source/how-to/run_articulation",
+    "source/tutorials/01_assets/run_deformable_object": "source/how-to/run_deformable_object",
+    "source/tutorials/01_assets/run_rigid_object": "source/how-to/run_rigid_object",
+    "source/tutorials/01_assets/run_surface_gripper": "source/how-to/run_surface_gripper",
+    "source/tutorials/02_scene/create_scene": "source/how-to/create_scene",
+    "source/tutorials/03_envs/configuring_rl_training": "source/how-to/configuring_rl_training",
+    "source/tutorials/03_envs/create_direct_rl_env": "source/how-to/create_direct_rl_env",
+    "source/tutorials/03_envs/create_manager_base_env": "source/how-to/create_manager_base_env",
+    "source/tutorials/03_envs/create_manager_rl_env": "source/how-to/create_manager_rl_env",
+    "source/tutorials/03_envs/modify_direct_rl_env": "source/how-to/modify_direct_rl_env",
+    "source/tutorials/03_envs/policy_inference_in_usd": "source/how-to/policy_inference_in_usd",
+    "source/tutorials/03_envs/register_rl_env_gym": "source/how-to/register_rl_env_gym",
+    "source/tutorials/03_envs/run_rl_training": "source/how-to/run_rl_training",
+    "source/tutorials/04_sensors/add_sensors_on_robot": "source/how-to/add_sensors_on_robot",
+    "source/tutorials/05_controllers/run_diff_ik": "source/how-to/run_diff_ik",
+    "source/tutorials/05_controllers/run_osc": "source/how-to/run_osc",
+    "source/tutorials/index": "source/how-to/index",
+}
+
+# Sections of the former combined Docker page now live on separate pages.
+isaaclab_doc_redirect_fragments = {
+    "source/features/docker_cloud": {
+        "clusters": "source/workflows/docker/cluster#deployment-cluster",
+        "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
+        "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
+        "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+    },
+}
 
 # -- Advanced configuration -------------------------------------------------
 
