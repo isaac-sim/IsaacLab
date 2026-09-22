@@ -1689,7 +1689,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "26.0.0"
+version = "27.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1720,7 +1720,40 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'cosmos-runtime'" },
+    { name = "av", marker = "extra == 'cosmos-runtime'" },
+    { name = "boto3", marker = "extra == 'cosmos-runtime'" },
+    { name = "cattrs", marker = "extra == 'cosmos-runtime'" },
+    { name = "diffusers", marker = "extra == 'cosmos-runtime'", specifier = "==0.35.1" },
+    { name = "einops", marker = "extra == 'cosmos-runtime'" },
+    { name = "ftfy", marker = "extra == 'cosmos-runtime'" },
+    { name = "hydra-core", marker = "extra == 'cosmos-runtime'" },
+    { name = "imageio", marker = "extra == 'cosmos-runtime'" },
+    { name = "imageio-ffmpeg", marker = "extra == 'cosmos-runtime'" },
+    { name = "iopath", marker = "extra == 'cosmos-runtime'" },
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "loguru", marker = "extra == 'cosmos-runtime'" },
+    { name = "msgpack", marker = "extra == 'cosmos-runtime'" },
+    { name = "multi-storage-client", marker = "extra == 'cosmos-runtime'" },
+    { name = "nixl", marker = "sys_platform == 'linux' and extra == 'nixl'" },
+    { name = "nvidia-cudnn-frontend", marker = "sys_platform == 'linux' and extra == 'cosmos-runtime'" },
+    { name = "nvidia-ml-py", marker = "extra == 'cosmos-runtime'" },
+    { name = "obstore", marker = "extra == 'cosmos-runtime'" },
+    { name = "omegaconf", marker = "extra == 'cosmos-runtime'" },
+    { name = "pandas", marker = "extra == 'cosmos-runtime'" },
+    { name = "pydantic", marker = "extra == 'cosmos-runtime'" },
+    { name = "qwen-vl-utils", marker = "extra == 'cosmos-runtime'" },
+    { name = "requests", marker = "extra == 'cosmos-runtime'" },
+    { name = "scipy", marker = "extra == 'cosmos-runtime'" },
+    { name = "termcolor", marker = "extra == 'cosmos-runtime'" },
+    { name = "transformers", marker = "extra == 'cosmos-runtime'", specifier = ">=4.57.1,<5" },
+    { name = "tyro", marker = "extra == 'cosmos-runtime'" },
+    { name = "uv", marker = "extra == 'cosmos-runtime'" },
+    { name = "wandb", marker = "extra == 'cosmos-runtime'" },
+    { name = "websockets", marker = "extra == 'cosmos-runtime'" },
+]
+provides-extras = ["cosmos-runtime", "nixl"]
 
 [[package]]
 name = "isaaclab-dev"
@@ -2082,7 +2115,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.5.0"
+version = "7.0.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2093,7 +2126,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.2.0"
+version = "3.3.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2108,7 +2141,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.2.0"
+version = "7.2.1"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2130,7 +2163,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "1.1.0"
+version = "1.1.1"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2147,7 +2180,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "21.0.1"
+version = "21.0.2"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2188,7 +2221,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.11.0"
+version = "1.12.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
