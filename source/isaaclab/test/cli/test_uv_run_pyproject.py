@@ -130,8 +130,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.11"
-    assert "omniverseclient==2.72.3" in dependencies
+    assert versions["ovphysx"] == "0.6.3"
+    assert "omniverseclient==2.74.0" in dependencies
 
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]

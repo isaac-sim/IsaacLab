@@ -63,7 +63,7 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
+        "(or, manually: python -m pip install 'ovrtx==0.5.0.377615')."
     ) from exc
 
 from isaaclab.cloner import ClonePlan
