@@ -10,12 +10,11 @@ import importlib.util
 import json
 import os
 import pathlib
-import platform
 import re
 import subprocess
 import sys
 
-from isaaclab.utils.desktop_icons import xdg_data_home
+from isaaclab.utils.desktop_icons import _has_graphical_session, refresh_desktop_database, xdg_data_home
 
 _DEFAULT_VSCODE_SETTINGS_TEMPLATE = """
 {
@@ -79,7 +78,7 @@ def setup_editor(project_dir: pathlib.Path, isaac_path: str | None = None, verbo
     # successful editor-settings run into a hard crash.
     try:
         setup_desktop_entry(project_dir)
-    except (OSError, UnicodeDecodeError) as error:
+    except (OSError, RuntimeError, UnicodeDecodeError) as error:
         print(f"[WARN] Skipped desktop entry generation: {error}")
 
 
@@ -104,24 +103,31 @@ def setup_desktop_entry(project_dir: pathlib.Path) -> None:
     to keep the ``.desktop`` file in sync automatically without that rerun, since the desktop
     entry is a static file, not a live setting.
 
-    No-op on non-Linux platforms, or if the kit file or the Isaac Sim icon asset cannot be found;
-    desktop icon integration is a convenience, not something that should block the rest of
-    ``isaaclab --editor``.
+    No-op outside a Linux graphical session (headless servers, CI, Docker, Windows, macOS), or if
+    the kit file or the Isaac Sim icon asset cannot be found; desktop icon integration is a
+    convenience, not something that should block the rest of ``isaaclab --editor``.
 
     Args:
         project_dir: Project root, used to locate ``apps/isaaclab.python.kit``.
     """
-    if platform.system() != "Linux":
+    if not _has_graphical_session():
         return
 
     kit_file = project_dir / "apps" / "isaaclab.python.kit"
     identity = _read_kit_window_identity(kit_file)
     if identity is None:
+        if not kit_file.is_file():
+            print(f"[WARN] Skipped desktop entry generation: kit file not found: {kit_file}")
+        else:
+            print(
+                f"[WARN] Skipped desktop entry generation: could not determine Kit's WM_CLASS identity from {kit_file}"
+            )
         return
     title, version = identity
 
     icon_path = _find_isaac_sim_icon()
     if icon_path is None:
+        print("[WARN] Skipped desktop entry generation: Isaac Sim icon asset not found")
         return
 
     applications_dir = xdg_data_home() / "applications"
@@ -142,6 +148,7 @@ def setup_desktop_entry(project_dir: pathlib.Path) -> None:
         f"StartupWMClass={title} {version}\n",
         encoding="utf-8",
     )
+    refresh_desktop_database(applications_dir)
     print(f"Desktop entry generated at {desktop_path}")
 
 

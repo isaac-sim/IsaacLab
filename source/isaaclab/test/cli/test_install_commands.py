@@ -12,6 +12,7 @@ Covers all combinations of:
 
 import os
 import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
@@ -1011,7 +1012,7 @@ def test_install_desktop_icons_best_effort_calls_install_desktop_icons():
     mock_install.assert_called_once_with()
 
 
-def test_install_desktop_icons_best_effort_swallows_import_errors():
+def test_install_desktop_icons_best_effort_swallows_import_errors(monkeypatch):
     """Test a broken transitive import never escapes ``./isaaclab.sh -i``.
 
     Regression test for an ARM installation-test failure: ``isaaclab.utils``'s own
@@ -1020,17 +1021,22 @@ def test_install_desktop_icons_best_effort_swallows_import_errors():
     briefly missing mid-install. The previous, unguarded ``from ...utils.desktop_icons import
     install_desktop_icons`` at the ``command_install`` call site let that escape and crash a
     completed install; this cosmetic step must never be able to do that.
+
+    Simulated here by poisoning ``sys.modules["isaaclab.utils.desktop_icons"]`` with a stand-in
+    module whose attribute access always raises ``ModuleNotFoundError``: Python's import
+    machinery resolves the relative import in ``_install_desktop_icons_best_effort`` to that
+    absolute dotted name and finds it already in ``sys.modules``, so this reproduces the failure
+    regardless of relative-import level mechanics.
     """
-    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
 
-    def _raising_import(name, *args, **kwargs):
-        if name == "isaaclab.utils.desktop_icons" or name.endswith(".utils.desktop_icons"):
+    class _BrokenModule:
+        def __getattr__(self, name):
             raise ModuleNotFoundError("No module named 'lazy_loader'")
-        return real_import(name, *args, **kwargs)
 
-    with mock.patch("builtins.__import__", side_effect=_raising_import):
-        # Must not raise.
-        _install_desktop_icons_best_effort()
+    monkeypatch.setitem(sys.modules, "isaaclab.utils.desktop_icons", _BrokenModule())
+
+    # Must not raise.
+    _install_desktop_icons_best_effort()
 
 
 def test_install_desktop_icons_best_effort_swallows_runtime_errors():

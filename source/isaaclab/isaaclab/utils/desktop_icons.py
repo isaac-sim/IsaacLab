@@ -23,8 +23,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from isaaclab.cli.utils import print_debug
-
 # WM_CLASS values pyglet derives from each viewer's window caption at creation time.
 # See ``newton/_src/viewer/gl/opengl.py`` (``title="Newton"``) and
 # ``newton/_src/viewer/viewer_rtx.py`` (``caption="Newton RTX Viewer"``).
@@ -96,7 +94,7 @@ def _install_desktop_entries(icon_path: Path, data_home: Path) -> Path:
     return apps_dir
 
 
-def _refresh_desktop_database(apps_dir: Path) -> None:
+def refresh_desktop_database(apps_dir: Path) -> None:
     # Best-effort: this tool may be absent (e.g. minimal Linux installs); a missing cache
     # refresh just means the icon appears after the next login rather than immediately.
     if shutil.which("update-desktop-database") is None:
@@ -116,9 +114,12 @@ def install_desktop_icons() -> None:
 
     icon_path = newton_icon_path()
     if icon_path is None:
-        print_debug("Skipping desktop icon install: Newton is not installed in this environment.")
+        # Mirrors isaaclab.cli.utils.print_debug's gating without importing isaaclab.cli
+        # (isaaclab.utils should not depend on isaaclab.cli).
+        if os.environ.get("DEBUG") == "1":
+            print("[DEBUG] Skipping desktop icon install: Newton is not installed in this environment.")
         return
 
-    with contextlib.suppress(OSError):
+    with contextlib.suppress(OSError, RuntimeError):
         apps_dir = _install_desktop_entries(icon_path, xdg_data_home())
-        _refresh_desktop_database(apps_dir)
+        refresh_desktop_database(apps_dir)
