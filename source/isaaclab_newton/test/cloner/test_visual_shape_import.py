@@ -141,6 +141,36 @@ class TestClonerVisualShapeImport:
 
         assert builder.shape_flags[0] & ShapeFlags.VISIBLE
 
+    def test_guide_purpose_static_plane_restores_visibility_without_exposing_cube(self):
+        """A guide-purpose static plane stays visible beside visible sibling geometry."""
+        stage = Usd.Stage.CreateInMemory()
+        UsdGeom.Xform.Define(stage, _SOURCE)
+        UsdGeom.Sphere.Define(stage, f"{_SOURCE}/environment")
+        plane = UsdGeom.Plane.Define(stage, f"{_SOURCE}/plane")
+        UsdPhysics.CollisionAPI.Apply(plane.GetPrim())
+        plane.CreatePurposeAttr(UsdGeom.Tokens.guide)
+        cube = UsdGeom.Cube.Define(stage, f"{_SOURCE}/cube")
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+        cube.CreatePurposeAttr(UsdGeom.Tokens.guide)
+        builder = SimpleNamespace(
+            shape_body=[-1, -1],
+            shape_flags=[ShapeFlags.COLLIDE_SHAPES, ShapeFlags.COLLIDE_SHAPES],
+            shape_label=[str(plane.GetPath()), str(cube.GetPath())],
+            shape_type=[newton.GeoType.PLANE, newton.GeoType.BOX],
+        )
+
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder,
+            stage,
+            {
+                str(plane.GetPath()): 0,
+                str(cube.GetPath()): 1,
+            },
+        )
+
+        assert builder.shape_flags[0] & ShapeFlags.VISIBLE
+        assert not builder.shape_flags[1] & ShapeFlags.VISIBLE
+
     def test_generated_proxy_collider_visual_remains_hidden(self):
         """Newton's unauthored visual companion must not expose a proxy collider."""
         stage = Usd.Stage.CreateInMemory()

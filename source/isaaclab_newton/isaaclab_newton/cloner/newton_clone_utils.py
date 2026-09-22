@@ -60,7 +60,8 @@ def _restore_visible_colliders_without_visual_shapes(
     imported model. Isaac Lab procedural shapes use one default-purpose USD geometry
     for both collision and visualization, so an unrelated visual asset must not hide
     them. Imported collision meshes, guide-purpose collision geometry, and
-    colliders on bodies with separate visual shapes remain hidden.
+    colliders on bodies with separate visual shapes remain hidden, except for
+    static planes used as ground surfaces.
 
     With ``load_visual_shapes=False`` the pass is skipped: Newton never hides a collider
     when the model holds no visual-only shapes, so every flag it would set is already set,
@@ -94,7 +95,8 @@ def _restore_visible_colliders_without_visual_shapes(
             or body_index in bodies_with_visual_shapes
         ):
             continue
-        if body_index < 0:
+        is_static_plane = body_index < 0 and builder.shape_type[index] == GeoType.PLANE
+        if body_index < 0 and not is_static_plane:
             owner_path = _static_collider_owner_path(stage, path)
             if owner_path not in static_owners_with_visual_shapes:
                 static_owners_with_visual_shapes[owner_path] = _has_visible_non_collision_geometry(stage, owner_path)
@@ -104,7 +106,7 @@ def _restore_visible_colliders_without_visual_shapes(
         if (
             imageable
             and imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
-            and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy)
+            and (is_static_plane or imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy))
         ):
             builder.shape_flags[index] = flags | ShapeFlags.VISIBLE
 
