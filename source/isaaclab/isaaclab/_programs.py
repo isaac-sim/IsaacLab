@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import argparse
-import runpy
 import sys
 from dataclasses import dataclass
 from importlib.util import find_spec
 from pathlib import Path
+from types import ModuleType
+
+from isaaclab.paths import ISAACLAB_ROOT
 
 
 @dataclass(frozen=True)
@@ -20,7 +22,7 @@ class ProgramSpec:
     """Metadata for one packaged program."""
 
     name: str
-    module: str
+    relative_path: str
     summary: str
     extras: tuple[str, ...] = ()
     required_modules: tuple[str, ...] = ()
@@ -36,6 +38,36 @@ class ProgramSpec:
         """Return required Python modules that are unavailable."""
         return tuple(module for module in self.required_modules if find_spec(module) is None)
 
+    @property
+    def path(self) -> Path:
+        """Return the program path in a checkout or installed wheel."""
+        return _program_root() / self.relative_path
+
+
+def _program_root() -> Path:
+    """Return the root containing executable programs."""
+    installed_root = Path(__file__).resolve().parent / "_demos"
+    if installed_root.is_dir():
+        return installed_root
+    return ISAACLAB_ROOT / "demos"
+
+
+def _run_script(path: Path) -> None:
+    """Run a script as ``__main__`` without replacing ``sys.argv[0]``."""
+    module = ModuleType("__main__")
+    module.__file__ = str(path)
+    module.__package__ = None
+    module.__spec__ = None
+    original_main = sys.modules.get("__main__")
+    try:
+        sys.modules["__main__"] = module
+        exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
+    finally:
+        if original_main is None:
+            sys.modules.pop("__main__", None)
+        else:
+            sys.modules["__main__"] = original_main
+
 
 _ISAACSIM = {"extras": ("isaacsim",), "required_modules": ("isaacsim",)}
 _TETRAHEDRALIZATION = {"extras": ("tetrahedralization",), "required_modules": ("pytetwild",)}
@@ -43,153 +75,153 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 
 
 DEMOS = (
-    ProgramSpec("zoo", "isaaclab.demos.zoo", "Explore Isaac Lab robots and simulation features."),
+    ProgramSpec("zoo", "zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec(
         "h1-locomotion",
-        "isaaclab.demos.h1_locomotion",
+        "h1_locomotion.py",
         "Control a trained H1 locomotion policy.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "pick-and-place",
-        "isaaclab.demos.pick_and_place",
+        "pick_and_place.py",
         "Interactively pick and place a cube.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "newton-dominoes",
-        "isaaclab.demos.newton_viewer_dominoes",
+        "newton_viewer_dominoes.py",
         "Interact with Newton XPBD dominoes.",
     ),
     ProgramSpec(
         "newton-block-and-tackle",
-        "isaaclab.demos.newton_viewer_block_and_tackle",
+        "newton_viewer_block_and_tackle.py",
         "Interact with a Newton VBD block-and-tackle scene.",
     ),
     ProgramSpec(
         "snowball-smash",
-        "isaaclab.demos.mpm.snowball_smash",
+        "mpm/snowball_smash.py",
         "Smash rigid crates with MPM snowballs.",
     ),
-    ProgramSpec("teapot-fill", "isaaclab.demos.mpm.teapot_fill", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec("teapot-fill", "mpm/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
 )
 
 
 EXAMPLES = (
     ProgramSpec(
         "bin-packing",
-        "isaaclab.examples.bin_packing",
+        "bin_packing.py",
         "Clone heterogeneous randomized bin layouts.",
         **_ISAACSIM,
     ),
-    ProgramSpec("cables", "isaaclab.examples.cables", "Simulate colliding cables with Newton VBD."),
+    ProgramSpec("cables", "cables.py", "Simulate colliding cables with Newton VBD."),
     ProgramSpec(
         "deformables",
-        "isaaclab.examples.deformables",
+        "deformables.py",
         "Compare deformable objects across backends.",
         **_TETRAHEDRALIZATION,
     ),
     ProgramSpec(
         "heterogeneous-scene",
-        "isaaclab.examples.heterogeneous_scene",
+        "heterogeneous_scene.py",
         "Compose heterogeneous task scenes.",
         **_ISAACSIM,
     ),
-    ProgramSpec("markers", "isaaclab.examples.markers", "Render reusable visualization markers.", **_ISAACSIM),
-    ProgramSpec("multi-asset", "isaaclab.examples.multi_asset", "Spawn different assets across cloned environments."),
+    ProgramSpec("markers", "markers.py", "Render reusable visualization markers.", **_ISAACSIM),
+    ProgramSpec("multi-asset", "multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec(
         "procedural-terrain",
-        "isaaclab.examples.procedural_terrain",
+        "procedural_terrain.py",
         "Generate procedural terrain meshes.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "visual-color-randomization",
-        "isaaclab.examples.visual_color_randomization",
+        "visual_color_randomization.py",
         "Randomize visual materials on cloned assets.",
     ),
     ProgramSpec(
         "mpm-granular",
-        "isaaclab.examples.mpm.newton_mpm_granular",
+        "mpm/newton_mpm_granular.py",
         "Drop granular MPM material on obstacles.",
     ),
     ProgramSpec(
         "mpm-two-way-coupling",
-        "isaaclab.examples.mpm.newton_mpm_twoway_coupling",
+        "mpm/newton_mpm_twoway_coupling.py",
         "Couple MPM sand with rigid bodies.",
     ),
     ProgramSpec(
         "camera",
-        "isaaclab.examples.sensors.cameras",
+        "sensors/cameras.py",
         "Capture data from several camera configurations.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "contact-sensor",
-        "isaaclab.examples.sensors.contact_sensor",
+        "sensors/contact_sensor.py",
         "Inspect robot contact measurements.",
     ),
     ProgramSpec(
         "frame-transformer",
-        "isaaclab.examples.sensors.frame_transformer_sensor",
+        "sensors/frame_transformer_sensor.py",
         "Track transforms between robot frames.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "imu",
-        "isaaclab.examples.sensors.imu_sensor",
+        "sensors/imu_sensor.py",
         "Inspect inertial measurements.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "multi-mesh-ray-caster",
-        "isaaclab.examples.sensors.multi_mesh_raycaster",
+        "sensors/multi_mesh_raycaster.py",
         "Cast rays against several dynamic meshes.",
     ),
     ProgramSpec(
         "multi-mesh-ray-caster-camera",
-        "isaaclab.examples.sensors.multi_mesh_raycaster_camera",
+        "sensors/multi_mesh_raycaster_camera.py",
         "Render depth and normals with a multi-mesh ray caster.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "newton-raycast",
-        "isaaclab.examples.sensors.newton_raycast",
+        "sensors/newton_raycast.py",
         "Raycast against static or moving Newton geometry.",
     ),
     ProgramSpec(
         "pva",
-        "isaaclab.examples.sensors.pva_sensor",
+        "sensors/pva_sensor.py",
         "Inspect pose, velocity, and acceleration data.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "ray-caster",
-        "isaaclab.examples.sensors.raycaster_sensor",
+        "sensors/raycaster_sensor.py",
         "Inspect a lidar-style ray caster.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "arl-robot-1",
-        "isaaclab_contrib.examples.arl_robot_1",
+        "arl_robot_1.py",
         "Fly ARL Robot 1 with its position controller.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "haply-teleoperation",
-        "isaaclab_teleop.examples.haply_teleoperation",
+        "haply_teleoperation.py",
         "Teleoperate a Franka with Haply hardware.",
         **_TELEOP,
     ),
     ProgramSpec(
         "ppisp-camera",
-        "isaaclab_ppisp.examples.ppisp_camera",
+        "sensors/ppisp_camera.py",
         "Compare PPISP camera renderers.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "tactile-sensor",
-        "isaaclab_contrib.examples.tacsl_sensor",
+        "sensors/tacsl_sensor.py",
         "Inspect camera and force-field tactile data.",
         **_ISAACSIM,
     ),
@@ -205,6 +237,7 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
         args: Arguments forwarded to the program.
 
     Raises:
+        FileNotFoundError: If the program script is unavailable.
         ModuleNotFoundError: If an optional dependency is unavailable.
     """
     missing_modules = program.missing_modules()
@@ -213,11 +246,14 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
         raise ModuleNotFoundError(
             f"{command} {program.name!r} requires missing module(s): {missing}. Run: {program.uvx_command(command)}"
         )
+    path = program.path
+    if not path.is_file():
+        raise FileNotFoundError(f"{command} {program.name!r} is not installed at {path}")
 
     original_argv = sys.argv
     try:
         sys.argv = [f"isaaclab {command} {program.name}", *(args or [])]
-        runpy.run_module(program.module, run_name="__main__")
+        _run_script(path)
     finally:
         sys.argv = original_argv
 

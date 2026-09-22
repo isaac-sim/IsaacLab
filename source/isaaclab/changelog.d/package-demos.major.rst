@@ -8,9 +8,8 @@ Added
 Changed
 ^^^^^^^
 
-* **Breaking:** Packaged maintained programs as importable modules instead of repository-level scripts. Use
-  ``isaaclab demo list`` and ``isaaclab example list`` to discover them rather than invoking files under
-  ``scripts/demos``.
+* **Breaking:** Moved maintained programs from ``scripts/demos`` into the repository-level ``demos`` directory and
+  exposed them through ``isaaclab demo`` and ``isaaclab example``. Use either catalog to discover stable commands.
 * **Breaking:** Reclassified the following technical programs as examples without changing their public names:
   ``arl-robot-1``, ``bin-packing``, ``cables``, ``deformables``, ``haply-teleoperation``, ``heterogeneous-scene``,
   ``markers``, ``multi-asset``, ``procedural-terrain``, ``visual-color-randomization``, ``mpm-granular``,

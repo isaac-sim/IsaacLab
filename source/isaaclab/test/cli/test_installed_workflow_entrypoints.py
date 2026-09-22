@@ -117,27 +117,26 @@ def test_example_catalog_lists_packaged_examples(capsys):
 
 
 @pytest.mark.parametrize("catalog", [programs.DEMOS, programs.EXAMPLES])
-def test_program_catalog_resolves_modules(catalog):
-    """Every core catalog entry must resolve to a packaged Python module."""
-    core_programs = (program for program in catalog if program.module.startswith("isaaclab."))
-    assert all(programs.find_spec(program.module) is not None for program in core_programs)
+def test_program_catalog_resolves_paths(catalog):
+    """Every catalog entry must resolve to a bundled script resource."""
+    assert all(program.path.is_file() for program in catalog)
 
 
-def test_owned_examples_resolve_from_their_packages():
-    """Integration examples must stay with the package that owns their implementation."""
-    modules_by_name = {program.name: program.module for program in programs.EXAMPLES}
-    assert modules_by_name["arl-robot-1"] == "isaaclab_contrib.examples.arl_robot_1"
-    assert modules_by_name["haply-teleoperation"] == "isaaclab_teleop.examples.haply_teleoperation"
-    assert modules_by_name["ppisp-camera"] == "isaaclab_ppisp.examples.ppisp_camera"
-    assert modules_by_name["tactile-sensor"] == "isaaclab_contrib.examples.tacsl_sensor"
+def test_integration_examples_use_root_demo_paths():
+    """Integration examples must use paths relative to the root demos directory."""
+    paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
+    assert paths_by_name["arl-robot-1"] == "arl_robot_1.py"
+    assert paths_by_name["haply-teleoperation"] == "haply_teleoperation.py"
+    assert paths_by_name["ppisp-camera"] == "sensors/ppisp_camera.py"
+    assert paths_by_name["tactile-sensor"] == "sensors/tacsl_sensor.py"
 
 
 def test_newton_raycast_scenes_share_one_example():
     """Newton ray-cast variants must stay behind one focused example entry."""
-    modules_by_name = {program.name: program.module for program in programs.EXAMPLES}
-    assert modules_by_name["newton-raycast"] == "isaaclab.examples.sensors.newton_raycast"
-    assert "newton-raycast-heightfield" not in modules_by_name
-    assert "newton-raycast-moving-geometry" not in modules_by_name
+    paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
+    assert paths_by_name["newton-raycast"] == "sensors/newton_raycast.py"
+    assert "newton-raycast-heightfield" not in paths_by_name
+    assert "newton-raycast-moving-geometry" not in paths_by_name
 
 
 @pytest.mark.parametrize("catalog", [programs.DEMOS, programs.EXAMPLES])
@@ -151,8 +150,8 @@ def test_program_catalog_names_are_unique(catalog):
     ("command", "command_name", "program_name"),
     [(cli.demo, "demo", "zoo"), (cli.example, "example", "cables")],
 )
-def test_program_command_dispatches_to_packaged_module(command, command_name, program_name):
-    """Program commands must forward all remaining arguments to the selected module."""
+def test_program_command_dispatches_to_packaged_script(command, command_name, program_name):
+    """Program commands must forward all remaining arguments to the selected script."""
     with mock.patch.object(programs, "run_program") as run_program:
         command([program_name, "--physics", "newton_mjwarp"])
 
@@ -169,14 +168,15 @@ def test_program_command_forwards_help_to_selected_module():
     run_program.assert_called_once_with("demo", programs.DEMOS[0], ["--help"])
 
 
-def test_program_runner_restores_process_arguments():
+def test_program_runner_preserves_command_name_and_restores_process_arguments(tmp_path):
     """Running a program must not leak its arguments to the caller."""
     original_argv = sys.argv
-    program = programs.DEMOS[0]
-    with mock.patch.object(programs.runpy, "run_module") as run_module:
+    script = tmp_path / "example.py"
+    script.write_text("import sys\nassert sys.argv[0] == 'isaaclab demo temporary'\n", encoding="utf-8")
+    program = programs.ProgramSpec("temporary", script.name, "Temporary test program.")
+    with mock.patch.object(programs, "_program_root", return_value=tmp_path):
         programs.run_program("demo", program, ["--physics", "newton_mjwarp"])
 
-    run_module.assert_called_once_with(program.module, run_name="__main__")
     assert sys.argv is original_argv
 
 

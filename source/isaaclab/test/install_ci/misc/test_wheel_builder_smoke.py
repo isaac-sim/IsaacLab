@@ -18,15 +18,14 @@ Tests:
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
-    - python -c "from importlib.util import find_spec; from isaaclab._programs import DEMOS, EXAMPLES;
-        assert all(find_spec(program.module) for program in (*DEMOS, *EXAMPLES))"
-        -> verify packaged program catalogs resolve
+    - python -c "from isaaclab._programs import DEMOS, EXAMPLES;
+        assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))"
+        -> verify packaged program catalogs resolve private script resources
     - python -c "import contextlib
         import io
-        import runpy
         import sys
         import isaaclab.app as app
-        from isaaclab._programs import DEMOS, EXAMPLES
+        from isaaclab._programs import DEMOS, EXAMPLES, _run_script
         def fail_launch(*args, **kwargs):
             raise AssertionError(f'{sys.argv[0]} launched simulation while handling --help')
         app.AppLauncher.__init__ = fail_launch
@@ -36,7 +35,7 @@ Tests:
                 sys.argv = [f'isaaclab {command} {program.name}', '--help']
                 with contextlib.redirect_stdout(io.StringIO()):
                     try:
-                        runpy.run_module(program.module, run_name='__main__')
+                        _run_script(program.path)
                     except SystemExit as error:
                         if error.code != 0:
                             raise AssertionError(f'{sys.argv[0]} --help exited with {error.code}') from error
@@ -138,9 +137,10 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert "isaaclab/app/__init__.py" in names
         assert "isaaclab/apps/isaaclab.python.kit" in names
         assert "isaaclab/_programs.py" in names
-        assert "isaaclab/demos/zoo.py" in names
-        assert "isaaclab/demos/assets/nvidia_logo_domino_poses.pth" in names
-        assert "isaaclab/examples/cables.py" in names
+        assert "isaaclab/_demos/zoo.py" in names
+        assert "isaaclab/_demos/assets/nvidia_logo_domino_poses.pth" in names
+        assert "isaaclab/_demos/cables.py" in names
+        assert not any(name.startswith(("isaaclab/demos/", "isaaclab/examples/")) for name in names)
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 
@@ -193,15 +193,14 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
 
-    def test_installed_program_catalogs_resolve_packaged_modules(self):
-        """Verify the installed CLI resolves programs without a source checkout."""
+    def test_installed_program_catalogs_resolve_private_resources(self):
+        """Verify the installed CLI resolves private demo resources without a source checkout."""
         result = self.run_in_uv_env(
             [
                 "python",
                 "-c",
-                "from importlib.util import find_spec; "
                 "from isaaclab._programs import DEMOS, EXAMPLES; "
-                "assert all(find_spec(program.module) for program in (*DEMOS, *EXAMPLES))",
+                "assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))",
             ]
         )
         assert result.returncode == 0, f"installed program catalogs are incomplete:\n{result.stdout}\n{result.stderr}"
@@ -211,11 +210,10 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         check_help = """
 import contextlib
 import io
-import runpy
 import sys
 
 import isaaclab.app as app
-from isaaclab._programs import DEMOS, EXAMPLES
+from isaaclab._programs import DEMOS, EXAMPLES, _run_script
 
 
 def fail_launch(*args, **kwargs):
@@ -230,7 +228,7 @@ for command, catalog in (("demo", DEMOS), ("example", EXAMPLES)):
         sys.argv = [f"isaaclab {command} {program.name}", "--help"]
         with contextlib.redirect_stdout(io.StringIO()):
             try:
-                runpy.run_module(program.module, run_name="__main__")
+                _run_script(program.path)
             except SystemExit as error:
                 if error.code != 0:
                     raise AssertionError(f"{sys.argv[0]} --help exited with {error.code}") from error

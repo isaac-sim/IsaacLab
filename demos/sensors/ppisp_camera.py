@@ -119,6 +119,12 @@ simulation_app = app_launcher.app
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from isaaclab_ppisp._demo_utils import (
+    find_ppisp_camera_bindings,
+    format_available_ppisp_cameras,
+    order_ppisp_bindings_by_camera,
+)
+from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
 
 from pxr import Usd, UsdGeom
 
@@ -128,13 +134,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import configclass
-
-from isaaclab_ppisp._demo_utils import (
-    find_ppisp_camera_bindings,
-    format_available_ppisp_cameras,
-    order_ppisp_bindings_by_camera,
-)
-from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
 
 
 @configclass
