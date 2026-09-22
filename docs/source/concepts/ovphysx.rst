@@ -128,6 +128,20 @@ Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combin
 extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
 with this runtime combination.
 
+Task completion
+---------------
+
+The backend requires the OVPhysX task API. ``PhysX.clone()`` and
+``PhysX.reset_stage()`` return ``Task`` receipts, which the backend passes to
+``PhysX.wait_task()`` before continuing. Custom Python callers must pass the
+whole receipt to ``wait_task()`` instead of passing an integer to ``wait_op()``.
+A receipt records admission; execution failures are raised when the task is
+collected, even when the operation executes inline. Collect each task once.
+
+Simulation stepping continues to use ``PhysX.step_sync()``. The Python
+``update_articulations_kinematic()``, ``read()``, and ``write()`` convenience
+methods also wait internally and report task failures before returning.
+
 Testing the Installation
 ------------------------
 
