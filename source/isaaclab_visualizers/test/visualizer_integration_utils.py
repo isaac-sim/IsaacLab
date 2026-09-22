@@ -142,13 +142,7 @@ _WARMUP_MAX_FRAMES = 50
 """Hard cap on render frames pumped during convergence-based warmup."""
 
 _FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES = 20
-"""Franka cloth kit-viewport warmup uses lightweight ``app.update()`` ticks
-(not ``env.sim.render()``).  Each ``env.sim.render()`` call for the VBD cloth
-scene blocks in the Newton Fabric sync path (the VBD cloth solver never sets
-``NewtonManager._newton_fabric_ready``), causing hangs on some GPU/driver
-combinations.  20 ``app.update()`` ticks drive RTX TAA accumulation without
-triggering the Fabric sync, producing an acceptable frame within the
-loose 12% / SSIM-0.85 thresholds."""
+"""Bounded RTX TAA warmup for the Franka cloth viewport capture."""
 
 _WARMUP_STABLE_DIFF_PCT = 0.5
 """Fraction of pixels (%) with inter-frame L2 > 1.0 below which two consecutive frames are
@@ -1060,48 +1054,6 @@ def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
     _update_active_simulation_app()
 
 
-def _force_newton_transforms_resync() -> None:
-    """Force-mark Newton body transforms and particles dirty and re-sync to USD Fabric.
-
-    Needed when the Fabric SelectPrims check fails on a prior pre_render() call (GPU
-    attribute propagation delay), leaving dirty flags cleared without writing positions.
-    """
-    with contextlib.suppress(Exception):
-        from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
-
-        if NewtonManager._usdrt_stage is not None and NewtonManager.backend is not None:
-            NewtonManager._transforms_dirty = True
-            NewtonManager.sync_transforms_to_fabric()
-            NewtonManager._particles_dirty = True
-            NewtonManager.sync_particles_to_usd()
-
-
-def _drain_until_newton_fabric_ready(max_updates: int = 200, updates_per_iter: int = 2) -> None:
-    """Pump Kit updates until Newton has written body positions to Fabric.
-
-    Polls ``NewtonManager._newton_fabric_ready`` (set after the first successful
-    SelectPrims call) with real-time sleeps so the GPU can process pending Fabric work.
-    Returns immediately if already ready (common case after a normal physics warmup).
-
-    The tiled-camera path uses ``max_updates=600`` safely (tiled cameras are not rendered
-    until ``camera_sensor.update()``); the viewport path keeps a lower ceiling to limit
-    contaminated TAA frames accumulating during the drain.
-    """
-    with contextlib.suppress(Exception):
-        from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
-
-        for _ in range(max(0, int(max_updates))):
-            if NewtonManager._newton_fabric_ready:
-                return
-            with contextlib.suppress(Exception):
-                import torch  # noqa: PLC0415
-
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-            _force_newton_transforms_resync()
-            _drain_kit_app_updates(updates_per_iter)
-
-
 def _capture_kit_viewport_with_pose_reapply(
     env,
     kit_visualizer: KitVisualizer,
@@ -1139,14 +1091,14 @@ def _capture_kit_viewport_with_pose_reapply(
     annotator, render_product = _build_rgb_annotator_for_camera(camera_path, resolution=resolution)
     try:
         if physics_backend == "newton":
-            _drain_until_newton_fabric_ready()
+            kit_visualizer._scene_data_provider._update_fabric()
             prev: np.ndarray | None = None
             for i in range(_WARMUP_MAX_FRAMES):
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 env.sim.render()
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 if prior_physics_steps > 0:
-                    _force_newton_transforms_resync()
+                    kit_visualizer._scene_data_provider._update_fabric()
                 _update_active_simulation_app()
                 with contextlib.suppress(Exception):
                     annotator.get_data()
@@ -1369,23 +1321,8 @@ def _capture_visualizer_tiled_camera_rgb(
     if force_recompute and getattr(visualizer, "_camera_is_owned", False):
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
-            # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
-            # after the first iteration; on PhysX it is never set so we skip the full drain and
-            # let _pump_tiled_until_stable handle convergence instead.
-            _drain_until_newton_fabric_ready(max_updates=20, updates_per_iter=4)
-            try:
-                from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
-
-                if NewtonManager._newton_fabric_ready:
-                    if not paused:
-                        _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
-                    _update_active_simulation_app()
-                    if not paused:
-                        _force_newton_transforms_resync()
-                else:
-                    _update_active_simulation_app()
-            except Exception:
-                _update_active_simulation_app()
+            visualizer._scene_data_provider._update_fabric()
+            _update_active_simulation_app()
         return _pump_tiled_until_stable(camera_sensor, camera_indices)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()

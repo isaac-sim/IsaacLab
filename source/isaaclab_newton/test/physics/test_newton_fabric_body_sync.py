@@ -133,16 +133,6 @@ def _expected_cable_points_world(cable, env_id: int = 0) -> torch.Tensor:
     return torch.stack(points)
 
 
-class _FakeAttribute:
-    def __init__(self, value_type, custom):
-        self.value_type = value_type
-        self.custom = custom
-        self.value = None
-
-    def Set(self, value):
-        self.value = value
-
-
 class _FakePrim:
     def __init__(self, valid=True):
         self.valid = valid
@@ -153,13 +143,6 @@ class _FakePrim:
 
     def IsValid(self):
         return self.valid
-
-    def CreateAttribute(self, name, value_type, custom=False):
-        self.attributes[name] = _FakeAttribute(value_type, custom)
-        return self.attributes[name]
-
-    def GetAttribute(self, name):
-        return self.attributes[name]
 
     def AddAppliedSchema(self, schema):
         self.applied_schemas.append(schema)
@@ -203,17 +186,8 @@ class _FakeRt:
     Xformable = _FakeXformable
 
 
-class _FakeValueTypeNames:
-    UInt = "UInt"
-
-
-class _FakeSdf:
-    ValueTypeNames = _FakeValueTypeNames
-
-
 class _FakeUsdrt:
     Rt = _FakeRt
-    Sdf = _FakeSdf
 
 
 def test_initialize_fabric_body_prims_uses_existing_fabric_prim():
@@ -228,9 +202,7 @@ def test_initialize_fabric_body_prims_uses_existing_fabric_prim():
     assert stage.defined_prims == []
     assert prim.set_world_xform_from_usd == 1
     assert prim.created_world_matrix_attrs == 0
-    assert prim.GetAttribute("newton:index").value_type == "UInt"
-    assert prim.GetAttribute("newton:index").custom is True
-    assert prim.GetAttribute("newton:index").value == 3
+    assert prim.attributes == {}
     assert prim.applied_schemas == ["PhysicsRigidBodyAPI"]
     assert fabric_hierarchy.update_world_xforms_count == 1
 
@@ -247,9 +219,7 @@ def test_initialize_fabric_body_prims_creates_missing_body_as_xform():
     assert stage.defined_prims == [("/World/envs/env_1/Robot/joints/forearm", "Xform")]
     assert prim.set_world_xform_from_usd == 0
     assert prim.created_world_matrix_attrs == 1
-    assert prim.GetAttribute("newton:index").value_type == "UInt"
-    assert prim.GetAttribute("newton:index").custom is True
-    assert prim.GetAttribute("newton:index").value == 7
+    assert prim.attributes == {}
     assert prim.applied_schemas == ["PhysicsRigidBodyAPI"]
     assert fabric_hierarchy.update_world_xforms_count == 1
 

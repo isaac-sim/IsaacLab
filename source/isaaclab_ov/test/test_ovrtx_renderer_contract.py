@@ -101,6 +101,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
     sim = types.SimpleNamespace(_backend_registry=[])
+    sim.get_scene_data_provider = lambda: types.SimpleNamespace(backend=types.SimpleNamespace(transform_paths=[]))
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
@@ -944,7 +945,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_paths_list = "particle"
     renderer._cable_points_query = "cable"
     renderer._cable_paths_list = "cable"
-    renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
@@ -981,7 +981,6 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert render_data.camera_xform_binding is None
     assert render_data.renderer_info == {}
     assert renderer._object_xform_binding is None
-    assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None
@@ -1024,7 +1023,6 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._particle_paths_list is None
     assert renderer._cable_points_query is None
     assert renderer._cable_paths_list is None
-    assert renderer._object_newton_indices is None
     assert renderer.backend.renderer is None
     assert renderer.backend.stage is None
     assert renderer.backend.paths is None

@@ -4,11 +4,74 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
+import numpy as np
 import pytest
+import warp as wp
 
 pytest.importorskip("pxr")
 pytest.importorskip("omni.physics.tensors")
+
+
+@pytest.mark.parametrize("operation", ["step", "forward"])
+def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeypatch, operation):
+    """SDP borrows native poses once per dirty generation and completes pending joint writes."""
+    from isaaclab_physx.physics import physx_manager
+
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    manager = physx_manager.PhysxManager
+    fabric = Mock()
+    monkeypatch.setattr(manager, "_fabric", fabric)
+    backend = physx_manager.PhysxSceneDataBackend()
+    transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    view = Mock(count=1, get_transforms=Mock(return_value=transforms))
+    backend._rigid_body_view = view
+    sim_view = Mock()
+    monkeypatch.setattr(manager, "backend", SimpleNamespace(simulation_view=sim_view))
+    monkeypatch.setattr(manager, "_scene_data_backend", backend)
+    monkeypatch.setattr(manager, "_kinematics_dirty", False)
+    monkeypatch.setattr(manager, "_anim_recorder", None)
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=0.01), is_playing=lambda: True))
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    monkeypatch.setattr(physx_manager.omni.physx, "get_physx_simulation_interface", Mock(return_value=Mock()))
+    provider = SceneDataProvider(backend)
+    monkeypatch.setattr(PhysicsManager._sim, "get_scene_data_provider", lambda: provider, raising=False)
+    assert backend.fabric_publication.data is fabric
+    provider._prepare_fabric(object(), "cpu")
+    provider._update_fabric()
+    provider._update_fabric()
+    fabric.force_update.assert_called_once_with(0.0, 0.0)
+    view.get_transforms.assert_not_called()
+    assert backend._transform_publication.dirty
+    assert provider.request_transforms(SceneDataFormat.Transform).transforms.ptr == transforms.ptr
+    matrices = provider.request_transforms(SceneDataFormat.Matrix44)
+    view.get_transforms.assert_called_once_with()
+
+    transforms.fill_(wp.transformf(wp.vec3f(1, 2, 3), wp.quat_identity()))
+    getattr(manager, operation)()
+    manager.pre_render()
+    manager.pre_render()
+    assert sim_view.update_articulations_kinematic.call_count == int(operation == "forward")
+    assert provider.request_transforms(SceneDataFormat.Matrix44) is matrices
+    np.testing.assert_array_equal(matrices.matrices.numpy()[0, :3, 3], [1, 2, 3])
+    assert view.get_transforms.call_count == 2
+    provider._update_fabric()
+    provider._update_fabric()
+    assert fabric.force_update.call_count == 2
+
+    manager.invalidate_transforms(kinematics=True)
+    assert backend._transform_publication.dirty and backend._fabric_publication.dirty
+    provider._update_fabric()
+    provider._update_fabric()
+    assert sim_view.update_articulations_kinematic.call_count == 1 + int(operation == "forward")
+    assert fabric.force_update.call_count == 3
+    assert backend._transform_publication.dirty and not backend._fabric_publication.dirty
+    provider.request_transforms(SceneDataFormat.Transform)
+    assert view.get_transforms.call_count == 3
+    assert not backend._transform_publication.dirty
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])

@@ -19,10 +19,13 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 def _install_omni_stubs(monkeypatch):
+    sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     omni_module = sys.modules.get("omni", types.ModuleType("omni"))
     replicator_module = types.ModuleType("omni.replicator")
     replicator_core_module = types.ModuleType("omni.replicator.core")
@@ -361,9 +364,15 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
         patch.object(rtx_renderer, "apply_isaac_rtx_global_settings", side_effect=_record_global_settings),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+        renderer = rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+        renderer.initialize()
+        renderer.update_transforms()
 
     assert call_order == ["enable", "global_settings"]
+    sim = SimulationContext.instance()
+    provider = sim.get_scene_data_provider.return_value
+    provider._prepare_fabric.assert_called_once_with(sim.stage, sim.device)
+    provider._update_fabric.assert_called_once_with()
 
 
 @pytest.mark.parametrize("configured_value", [None, False, True])

@@ -63,8 +63,8 @@ _MATERIAL_WRITES = {
 class RenderContext:
     """Orchestrate simulation-owned renderers and own flat runtime material buffers.
 
-    Renderer instances are borrowed from the simulation's backend registry. Scene state updates
-    run at most once per physics step, regardless of how many cameras share a renderer.
+    Renderer instances are borrowed from the simulation's backend registry. SDP owns transform
+    freshness, including pose writes that do not advance the physics-step counter.
     """
 
     __slots__ = (
@@ -73,7 +73,7 @@ class RenderContext:
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
-        "_last_scene_state_step",
+        "_last_geometry_step",
         "_visual_materials",
         "_visual_material_batches",
         "_visual_material_batches_by_channel",
@@ -91,7 +91,7 @@ class RenderContext:
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
-        self._last_scene_state_step: int | None = None
+        self._last_geometry_step: int | None = None
         self._visual_materials: list[Any] = []
         self._visual_material_batches: tuple[VisualMaterialBatch, ...] = ()
         self._visual_material_batches_by_channel: dict[str, VisualMaterialBatch] = {}
@@ -129,7 +129,7 @@ class RenderContext:
     def register_renderer(self, cfg: RendererCfg, renderer: BaseRenderer) -> None:
         """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
-        self._last_scene_state_step = None
+        self._last_geometry_step = None
         if self._physics_initialized:
             renderer.initialize()
 
@@ -320,19 +320,18 @@ class RenderContext:
             self._prepared_num_envs = num_envs
 
     def update_scene_state(self, physics_step_count: int) -> None:
-        """Update scene state on all backends (at most once per step).
+        """Publish physics state and refresh renderers through SDP's dirty generations.
 
-        Invokes :meth:`BaseRenderer.update_transforms` and then
-        :meth:`BaseRenderer.update_geometries` on each registered renderer.
+        Transforms follow SDP freshness; geometry updates retain their once-per-step cadence.
         """
-        if self._last_scene_state_step == physics_step_count:
+        if not self._renderer_entries:
             return
 
         for _cfg, renderer in self._renderer_entries:
             renderer.update_transforms()
-            renderer.update_geometries()
-
-        self._last_scene_state_step = physics_step_count
+            if self._last_geometry_step != physics_step_count:
+                renderer.update_geometries()
+        self._last_geometry_step = physics_step_count
 
     def render_into_camera(
         self,
@@ -363,8 +362,8 @@ class RenderContext:
         self._prepared_num_envs = None
 
     def reset_scene_state_cadence(self) -> None:
-        """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
-        self._last_scene_state_step = None
+        """Invalidate geometry updates after resets that do not advance the physics step."""
+        self._last_geometry_step = None
 
     def close(self) -> None:
         """Release material writers and lifecycle bookkeeping, not registry-owned renderers.
@@ -382,7 +381,7 @@ class RenderContext:
         self.clone_contexts.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
-        self._last_scene_state_step = None
+        self._last_geometry_step = None
         self._physics_initialized = False
         self._visual_materials.clear()
         self._visual_material_batches = ()

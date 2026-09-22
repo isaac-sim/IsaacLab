@@ -71,7 +71,8 @@ from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -1447,7 +1448,7 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
 def test_initialize_solver_prepares_picking_before_graph_capture(
     monkeypatch, native_path_active, native_graphable, expected_events
 ):
-    """Viewer setup precedes initial capture, which only graphable native actuators defer."""
+    """Initial and hard resets can publish state before solver setup and viewer capture."""
     events: list[str] = []
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
@@ -1478,10 +1479,16 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
             "_capture_or_defer_graph",
             classmethod(lambda cls: events.append("capture")),
         )
+        sim.physics_manager.register_callback(
+            lambda _: sim.get_scene_data_provider().request_transforms(SceneDataFormat.Transform),
+            PhysicsEvent.PHYSICS_READY,
+            wrap_weak_ref=False,
+        )
 
         sim.reset()
+        sim.reset()
 
-    assert events == expected_events
+    assert events == expected_events * 2
 
 
 def test_abstract_build_solver_raises():

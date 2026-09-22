@@ -34,7 +34,7 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataPublication
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
@@ -187,7 +187,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
     """Borrowed native resource; its lifetime belongs to the simulation registry."""
 
     def __init__(self):
-        self._scene_data = SceneDataFormat.Transform()
+        self._transform_publication = SceneDataPublication(SceneDataFormat.Transform())
+        self._fabric_publication = SceneDataPublication(PhysxManager._fabric)
         self._points_data = SceneDataFormat.Points()
         self.clear()
 
@@ -197,7 +198,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
         self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
-        self._scene_data.transforms = None
+        self._transform_publication.data.transforms = None
+        self._transform_publication.dirty = self._fabric_publication.dirty = True
         self._points_data.points = None
         self._geometry_paths: list[str] = []
         self._geometry_counts: list[int] = []
@@ -359,11 +361,18 @@ class PhysxSceneDataBackend(SceneDataBackend):
         return self._geometry_counts
 
     @property
-    def transforms(self) -> SceneDataFormat.Transform:
-        """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
-        if view := self.get_rigid_body_view():
-            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
-        return self._scene_data
+    def fabric_publication(self) -> SceneDataPublication | None:
+        """Borrow PhysX's native Fabric interface without copying its transforms."""
+        PhysxManager.pre_render()
+        return self._fabric_publication if self._fabric_publication.data is not None else None
+
+    @property
+    def transform_publication(self) -> SceneDataPublication:
+        """Publish native rigid-body poses [m, xyzw] and their dirty latch."""
+        PhysxManager.pre_render()
+        if self._transform_publication.dirty and (view := self.get_rigid_body_view()):
+            self._transform_publication.data.transforms = view.get_transforms().view(wp.transformf)
+        return self._transform_publication
 
     @property
     def transform_count(self) -> int:
@@ -395,6 +404,7 @@ class PhysxManager(PhysicsManager):
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
     _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
+    _kinematics_dirty: ClassVar[bool] = False
 
     backend: ClassVar[PhysxBackend | None] = None
     """Borrowed native resource, available after physics warmup and released on stop."""
@@ -447,6 +457,7 @@ class PhysxManager(PhysicsManager):
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context)
         cls._scene_data_backend = PhysxSceneDataBackend()
+        cls._kinematics_dirty = False
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -499,16 +510,33 @@ class PhysxManager(PhysicsManager):
         if cls.backend is not None:
             cls.backend.simulation_view._backend.initialize_kinematic_bodies()
 
+        cls.invalidate_transforms(kinematics=True)
         cls.raise_callback_exception_if_any()
 
     @classmethod
     def forward(cls) -> None:
         """Update articulation kinematics and fabric for rendering."""
         sim = PhysicsManager._sim
-        if cls._fabric is not None and cls._update_fabric is not None:
-            if cls.backend is not None and sim is not None and sim.is_playing():
-                cls.backend.simulation_view.update_articulations_kinematic()
-            cls._update_fabric(0.0, 0.0)
+        if cls.backend is not None and sim is not None and sim.is_playing():
+            cls.backend.simulation_view.update_articulations_kinematic()
+            cls._kinematics_dirty = False
+        cls.invalidate_transforms()
+        if cls._fabric is not None:
+            sim.get_scene_data_provider()._update_fabric()
+
+    @classmethod
+    def invalidate_transforms(cls, *, kinematics: bool = False) -> None:
+        """Invalidate both native pose representations after writes; defer FK when needed."""
+        cls._kinematics_dirty |= kinematics
+        backend = cls._scene_data_backend
+        backend._transform_publication.dirty = backend._fabric_publication.dirty = True
+
+    @classmethod
+    def pre_render(cls) -> None:
+        """Complete pending pose writes before SDP publishes articulation transforms."""
+        if cls._kinematics_dirty and cls.backend is not None:
+            cls.backend.simulation_view.update_articulations_kinematic()
+            cls._kinematics_dirty = False
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
@@ -535,6 +563,8 @@ class PhysxManager(PhysicsManager):
         physx_sim = omni.physx.get_physx_simulation_interface()
         physx_sim.simulate(sim.cfg.dt, 0.0)
         physx_sim.fetch_results()
+        cls._kinematics_dirty = False
+        cls.invalidate_transforms()
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -589,6 +619,7 @@ class PhysxManager(PhysicsManager):
         cls._re_sync_fabric()
         if cls.backend is not None:
             cls.backend.simulation_view.update_articulations_kinematic()
+            cls._kinematics_dirty = False
         if cls._update_fabric is not None:
             cls._update_fabric(0.0, 0.0)
 
@@ -615,6 +646,7 @@ class PhysxManager(PhysicsManager):
         cls._warmup_needed = True
         cls._assets_loaded = True
         cls._callback_exception = None
+        cls._kinematics_dirty = False
 
         super().close()
 

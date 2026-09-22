@@ -593,31 +593,68 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
     assert tensors[0].dtype.lanes == 3
 
 
-def test_update_transforms_writes_caller_owned_buffer(monkeypatch: pytest.MonkeyPatch):
-    """Object xforms fill a persistent GPU buffer and blocking ASYNC write, not map/unmap."""
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch, use_ovstage):
+    """Both OVRTX paths bind published bodies and consume SDP's scaled, transposed matrices."""
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider, SceneDataPublication
+
+    def reject_newton_access(*args, **kwargs):
+        raise AssertionError("Rigid transform transport must not read Newton state")
+
+    monkeypatch.setattr(NewtonManager, "get_model", reject_newton_access)
+    monkeypatch.setattr(NewtonManager, "get_state", reject_newton_access)
+    assert not hasattr(ovrtx_renderer_module, "sync_newton_transforms_kernel")
     renderer, _ = _make_renderer_without_backend()
-    buffer = object()
-    renderer._object_xform_binding = _FakePointsBinding("omni:xform")
-    renderer._object_newton_indices = [0, 1]
-    renderer._object_scales = object()
-    renderer._object_transform_buffer = buffer
-
-    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(body_q=object())))
-    launch_kwargs: dict = {}
-
-    def _capture_launch(*args, **kwargs):
-        launch_kwargs.update(kwargs)
-
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
+    paths = ["/World/Shared", "/World/envs/env_1/Object"]
+    poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=np.float32)
+    publication = SceneDataPublication(SceneDataFormat.Transform())
+    publication.data.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
+    renderer._sdp = SceneDataProvider(
+        SimpleNamespace(transform_publication=publication, transform_count=2, transform_paths=paths)
+    )
+    renderer._transform_generation = -1
+    renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
+    renderer._use_ovstage = use_ovstage
+    renderer._current_ordinal = 5
+    writes = []
+
+    if use_ovstage:
+        renderer.backend.paths = SimpleNamespace(create_path_list_from_strings=lambda actual: actual)
+        renderer.backend.stage = SimpleNamespace(
+            query_from_path_list=lambda actual: actual,
+            write_attribute=lambda query, attribute, **kwargs: (
+                writes.append((query, attribute, kwargs)) or SimpleNamespace(wait=lambda: None)
+            ),
+        )
+        monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda matrices: matrices)
+        renderer._setup_xform_bindings_ovstage()
+        assert renderer._object_xform_query == paths
+        writes.clear()
+    else:
+        renderer._setup_xform_bindings_legacy()
+        assert renderer.backend.renderer.calls[0]["prim_paths"] == paths
+        renderer._object_xform_binding.write = lambda matrices, **kwargs: writes.append((None, matrices, kwargs))
 
     renderer.update_transforms()
+    renderer.update_transforms()
+    assert len(writes) == 1
+    matrices = writes[0][2]["tensors"] if use_ovstage else writes[0][1]
+    expected = np.tile(np.eye(4), (2, 1, 1))
+    expected[0, :3, :3] = np.diag([2, 3, 4])
+    expected[:, 3, :3] = poses[:, :3]
+    np.testing.assert_array_equal(matrices.numpy(), expected)
+    assert writes[0][2]["cuda_stream"] == 99
+    if use_ovstage:
+        assert writes[0][2]["ordinal"] == 5
+    else:
+        assert writes[0][2]["data_access"] is DataAccess.ASYNC
 
-    assert launch_kwargs["inputs"][0] is buffer
-    assert launch_kwargs["dim"] == 2
-    assert renderer._object_xform_binding.written is buffer
-    assert renderer._object_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
-    assert renderer._object_xform_binding.write_kwargs["cuda_stream"] == 99
+    publication.dirty = True
+    renderer.update_transforms()
+    assert len(writes) == 2
+    updated = writes[1][2]["tensors"] if use_ovstage else writes[1][1]
+    assert updated is matrices
 
 
 def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):

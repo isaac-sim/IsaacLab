@@ -79,7 +79,7 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 from pxr import Usd, UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider, SceneDataPublication
 from isaaclab.scene_data.deformable_vis_remap import (
     VolumeVisRemap,
     launch_batch_particle_slice_copy,
@@ -140,53 +140,6 @@ logger = logging.getLogger(__name__)
 # Tagged union for entries in _cl_site_index_map.
 # _GlobalSite: (global_shape_idx, None)           — body_pattern was None
 # _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
-
-
-@wp.kernel(enable_backward=False)
-def _capture_fabric_scales(
-    fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
-    newton_indices: wp.fabricarray(dtype=wp.uint32),
-    body_scales: wp.array(dtype=wp.vec3f),
-):
-    """Capture initialized Fabric world scales by Newton body index."""
-    i = int(wp.tid())
-    idx = int(newton_indices[i])
-    matrix = wp.mat44f(fabric_transforms[i])
-    body_scales[idx] = wp.vec3f(
-        wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
-        wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
-        wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
-    )
-
-
-@wp.kernel(enable_backward=False)
-def _set_fabric_transforms(
-    fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
-    newton_indices: wp.fabricarray(dtype=wp.uint32),
-    newton_body_q: wp.array(ndim=1, dtype=wp.transformf),
-    body_scales: wp.array(dtype=wp.vec3f),
-):
-    """Write Newton body poses to Fabric world matrices with their initialized scale.
-
-    For each Fabric prim at thread ``i``, reads the Newton body transform at
-    ``newton_body_q[newton_indices[i]]`` and combines its translation and rotation
-    with the corresponding scale captured from the initialized Fabric world matrix.
-    Newton transforms do not carry scale, so reapplying the captured value prevents
-    authored USD scale from being overwritten with unit scale during rendering sync.
-    """
-    i = int(wp.tid())
-    idx = int(newton_indices[i])
-    transform = newton_body_q[idx]
-    scale = body_scales[idx]
-    fabric_transforms[i] = wp.mat44d(
-        wp.transpose(
-            wp.transform_compose(
-                wp.transform_get_translation(transform),
-                wp.transform_get_rotation(transform),
-                scale,
-            )
-        )
-    )
 
 
 @wp.kernel(enable_backward=False)
@@ -351,13 +304,16 @@ class NewtonSceneDataBackend(SceneDataBackend):
     """
 
     def __init__(self):
-        self._scene_data = SceneDataFormat.Transform()
+        self._transform_publication = SceneDataPublication(SceneDataFormat.Transform())
 
     @property
-    def transforms(self) -> SceneDataFormat.Transform:
-        """Return the current Newton rigid body transforms as :class:`SceneDataFormat.Transform`."""
-        self._scene_data.transforms = self.state.body_q
-        return self._scene_data
+    def transform_publication(self) -> SceneDataPublication:
+        """Publish the authoritative native pointer, including solver state-buffer swaps."""
+        transforms = self.state.body_q
+        if self._transform_publication.data.transforms is not transforms:
+            self._transform_publication.data.transforms = transforms
+            self._transform_publication.dirty = True
+        return self._transform_publication
 
     @property
     def transform_count(self) -> int:
@@ -377,8 +333,20 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def state(self) -> State:
-        """Return Newton state after applying pending forward kinematics."""
-        return NewtonManager.get_state()
+        """Return native physics state without entering the rendering consumer path."""
+        state = NewtonManager.get_state_0()
+        if (
+            self._transform_publication.data.transforms is not state.body_q
+            or NewtonManager._transforms_may_change_on_graph_replay
+        ):
+            self._transform_publication.dirty = True
+        if (
+            self._transform_publication.dirty
+            and NewtonManager._fk_reset_mask is not None
+            and NewtonManager._eval_fk is not _eval_fk_unbound
+        ):
+            NewtonManager.forward()
+        return NewtonManager.get_state_0()
 
 
 def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
@@ -502,11 +470,7 @@ class NewtonManager(PhysicsManager):
     # USD/Fabric sync
     _newton_stage_path = None
     _usdrt_stage = None
-    _newton_index_attr = "newton:index"
-    # Body-indexed world scales captured before Newton first overwrites Fabric transforms.
-    _fabric_body_scales: wp.array | None = None
     _clone_physics_only = False
-    _transforms_dirty: bool = False
     _transforms_may_change_on_graph_replay: bool = False
     _particles_dirty: bool = False
     _cables_dirty: bool = False
@@ -518,15 +482,6 @@ class NewtonManager(PhysicsManager):
     _newton_particle_count_attr = "newton:particleCount"
     _particle_visual_prims: dict[str, _ParticleVisualPrim] = {}
 
-    # Cached after the first fabric sync that probes IFabricHierarchy GPU APIs.
-    _use_fabric_gpu_hierarchy: bool | None = None
-
-    # Set to True after sync_transforms_to_fabric() successfully writes body positions for
-    # the first time in each simulation session.  Reset to False in clear().  Polled by
-    # test drain helpers to know when the GPU has propagated the newton:index Fabric
-    # attribute and body_q values are valid.
-    _newton_fabric_ready: bool = False
-
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
 
@@ -536,8 +491,8 @@ class NewtonManager(PhysicsManager):
     # Visualization-only state used when the sim backend is PhysX. Populated
     # from the clone plan in :meth:`_initialize_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
-    _scene_data: SceneDataFormat.Transform | None = None
     _scene_data_mapping: wp.array | None = None
+    _scene_data_generation: int | None = None
     _scene_data_points: SceneDataFormat.Points | None = None
     _scene_data_geometry_mapping: wp.array | None = None
     _shadow_deformable_entities: list | None = None
@@ -606,7 +561,7 @@ class NewtonManager(PhysicsManager):
             cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
             cls._clone_physics_only = not has_kit() or ("kit" not in requested and not cameras_enabled)
 
-        cls._scene_data_backend = NewtonSceneDataBackend()
+        NewtonManager._scene_data_backend = NewtonSceneDataBackend()
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -633,6 +588,8 @@ class NewtonManager(PhysicsManager):
             NewtonManager._collision_pipeline = None
             NewtonManager._contacts = None
             NewtonManager._solver = None
+            NewtonManager._eval_fk = _eval_fk_unbound
+            NewtonManager._reset_solver_internals_delegate = _reset_solver_internals_unbound
             NewtonManager._adapter = None
             cls._invalidate_sensor_graph()
             NewtonManager._sensor_state = None
@@ -701,131 +658,12 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_transforms_to_fabric(cls) -> None:
-        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
-
-        The write lands in Fabric only. Authored USD attributes are left untouched, so the
-        poses are visible to the RTX renderer but absent from a stage export or save.
-
-        No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active)
-        or when transforms have not changed since the last sync.
-
-        Called at render cadence by :meth:`pre_render` (via
-        :meth:`~isaaclab.sim.SimulationContext.render`).
-        Physics stepping marks transforms dirty via :meth:`_mark_transforms_dirty`
-        so that the expensive Fabric hierarchy update only runs once per render
-        frame rather than after every physics step.
-
-        Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
-        On the first successful sync, a Warp kernel captures each initialized Fabric
-        world scale by Newton body index. The pose kernel then combines that scale with
-        ``state_0.body_q[newton_index[i]]`` and writes the corresponding ``mat44d`` to
-        ``omni:fabric:worldMatrix`` for each prim.
-
-        When ``IFabricHierarchy.update_world_xforms_gpu_with_options`` is
-        available the method mirrors PhysX's ``DirectGpuHelper`` pattern: pause
-        Fabric change tracking, write transforms, resume tracking, then run the
-        GPU hierarchy update with ``RIGID_BODY | FORCE_UPDATE`` so Newton-authored
-        world matrices stay authoritative on rigid-body prims.  Otherwise it
-        falls back to the CPU ``update_world_xforms()`` path.
-        """
+        """Publish rigid-body poses through SDP to Fabric, leaving authored USD untouched."""
         if cls._usdrt_stage is None or cls.backend is None:
             return
-        if not cls._transforms_dirty:
-            return
-        try:
-            import usdrt
-
-            fabric_hierarchy = None
-            gpu_opts_cls = None
-            if hasattr(usdrt, "hierarchy"):
-                fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                    cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
-                )
-                gpu_opts_cls = getattr(usdrt.hierarchy, "FabricHierarchyGpuUpdateOptions", None)
-
-            if cls._use_fabric_gpu_hierarchy is None and hasattr(usdrt, "hierarchy"):
-                # Probe the pybind class once so a transient null hierarchy handle does
-                # not permanently disable the GPU path for the session.
-                NewtonManager._use_fabric_gpu_hierarchy = gpu_opts_cls is not None and hasattr(
-                    usdrt.hierarchy.IFabricHierarchy, "update_world_xforms_gpu_with_options"
-                )
-                if cls._use_fabric_gpu_hierarchy:
-                    logger.info("Fabric GPU transform hierarchy enabled via IFabricHierarchy")
-                else:
-                    logger.info("Fabric GPU transform hierarchy unavailable; falling back to update_world_xforms()")
-
-            use_gpu_hierarchy = bool(
-                cls._use_fabric_gpu_hierarchy and fabric_hierarchy is not None and gpu_opts_cls is not None
-            )
-
-            # Pause hierarchy change tracking BEFORE SelectPrims.
-            # SelectPrims with ReadWrite access calls getAttributeArrayGpu
-            # internally, which marks Fabric buffers dirty.  If tracking is
-            # still active at that point the hierarchy records the change and
-            # Kit's updateWorldXforms will do an expensive connectivity
-            # rebuild every frame.  PhysX avoids this via ScopedUSDRT which
-            # pauses tracking before any Fabric writes.
-            if use_gpu_hierarchy:
-                fabric_hierarchy.track_world_xform_changes(False)
-                fabric_hierarchy.track_local_xform_changes(False)
-
-            try:
-                selection = cls._usdrt_stage.SelectPrims(
-                    require_attrs=[
-                        (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
-                        (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
-                    ],
-                    device=str(PhysicsManager._device),
-                )
-                if selection.GetCount() == 0:
-                    # The newton:index attribute is written CPU-side by start_simulation() but
-                    # GPU propagation is deferred.  Keep _transforms_dirty=True so the next
-                    # pre_render() retries once initialize_solver() has completed (FK delegate
-                    # bound) and body_q holds valid values.
-                    if cls._eval_fk is _eval_fk_unbound:
-                        NewtonManager._transforms_dirty = False
-                    return
-
-                fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
-                newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
-                if cls._fabric_body_scales is None:
-                    NewtonManager._fabric_body_scales = wp.empty(
-                        cls.backend.model.body_count,
-                        dtype=wp.vec3f,
-                        device=PhysicsManager._device,
-                    )
-                    wp.launch(
-                        _capture_fabric_scales,
-                        dim=newton_indices.shape[0],
-                        inputs=[fabric_transforms, newton_indices, cls._fabric_body_scales],
-                        device=PhysicsManager._device,
-                    )
-                wp.launch(
-                    _set_fabric_transforms,
-                    dim=newton_indices.shape[0],
-                    inputs=[fabric_transforms, newton_indices, cls.backend.state_0.body_q, cls._fabric_body_scales],
-                    device=PhysicsManager._device,
-                )
-                wp.synchronize_device(PhysicsManager._device)
-
-                NewtonManager._newton_fabric_ready = True
-                NewtonManager._transforms_dirty = False
-
-                if use_gpu_hierarchy:
-                    # RIGID_BODY: inverse-propagate on PhysicsRigidBodyAPI buckets
-                    # (keep Newton world matrices, derive local). FORCE_UPDATE:
-                    # bypass the change-listener dirty check after tracking pause.
-                    fabric_hierarchy.update_world_xforms_gpu_with_options(
-                        gpu_opts_cls.RIGID_BODY | gpu_opts_cls.FORCE_UPDATE
-                    )
-                elif fabric_hierarchy is not None:
-                    fabric_hierarchy.update_world_xforms()
-            finally:
-                if use_gpu_hierarchy:
-                    fabric_hierarchy.track_world_xform_changes(True)
-                    fabric_hierarchy.track_local_xform_changes(True)
-        except Exception:
-            logger.exception("[NewtonManager] sync_transforms_to_fabric FAILED")
+        provider = cls.get_scene_data_provider()
+        provider._prepare_fabric(PhysicsManager._sim.stage, str(PhysicsManager._device))
+        provider._update_fabric()
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -961,14 +799,10 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _mark_transforms_dirty(cls) -> None:
-        """Flag that rigid-body transforms have changed and Fabric needs re-sync.
-
-        The actual sync is deferred to :meth:`sync_transforms_to_fabric`,
-        which runs at render cadence via :meth:`pre_render`.
-        """
-        NewtonManager._transforms_dirty = True
+        """Publish authored rigid-body changes and invalidate cable geometry."""
+        if NewtonManager._scene_data_backend is not None:
+            NewtonManager._scene_data_backend._transform_publication.dirty = True
         NewtonManager._cables_dirty = True
-
         device = PhysicsManager._device
         if device is not None:
             device = wp.get_device(device)
@@ -1117,9 +951,8 @@ class NewtonManager(PhysicsManager):
                     cls._simulate_physics_only()
             PhysicsManager._sim_time += physics_dt
 
-        if cls._usdrt_stage is not None:
-            cls._mark_state_dirty()
-        elif cls._particle_visual_prims:
+        cls._mark_transforms_dirty()
+        if cls._usdrt_stage is not None or cls._particle_visual_prims:
             cls._mark_particles_dirty()
         cls._mark_sensor_state_dirty()
 
@@ -1168,8 +1001,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._visualization_stop_callback = None
         if callback is not None:
             callback.deregister()
-        NewtonManager._use_fabric_gpu_hierarchy = None
-        NewtonManager._newton_fabric_ready = False
         NewtonManager._num_envs = None
         NewtonManager._builder = None
         NewtonManager._solver = None
@@ -1211,8 +1042,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
-        NewtonManager._fabric_body_scales = None
-        NewtonManager._transforms_dirty = False
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
         NewtonManager._cables_dirty = False
@@ -1223,8 +1052,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
         NewtonManager._up_axis = "Z"
-        NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
+        NewtonManager._scene_data_generation = None
         NewtonManager._scene_data_points = None
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._shadow_deformable_entities = None
@@ -1692,7 +1521,6 @@ class NewtonManager(PhysicsManager):
         if not cls._clone_physics_only:
             import usdrt
 
-            NewtonManager._fabric_body_scales = None
             body_paths = list(cls.backend.model.body_label)
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             body_bindings = NewtonManager._cl_fabric_body_bindings
@@ -1721,7 +1549,7 @@ class NewtonManager(PhysicsManager):
     @staticmethod
     def _initialize_fabric_body_prims(stage, fabric_hierarchy, usdrt, body_bindings: Sequence[tuple[str, int]]) -> None:
         """Initialize Fabric body prims used by Newton transform sync."""
-        for prim_path, body_index in body_bindings:
+        for prim_path, _ in body_bindings:
             prim = stage.GetPrimAtPath(prim_path)
             if prim.IsValid():
                 xformable_prim = usdrt.Rt.Xformable(prim)
@@ -1731,8 +1559,6 @@ class NewtonManager(PhysicsManager):
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 xformable_prim.CreateFabricHierarchyWorldMatrixAttr()
 
-            prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
-            prim.GetAttribute(NewtonManager._newton_index_attr).Set(body_index)
             # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
             # applies Inverse propagation (preserves Newton's world transforms and derives
             # local) instead of Forward.
@@ -2743,9 +2569,12 @@ class NewtonManager(PhysicsManager):
         observe stale transforms. Under the Newton sim backend, pending
         forward kinematics is applied before returning the live state.
         """
-        if cls._fk_reset_mask is not None and cls._backend_is_newton(scene_data_provider):
-            cls.forward()
-        cls.update_visualization_state(scene_data_provider)
+        if scene_data_provider is None:
+            scene_data_provider = cls.get_scene_data_provider()
+        if cls._backend_is_newton(scene_data_provider):
+            scene_data_provider.request_transforms(SceneDataFormat.Transform)
+        else:
+            cls.update_visualization_state(scene_data_provider)
         return cls.get_state_0()
 
     @classmethod
@@ -2936,6 +2765,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._num_envs = cls.backend.model.num_envs
         shadow_entities, registry_groups = geometry
         NewtonManager._scene_data_mapping = None
+        NewtonManager._scene_data_generation = None
         NewtonManager._shadow_deformable_entities = shadow_entities
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._mapped_sim_particle_offsets = None
@@ -2947,6 +2777,7 @@ class NewtonManager(PhysicsManager):
             NewtonManager._sim_particle_q = None
         NewtonManager._deformable_registry = []
         populate_shadow_deformable_registry(cls, registry_groups)
+        cls.update_visualization_state()
         NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
             lambda _payload: NewtonManager.clear(),
             PhysicsEvent.STOP,
@@ -2968,17 +2799,10 @@ class NewtonManager(PhysicsManager):
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
         already advanced by :meth:`step` / forward kinematics.
 
-        PhysX / OVPhysX sim backend: pull rigid-body transforms and deformable
-        nodal positions from the :class:`~isaaclab.scene_data.SceneDataProvider`
-        and write them into the shadow ``_state_0.body_q`` / ``particle_q`` so
-        Newton-native consumers (Newton renderer, Newton/Rerun/Viser visualizers,
-        OVRTX renderer, Newton GL video) see fresh poses and mesh points.
-
-        Calls use ``allow_passthrough=False`` so identity mappings still copy into
-        the pre-bound shadow buffers. Passthrough would rebind the temporary
-        :class:`~isaaclab.scene_data.SceneDataFormat` fields away from
-        ``_state_0``, leaving OVRTX and other ``get_state()`` consumers on stale
-        rest-pose particle / body state.
+        PhysX / OVPhysX sim backend: bind shared SDP rigid-body transforms to
+        ``state_0.body_q`` without copying. Consumers must treat this array as
+        read-only. Deformable points still copy into the shadow ``particle_q``
+        buffer, including simulation-to-visual mesh remapping.
 
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
@@ -2996,23 +2820,25 @@ class NewtonManager(PhysicsManager):
             return
 
         if cls.backend.state_0.body_q is not None:
-            if cls._scene_data is None:
-                cls._scene_data = SceneDataFormat.Transform()
-
-            # Invalidate stale mapping when the model's body count changed (e.g. tiled → viewport
-            # test within the same process where _model was rebuilt from a different stage).
-            if cls._scene_data_mapping is not None and cls._scene_data_mapping.shape[0] != cls.backend.model.body_count:
-                cls._scene_data_mapping = None
-
-            if cls._scene_data_mapping is None:
+            if cls._scene_data_generation is None:
                 body_labels = list(cls.backend.model.body_label)
                 body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
+                if len(set(body_paths)) != cls.backend.model.body_count or not set(body_paths).issubset(
+                    scene_data_provider.backend.transform_paths
+                ):
+                    raise ValueError("Every Newton render body must have one unique SDP transform path.")
                 cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
-            cls._scene_data.transforms = cls.backend.state_0.body_q
-            scene_data_provider.get_transforms(
-                cls._scene_data, mapping=cls._scene_data_mapping, allow_passthrough=False
+            transforms = scene_data_provider.request_transforms(
+                SceneDataFormat.Transform, mapping=cls._scene_data_mapping, count=cls.backend.model.body_count
             )
+            if transforms is not None:
+                if cls.backend.state_0.body_q is not transforms.transforms:
+                    cls.backend.state_0.body_q = transforms.transforms
+                    cls._invalidate_sensor_graph()
+                if cls._scene_data_generation != scene_data_provider.transform_generation:
+                    cls._mark_sensor_state_dirty()
+            cls._scene_data_generation = scene_data_provider.transform_generation
 
         if cls.backend.state_0.particle_q is not None and scene_data_provider.point_count > 0:
             if cls._scene_data_points is None:
@@ -3058,7 +2884,7 @@ class NewtonManager(PhysicsManager):
                     allow_passthrough=False,
                 )
 
-        cls._mark_sensor_state_dirty()
+            cls._mark_sensor_state_dirty()
 
     @classmethod
     def _geometry_mapped_sim_offsets(cls, scene_data_provider: SceneDataProvider) -> set[int]:

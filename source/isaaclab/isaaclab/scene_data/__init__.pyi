@@ -7,8 +7,9 @@ __all__ = [
     "REQUIRES_STAGE_AND_MODEL",
     "SceneDataBackend",
     "SceneDataFormat",
+    "SceneDataPublication",
     "SceneDataProvider",
 ]
 
-from .scene_data_backend import SceneDataBackend, SceneDataFormat
+from .scene_data_backend import SceneDataBackend, SceneDataFormat, SceneDataPublication
 from .scene_data_provider import REQUIRES_STAGE_AND_MODEL, SceneDataProvider

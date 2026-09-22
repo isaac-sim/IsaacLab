@@ -582,9 +582,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        sim = SimulationContext.instance()
-        sim.physics_manager.forward()
-        NewtonManager.update_visualization_state()
+        NewtonManager.get_state()
 
     def update_geometries(self) -> None:
         """No-op for Newton Warp - geometry is read directly from Newton state during render.

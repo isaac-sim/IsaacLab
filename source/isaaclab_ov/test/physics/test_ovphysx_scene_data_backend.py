@@ -23,12 +23,14 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 @pytest.fixture(autouse=True)
 def _native_backend(monkeypatch):
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager, OvPhysxSceneDataBackend
 
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
     backend.physx = None
     backend.stage = None
     monkeypatch.setattr(OvPhysxManager, "backend", backend)
+    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
+    monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", False)
 
 
 @pytest.fixture(autouse=True)
@@ -374,6 +376,8 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     OvPhysxManager.reset()
 
     assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
+    assert OvPhysxManager._scene_data_backend.transform_publication.dirty
+    assert OvPhysxManager._kinematics_dirty
 
 
 @pytest.mark.parametrize(
@@ -431,6 +435,7 @@ def test_manager_supports_pinned_runtime_api(
     OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
     monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0)
+    OvPhysxManager._scene_data_backend.transform_publication.dirty = False
     OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
@@ -440,6 +445,37 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
     assert PhysicsManager._sim_time == 0.02
+    assert OvPhysxManager._scene_data_backend.transform_publication.dirty
+    assert not OvPhysxManager._kinematics_dirty
+
+
+def test_publication_finishes_dirty_kinematics_before_native_reads(monkeypatch):
+    """Direct SDP consumers refresh pending FK once, before reading native poses."""
+    import warp as wp
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    calls = []
+    OvPhysxManager.backend.physx = SimpleNamespace(update_articulations_kinematic=lambda: calls.append("fk"))
+    backend = OvPhysxManager._scene_data_backend
+    publication = backend._transform_publication
+    publication.data.transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    backend._rigid_bindings = [
+        (SimpleNamespace(read_into=lambda *args: calls.append("read")), publication.data.transforms)
+    ]
+    sdp = SceneDataProvider(backend)
+    monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", True)
+    sdp.request_transforms(SceneDataFormat.Transform)
+    sdp.request_transforms(SceneDataFormat.Transform)
+    assert calls == ["fk", "read"]
+    assert not OvPhysxManager._kinematics_dirty
+
+    OvPhysxManager.forward()
+    assert publication.dirty
+    sdp.request_transforms(SceneDataFormat.Transform)
+    sdp.request_transforms(SceneDataFormat.Transform)
+    assert calls == ["fk", "read", "fk", "read"]
 
 
 def test_manager_serializes_env0_only_stage_in_memory(caplog):
@@ -839,213 +875,65 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     assert SimulationContext.instance() is None
 
 
-def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:
-    """Stub an ovphysx ``TensorBinding`` exposing ``shape``, ``count``, ``prim_paths``, and ``read(dst)``."""
-    n = len(prim_paths)
-    return SimpleNamespace(
-        shape=(n, 7),
-        count=n,
-        prim_paths=list(prim_paths),
-        read=lambda dst: None,  # no-op write; transform_count/paths don't trigger reads.
-    )
+def test_transform_publication_reads_native_slices_only_when_dirty(monkeypatch):
+    """Native bindings fill one shared pose buffer directly and skip clean publications."""
+    import isaaclab_ov.physics.ovphysx_manager as module
+    import numpy as np
+    import warp as wp
 
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-def _bare_backend():
-    """Construct an ``OvPhysxSceneDataBackend`` instance bypassing the live-wheel ``__init__``.
-
-    Tests seed ``_rigid_bindings`` and the merged buffer directly, mirroring the
-    bypass-init pattern used in ``test_newton_manager_visualization_state.py``.
-    """
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    return object.__new__(OvPhysxSceneDataBackend)
-
-
-def test_transform_count_sums_across_bindings():
-    """``transform_count`` returns the sum of each binding's row count."""
-    b = _bare_backend()
-    b._rigid_bindings = [
-        {
-            "pose": _make_stub_binding(["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]),
-            "pose_buf": None,
-            "row_offset": 0,
-            "row_count": 2,
-        },
-        {"pose": _make_stub_binding(["/World/envs/env_0/Pole"]), "pose_buf": None, "row_offset": 2, "row_count": 1},
-    ]
-    assert b.transform_count == 3
-
-
-def test_transform_paths_concatenates_prim_paths():
-    """``transform_paths`` concatenates each binding's ``prim_paths`` in registration order."""
-    b = _bare_backend()
-    b._rigid_bindings = [
-        {
-            "pose": _make_stub_binding(["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]),
-            "pose_buf": None,
-            "row_offset": 0,
-            "row_count": 2,
-        },
-        {"pose": _make_stub_binding(["/World/envs/env_0/Pole"]), "pose_buf": None, "row_offset": 2, "row_count": 1},
-    ]
-    assert b.transform_paths == [
-        "/World/envs/env_0/Cube",
-        "/World/envs/env_1/Cube",
-        "/World/envs/env_0/Pole",
-    ]
-
-
-def test_transform_count_zero_when_no_bindings():
-    """``transform_count`` returns 0 when the bindings list is empty."""
-    b = _bare_backend()
-    b._rigid_bindings = []
-    assert b.transform_count == 0
-
-
-def test_transform_paths_empty_when_no_bindings():
-    """``transform_paths`` returns an empty list when the bindings list is empty."""
-    b = _bare_backend()
-    b._rigid_bindings = []
-    assert b.transform_paths == []
-
-
-def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
-    """``setup(physx, stage, device)`` buckets RigidBodyAPI prims by env-wildcard form.
-
-    For cartpole-shaped scenes (``cart``, ``pole``), expect 2 bindings — one
-    per distinct env-relative prim path.
-    """
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    b = OvPhysxSceneDataBackend()
-
-    # Stage stub: traversal yields four RigidBodyAPI prims (cart/pole across two envs).
-    paths = [
-        "/World/envs/env_0/Robot/cart",
-        "/World/envs/env_0/Robot/pole",
-        "/World/envs/env_1/Robot/cart",
-        "/World/envs/env_1/Robot/pole",
-    ]
-
-    def fake_traverse():
-        for p in paths:
-            yield _fake_rigid_body_prim(p)
-
-    stage = SimpleNamespace(Traverse=fake_traverse)
-
-    created: list[SimpleNamespace] = []
+    expected = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1], [7, 8, 9, 0, 0, 0, 1]], dtype=np.float32)
+    paths = ["/World/envs/env_0/Cart", "/World/envs/env_1/Cart", "/World/envs/env_0/Pole"]
+    reads = []
 
     class FakePhysX:
         def create_tensor_binding(self, pattern, tensor_type):
-            shape = (2, 7)  # 2 envs match each pattern
-            b = SimpleNamespace(
-                pattern=pattern,
-                tensor_type=tensor_type,
-                shape=shape,
-                count=2,
-                prim_paths=[],
-                read=lambda dst: None,
+            start, end = (0, 2) if pattern.endswith("/Cart") else (2, 3)
+
+            def read(dst):
+                reads.append((start, dst.ptr))
+                wp.copy(dst, wp.array(expected[start:end], dtype=wp.float32, device="cpu"))
+
+            return SimpleNamespace(
+                shape=(end - start, 7),
+                count=end - start,
+                dtype=SimpleNamespace(code=2, bits=32, lanes=1),
+                prim_paths=paths[start:end],
+                read=read,
                 destroy=lambda: None,
             )
-            created.append(b)
-            return b
 
-    # Patch UsdPhysics so HasAPI in the test doesn't depend on the real PXR module.
-    import isaaclab_ov.physics.ovphysx_manager as om_mod
+    monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    monkeypatch.setattr(module, "discover_deformables_on_stage", lambda stage: [])
+    stage = SimpleNamespace(Traverse=lambda: (_fake_rigid_body_prim(path) for path in paths))
+    backend = module.OvPhysxSceneDataBackend()
+    backend.setup(FakePhysX(), stage, "cpu")
+    sdp = SceneDataProvider(backend)
 
-    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
-    # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
-    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
+    native = sdp.request_transforms(SceneDataFormat.Transform)
+    assert backend.transform_count == len(paths)
+    assert backend.transform_paths == paths
+    assert reads == [(0, native.transforms.ptr), (2, native.transforms.ptr + 2 * 7 * 4)]
+    np.testing.assert_array_equal(native.transforms.numpy(), expected)
+    assert sdp.request_transforms(SceneDataFormat.Transform).transforms is native.transforms
+    assert len(reads) == 2
 
-    b.setup(FakePhysX(), stage, "cpu")
-
-    # Cartpole = 2 distinct env-wildcard patterns -> 2 bindings.
-    assert len(created) == 2
-    assert {c.pattern for c in created} == {
-        "/World/envs/env_*/Robot/cart",
-        "/World/envs/env_*/Robot/pole",
-    }
-    # Per-binding row counts sum to 4.
-    assert b.transform_count == 4
+    expected[:, 0] += 10
+    backend.transform_publication.dirty = True
+    assert sdp.request_transforms(SceneDataFormat.Transform).transforms is native.transforms
+    assert len(reads) == 4
+    np.testing.assert_array_equal(native.transforms.numpy(), expected)
 
 
-def test_transforms_reads_each_binding_and_returns_transform_format():
-    """``transforms`` writes each binding's poses into the merged buffer at its offset.
-
-    The returned struct is ``SceneDataFormat.Transform`` with ``transforms`` set to
-    the merged ``wp.transformf`` array.
-    """
-    import warp as _wp
-
-    _wp.init()
-
+def test_transform_publication_is_empty_before_setup():
+    """An unwired backend publishes no poses or paths."""
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
-    b = OvPhysxSceneDataBackend()
-    b._merged_transforms = _wp.zeros((3,), dtype=_wp.transformf, device="cpu")
-
-    # Two bindings: first with 2 rows, second with 1 row.
-    buf_a = _wp.zeros((2, 7), dtype=_wp.float32, device="cpu")
-    buf_b = _wp.zeros((1, 7), dtype=_wp.float32, device="cpu")
-
-    def fake_read_a(dst):
-        # Fill with row-distinct sentinel transforms (pos.x = row index, quat = identity).
-        import numpy as np
-
-        host = np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
-        _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((2, 7)))
-
-    def fake_read_b(dst):
-        import numpy as np
-
-        host = np.array([[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
-        _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((1, 7)))
-
-    # ``pose_buf_transformf`` is the zero-copy transformf view over the float32 staging
-    # buffer; production code caches it at setup time. Tests mirror that shape here.
-    buf_a_tf = _wp.array(ptr=buf_a.ptr, shape=(2,), dtype=_wp.transformf, device="cpu", copy=False)
-    buf_b_tf = _wp.array(ptr=buf_b.ptr, shape=(1,), dtype=_wp.transformf, device="cpu", copy=False)
-    b._rigid_bindings = [
-        {
-            "pattern": "/World/envs/env_*/Cube",
-            "pose": SimpleNamespace(read=fake_read_a, prim_paths=["/Cube0", "/Cube1"]),
-            "view": SimpleNamespace(read_into=lambda name, dst, _r=fake_read_a: _r(dst)),
-            "pose_buf": buf_a,
-            "pose_buf_transformf": buf_a_tf,
-            "row_offset": 0,
-            "row_count": 2,
-        },
-        {
-            "pattern": "/World/envs/env_*/Pole",
-            "pose": SimpleNamespace(read=fake_read_b, prim_paths=["/Pole"]),
-            "view": SimpleNamespace(read_into=lambda name, dst, _r=fake_read_b: _r(dst)),
-            "pose_buf": buf_b,
-            "pose_buf_transformf": buf_b_tf,
-            "row_offset": 2,
-            "row_count": 1,
-        },
-    ]
-
-    out = b.transforms
-    assert out is b._scene_data
-    assert out.transforms is b._merged_transforms
-
-    merged_host = out.transforms.numpy()  # (3,) of transformf -> view as float32 (3, 7) for assertion
-    # Each transformf is 7 floats (pos.xyz + quat.xyzw). Verify row 0 / 1 / 2 contents.
-    flat = merged_host.view("<f4").reshape((3, 7))
-    assert flat[0, 0] == 1.0
-    assert flat[1, 0] == 2.0
-    assert flat[2, 0] == 3.0
-
-
-def test_transforms_returns_empty_struct_when_no_bindings():
-    """``transforms`` returns the cached struct (transforms None) when nothing is wired."""
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    b = OvPhysxSceneDataBackend()
-    out = b.transforms
-    assert out is b._scene_data
-    assert out.transforms is None
+    backend = OvPhysxSceneDataBackend()
+    assert backend.transform_publication.data.transforms is None
+    assert backend.transform_count == 0
+    assert backend.transform_paths == []
 
 
 def test_manager_returns_scene_data_backend_instance():
@@ -1075,112 +963,39 @@ def test_manager_returns_none_when_backend_uninitialized():
         OvPhysxManager._scene_data_backend = saved
 
 
-def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
-    """A single failed binding-creation logs a warning and skips that pattern; others proceed."""
-    import logging
+def test_setup_propagates_failed_rigid_binding(monkeypatch):
+    """A failed binding cannot silently remove a body from the publication."""
+    import isaaclab_ov.physics.ovphysx_manager as module
 
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    b = OvPhysxSceneDataBackend()
-
-    paths = [
-        "/World/envs/env_0/Robot/cart",
-        "/World/envs/env_0/Robot/pole",
-    ]
-
-    def fake_traverse():
-        for p in paths:
-            yield _fake_rigid_body_prim(p)
-
-    stage = SimpleNamespace(Traverse=fake_traverse)
-
-    class FlakyPhysX:
+    class FailingPhysX:
         def create_tensor_binding(self, pattern, tensor_type):
-            if pattern.endswith("/cart"):
-                raise RuntimeError("simulated wheel-side failure")
-            return SimpleNamespace(
-                pattern=pattern,
-                tensor_type=tensor_type,
-                shape=(1, 7),
-                count=1,
-                prim_paths=[],
-                read=lambda dst: None,
-                destroy=lambda: None,
-            )
+            raise RuntimeError("simulated binding failure")
 
-    import isaaclab_ov.physics.ovphysx_manager as om_mod
-
-    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
-    # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
-    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
-
-    with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
-        b.setup(FlakyPhysX(), stage, "cpu")
-
-    # The pole pattern survived; the cart pattern was logged and skipped.
-    assert len(b._rigid_bindings) == 1
-    assert b._rigid_bindings[0]["pattern"].endswith("/pole")
-    assert any("simulated wheel-side failure" in record.message for record in caplog.records)
+    monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    stage = SimpleNamespace(Traverse=lambda: iter([_fake_rigid_body_prim("/World/Object")]))
+    backend = module.OvPhysxSceneDataBackend()
+    with pytest.raises(RuntimeError, match="simulated binding failure"):
+        backend.setup(FailingPhysX(), stage, "cpu")
 
 
-def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
-    """A failed ``binding.read(dst)`` logs and skips that binding; other bindings still merge."""
-    import logging
-
-    import warp as _wp
-
-    _wp.init()
-
+def test_failed_rigid_read_keeps_publication_dirty():
+    """A read failure propagates rather than caching a partial or stale publication."""
+    import warp as wp
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
-    b = OvPhysxSceneDataBackend()
-    b._merged_transforms = _wp.zeros((2,), dtype=_wp.transformf, device="cpu")
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    buf_good = _wp.zeros((1, 7), dtype=_wp.float32, device="cpu")
-    buf_bad = _wp.zeros((1, 7), dtype=_wp.float32, device="cpu")
-    buf_good_tf = _wp.array(ptr=buf_good.ptr, shape=(1,), dtype=_wp.transformf, device="cpu", copy=False)
-    buf_bad_tf = _wp.array(ptr=buf_bad.ptr, shape=(1,), dtype=_wp.transformf, device="cpu", copy=False)
-
-    def good_read(dst):
-        import numpy as np
-
-        host = np.array([[7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
-        _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((1, 7)))
-
-    def bad_read(dst):
+    def fail_read(name, dst):
         raise RuntimeError("simulated read failure")
 
-    b._rigid_bindings = [
-        {
-            "pattern": "/World/envs/env_*/Good",
-            "pose": SimpleNamespace(read=good_read, prim_paths=["/Good"]),
-            "view": SimpleNamespace(read_into=lambda name, dst, _r=good_read: _r(dst)),
-            "pose_buf": buf_good,
-            "pose_buf_transformf": buf_good_tf,
-            "row_offset": 0,
-            "row_count": 1,
-        },
-        {
-            "pattern": "/World/envs/env_*/Bad",
-            "pose": SimpleNamespace(read=bad_read, prim_paths=["/Bad"]),
-            "view": SimpleNamespace(read_into=lambda name, dst, _r=bad_read: _r(dst)),
-            "pose_buf": buf_bad,
-            "pose_buf_transformf": buf_bad_tf,
-            "row_offset": 1,
-            "row_count": 1,
-        },
-    ]
+    backend = OvPhysxSceneDataBackend()
+    backend._transform_publication.data.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
+    backend._rigid_bindings = [(SimpleNamespace(read_into=fail_read), backend._transform_publication.data.transforms)]
+    sdp = SceneDataProvider(backend)
 
-    import isaaclab_ov.physics.ovphysx_manager as om_mod
-
-    with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
-        out = b.transforms
-
-    assert out is b._scene_data
-    assert any("simulated read failure" in record.message for record in caplog.records)
-    # Good row was still written; bad row is left at the merged buffer's prior contents (zeros).
-    flat = out.transforms.numpy().view("<f4").reshape((2, 7))
-    assert flat[0, 0] == 7.0
+    with pytest.raises(RuntimeError, match="simulated read failure"):
+        sdp.request_transforms(SceneDataFormat.Transform)
+    assert backend._transform_publication.dirty
 
 
 def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):

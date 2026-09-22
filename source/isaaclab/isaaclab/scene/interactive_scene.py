@@ -506,8 +506,7 @@ class InteractiveScene:
         Args:
             dt: The amount of time passed from last :meth:`update` call.
         """
-        # Scene-wide renderer scene-state sync once per step when all sensors update,
-        # so per-camera fetches do not own this concern (deduped inside RenderContext).
+        # Publish transforms before eager sensors read their Fabric-backed poses.
         if not self.cfg.lazy_sensor_update:
             self.sim.render_context.update_scene_state(self.sim.get_physics_step_count())
 

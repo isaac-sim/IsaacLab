@@ -199,6 +199,7 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
+        scene_data_provider._prepare_fabric(usd_stage, SimulationContext.instance().device)
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -210,6 +211,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if not self._is_initialized:
             return
+        self._scene_data_provider._update_fabric()
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
@@ -289,6 +291,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
+        self._scene_data_provider._update_fabric()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 
@@ -417,10 +420,6 @@ class KitVisualizer(BaseVisualizer):
         for source in self._live_plot_sources:
             if isinstance(source, DirectScalarLivePlots):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
-
-    def requires_forward_before_step(self) -> bool:
-        """OV viewport relies on refreshed kinematic state before render."""
-        return True
 
     def pumps_app_update(self) -> bool:
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
