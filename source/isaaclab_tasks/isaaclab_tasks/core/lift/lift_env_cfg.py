@@ -535,7 +535,7 @@ class PhysicsCfg(PresetCfg):
             cone="pyramidal",
             update_data_interval=2,
             iterations=100,
-            ls_iterations=15,
+            ls_iterations=50,
             use_mujoco_contacts=False,
             ccd_iterations=35,
         ),
