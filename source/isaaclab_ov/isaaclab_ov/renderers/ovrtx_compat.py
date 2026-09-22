@@ -6,10 +6,10 @@
 """Version compatibility between the public OVRTX 0.4 API and OVRTX 0.5 and later.
 
 OVRTX 0.4 keys ``frame.render_vars`` by render-var source name (``"LdrColor"``), while
-0.5 keys it by the authored RenderVar prim path (``"/Render/Vars/LdrColor"``). The
-installed version cannot change while the process runs, so the key form is resolved once
-at import and published as :data:`RENDER_VAR_FRAME_KEYS`; per-frame code indexes that
-mapping instead of re-checking the version.
+0.5 keys it by the authored RenderVar prim path. The installed version cannot change
+while the process runs, so the key form is resolved once at import and published as
+:data:`RENDER_VAR_FRAME_KEYS`. Prim paths use the canonical ``"/Render"`` scope and are
+resolved against each camera's render-product scope before frame lookup.
 
 Missing or invalid version metadata selects source-name render-var keys.
 """
@@ -85,4 +85,4 @@ OVRTX_VERSION: Version | None = detect_ovrtx_version()
 """Installed OVRTX version, or ``None`` when it is unavailable or unparsable."""
 
 RENDER_VAR_FRAME_KEYS: Mapping[str, str] = build_render_var_frame_keys(OVRTX_VERSION)
-"""Maps render-var source name to its ``frame.render_vars`` key for the installed OVRTX."""
+"""Maps render-var source names to canonical frame keys for the installed OVRTX."""

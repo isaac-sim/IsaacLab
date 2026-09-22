@@ -70,9 +70,11 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     )
 
 
-def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
+def _make_ovrtx_camera_render_data(
+    render_product_path: str = "/Render/RenderProduct",
+) -> OVRTXCameraRenderData:
     rd = OVRTXCameraRenderData.__new__(OVRTXCameraRenderData)
-    rd.render_product_path = None
+    rd.render_product_path = render_product_path
     rd.camera_xform_binding = None
     rd.camera_xform_query = None
     rd.resources = contextlib.ExitStack()
@@ -422,6 +424,29 @@ def test_ovrtx_process_frame_reads_only_the_installed_ldr_color_key(monkeypatch:
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._process_render_frame(_make_ovrtx_camera_render_data(), Frame(), {"rgba": object()})
     assert mapped == ["installed"]
+
+
+def test_ovrtx_process_frame_reads_camera_scoped_key(monkeypatch: pytest.MonkeyPatch):
+    """Path-keyed render vars are read from the camera's authored render scope."""
+    monkeypatch.setattr(ovrtx_renderer_module, "_LDR_COLOR_VAR", "/Render/Vars/LdrColor")
+    mapped = []
+
+    @contextlib.contextmanager
+    def fake_map(self, render_var):
+        mapped.append(render_var)
+        yield object()
+
+    monkeypatch.setattr(OVRTXRenderer, "_map_render_var_to_dlpack", fake_map)
+    monkeypatch.setattr(OVRTXRenderer, "_extract_rgba_tiles", lambda *args, **kwargs: None)
+
+    class Frame:
+        render_vars = {"/RenderCamera_7/Vars/LdrColor": "scoped"}
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    render_data = _make_ovrtx_camera_render_data("/RenderCamera_7/RenderProduct")
+    renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
+
+    assert mapped == ["scoped"]
 
 
 def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
