@@ -38,7 +38,7 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
-from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg  # isort: skip
 
 
 def _build_g1_locomanipulation_pipeline():
@@ -298,17 +298,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # Use the calibrated G1 head-camera view shared with IsaacLab-Arena.
-    robot_pov_cam = robot_pov_camera_cfg(
-        parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
-        offset_pos=(0.04485, 0.0, 0.35325),
-        offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
-    ).replace(
-        prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam",
-        height=480,
-        width=640,
-        spawn=sim_utils.PinholeCameraCfg(focal_length=15.0, horizontal_aperture=20.955, clipping_range=(0.1, 5.0)),
-    )
+    robot_pov_cam = g1_robot_pov_camera_cfg()
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors

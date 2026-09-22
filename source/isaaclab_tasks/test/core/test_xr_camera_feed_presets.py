@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import XrCameraFeedSession
@@ -34,9 +35,10 @@ def test_xr_camera_reference_task_selects_recorded_camera():
     assert cfg.num_rerenders_on_reset == 3
 
 
-def test_locomanipulation_g1_xr_camera_uses_calibration_and_head_locked_panel():
-    """Locomanipulation G1 presents its calibrated camera in a headset-following panel."""
-    cfg = LocomanipulationG1EnvCfg()
+@pytest.mark.parametrize("env_cfg_type", [LocomanipulationG1EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
+def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
+    """Both G1 tasks present the calibrated camera in a headset-following panel."""
+    cfg = env_cfg_type()
     camera_cfg = cfg.scene.robot_pov_cam
     feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
 
@@ -52,6 +54,8 @@ def test_locomanipulation_g1_xr_camera_uses_calibration_and_head_locked_panel():
     assert cfg.isaac_teleop.xr_camera_feed_layout.placement == "head_locked"
     assert cfg.isaac_teleop.xr_camera_feed_layout.use_scene_partition is True
     assert feed_cfg.offset_m == (0.0, -0.15)
+    assert feed_cfg.panel_width_m == 0.48
+    assert feed_cfg.distance_m == 0.8
     assert feed_cfg.enable_dlss_ray_reconstruction is True
     assert feed_cfg.dlss_exec_mode == "quality"
     assert feed_cfg.max_update_hz == 0.0
@@ -59,10 +63,11 @@ def test_locomanipulation_g1_xr_camera_uses_calibration_and_head_locked_panel():
     assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
 
 
-def test_g1_partition_overrides_apply_only_during_enabled_pip_preparation(monkeypatch):
+@pytest.mark.parametrize("env_cfg_type", [LocomanipulationG1EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
+def test_g1_partition_overrides_apply_only_during_enabled_pip_preparation(monkeypatch, env_cfg_type):
     monkeypatch.setattr("isaaclab_teleop.camera_feed._load_kit_scene_ui_presenter", lambda: object())
     monkeypatch.setattr("isaaclab_teleop.camera_feed.get_isaac_sim_version", lambda: Version("6.1.0"))
-    cfg = LocomanipulationG1EnvCfg()
+    cfg = env_cfg_type()
     cfg.scene.num_envs = 1
     camera = cfg.scene.robot_pov_cam
 
@@ -76,11 +81,13 @@ def test_g1_partition_overrides_apply_only_during_enabled_pip_preparation(monkey
         assert renderer.global_settings.show_all_partitions_by_default is False
 
 
-def test_fixed_base_g1_does_not_enable_xr_camera_pip():
-    """The fixed-base G1 task does not present a robot camera in XR."""
+def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
+    """PiP adds a sensor without changing the fixed-base policy observation schema."""
     cfg = FixedBaseUpperBodyIKG1EnvCfg()
 
-    assert cfg.isaac_teleop.xr_camera_feeds == []
+    assert hasattr(cfg.scene, "robot_pov_cam")
+    assert not hasattr(cfg.observations.policy, "robot_pov_cam")
+    assert cfg.scene.robot.spawn.fix_root_link is True
 
 
 def test_locomanipulation_g1_retains_recorded_camera():

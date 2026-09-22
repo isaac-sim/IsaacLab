@@ -1353,17 +1353,18 @@ vertical, and grid layouts. The following registered tasks enable PiP by default
 * ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
 
-The G1 locomanipulation task presents its calibrated head camera in a ``head_locked`` panel that
-follows headset position and orientation. The same camera remains a recorded policy observation.
-The fixed-base G1 task does not create a PiP panel by default.
+Both G1 tasks present the calibrated head camera in a ``head_locked`` panel that follows headset
+position and orientation. Locomanipulation retains the camera as a recorded policy observation;
+fixed-base G1 uses it only for PiP and keeps its policy observation schema unchanged.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the registered tasks above, the selected
+``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
 the same view shown to the operator. Each camera is parented to a physical robot body link, so the
-recorded view follows robot motion:
+camera view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg
    :width: 80%
@@ -1377,7 +1378,7 @@ recorded view follows robot motion:
    produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera to keep
    the panel outside the camera's field of view.
 
-G1 locomanipulation enables :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
+Both G1 tasks enable :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
 to avoid this recursion. The SceneUI adapter assigns the entire ``/ui`` root and the XR
 presentation camera to ``isaaclab_teleop_xr_camera_pip`` in the stage's session layer, restoring
 prior opinions when the final isolated panel closes. This is shared XR/SceneUI state, not
