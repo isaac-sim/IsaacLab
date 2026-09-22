@@ -1920,7 +1920,9 @@ class OVRTXRenderer(BaseRenderer):
                         flags=BindingFlag.OPTIMIZE,
                     ),
                 )
-                operations.append(self._write_particle_field_binding_async(binding, cast(Any, values), values[0].device))
+                operations.append(
+                    self._write_particle_field_binding_async(binding, cast(Any, values), values[0].device)
+                )
         return _OVRTXRendererSync(operations)
 
     def _particle_field_binding(self, key: tuple[str, tuple[str, ...]], create: Callable[[], Any]) -> Any:

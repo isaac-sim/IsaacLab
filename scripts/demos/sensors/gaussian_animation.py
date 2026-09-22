@@ -35,8 +35,9 @@ from typing import Any
 import numpy as np
 import warp as wp
 
-from isaaclab.renderers.base_renderer import BaseRenderer, RendererSync
 from pxr import Usd, UsdGeom
+
+from isaaclab.renderers.base_renderer import BaseRenderer, RendererSync
 
 GAUSSIAN_PRIM_TYPE_NAME = "ParticleField3DGaussianSplat"
 """USD prim type name of a Gaussian-splat particle field."""
@@ -150,7 +151,12 @@ def find_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[AnimatedGauss
         positions_attr = _find_time_sampled_attr(prim, POSITIONS_ATTR_NAMES)
         orientations_attr = _find_time_sampled_attr(prim, ORIENTATIONS_ATTR_NAMES)
         scales_attr = _find_time_sampled_attr(prim, SCALES_ATTR_NAMES)
-        if not animated_xform_rel_paths and positions_attr is None and orientations_attr is None and scales_attr is None:
+        if (
+            not animated_xform_rel_paths
+            and positions_attr is None
+            and orientations_attr is None
+            and scales_attr is None
+        ):
             continue
 
         tracks.append(
@@ -188,9 +194,7 @@ def collect_authored_times(source_stage: Usd.Stage, tracks: list[AnimatedGaussia
     return sorted(times)
 
 
-def _sample_transform_frames(
-    xformable: UsdGeom.Xformable, frame_time_codes: list[float], num_envs: int
-) -> np.ndarray:
+def _sample_transform_frames(xformable: UsdGeom.Xformable, frame_time_codes: list[float], num_envs: int) -> np.ndarray:
     """Sample a local xform at every frame and broadcast it to duplicated envs."""
     return np.stack(
         [

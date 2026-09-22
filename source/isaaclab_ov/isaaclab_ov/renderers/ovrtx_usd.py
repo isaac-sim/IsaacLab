@@ -261,7 +261,9 @@ def build_render_scope_usd(
     render_settings_lines = []
     if enable_accumulation or accumulation_limit is not None:
         api_schemas.append("OmniRtxSettingsRtAPI_1")
-        render_settings_lines.append(f"bool omni:rtx:rt:accumulation:enabled = {'true' if enable_accumulation else 'false'}")
+        render_settings_lines.append(
+            f"bool omni:rtx:rt:accumulation:enabled = {'true' if enable_accumulation else 'false'}"
+        )
     if accumulation_limit is not None:
         render_settings_lines.append(f"int omni:rtx:rt:accumulationLimit = {accumulation_limit}")
     if gaussian_accumulated_albedo:
