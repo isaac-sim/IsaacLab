@@ -322,3 +322,46 @@ def test_remote_backend_rejects_a_batch_larger_than_the_worker_count():
     # Each worker takes one frame per call, so the runtime has to chunk to fit.
     with pytest.raises(ValueError, match="exceeds 2 workers"):
         _remote_cfg((1, 2), max_batch=4)
+
+
+def test_disabled_runtime_builds_from_a_config_that_names_no_backend():
+    # The default config leaves `backend` MISSING. Constructing it used to raise,
+    # which made "disabled" impossible to express with the shipped defaults.
+    runtime = VisualDRRuntime(VisualDRCfg(), num_envs=2, device="cpu")
+    assert runtime.enabled is False
+    assert runtime.backend is None
+
+
+def test_disabled_runtime_loads_no_model():
+    cfg = make_cfg()
+    cfg.enabled = False
+    runtime = VisualDRRuntime(cfg, num_envs=1, device="cpu")
+    # No backend exists to activate, so activate() cannot load anything.
+    assert runtime.backend is None
+    runtime.activate()
+    runtime.offload()
+    runtime.close()
+    assert runtime.backend is None
+
+
+def test_disabled_runtime_returns_the_frame_untouched(cpu_frames):
+    cfg = make_cfg()
+    cfg.enabled = False
+    runtime = VisualDRRuntime(cfg, num_envs=1, device="cpu")
+    runtime.activate()
+    rgb = torch.full((1, 1, 2, 3), 7, dtype=torch.uint8)
+
+    def explode() -> DRFrame:
+        raise AssertionError("a disabled runtime must not fetch depth or segmentation")
+
+    assert runtime.read("cam_0", rgb, explode) is rgb
+
+
+def test_disabled_runtime_advances_no_scheduling_state(cpu_frames):
+    cfg = make_cfg()
+    cfg.enabled = False
+    runtime = VisualDRRuntime(cfg, num_envs=2, device="cpu")
+    runtime.sync(make_env(2, [0, 0], step=1))
+    runtime.sync(make_env(2, [1, 1], step=2))
+    assert int(runtime._episode_ids.sum()) == 0
+    assert not bool(runtime._restyle.any())

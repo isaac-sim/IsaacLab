@@ -101,7 +101,9 @@ def image_runtime_dr(env: ManagerBasedRLEnv, camera: str) -> torch.Tensor:
     # CameraData exposes Warp-backed ProxyArray in this revision; .torch is zero-copy.
     rgb = data.output["rgb"].torch
     runtime = getattr(env, "visual_dr_runtime", None)
-    if runtime is None:
+    # A disabled runtime is indistinguishable from no runtime at all, which is what
+    # ``VisualDRCfg.enabled`` promises.
+    if runtime is None or not runtime.enabled:
         return rgb
 
     runtime.sync(env)

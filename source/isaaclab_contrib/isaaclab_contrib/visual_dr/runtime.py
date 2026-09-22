@@ -69,11 +69,22 @@ class VisualDRRuntime:
         self.cfg = cfg
         self.device = torch.device(device)
         self.num_envs = num_envs
-        self.backend: DRBackend = cfg.backend.class_type(cfg.backend)
-        bank = getattr(cfg.backend, "prompts", None)
-        self.prompts = load_prompt_bank(bank)
-        self._progression: tuple[str, ...] = tuple(getattr(bank, "progression", ()) or ())
-        self._progression_steps = int(getattr(bank, "progression_steps", 0) or 0)
+
+        self.enabled = bool(cfg.enabled)
+        """Whether this runtime does anything at all. Disabled costs nothing: no
+        backend is constructed, so no model loads and a configuration that names no
+        backend is still valid to build."""
+
+        self.backend: DRBackend | None = None
+        self.prompts: tuple[str, ...] = ()
+        self._progression: tuple[str, ...] = ()
+        self._progression_steps = 0
+        if self.enabled:
+            self.backend = cfg.backend.class_type(cfg.backend)
+            bank = getattr(cfg.backend, "prompts", None)
+            self.prompts = load_prompt_bank(bank)
+            self._progression = tuple(getattr(bank, "progression", ()) or ())
+            self._progression_steps = int(getattr(bank, "progression_steps", 0) or 0)
 
         zeros = torch.zeros(num_envs, dtype=torch.long, device=self.device)
         self._episode_ids = zeros.clone()
@@ -94,6 +105,8 @@ class VisualDRRuntime:
     # -- residency ---------------------------------------------------------
 
     def activate(self) -> None:
+        if not self.enabled:
+            return
         if self._closed:
             raise RuntimeError("Visual DR runtime is closed")
         if not self._active:
@@ -102,13 +115,13 @@ class VisualDRRuntime:
 
     def offload(self) -> None:
         """Release model memory. Reads still work; they return raw frames."""
-        if self._active:
+        if self.enabled and self._active:
             self._active = False
             self._cache.clear()
             self.backend.offload()
 
     def close(self) -> None:
-        if not self._closed:
+        if self.enabled and not self._closed:
             self._active = False
             self._cache.clear()
             self.backend.close()
@@ -123,6 +136,8 @@ class VisualDRRuntime:
         first a no-op, so cameras within one step share a scope and repeated
         reads of the same observation are free.
         """
+        if not self.enabled:
+            return
         step = int(env.common_step_counter)
         if self._synced_step == step:
             return
@@ -168,6 +183,10 @@ class VisualDRRuntime:
         ``make_frame`` is deferred so depth and segmentation are never fetched for
         a scope in which nothing will be generated.
         """
+        # Disabled costs nothing: no scheduling state is advanced and ``make_frame``
+        # is never called, so depth and segmentation are not even fetched.
+        if not self.enabled:
+            return rgb
         if camera in self._cache:
             return self._cache[camera]
         # Clone rather than hand back the renderer's own buffer: it is reused by
