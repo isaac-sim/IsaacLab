@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 
 import pytest
 
@@ -262,6 +263,58 @@ def test_render_product_initially_targets_only_the_resolvable_source_camera():
     assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
     assert "/World/envs/env_1/Robot/head_cam" not in render_product
     assert "uniform int2 resolution = (32, 16)" in render_product
+
+
+def _authored_resolution(render_product: str) -> tuple[int, int]:
+    """Return the ``(width, height)`` [px] authored on the RenderProduct."""
+    match = re.search(r"uniform int2 resolution = \((\d+), (\d+)\)", render_product)
+    assert match is not None, f"no resolution authored on the render product:\n{render_product}"
+    return int(match.group(1)), int(match.group(2))
+
+
+# Tile counts spanning the small cases and the large ones a camera-per-environment training run reaches.
+# 4096 and its neighbours are called out because that is where the renderer stops supplying a tile per
+# camera; the authored atlas must have room for every requested camera on both sides of it.
+_TILE_COUNTS = [1, 2, 7, 1000, 4095, 4096, 4097, 8192, 16384]
+
+
+@pytest.mark.parametrize("num_envs", _TILE_COUNTS)
+def test_authored_atlas_has_room_for_every_camera(num_envs):
+    """The authored tiled resolution must hold one whole tile per camera.
+
+    An atlas smaller than the requested camera count gives the extraction kernel nowhere to read the
+    trailing tiles from, so those environments silently receive another environment's pixels.
+    """
+    width, height = 96, 96
+    render_product, _ = build_render_product_as_string(
+        width=width, height=height, num_envs=num_envs, data_types=["rgb"]
+    )
+
+    tiled_width, tiled_height = _authored_resolution(render_product)
+    capacity = (tiled_width // width) * (tiled_height // height)
+
+    assert capacity >= num_envs, (
+        f"atlas {tiled_width}x{tiled_height} holds {capacity} tiles of {width}x{height}, short of the"
+        f" {num_envs} cameras requested"
+    )
+
+
+@pytest.mark.parametrize("num_envs", _TILE_COUNTS)
+def test_authored_atlas_is_an_exact_multiple_of_the_tile_size(num_envs):
+    """The atlas must be a whole number of tiles in each direction.
+
+    The extraction kernel reads tile ``i`` at a fixed ``width``/``height`` stride. A partial tile at the
+    edge means that stride walks off the authored image, so every tile past the ragged edge is wrong.
+    """
+    width, height = 96, 96
+    render_product, _ = build_render_product_as_string(
+        width=width, height=height, num_envs=num_envs, data_types=["rgb"]
+    )
+
+    tiled_width, tiled_height = _authored_resolution(render_product)
+
+    assert tiled_width % width == 0, f"atlas width {tiled_width} is not a multiple of the {width} px tile"
+    assert tiled_height % height == 0, f"atlas height {tiled_height} is not a multiple of the {height} px tile"
 
 
 def test_render_product_pins_device_ids_to_the_requested_cuda_device():

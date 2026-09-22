@@ -1,0 +1,1 @@
+Test-only: added tiled-camera tile-identity coverage at large tile counts, verifying each returned tile holds its own environment's view rather than only checking tensor shape or black-image counts.
