@@ -343,30 +343,6 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
         simple_agents.run([], policy="zero")
 
 
-def test_zero_agent_rejects_invalid_video_length_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-positive ``--video_length`` fails validation before a simulator backend is initialized."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-
-    recorders = [VideoRecorderCfg(output_dir="unused")]
-    cfg = SimpleNamespace(
-        scene=SimpleNamespace(num_envs=1),
-        sim=SimpleNamespace(device="cpu", use_fabric=True),
-        video_recorders=recorders,
-        validate=lambda: [recorder.validate() for recorder in recorders],
-    )
-    args = SimpleNamespace(task="Example", device=None, video=True, video_length=0, video_interval=None)
-    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
-    monkeypatch.setattr(
-        simple_agents,
-        "launch_simulation",
-        lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
-    )
-
-    with pytest.raises(SystemExit, match="video_length=0"):
-        simple_agents.run([], policy="zero")
-
-
 def test_random_agent_closes_environment_after_keyboard_interrupt(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -400,11 +376,20 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
     assert "Random agent stopped." in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("max_steps", [None, 40])
-def test_simple_agent_video_runs_until_every_recorder_finishes(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, max_steps: int | None
+@pytest.mark.parametrize(
+    ("video_length", "max_steps", "expected_steps"),
+    [(None, None, 55), (None, 40, 40), (0, None, None)],
+    ids=["last_recorder_clip", "max_steps_caps_clip", "invalid_length_fails_before_launch"],
+)
+def test_simple_agent_video_step_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    video_length: int | None,
+    max_steps: int | None,
+    expected_steps: int | None,
 ) -> None:
-    """A ``--video`` run steps until the last recorder's first clip ends, unless ``--max_steps`` is smaller."""
+    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``;
+    an invalid ``--video_length`` fails config validation before the simulation launches."""
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     recorders = [
@@ -415,7 +400,7 @@ def test_simple_agent_video_runs_until_every_recorder_finishes(
         scene=SimpleNamespace(num_envs=1),
         sim=SimpleNamespace(device="cpu", use_fabric=True),
         video_recorders=recorders,
-        validate=lambda: None,
+        validate=lambda: [recorder.validate() for recorder in recorders],
     )
     env = SimpleNamespace(
         observation_space="observations",
@@ -429,19 +414,22 @@ def test_simple_agent_video_runs_until_every_recorder_finishes(
         close=mock.Mock(),
     )
     args = SimpleNamespace(
-        max_steps=max_steps, task="Example", device=None, video=True, video_length=None, video_interval=None
+        max_steps=max_steps, task="Example", device=None, video=True, video_length=video_length, video_interval=None
     )
+    launched = mock.Mock(return_value=contextlib.nullcontext())
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
-    monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
+    monkeypatch.setattr(simple_agents, "launch_simulation", launched)
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
-    simple_agents.run([], policy="random")
-
-    clip_budget = max(recorder.step_offset + recorder.video_length for recorder in recorders)
-    expected = clip_budget if max_steps is None else min(max_steps, clip_budget)
-    assert env.step.call_count == expected
+    if expected_steps is None:
+        with pytest.raises(SystemExit, match=f"video_length={video_length}"):
+            simple_agents.run([], policy="random")
+        launched.assert_not_called()
+    else:
+        simple_agents.run([], policy="random")
+        assert env.step.call_count == expected_steps
 
 
 def test_simple_agent_request_forwards_video(monkeypatch) -> None:
