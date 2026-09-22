@@ -9,6 +9,7 @@ import contextlib
 import importlib.util
 import sys
 import types
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -79,6 +80,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
     rd.height = 8
     rd.num_envs = 2
     rd.warp_buffers = {}
+    rd.intrinsic_bindings = []
     rd.renderer_info = {}
     rd.ppisp_pipeline = None
     return rd
@@ -670,15 +672,14 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
 
 
 @pytest.mark.parametrize("cleanup_directly", [False, True])
-def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly):
-    """``cleanup`` releases the render data's own buffers and leaves the renderer usable.
-
-    Scene resources and other cameras' products must remain alive.
-    """
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
-    renderer._initialized_scene = True
-
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly, use_ovstage):
+    """Release one camera's pose and calibration resources once, keeping other cameras usable."""
+    events = []
+    renderer = (
+        _make_ovstage_renderer_with_backend(events) if use_ovstage else _make_legacy_renderer_with_backend(events)
+    )
+    other_camera = renderer._camera_render_data[0]
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/Render/RenderProduct_to_remove"
     renderer._render_product_paths.append(render_data.render_product_path)
@@ -686,23 +687,34 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly):
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
     render_data.ppisp_pipeline = object()
-    events = []
-    render_data.camera_xform_binding = _RecordingBinding(events, "camera")
-    render_data.resources.callback(render_data.camera_xform_binding.unbind)
+    if use_ovstage:
+        render_data.camera_xform_query = "to_remove"
+        render_data.resources.callback(renderer.backend.paths.destroy_path_list, "to_remove")
+        render_data.resources.callback(lambda: renderer.backend.stage.release_query("to_remove").wait())
+    else:
+        render_data.camera_xform_binding = _RecordingBinding(events, "pose")
+        render_data.resources.callback(render_data.camera_xform_binding.unbind)
+        render_data.intrinsic_bindings = [_RecordingBinding(events, "intrinsics")]
+        render_data.resources.callback(render_data.intrinsic_bindings[0].unbind)
 
     if cleanup_directly:
         render_data.cleanup()
     renderer.cleanup(render_data)
     renderer.cleanup(render_data)
 
-    assert events == ["unbind:camera"]
-    assert renderer._camera_render_data == []
+    expected = (
+        ["release_query:to_remove", "destroy_path_list:to_remove"]
+        if use_ovstage
+        else ["unbind:intrinsics", "unbind:pose"]
+    )
+    assert events == expected
+    assert renderer._camera_render_data == [other_camera]
     assert render_data.camera_xform_binding is None
-
+    assert render_data.camera_xform_query is None
+    assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
     assert render_data.ppisp_pipeline is None
-
     assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
     assert renderer._initialized_scene is True
 
@@ -717,6 +729,64 @@ def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
 
     assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
     assert renderer._initialized_scene is True
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
+    """Cameras sharing a renderer must bind and update distinct native camera paths."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._device = "cpu"
+    renderer._next_camera_id = 0
+    renderer._render_product_paths = []
+    renderer._use_ovstage = use_ovstage
+    renderer._current_ordinal = 1
+    renderer.backend.renderer = MagicMock()
+    renderer.backend.renderer.bind_attribute.side_effect = lambda **kwargs: MagicMock()
+    renderer.backend.stage = MagicMock()
+    renderer.backend.paths = MagicMock()
+    renderer.backend.paths.create_path_list_from_strings.side_effect = tuple
+    renderer.backend.stage.query_from_path_list.side_effect = lambda paths: contextlib.nullcontext(object())
+    for name in ("add_usd_reference_from_string", "apply_usd_changes", "remove_usd"):
+        monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, name, MagicMock())
+    paths = [[f"/World/envs/env_{i}/{name}" for i in range(2)] for name in ("CameraA", "CameraB")]
+    cameras = [
+        renderer.create_render_data(
+            types.SimpleNamespace(
+                cfg=_make_camera_cfg(["depth"]),
+                device="cpu",
+                num_instances=2,
+                camera_prim_paths=camera_paths,
+                camera_path_relative_to_env_0=camera_paths[0].rsplit("/", 1)[1],
+            )
+        )
+        for camera_paths in paths
+    ]
+    monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
+    parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
+    renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
+    # Keep native resources on the backend and reuse the camera-owned query for calibration.
+    assert not {"_renderer", "_stage", "_stage_paths", "_camera_intrinsic_bindings"}.intersection(vars(renderer))
+    assert all(not {"intrinsic_query", "intrinsic_paths"}.intersection(vars(camera)) for camera in cameras)
+    if use_ovstage:
+        assert renderer.backend.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_query
+        bound_paths = [call.args[0] for call in renderer.backend.paths.create_path_list_from_strings.call_args_list]
+        assert bound_paths == [[cameras[0].render_product_path], paths[0], [cameras[1].render_product_path], paths[1]]
+    else:
+        bound_paths = [
+            call.kwargs["prim_paths"]
+            for call in renderer.backend.renderer.bind_attribute.call_args_list
+            if call.kwargs["attribute_name"] in ovrtx_renderer_module._CAMERA_INTRINSIC_ATTRIBUTES
+        ]
+        assert bound_paths == [paths[0]] * 5 + [paths[1]] * 5
+        assert all(not binding.write_async.called for binding in cameras[0].intrinsic_bindings)
+        for row, binding in enumerate(cameras[1].intrinsic_bindings):
+            assert binding.write_async.call_args.args[0].ptr == parameters[row].ptr
+        bindings = list(cameras[1].intrinsic_bindings)
+        cameras[1].cleanup()
+        cameras[1].cleanup()
+        assert all(binding.unbind.call_count == 1 for binding in bindings)
+        assert all(not binding.unbind.called for binding in cameras[0].intrinsic_bindings)
 
 
 class _RecordingBinding:

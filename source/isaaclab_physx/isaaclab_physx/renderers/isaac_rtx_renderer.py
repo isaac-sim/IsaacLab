@@ -83,6 +83,33 @@ RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
 RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
 RTX_MINIMAL_RENDER_MODE = "Minimal"
 
+_CAMERA_INTRINSIC_ATTRIBUTES = (
+    "focalLength",
+    "horizontalAperture",
+    "verticalAperture",
+    "horizontalApertureOffset",
+    "verticalApertureOffset",
+)
+
+
+@wp.kernel(enable_backward=False)
+def _write_camera_intrinsics(
+    parameters: wp.array2d(dtype=wp.float32),
+    rows: wp.fabricarray(dtype=wp.int32),
+    focal: wp.fabricarray(dtype=wp.float32),
+    horizontal: wp.fabricarray(dtype=wp.float32),
+    vertical: wp.fabricarray(dtype=wp.float32),
+    horizontal_offset: wp.fabricarray(dtype=wp.float32),
+    vertical_offset: wp.fabricarray(dtype=wp.float32),
+):
+    i = wp.tid()
+    row = rows[i]
+    focal[i] = parameters[0, row]
+    horizontal[i] = parameters[1, row]
+    vertical[i] = parameters[2, row]
+    horizontal_offset[i] = parameters[3, row]
+    vertical_offset[i] = parameters[4, row]
+
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
     """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
@@ -103,12 +130,51 @@ class IsaacRtxRenderData:
     output_data: dict[str, ProxyArray] | None = None
     spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
+    intrinsic_selection: Any = None
+    intrinsic_row_attribute: str = ""
+    intrinsic_stage: Any = None
     ppisp_pipeline: PpispPipeline | None = None
     """Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set."""
     _hdr_scratch_wp: wp.array | None = None
     """Internal HDR scratch buffer allocated when the user did not request
     ``"rgb_hdr"`` in ``data_types`` but the PPISP pipeline still needs
     somewhere to receive the HDR AOV before LDR conversion."""
+
+    def __post_init__(self):
+        """Compile the stage-bound calibration columns owned by this render product."""
+        if self.spec is None:
+            return
+        # Resolve camera-to-Fabric rows once. Fabric bucket order need not match sensor order.
+        import usdrt
+
+        from isaaclab.sim.utils.stage import get_current_stage
+
+        spec = self.spec
+        stage = get_current_stage()
+        fabric = get_current_stage(fabric=True)
+        row_attribute = f"isaaclab:cameraIntrinsicRow:{uuid.uuid4().hex}"
+        for row, path in enumerate(spec.camera_prim_paths):
+            prim = fabric.GetPrimAtPath(path)
+            prim.CreateAttribute(row_attribute, usdrt.Sdf.ValueTypeNames.Int, True).Set(row)
+            # Reinitialize from USD, including values left in Fabric by a previous runtime override.
+            for name in _CAMERA_INTRINSIC_ATTRIBUTES:
+                value = stage.GetPrimAtPath(path).GetAttribute(name).Get()
+                prim.CreateAttribute(name, usdrt.Sdf.ValueTypeNames.Float, False).Set(value)
+        selection = fabric.SelectPrims(
+            require_attrs=[
+                (usdrt.Sdf.ValueTypeNames.Int, row_attribute, usdrt.Usd.Access.Read),
+                *[
+                    (usdrt.Sdf.ValueTypeNames.Float, name, usdrt.Usd.Access.ReadWrite)
+                    for name in _CAMERA_INTRINSIC_ATTRIBUTES
+                ],
+            ],
+            device=str(spec.device),
+        )
+        if selection.GetCount() != len(spec.camera_prim_paths):
+            raise RuntimeError("Fabric camera calibration selection does not match the camera count.")
+        self.intrinsic_selection = selection
+        self.intrinsic_row_attribute = row_attribute
+        self.intrinsic_stage = fabric
 
 
 class IsaacRtxRenderer(BaseRenderer):
@@ -521,9 +587,24 @@ class IsaacRtxRenderer(BaseRenderer):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ):
-        """No-op for Replicator - uses USD camera prims directly.
+        """No-op for camera poses, which the frame view already writes into Fabric.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         pass
+
+    def update_camera_intrinsics(self, render_data: IsaacRtxRenderData, intrinsics: wp.array, parameters: wp.array):
+        """Write camera projection columns directly into Fabric from device buffers."""
+        selection = render_data.intrinsic_selection
+        selection.PrepareForReuse()
+        wp.launch(
+            _write_camera_intrinsics,
+            dim=selection.GetCount(),
+            inputs=[
+                parameters,
+                wp.fabricarray(selection, render_data.intrinsic_row_attribute),
+                *[wp.fabricarray(selection, name) for name in _CAMERA_INTRINSIC_ATTRIBUTES],
+            ],
+            device=parameters.device,
+        )
 
     def render(self, render_data: IsaacRtxRenderData):
         """Extract data from annotators and write to output buffers.
@@ -686,6 +767,14 @@ class IsaacRtxRenderer(BaseRenderer):
 
         render_data.render_product.destroy()
         render_data.render_product = None
+
+        render_data.intrinsic_selection = None
+        if render_data.intrinsic_stage is not None and render_data.spec is not None:
+            for path in render_data.spec.camera_prim_paths:
+                prim = render_data.intrinsic_stage.GetPrimAtPath(path)
+                if prim.IsValid():
+                    prim.RemoveProperty(render_data.intrinsic_row_attribute)
+        render_data.intrinsic_stage = None
 
         render_data.annotators.clear()
         render_data.output_data = None
