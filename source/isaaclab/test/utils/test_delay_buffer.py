@@ -52,6 +52,20 @@ def test_reset_restarts_history_for_selected_batches(delay_buffer):
         torch.testing.assert_close(delayed, expected)
 
 
+@pytest.mark.parametrize(
+    ("time_lag", "batch_ids"),
+    [(5, [2]), (-1, [2]), (torch.tensor([5, 1], dtype=torch.int), [2, 3])],
+)
+def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_ids):
+    """Invalid lags are rejected before the live lag configuration changes."""
+    initial_lags = torch.arange(BATCH_SIZE, dtype=torch.int) % 5
+    delay_buffer.set_time_lag(initial_lags)
+    with pytest.raises(ValueError):
+        delay_buffer.set_time_lag(time_lag, batch_ids)
+    torch.testing.assert_close(delay_buffer.time_lags, initial_lags)
+    assert (delay_buffer.min_time_lag, delay_buffer.max_time_lag) == (0, 4)
+
+
 def test_compute_result_does_not_alias_internal_storage(delay_buffer):
     """Mutating a returned tensor in place must not leak into the next compute() output."""
     delay_buffer.set_time_lag(0)
