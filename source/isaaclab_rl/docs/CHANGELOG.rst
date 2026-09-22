@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.1.1 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the zero and random agents to exit cleanly on ``Ctrl+C`` and close the environment without printing a
+  ``KeyboardInterrupt`` traceback.
+
+
 1.1.0 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~
 

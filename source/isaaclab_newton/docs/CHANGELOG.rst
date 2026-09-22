@@ -1,6 +1,74 @@
 Changelog
 ---------
 
+7.0.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NewtonBackendCfg`` for registry-owned model, state, and control allocation from a populated
+  clone builder. Physics and render-only models retained their existing public manager accessors;
+  model creation and release moved into one native resource without copying the builder.
+  ``NewtonManager.backend`` exposed the shared registry-owned resource directly.
+* Added ``hardening_rate`` and ``softening_rate`` to
+  :class:`~isaaclab_newton.sim.MPMParticleMaterialCfg`.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_newton.sim.MPMGridCfg` and
+  :class:`~isaaclab_newton.sim.MPMPointsCfg` to author schema-valid USD points,
+  explicit particle masses, and bound Newton MPM materials for Newton's standard
+  USD import path.
+* Standardized :class:`~isaaclab_newton.physics.MPMSolverCfg` rheology solver
+  values on the canonical tokens defined by ``NewtonMPMSceneAPI``.
+* **Breaking:** Standardized grid jitter as one deterministic asset-local particle
+  distribution shared by USD clones. Use reset events or domain randomization for
+  independent per-environment distributions.
+* Updated the teapot-fill water material's tensile yield ratio to the schema-valid
+  maximum of ``1.0``.
+* Renamed :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd` to
+  :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_fabric`. The method writes
+  ``omni:fabric:worldMatrix`` through Fabric and never authors a USD attribute, so the old name
+  named the wrong destination and obscured that the poses reach the RTX renderer but not a stage
+  export or save.
+* **Breaking:** Built foreign-physics Newton render representations from declared clone-plan sources and shared roots instead of
+  discovering the completed stage in model getters. Standalone render workflows must declare their assets and camera
+  configurations before cloning; native model allocation occurred after physics initialization.
+* Unified physics and render-only Newton construction in the clone pipeline, retaining solver-specific imports only
+  for Newton physics. Render-only deformables respected context row routing and plans without position offsets.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd`. It now logs a
+  warning and forwards to :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_fabric`,
+  and will be removed in a future release. Replace calls to ``sync_transforms_to_usd`` with
+  ``sync_transforms_to_fabric``; behaviour is unchanged.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``emit_mpm_particles``. Use ``MPMGridCfg`` or
+  ``MPMPointsCfg`` through the standard Isaac Lab spawner workflow.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` pose writes not reaching the renderer.
+  Newton kept frame poses in Warp state only, so a write through
+  :meth:`~isaaclab.sensors.camera.Camera.set_world_poses` moved ``camera.data.pos_w`` while the rendered
+  image stayed at the old pose. Site world poses are now mirrored onto the prim's Fabric transforms when
+  a transform writer scope exits.
+* Regenerated Newton camera rays in place after runtime calibration changes, preserving buffers used
+  by captured rendering graphs. Pinhole ray generation used Warp directly without scalar GPU-to-host
+  transfers through the native convenience helper.
+* Rejected runtime calibration batches that differed across environments before changing active
+  calibration. Newton's native ray field was shared across worlds and previously used only the
+  first camera's calibration. Use identical intrinsics across environments with this renderer.
+
+
 6.1.1 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~
 

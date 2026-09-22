@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+19.0.2 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused the default ground plane for the Franka Pour and UR10 Particle Push MPM tasks instead of
+  adding task-specific MPM ground colliders.
+
+Fixed
+^^^^^
+
+* Fixed ``Isaac-Cartpole-Camera`` and ``Isaac-Cartpole-Camera-Direct`` accepting
+  ``presets=newton_renderer`` together with a ``simple_shading_*`` data type, which the Newton Warp
+  renderer cannot produce: the run failed only at environment construction, after the simulator had
+  started. The combination is now rejected during config resolution. Use ``presets=newton_renderer,rgb``,
+  or keep the shading data types on an RTX backend with ``presets=isaacsim_rtx,simple_shading_full_mdl``.
+* Fixed the Shadow Hand camera and Lift reorientation tasks rejecting Newton Warp ``rgba``, ``rgb_hdr``,
+  and ``albedo`` outputs that the renderer supports.
+
+
 19.0.1 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~~
 
