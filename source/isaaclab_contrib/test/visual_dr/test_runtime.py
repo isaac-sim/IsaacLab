@@ -294,3 +294,31 @@ def test_prompts_are_untouched_without_a_progression():
     runtime = make_progression_runtime()
     runtime._observation_index = 7
     assert runtime._prompt_for(0) == "a room."
+
+
+def _remote_cfg(devices, **kwargs):
+    from isaaclab_contrib.visual_dr.cfg import PromptBankCfg, RemoteCosmosBackendCfg
+    from isaaclab_contrib.visual_dr.remote import RemoteCosmosBackend
+
+    return RemoteCosmosBackendCfg(
+        class_type=RemoteCosmosBackend,
+        devices=devices,
+        prompts=PromptBankCfg(variants=("a lab",)),
+        **kwargs,
+    )
+
+
+def test_remote_backend_requires_devices():
+    with pytest.raises(ValueError, match="must name at least one GPU"):
+        _remote_cfg(())
+
+
+def test_remote_backend_rejects_duplicate_devices():
+    with pytest.raises(ValueError, match="must be distinct"):
+        _remote_cfg((1, 1))
+
+
+def test_remote_backend_rejects_a_batch_larger_than_the_worker_count():
+    # Each worker takes one frame per call, so the runtime has to chunk to fit.
+    with pytest.raises(ValueError, match="exceeds 2 workers"):
+        _remote_cfg((1, 2), max_batch=4)

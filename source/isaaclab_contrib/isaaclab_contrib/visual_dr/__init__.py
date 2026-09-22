@@ -6,7 +6,7 @@
 """Runtime visual domain randomization. Cosmos is imported only when configured."""
 
 from .backends import DRBackend, DRFrame, DRRequest, PassthroughBackend
-from .cfg import CameraDRCfg, CosmosBackendCfg, DRBackendCfg, PromptBankCfg, VisualDRCfg
+from .cfg import CameraDRCfg, CosmosBackendCfg, DRBackendCfg, PromptBankCfg, RemoteCosmosBackendCfg, VisualDRCfg
 from .observations import image_runtime_dr, preserve_mask
 from .runtime import VisualDRRuntime
 
@@ -19,6 +19,7 @@ __all__ = [
     "DRRequest",
     "PassthroughBackend",
     "PromptBankCfg",
+    "RemoteCosmosBackendCfg",
     "VisualDRCfg",
     "VisualDRRuntime",
     "image_runtime_dr",

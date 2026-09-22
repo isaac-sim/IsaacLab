@@ -114,3 +114,19 @@ Fixed
   demo uses it to take the laboratory's windows from dawn to midnight over a
   rollout. The walk clamps at the final phrase rather than wrapping, so a longer
   run ends at midnight instead of snapping back to dawn.
+
+* Added :class:`~isaaclab_contrib.visual_dr.RemoteCosmosBackendCfg`, which runs
+  generation in worker processes on their own GPUs. It answers two problems at
+  once: the simulator stops competing with a diffusion model for a GPU, and several
+  workers generate the environments of one step at the same time -- the only
+  parallelism available while Cosmos rejects batched transfer inference. Measured
+  on H100s at 16 steps, one worker costs 3.62 s per frame, two 2.02 s and four
+  1.18 s.
+
+  Image payloads move by CUDA IPC and peer copy, so they never pass through host
+  memory; only prompts, seeds and identifiers travel as ordinary objects. The
+  runtime is unchanged: setting ``max_batch`` to the worker count makes it chunk
+  the environments it wants randomized into exactly one frame per worker. Workers
+  also run without Omniverse Kit, so the cuDNN attention fallback is inert there.
+
+  Same-node only. Crossing machines needs a real transport behind the same class.
