@@ -83,6 +83,12 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     position_only: bool = True
     """Command goal position only. Command includes goal quat if False"""
 
+    difficulty_term: str | None = None
+    """Curriculum term that expands goals from the object's current pose. Defaults to None."""
+
+    initial_position_distance: float = 0.0
+    """Object-to-goal distance [m] at minimum difficulty. Defaults to 0.0."""
+
     # Pose Markers
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""

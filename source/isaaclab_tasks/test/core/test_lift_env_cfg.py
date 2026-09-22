@@ -14,6 +14,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.managers import CommandTerm
 from isaaclab.sim import select_usd_variants, use_stage
+from isaaclab.utils.math import quat_box_minus
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
@@ -87,6 +88,74 @@ def test_franka_rigid_tasks_select_gripper_only_colliders(cfg_type) -> None:
     assert stage.GetPrimAtPath("/Robot/gripper_capsule").IsValid()
     assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+
+
+def test_franka_reorient_alone_enables_goal_curriculum() -> None:
+    """Reorient should get an ADR-scaled foothold without changing the working Lift MDP."""
+    reorient = FrankaReorientEnvCfg()
+    lift = FrankaLiftEnvCfg()
+
+    assert reorient.commands.object_pose.difficulty_term == "adr"
+    assert reorient.commands.object_pose.initial_position_distance == pytest.approx(0.0)
+    reorient_reset = reorient.events.conditional_reset.params
+    assert reorient_reset["terms"]["reset_object_to_target"].func is mdp.reset_to_grasp
+    assert reorient_reset["terms"]["reset_object_to_target"].params["probability"] == pytest.approx(1.0)
+    assert "object_robot_clearance" not in reorient_reset["valid_criteria"]
+    assert reorient.actions.arm_action.joint_names == ["panda_joint.*"]
+    assert reorient.actions.arm_action.scale == pytest.approx(0.03)
+    assert reorient.actions.gripper_action.joint_names == ["panda_finger_joint1"]
+    assert lift.commands.object_pose.difficulty_term is None
+    assert lift.actions.action.joint_names == [".*"]
+    assert (
+        lift.events.conditional_reset.params["terms"]["reset_object_to_target"].func
+        == "isaaclab_tasks.core.lift.mdp.events:reset_to_target"
+    )
+    assert "object_robot_clearance" in lift.events.conditional_reset.params["valid_criteria"]
+
+
+def test_pose_command_curriculum_preserves_full_difficulty_goal() -> None:
+    """Pose goals should start locally and equal the sampled goal at maximum difficulty."""
+    scheduler = SimpleNamespace(
+        cfg=SimpleNamespace(params={"min_difficulty": 0, "max_difficulty": 10}),
+        current_difficulties=torch.tensor([0.0, 10.0]),
+    )
+    identity = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]])
+    object_pos_b = torch.tensor([[0.4, 0.0, 0.5], [0.4, 0.0, 0.5]])
+    env = SimpleNamespace(
+        device="cpu", curriculum_manager=SimpleNamespace(cfg=SimpleNamespace(adr=SimpleNamespace(func=scheduler)))
+    )
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.zeros(2, 3)),
+            root_quat_w=SimpleNamespace(torch=identity),
+        )
+    )
+    obj = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=object_pos_b),
+            root_quat_w=SimpleNamespace(torch=identity),
+        )
+    )
+    command = object.__new__(ObjectUniformPoseCommand)
+    command._env = env
+    command.robot = robot
+    command.object = obj
+    command.cfg = SimpleNamespace(difficulty_term="adr", initial_position_distance=0.06)
+    full_goal = torch.tensor(
+        [
+            [0.4, 0.0, 0.7, 0.0, 0.0, 0.5646425, 0.8253356],
+            [0.4, 0.0, 0.7, 0.0, 0.0, 0.5646425, 0.8253356],
+        ]
+    )
+    command.pose_command_b = full_goal.clone()
+
+    command._apply_difficulty_curriculum(torch.arange(2))
+
+    assert torch.linalg.norm(command.pose_command_b[0, :3] - object_pos_b[0]).item() == pytest.approx(0.06)
+    assert torch.linalg.norm(quat_box_minus(command.pose_command_b[0:1, 3:], identity[0:1])).item() == pytest.approx(
+        0.0
+    )
+    torch.testing.assert_close(command.pose_command_b[1], full_goal[1])
 
 
 def test_reset_clearance_ignores_disabled_collision_geometry() -> None:

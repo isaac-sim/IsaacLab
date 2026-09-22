@@ -51,6 +51,7 @@ __all__ = [
     "reset_cable_state_uniform",
     "reset_deformable_over_support",
     "reset_joints_shared_offset",
+    "reset_to_grasp",
     "reset_to_target",
     "set_reset_state",
     "slab_clearance",
@@ -69,6 +70,7 @@ from .events import (
     reset_cable_state_uniform,
     reset_deformable_over_support,
     reset_joints_shared_offset,
+    reset_to_grasp,
     reset_to_target,
     slab_clearance,
 )
