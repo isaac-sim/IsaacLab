@@ -88,6 +88,9 @@ def main() -> None:
         finger_joint_ids = torch.tensor(
             [robot.joint_names.index(f"panda_finger_joint{i}") for i in (1, 2)], device=unwrapped.device
         )
+        arm_joint_ids = torch.tensor(
+            [robot.joint_names.index(f"panda_joint{i}") for i in range(1, 8)], device=unwrapped.device
+        )
 
         all_env_ids = torch.arange(unwrapped.num_envs, device=unwrapped.device)
         grasp_env_ids = all_env_ids[::2]
@@ -113,6 +116,7 @@ def main() -> None:
         contact_onset = torch.full((unwrapped.num_envs,), -1, dtype=torch.long, device=unwrapped.device)
         peak_left = torch.zeros(unwrapped.num_envs, device=unwrapped.device)
         peak_right = torch.zeros_like(peak_left)
+        peak_arm_velocity = torch.zeros(unwrapped.num_envs, device=unwrapped.device)
         with torch.inference_mode():
             for step in range(12):
                 actions.zero_()
@@ -122,6 +126,9 @@ def main() -> None:
                 right_force = _force_magnitude(right_sensor)
                 peak_left = torch.maximum(peak_left, left_force)
                 peak_right = torch.maximum(peak_right, right_force)
+                peak_arm_velocity = torch.maximum(
+                    peak_arm_velocity, robot.data.joint_vel.torch[:, arm_joint_ids].abs().amax(dim=-1)
+                )
                 touching = (left_force > 0.01) & (right_force > 0.01)
                 contact_onset[(contact_onset < 0) & touching] = step + 1
                 dual_contact |= touching
@@ -145,6 +152,8 @@ def main() -> None:
             "isolated_peak_force_max": float(
                 torch.maximum(peak_left[isolated_env_ids], peak_right[isolated_env_ids]).max().item()
             ),
+            "grasp_peak_arm_velocity_max": float(peak_arm_velocity[grasp_env_ids].max().item()),
+            "isolated_peak_arm_velocity_max": float(peak_arm_velocity[isolated_env_ids].max().item()),
             "grasp_finger_position_mean": float(final_finger_pos[grasp_env_ids].mean().item()),
             "isolated_finger_position_mean": float(final_finger_pos[isolated_env_ids].mean().item()),
             "mimic_error_max": float(mimic_error.max().item()),

@@ -63,6 +63,8 @@ def test_franka_lift_physx_runtimes_preserve_grasp_and_clone_contracts() -> None
         assert 0 < result["contact_onset_step_max"] <= 8
         assert result["grasp_peak_force_min"] > 0.01
         assert result["isolated_peak_force_max"] < 0.01, f"{backend} leaked contact across clones"
+        assert result["grasp_peak_arm_velocity_max"] < 2.0
+        assert result["isolated_peak_arm_velocity_max"] < 2.0
         assert result["isolated_finger_position_mean"] > result["grasp_finger_position_mean"] + 5.0e-4
         assert result["mimic_error_max"] < 1.0e-3
 
@@ -71,4 +73,10 @@ def test_franka_lift_physx_runtimes_preserve_grasp_and_clone_contracts() -> None
     assert (
         abs(results["isaacsim_physx"]["grasp_finger_position_mean"] - results["ovphysx"]["grasp_finger_position_mean"])
         < 0.005
+    )
+    assert (
+        abs(
+            results["isaacsim_physx"]["grasp_peak_arm_velocity_max"] - results["ovphysx"]["grasp_peak_arm_velocity_max"]
+        )
+        < 0.1
     )
