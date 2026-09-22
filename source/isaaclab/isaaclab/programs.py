@@ -217,7 +217,7 @@ EXAMPLES = (
         "ppisp-camera",
         "examples/sensors/ppisp_camera.py",
         "Compare PPISP camera renderers.",
-        **_ISAACSIM,
+        extras=("isaacsim",),
         newton_gl_args=None,
     ),
     ProgramSpec(

@@ -588,6 +588,14 @@ class IsaacRtxRenderer(BaseRenderer):
         sim = SimulationContext.instance()
         self._fabric.update_geometries(sim.get_scene_data_provider(), sim.render_generation)
 
+    def update_particle_field_transforms(self, prim_paths, local_transforms):
+        """Isaac RTX particle-field animation is updated through Fabric, not this renderer API."""
+        raise NotImplementedError("Isaac RTX does not support direct particle-field renderer updates.")
+
+    def update_particle_field_particles(self, prim_paths, positions=None, orientations=None, scales=None):
+        """Isaac RTX particle-field animation is updated through Fabric, not this renderer API."""
+        raise NotImplementedError("Isaac RTX does not support direct particle-field renderer updates.")
+
     def update_camera(
         self,
         render_data: IsaacRtxRenderData,

@@ -82,7 +82,7 @@ def _python(source: str) -> list[str]:
 def test_every_standalone_script_has_a_launch_contract_or_exemption():
     """Packaged programs must stop themselves; other scripts must be runnable or explicitly exempted."""
     not_finite = [spec.relative_path for spec in SPECS if spec.program is not None and not spec.finite]
-    assert not not_finite, f"packaged programs need a --max_steps option: {not_finite}"
+    assert not not_finite, f"packaged programs need a --max_steps or --num_frames option: {not_finite}"
     missing = [
         spec.relative_path
         for spec in SPECS

@@ -322,7 +322,11 @@ Run the ``ppisp-camera`` example for a complete PPISP workflow:
 .. code-block:: bash
 
    uv run --extra isaacsim isaaclab example ppisp-camera \
-      --renderer newton_renderer --max_steps 60
+      --renderer newton_renderer --num_frames 3
+
+   # Play an authored camera or Gaussian-splat animation at 30 FPS, writing every third frame.
+   uv run --extra isaacsim isaaclab example ppisp-camera \
+      --renderer isaac_rtx --render_fps 30 --write_fps 10
 
 Performance and validation
 --------------------------
