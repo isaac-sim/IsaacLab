@@ -719,14 +719,19 @@ def test_mid_path_wildcard_dedup(device, num_envs):
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         stage = get_current_stage()
-        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0, device=device)
+        contact_sensor_cfg = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/.*/left_knee",
+            track_pose=False,
+            debug_vis=False,
+            update_period=0.0,
+        )
+        clone_plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (contact_sensor_cfg,), num_envs, 3.0)
+        assert clone_plan.env_ids is not None and clone_plan.positions is not None
+        env_positions = clone_plan.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions)
-        assert clone_plan.env_ids is not None
         ovphysx_replicate(
             stage,
             clone_plan.sources,
@@ -735,16 +740,8 @@ def test_mid_path_wildcard_dedup(device, num_envs):
             clone_plan.clone_mask,
             positions=clone_plan.positions,
         )
-        sim.set_clone_plan(clone_plan)
 
-        contact_sensor = ContactSensor(
-            ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*/left_knee",
-                track_pose=False,
-                debug_vis=False,
-                update_period=0.0,
-            )
-        )
+        contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 
         # the mid-path wildcard matches two ancestors but the leaf must be registered once
@@ -755,7 +752,7 @@ def test_mid_path_wildcard_dedup(device, num_envs):
         for _ in range(2):
             sim.step()
             contact_sensor.update(_SIM_DT, force_recompute=True)
-        net_forces = contact_sensor.data.net_forces_w.torch
+        net_forces = contact_sensor.data.net_normal_forces_w.torch
         assert net_forces.shape == (num_envs, 1, 3)
 
 
