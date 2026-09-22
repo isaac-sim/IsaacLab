@@ -327,6 +327,11 @@ roots as a global-only plan. This keeps their existing native physics initializa
 USD runs before native physics contexts so the destination topology exists when
 they consume it. No fallback context is constructed during dispatch.
 
+Setting ``replicate_physics=False`` skips the active physics replication context.
+Other declared contexts still run, including USD replication when configured, so
+they can create the per-environment prims without replicating the physics model.
+The physics backend can then parse those prims independently.
+
 Collision Filtering
 -------------------
 
