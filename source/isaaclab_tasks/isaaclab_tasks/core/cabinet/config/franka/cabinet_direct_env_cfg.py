@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from isaaclab.utils import configclass
+
 from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
