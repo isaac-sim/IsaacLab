@@ -131,3 +131,11 @@ Fixed
   also run without Omniverse Kit, so the cuDNN attention fallback is inert there.
 
   Same-node only. Crossing machines needs a real transport behind the same class.
+
+* Fixed ``VisualDRCfg.enabled`` being documented but never honored. The runtime
+  constructed and activated a backend whatever the flag said, so a disabled
+  configuration still loaded the model and still restyled frames, and the shipped
+  default -- disabled, naming no backend -- could not be constructed at all. A
+  disabled runtime now builds no backend, advances no scheduling state, and is
+  indistinguishable from having attached no runtime: ``make_frame`` is never
+  called, so depth and segmentation are not even fetched.
