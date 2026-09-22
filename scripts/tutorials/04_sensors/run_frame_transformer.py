@@ -44,6 +44,7 @@ from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -177,7 +178,11 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # Design scene
+    global_paths = ("/World/defaultGroundPlane", "/World/Light", ROBOT_PRIM_PATH)
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+    sim.set_clone_plan(plan)
     scene_entities = design_scene()
+    cloner.replicate(plan, replicate_physics=False)
     # Play the simulator
     sim.reset()
     # Now we are ready!

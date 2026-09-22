@@ -276,9 +276,10 @@ Planning maps each cfg to rows in ``cfg_rows`` and each participating backend to
 its subset in ``context_rows``. The active physics manager registers its clone
 context during simulation initialization. Assets use that context by default;
 :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` can select an explicitly
-registered context instead. Planning also registers
-:class:`~isaaclab.cloner.UsdReplicateContext` for spawned assets when Kit is
-available.
+registered context instead. Renderer and visualizer cfgs declare their required
+representations through ``cloning_contexts``. They are registered before planning,
+so spawned assets also route to those contexts and to
+:class:`~isaaclab.cloner.UsdReplicateContext` when Kit is available.
 
 The backend packages expose different context implementations behind one
 execution contract:
@@ -290,17 +291,38 @@ execution contract:
     NewtonReplicateContext   # replicates Newton bodies in its parallel pipeline
 
 :func:`~isaaclab.cloner.replicate` resolves these types through the
-:class:`~isaaclab.sim.SimulationContext` backend registry, orders them by
+:class:`~isaaclab.sim.SimulationContext` clone-context registry, orders them by
 ``replicate_priority``, and passes the published plan to each one:
 
 .. code-block:: python
 
     plan = published_clone_plan
     for context_type in plan.context_rows:
-        simulation_backends[context_type].replicate(plan)
+        sim.clone_contexts[context_type].replicate(plan)
 
 Every maintained lifecycle publishes its plan before asset construction. The
 simulation accepts one plan and each backend receives that exact object.
+Newton rendering under another physics backend imports only the plan's routed
+sources and shared roots, then expands them using the plan's mapping. Its native
+model is allocated at ``PHYSICS_READY``, before camera renderers initialize;
+model getters do not build representations or discover a finished stage.
+
+Construct visualizers through ``SimulationCfg`` and declare camera renderer cfgs
+before cloning. Their constructors register requirements without reading a native
+model; initialization binds the realized resources afterward. Interactive scenes
+handle this ordering automatically. With the direct cloner API, include cameras
+in the asset cfgs supplied to the planner.
+
+Standalone previews with no replicated environments can declare their authored
+roots as a global-only plan. This keeps their existing native physics initialization:
+
+.. code-block:: python
+
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Robot", "/World/Light"))
+    sim.set_clone_plan(plan)
+    # Author the declared robot and light here.
+    cloner.replicate(plan, replicate_physics=False)
+    sim.reset()
 
 USD runs before native physics contexts so the destination topology exists when
 they consume it. No fallback context is constructed during dispatch.

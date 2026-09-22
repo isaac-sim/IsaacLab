@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
@@ -246,8 +248,11 @@ def test_update_visualizers_skips_dispatch_when_live_plots_disabled():
 def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     created = []
     reset_calls = []
+    camera_calls = []
 
     class _Cfg:
+        cloning_contexts = ()
+
         def __init__(self, visualizer_type, enable_picking=False):
             self.visualizer_type = visualizer_type
             self.enable_picking = enable_picking
@@ -258,11 +263,15 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
             viz = _FakeVisualizer(cfg)
             viz.initialize = lambda _provider: created.append(cfg.visualizer_type)
             viz.reset = lambda soft: reset_calls.append((cfg.visualizer_type, soft))
+            viz.set_camera_view = lambda eye, target: camera_calls.append((cfg.visualizer_type, eye, target))
             return viz
 
     ctx = _make_context_with_settings(
         {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
     )
+    ctx._create_visualizers()
+    eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
+    ctx.set_camera_view(eye, target)
     ctx._prepare_newton_visualizer_for_capture()
     assert created == ["newton_gl", "newton_rtx"]
 
@@ -271,6 +280,8 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
 
     assert created == ["newton_gl", "newton_rtx", "rerun"]
     assert len(ctx._visualizers) == 3
+    assert camera_calls == [(name, eye, target) for name in ("newton_gl", "newton_rtx", "rerun")]
+    assert ctx._pending_camera_view is None
     assert reset_calls == [
         ("newton_gl", False),
         ("newton_rtx", False),
@@ -730,6 +741,8 @@ def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
 class _FakeVisualizerCfg:
     """Minimal visualizer config for testing initialize_visualizers."""
 
+    cloning_contexts = ()
+
     def __init__(self, visualizer_type: str, *, fail_construct: bool = False, fail_init: bool = False):
         self.visualizer_type = visualizer_type
         self.class_type = (
@@ -748,9 +761,13 @@ class _FailingInitVisualizer(_FakeVisualizer):
         raise RuntimeError("init failed")
 
 
-def test_initialize_visualizer_constructs_class_type_with_its_config():
+@pytest.mark.parametrize("fail_construct", [False, True])
+def test_visualizer_construction_precedes_initialization_and_happens_once(monkeypatch, fail_construct):
+    import isaaclab.sim.simulation_context as context_module
+
     seen = []
     cfg = _FakeVisualizerCfg("kit")
+    cfg.cloning_contexts = (object,)
     cfg.class_type = lambda actual: seen.append(actual) or _FakeVisualizer(actual)
     settings = {
         "/isaaclab/visualizer/types": "",
@@ -758,12 +775,43 @@ def test_initialize_visualizer_constructs_class_type_with_its_config():
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_visible_envs": None,
     }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg])
-
-    ctx.initialize_visualizers()
+    physics_cfg = SimpleNamespace(class_type=Mock(), dt=0.01)
+    monkeypatch.setattr(context_module, "_resolve_physics_cfg", lambda cfg, use_isaac_sim: physics_cfg)
+    monkeypatch.setattr(context_module, "has_kit", lambda: False)
+    monkeypatch.setattr(context_module, "SceneDataProvider", lambda backend: _FakeProvider())
+    monkeypatch.setattr(
+        context_module.SettingsManager,
+        "instance",
+        lambda: SimpleNamespace(get=settings.get, set_bool=settings.__setitem__),
+    )
+    monkeypatch.setattr(SimulationContext, "_init_usd_physics_scene", lambda self: None)
+    monkeypatch.setattr(SimulationContext, "_instance", None)
+    cfgs = [cfg, _FakeVisualizerCfg("kit", fail_construct=True)] if fail_construct else [cfg]
+    sim_cfg = context_module.SimulationCfg(device="cpu", visualizer_cfgs=cfgs)
+    cfg = sim_cfg.visualizer_cfgs[0]
+    if fail_construct:
+        with pytest.raises(RuntimeError, match="construction failed"):
+            SimulationContext(sim_cfg)
+        ctx = SimulationContext.instance()
+    else:
+        ctx = SimulationContext(sim_cfg)
 
     assert seen == [cfg]
-    assert ctx._visualizers[0].cfg is cfg
+    assert ctx._pending_visualizers[0].cfg is cfg
+    assert ctx._render_context.clone_contexts == {object}
+    assert ctx.get_clone_plan() is None
+    assert not ctx._visualizers
+    assert ctx.requires_usd_stage
+
+    visualizer = ctx._pending_visualizers[0]
+    if not fail_construct:
+        ctx.initialize_visualizers()
+        ctx.initialize_visualizers()
+        assert seen == [cfg]
+        assert ctx._visualizers == [visualizer]
+    assert visualizer.close_calls == 0
+    SimulationContext.clear_instance()
+    assert visualizer.close_calls == 1
 
 
 def _make_context_with_settings(
@@ -799,7 +847,8 @@ def _make_context_with_settings(
     ctx._pending_camera_view = None
     ctx._render_generation = 0
     ctx._visualizers = []
-    ctx._pending_visualizer_cfgs = None
+    ctx._pending_visualizers = []
+    ctx._render_context = SimpleNamespace(clone_contexts=set())
     ctx._scene_data_provider = _FakeProvider()
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False
@@ -963,7 +1012,7 @@ def test_explicit_unknown_visualizer_type_raises():
     ctx = _make_context_with_settings(settings)
 
     with pytest.raises(RuntimeError, match="bogus_viz"):
-        ctx.initialize_visualizers()
+        ctx._create_visualizers()
 
 
 def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
@@ -977,19 +1026,19 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     ctx = _make_context_with_settings(settings)
 
     # Force import to fail for the rerun visualizer module
-    import builtins
+    import importlib
 
-    real_import = builtins.__import__
+    real_import = importlib.import_module
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
             raise ImportError("No module named 'isaaclab_visualizers.rerun'")
         return real_import(name, *args, **kwargs)
 
-    monkeypatch.setattr("builtins.__import__", _failing_import)
+    monkeypatch.setattr(importlib, "import_module", _failing_import)
 
     with pytest.raises(RuntimeError, match="rerun"):
-        ctx.initialize_visualizers()
+        ctx._create_visualizers()
 
 
 def test_visualizer_init_keeps_requirements_published_before_reset():
@@ -1009,40 +1058,34 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[_FakeVisualizerCfg("kit")])
     ctx.requires_newton_model = True
 
+    ctx._create_visualizers()
     ctx.initialize_visualizers()
 
     assert ctx.requires_newton_model
     assert ctx.requires_usd_stage
 
 
-def test_explicit_visualizer_construction_failure_raises():
-    """When cli_explicit, a failure in class_type construction raises RuntimeError."""
-    failing_cfg = _FakeVisualizerCfg("newton_gl", fail_construct=True)
+@pytest.mark.parametrize("cli_explicit", [False, True])
+@pytest.mark.parametrize("fail_construct", [False, True])
+def test_visualizer_failures_propagate_and_retain_constructed_instances(cli_explicit, fail_construct):
+    """Cfg-requested failures propagate naturally; completed instances stay owned until explicit teardown."""
+    good_cfg = _FakeVisualizerCfg("kit")
+    failing_cfg = _FakeVisualizerCfg("newton_gl", fail_construct=fail_construct, fail_init=not fail_construct)
     settings = {
-        "/isaaclab/visualizer/types": "newton_gl",
-        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/types": "kit newton_gl",
+        "/isaaclab/visualizer/explicit": cli_explicit,
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_visible_envs": None,
     }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[good_cfg, failing_cfg])
 
-    with pytest.raises(RuntimeError, match="failed to create or initialize"):
+    with pytest.raises(RuntimeError, match="construction failed" if fail_construct else "init failed"):
+        ctx._create_visualizers()
         ctx.initialize_visualizers()
-
-
-def test_explicit_visualizer_init_failure_raises():
-    """When cli_explicit, a failure in visualizer.initialize raises RuntimeError."""
-    failing_cfg = _FakeVisualizerCfg("newton_gl", fail_init=True)
-    settings = {
-        "/isaaclab/visualizer/types": "newton_gl",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": None,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
-
-    with pytest.raises(RuntimeError, match="failed to create or initialize"):
-        ctx.initialize_visualizers()
+    assert len(ctx._pending_visualizers) == 1
+    assert len(ctx._visualizers) == (0 if fail_construct else 1)
+    assert all(viz.close_calls == 0 for viz in ctx._visualizers + ctx._pending_visualizers)
+    assert ctx._scene_data_provider is not None
 
 
 def test_explicit_partial_valid_types_raises_for_invalid():
@@ -1056,7 +1099,7 @@ def test_explicit_partial_valid_types_raises_for_invalid():
     ctx = _make_context_with_settings(settings)
 
     with pytest.raises(RuntimeError, match="bogus_viz"):
-        ctx.initialize_visualizers()
+        ctx._create_visualizers()
 
 
 def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():
@@ -1087,25 +1130,10 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
     ctx = _make_context_with_settings(settings)
 
     # Non-explicit: should not raise
+    ctx._create_visualizers()
     ctx.initialize_visualizers()
     assert ctx._visualizers == []
-
-
-def test_non_explicit_construction_failure_silently_logged(caplog):
-    """Without --visualizer flag, class_type construction failures are logged, not raised."""
-    failing_cfg = _FakeVisualizerCfg("newton_gl", fail_construct=True)
-    settings = {
-        "/isaaclab/visualizer/types": "",
-        "/isaaclab/visualizer/explicit": False,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": None,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
-
-    with caplog.at_level("ERROR"):
-        ctx.initialize_visualizers()
-    assert ctx._visualizers == []
-    assert any("Failed to initialize visualizer" in r.message for r in caplog.records)
+    assert ctx._scene_data_provider is not None
 
 
 # ---------------------------------------------------------------------------

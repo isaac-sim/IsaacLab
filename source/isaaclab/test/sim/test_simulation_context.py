@@ -27,6 +27,7 @@ import omni.timeline
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
+from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = pytest.mark.integration
@@ -144,10 +145,13 @@ def test_clear_instance_closes_renderers():
     closed = []
 
     class _Renderer:
+        def __init__(self, cfg):
+            pass
+
         def close(self):
             closed.append(True)
 
-    sim.render_context._renderer_entries.append((object(), _Renderer()))  # noqa: SLF001
+    sim.get_or_create_backend(RendererCfg(class_type=_Renderer))
     SimulationContext.clear_instance()
 
     assert closed, "registered renderers were not closed at teardown"

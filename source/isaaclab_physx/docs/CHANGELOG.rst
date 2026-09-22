@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+7.2.1 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Applied runtime camera calibration directly to Fabric columns with Warp, removing per-camera USD
+  writes and matrix-batch host transfers. Cached camera selections were released with render data.
+  Compiled the write kernel on first use, avoiding its compilation during camera initialization.
+  This did not change the native RTX tiled renderer's restrictions on independent view projections.
+* Released Fabric camera tags on stop and restored authored calibration on reinitialization so
+  rendered projections matched the reported intrinsic matrices after stop/reset.
+
+Fixed
+^^^^^
+
+* Fixed PhysX ``FrameTransformer`` reusing the last offset when distinct bodies
+  share the same implicit frame name.
+
+
 7.2.0 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~
 

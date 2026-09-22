@@ -41,6 +41,7 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -58,6 +59,9 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[0.25, -0.25, 0.7], target=[0.0, 0.0, 0.5])
+        global_paths = ("/World/defaultGroundPlane", "/World/Light", "/World/Crazyflie")
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+        sim.set_clone_plan(plan)
 
         # Spawn things into stage
         # Ground-plane
@@ -72,6 +76,7 @@ def main():
 
         # create handles for the robots
         robot = robot_cfg.class_type(robot_cfg)
+        cloner.replicate(plan, replicate_physics=False)
 
         # Play the simulator
         sim.reset()

@@ -111,8 +111,7 @@ cloner.
 Installation
 ------------
 
-The public ``ovphysx`` extra is pinned to OvPhysX 0.6.3 and OVStage 0.2.0.377349. Install it from
-the repository root with:
+The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
 
 .. code-block:: bash
 
