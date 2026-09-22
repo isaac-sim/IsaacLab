@@ -23,7 +23,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from isaaclab.cli.utils import print_debug, print_warning
+from isaaclab.cli.utils import print_debug
 
 # WM_CLASS values pyglet derives from each viewer's window caption at creation time.
 # See ``newton/_src/viewer/gl/opengl.py`` (``title="Newton"``) and
@@ -31,12 +31,7 @@ from isaaclab.cli.utils import print_debug, print_warning
 _NEWTON_GL_WM_CLASS = "Newton"
 _NEWTON_RTX_WM_CLASS = "Newton RTX Viewer"
 
-_ICON_NAME = "isaaclab-newton-viewer"
-
-#: Pixel sizes of Newton's bundled icon (``newton/_src/viewer/gl/icon_*.png``). Shared with
-#: ``isaaclab_visualizers.newton.newton_visualizer``, which sets the same icon on the live
-#: Newton RTX window; keep both in sync if Newton's bundled sizes ever change.
-NEWTON_ICON_SIZES = (16, 32, 64)
+_ICON_FILENAME = "icon_64.png"
 
 
 def xdg_data_home() -> Path:
@@ -58,12 +53,8 @@ def _has_graphical_session() -> bool:
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
-def newton_icon_source_dir() -> Path | None:
-    """Return the directory containing Newton's bundled ``icon_{16,32,64}.png``, if installed.
-
-    Single source of truth for locating Newton's bundled icon directory — also used by
-    ``isaaclab_visualizers.newton.newton_visualizer`` to set the live Newton RTX window's icon,
-    so both stay consistent if Newton ever moves these files.
+def newton_icon_path() -> Path | None:
+    """Return the path to Newton's bundled ``icon_64.png``, if installed.
 
     Resolves the path via :func:`importlib.util.find_spec` rather than importing
     ``newton._src.viewer.gl.opengl`` — that module pulls in ``warp``/``pyglet``/GL at import
@@ -74,60 +65,44 @@ def newton_icon_source_dir() -> Path | None:
     spec = importlib.util.find_spec("newton")
     if spec is None or not spec.submodule_search_locations:
         return None
-    icon_dir = Path(spec.submodule_search_locations[0]) / "_src" / "viewer" / "gl"
-    return icon_dir if icon_dir.is_dir() else None
+    icon_path = Path(spec.submodule_search_locations[0]) / "_src" / "viewer" / "gl" / _ICON_FILENAME
+    return icon_path if icon_path.is_file() else None
 
 
-def _install_icon_files(icon_source_dir: Path, data_home: Path) -> int:
-    """Copy Newton's icon into the user's hicolor icon theme. Returns how many sizes were copied."""
-    copied = 0
-    for size in NEWTON_ICON_SIZES:
-        src = icon_source_dir / f"icon_{size}.png"
-        if not src.is_file():
-            continue
-        dst_dir = data_home / "icons" / "hicolor" / f"{size}x{size}" / "apps"
-        dst_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dst_dir / f"{_ICON_NAME}.png")
-        copied += 1
-    return copied
+def _install_desktop_entries(icon_path: Path, data_home: Path) -> Path:
+    """Write one ``.desktop`` entry per Newton viewer window, pointing ``Icon=`` at *icon_path*.
 
-
-def _desktop_entry(name: str, wm_class: str) -> str:
-    return (
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        f"Name={name}\n"
-        "Comment=Isaac Lab Newton physics visualizer\n"
-        f"Icon={_ICON_NAME}\n"
-        "Exec=true\n"
-        "Terminal=false\n"
-        "NoDisplay=true\n"
-        f"StartupWMClass={wm_class}\n"
-        "Categories=Development;\n"
-    )
-
-
-def _install_desktop_entries(data_home: Path) -> Path:
+    The Desktop Entry specification allows ``Icon=`` to be an absolute path, so this references
+    Newton's bundled icon directly rather than installing it into an icon theme.
+    """
     apps_dir = data_home / "applications"
     apps_dir.mkdir(parents=True, exist_ok=True)
-    (apps_dir / "isaaclab-newton-gl-viewer.desktop").write_text(_desktop_entry("Newton Viewer", _NEWTON_GL_WM_CLASS))
-    (apps_dir / "isaaclab-newton-rtx-viewer.desktop").write_text(
-        _desktop_entry("Newton RTX Viewer", _NEWTON_RTX_WM_CLASS)
-    )
+    for filename, name, wm_class in (
+        ("isaaclab-newton-gl-viewer.desktop", "Newton Viewer", _NEWTON_GL_WM_CLASS),
+        ("isaaclab-newton-rtx-viewer.desktop", "Newton RTX Viewer", _NEWTON_RTX_WM_CLASS),
+    ):
+        (apps_dir / filename).write_text(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            f"Name={name}\n"
+            "Comment=Isaac Lab Newton physics visualizer\n"
+            f"Icon={icon_path}\n"
+            "Exec=true\n"
+            "Terminal=false\n"
+            "NoDisplay=true\n"
+            f"StartupWMClass={wm_class}\n"
+            "Categories=Development;\n"
+        )
     return apps_dir
 
 
-def _refresh_desktop_caches(apps_dir: Path, data_home: Path) -> None:
-    # Best-effort: these tools may be absent (e.g. minimal Linux installs); a missing cache
+def _refresh_desktop_database(apps_dir: Path) -> None:
+    # Best-effort: this tool may be absent (e.g. minimal Linux installs); a missing cache
     # refresh just means the icon appears after the next login rather than immediately.
-    for cmd in (
-        ["update-desktop-database", str(apps_dir)],
-        ["gtk-update-icon-cache", "-f", "-t", str(data_home / "icons" / "hicolor")],
-    ):
-        if shutil.which(cmd[0]) is None:
-            continue
-        with contextlib.suppress(subprocess.SubprocessError, OSError):
-            subprocess.run(cmd, capture_output=True, check=False, timeout=30)
+    if shutil.which("update-desktop-database") is None:
+        return
+    with contextlib.suppress(subprocess.SubprocessError, OSError):
+        subprocess.run(["update-desktop-database", str(apps_dir)], capture_output=True, check=False, timeout=30)
 
 
 def install_desktop_icons() -> None:
@@ -139,18 +114,11 @@ def install_desktop_icons() -> None:
     if not _has_graphical_session():
         return
 
-    icon_source_dir = newton_icon_source_dir()
-    if icon_source_dir is None:
+    icon_path = newton_icon_path()
+    if icon_path is None:
         print_debug("Skipping desktop icon install: Newton is not installed in this environment.")
         return
 
-    data_home = xdg_data_home()
     with contextlib.suppress(OSError):
-        copied = _install_icon_files(icon_source_dir, data_home)
-        if copied == 0:
-            print_warning("No Newton icon files found; skipping desktop icon install.")
-            return
-        if copied < len(NEWTON_ICON_SIZES):
-            print_warning("Some Newton icon files were missing; desktop icons may be incomplete.")
-        apps_dir = _install_desktop_entries(data_home)
-        _refresh_desktop_caches(apps_dir, data_home)
+        apps_dir = _install_desktop_entries(icon_path, xdg_data_home())
+        _refresh_desktop_database(apps_dir)
