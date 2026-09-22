@@ -1011,12 +1011,13 @@ def test_explicit_unknown_visualizer_type_raises():
     }
     ctx = _make_context_with_settings(settings)
 
-    with pytest.raises(RuntimeError, match="bogus_viz"):
+    with pytest.raises(RuntimeError, match="bogus_viz.*unknown visualizer type"):
         ctx._create_visualizers()
 
 
 def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
-    """Requesting a valid type whose package is not installed raises RuntimeError."""
+    """Requesting a valid type whose isaaclab_visualizers submodule is not installed raises
+    RuntimeError, classified by the real ModuleNotFoundError.name the import system sets."""
     settings = {
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
@@ -1032,13 +1033,105 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            raise ImportError("No module named 'isaaclab_visualizers.rerun'")
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'", name="isaaclab_visualizers.rerun")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
-    with pytest.raises(RuntimeError, match="rerun"):
+    with pytest.raises(RuntimeError, match="rerun.*is not installed"):
         ctx._create_visualizers()
+
+
+def test_explicit_missing_third_party_dependency_raises_with_its_own_name(monkeypatch: pytest.MonkeyPatch):
+    """A visualizer backend whose own third-party dependency (not isaaclab_visualizers itself) is
+    missing is reported by that dependency's name, still with install guidance, not conflated with
+    isaaclab_visualizers being absent."""
+    settings = {
+        "/isaaclab/visualizer/types": "rerun",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    import importlib
+
+    real_import = importlib.import_module
+
+    def _failing_import(name, *args, **kwargs):
+        if "isaaclab_visualizers.rerun" in name:
+            raise ModuleNotFoundError("No module named 'rerun'", name="rerun")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _failing_import)
+
+    with pytest.raises(RuntimeError, match="rerun.*required package 'rerun' is not installed.*uv run") as exc_info:
+        ctx._create_visualizers()
+    assert "the 'isaaclab_visualizers' package is not installed" not in str(exc_info.value)
+
+
+def test_explicit_broken_package_raises_with_distinct_reason(monkeypatch: pytest.MonkeyPatch):
+    """A visualizer package that is installed but fails to import for another reason (e.g. a
+    partially-initialized module, whose own error text can still happen to mention
+    'isaaclab_visualizers') is reported distinctly from 'not installed', not conflated with it."""
+    settings = {
+        "/isaaclab/visualizer/types": "rerun",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    import importlib
+
+    real_import = importlib.import_module
+
+    def _failing_import(name, *args, **kwargs):
+        if "isaaclab_visualizers.rerun" in name:
+            # A plain ImportError (not ModuleNotFoundError) has no reliable .name, mirroring a
+            # real circular/partial-init failure. Its text mentions "isaaclab_visualizers", which
+            # is exactly the string the old str(exc) substring check would have misclassified.
+            raise ImportError(
+                "cannot import name 'RerunVisualizerCfg' from partially initialized module "
+                "'isaaclab_visualizers.rerun' (most likely due to a circular import)"
+            )
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _failing_import)
+
+    with pytest.raises(RuntimeError, match="rerun.*failed to import") as exc_info:
+        ctx._create_visualizers()
+    assert "is not installed" not in str(exc_info.value)
+
+
+def test_explicit_mixed_failure_reasons_reported_per_type():
+    """Requesting one unknown type and one uninstalled type reports a distinct reason for each,
+    instead of one generic message covering both."""
+    settings = {
+        "/isaaclab/visualizer/types": "bogus_viz,rerun",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    import importlib
+
+    real_import = importlib.import_module
+
+    def _failing_import(name, *args, **kwargs):
+        if "isaaclab_visualizers.rerun" in name:
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'", name="isaaclab_visualizers.rerun")
+        return real_import(name, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(importlib, "import_module", _failing_import)
+        with pytest.raises(RuntimeError) as exc_info:
+            ctx._create_visualizers()
+
+    message = str(exc_info.value)
+    assert "'bogus_viz': unknown visualizer type" in message
+    assert "'rerun': the 'isaaclab_visualizers' package is not installed" in message
 
 
 def test_visualizer_init_keeps_requirements_published_before_reset():
@@ -1098,8 +1191,30 @@ def test_explicit_partial_valid_types_raises_for_invalid():
     }
     ctx = _make_context_with_settings(settings)
 
-    with pytest.raises(RuntimeError, match="bogus_viz"):
+    with pytest.raises(RuntimeError) as exc_info:
         ctx._create_visualizers()
+
+    message = str(exc_info.value)
+    assert "bogus_viz" in message
+    # The successfully-resolved deprecated alias must not also be reported as missing.
+    assert "'newton'" not in message
+
+
+def test_explicit_deprecated_alias_alone_does_not_raise():
+    """Requesting only the deprecated 'newton' alias resolves successfully and does not raise,
+    even though the resolved cfg carries the canonical 'newton_gl' type."""
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    with pytest.warns(DeprecationWarning, match="newton.*deprecated.*newton_gl"):
+        ctx._create_visualizers()
+
+    assert len(ctx._pending_visualizers) == 1
 
 
 def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():
@@ -1113,10 +1228,11 @@ def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():
     ctx = _make_context_with_settings(settings)
 
     with pytest.warns(DeprecationWarning, match="newton.*deprecated.*newton_gl"):
-        cfgs = ctx._create_default_visualizer_configs(["newton"])
+        cfgs, failure_reasons = ctx._create_default_visualizer_configs(["newton"])
 
     assert len(cfgs) == 1
     assert isinstance(cfgs[0], NewtonGLVisualizerCfg)
+    assert failure_reasons == {}
 
 
 def test_non_explicit_unknown_type_silently_skipped(caplog):
