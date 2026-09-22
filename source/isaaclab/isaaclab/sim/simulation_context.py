@@ -432,26 +432,45 @@ class SimulationContext:
                 self._apply_default_visualizer_cfg(cfg)
                 default_configs.append(cfg)
             except (ImportError, ModuleNotFoundError) as exc:
-                # isaaclab_visualizers is optional; log once at warning level
-                if "isaaclab_visualizers" in str(exc):
+                hint = _get_visualizer_install_hint(viz_type)
+                # ModuleNotFoundError.name is set by the import system itself to the exact module
+                # that could not be found — unlike matching on str(exc), this can't mistake a
+                # module that imported successfully but then failed for other reasons (e.g. a
+                # partially-initialized or circularly-imported module, whose message can still
+                # happen to contain "isaaclab_visualizers") for a module that is simply missing.
+                missing_module = exc.name if isinstance(exc, ModuleNotFoundError) else None
+                if missing_module is not None and (
+                    missing_module == "isaaclab_visualizers" or missing_module.startswith("isaaclab_visualizers.")
+                ):
+                    # isaaclab_visualizers is optional; log once at warning level
                     logger.warning(
                         "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
-                        _get_visualizer_install_hint(viz_type),
+                        hint,
                     )
-                    failure_reasons[requested_type] = (
-                        f"the 'isaaclab_visualizers' package is not installed. {_get_visualizer_install_hint(viz_type)}"
+                    failure_reasons[requested_type] = f"the 'isaaclab_visualizers' package is not installed. {hint}"
+                elif missing_module is not None:
+                    # isaaclab_visualizers is installed, but one of this backend's own third-party
+                    # dependencies (e.g. the 'rerun' package) is missing.
+                    logger.warning(
+                        "[SimulationContext] Visualizer '%s' skipped: required package '%s' is not installed. %s",
+                        viz_type,
+                        missing_module,
+                        hint,
                     )
+                    failure_reasons[requested_type] = f"required package '{missing_module}' is not installed. {hint}"
                 else:
                     logger.error(
                         "[SimulationContext] Failed to create default config for visualizer '%s': %s",
                         viz_type,
                         exc,
                     )
-                    failure_reasons[requested_type] = f"failed to import: {exc}"
+                    failure_reasons[requested_type] = f"failed to import: {exc}. {hint}"
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
-                failure_reasons[requested_type] = f"failed to construct: {exc}"
+                failure_reasons[requested_type] = (
+                    f"failed to construct: {exc}. {_get_visualizer_install_hint(viz_type)}"
+                )
         return default_configs, failure_reasons
 
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:

@@ -1016,7 +1016,8 @@ def test_explicit_unknown_visualizer_type_raises():
 
 
 def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
-    """Requesting a valid type whose package is not installed raises RuntimeError."""
+    """Requesting a valid type whose isaaclab_visualizers submodule is not installed raises
+    RuntimeError, classified by the real ModuleNotFoundError.name the import system sets."""
     settings = {
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
@@ -1032,7 +1033,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            raise ImportError("No module named 'isaaclab_visualizers.rerun'")
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'", name="isaaclab_visualizers.rerun")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
@@ -1041,9 +1042,10 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         ctx._create_visualizers()
 
 
-def test_explicit_broken_package_raises_with_distinct_reason(monkeypatch: pytest.MonkeyPatch):
-    """A visualizer package that is installed but fails to import for another reason is
-    reported distinctly from 'not installed', so the two cases are not confused."""
+def test_explicit_missing_third_party_dependency_raises_with_its_own_name(monkeypatch: pytest.MonkeyPatch):
+    """A visualizer backend whose own third-party dependency (not isaaclab_visualizers itself) is
+    missing is reported by that dependency's name, still with install guidance, not conflated with
+    isaaclab_visualizers being absent."""
     settings = {
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
@@ -1058,7 +1060,41 @@ def test_explicit_broken_package_raises_with_distinct_reason(monkeypatch: pytest
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            raise ImportError("cannot import name 'RerunVisualizerCfg' from partially initialized module")
+            raise ModuleNotFoundError("No module named 'rerun'", name="rerun")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _failing_import)
+
+    with pytest.raises(RuntimeError, match="rerun.*required package 'rerun' is not installed.*uv run") as exc_info:
+        ctx._create_visualizers()
+    assert "the 'isaaclab_visualizers' package is not installed" not in str(exc_info.value)
+
+
+def test_explicit_broken_package_raises_with_distinct_reason(monkeypatch: pytest.MonkeyPatch):
+    """A visualizer package that is installed but fails to import for another reason (e.g. a
+    partially-initialized module, whose own error text can still happen to mention
+    'isaaclab_visualizers') is reported distinctly from 'not installed', not conflated with it."""
+    settings = {
+        "/isaaclab/visualizer/types": "rerun",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    import importlib
+
+    real_import = importlib.import_module
+
+    def _failing_import(name, *args, **kwargs):
+        if "isaaclab_visualizers.rerun" in name:
+            # A plain ImportError (not ModuleNotFoundError) has no reliable .name, mirroring a
+            # real circular/partial-init failure. Its text mentions "isaaclab_visualizers", which
+            # is exactly the string the old str(exc) substring check would have misclassified.
+            raise ImportError(
+                "cannot import name 'RerunVisualizerCfg' from partially initialized module "
+                "'isaaclab_visualizers.rerun' (most likely due to a circular import)"
+            )
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
@@ -1085,7 +1121,7 @@ def test_explicit_mixed_failure_reasons_reported_per_type():
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            raise ImportError("No module named 'isaaclab_visualizers.rerun'")
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'", name="isaaclab_visualizers.rerun")
         return real_import(name, *args, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
