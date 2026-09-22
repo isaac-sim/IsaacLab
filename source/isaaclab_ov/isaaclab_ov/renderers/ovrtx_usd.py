@@ -186,6 +186,11 @@ def build_render_scope_usd(
     *,
     device_id: int | None = None,
     enable_shadows: bool = False,
+    render_mode: str | None = None,
+    enable_accumulation: bool = False,
+    accumulation_limit: int | None = None,
+    gaussian_accumulated_albedo: bool = False,
+    gaussian_skip_tonemapping: bool = False,
 ) -> str:
     """Build the camera's USD scope containing its RenderProduct and Vars.
 
@@ -200,6 +205,11 @@ def build_render_scope_usd(
             OVRTX assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored in RTX Minimal
             mode, selected by ``simple_shading_*`` data types; the path-traced modes always cast shadows.
+        render_mode: Optional OVRTX render-mode override.
+        enable_accumulation: Whether to enable RTX accumulation on the render product.
+        accumulation_limit: Optional RTX accumulation-iteration limit.
+        gaussian_accumulated_albedo: Whether RTPT accumulates Gaussian SH0 color into diffuse albedo.
+        gaussian_skip_tonemapping: Whether RTPT skips tonemapping for Gaussian pixels.
 
     Returns:
         The USD snippet for the render scope, without a layer header or metadata.
@@ -232,16 +242,40 @@ def build_render_scope_usd(
     # Minimal is the only OVRTX render mode with a shadow switch, so ``enable_shadows`` is authored
     # only there. The path-traced modes always trace shadows: ``omni:rtx:shadows:enabled`` exists as
     # a setting name and authors without error, but no path-tracing backend reads it.
-    if minimal_mode is None:
-        render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
-    else:
+    selected_render_mode = render_mode or ("Minimal" if minimal_mode is not None else "RealTimePathTracing")
+    if selected_render_mode == "Minimal":
+        if minimal_mode is None:
+            raise ValueError("OVRTX render mode 'Minimal' requires a simple-shading output.")
         render_mode_lines = [
             'token omni:rtx:rendermode = "Minimal"',
             f"int omni:rtx:minimal:mode = {minimal_mode}",
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
+    elif selected_render_mode in {"RealTimePathTracing", "PathTracing"}:
+        render_mode_lines = [f'token omni:rtx:rendermode = "{selected_render_mode}"']
+    else:
+        raise ValueError(f"Unsupported OVRTX render mode {selected_render_mode!r}.")
 
     render_mode_block = "\n        ".join(render_mode_lines)
+    api_schemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+    render_settings_lines = []
+    if enable_accumulation or accumulation_limit is not None:
+        api_schemas.append("OmniRtxSettingsRtAPI_1")
+        render_settings_lines.append(f"bool omni:rtx:rt:accumulation:enabled = {'true' if enable_accumulation else 'false'}")
+    if accumulation_limit is not None:
+        render_settings_lines.append(f"int omni:rtx:rt:accumulationLimit = {accumulation_limit}")
+    if gaussian_accumulated_albedo:
+        api_schemas.append("OmniRtxSettingsParticleFieldAPI_1")
+        render_settings_lines.append("bool omni:rtx:rtpt:gaussian:accumulatedAlbedo:enabled = true")
+    # OVRTX 0.5 reads this setting from the RenderProduct.  HDR is required
+    # for wrapper PPISP, so it takes precedence over an explicit renderer
+    # request to skip Gaussian tonemapping.
+    if "rgb_hdr" in data_types:
+        render_settings_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false")
+    elif gaussian_skip_tonemapping:
+        render_settings_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = true")
+    api_schemas_block = ", ".join(f'"{schema}"' for schema in api_schemas)
+    render_settings_block = "\n        ".join(render_settings_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
         f'''        def RenderVar "{name}"
@@ -255,12 +289,13 @@ def build_render_scope_usd(
 def Scope "{render_data.render_scope_name}"
 {{
     def RenderProduct "{render_data.render_product_name}" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+        prepend apiSchemas = [{api_schemas_block}]
     ) {{
         rel camera = [<{camera_path}>]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
+        {render_settings_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
@@ -287,6 +322,11 @@ def build_render_product_as_string(
     *,
     device_id: int | None = None,
     enable_shadows: bool = False,
+    render_mode: str | None = None,
+    enable_accumulation: bool = False,
+    accumulation_limit: int | None = None,
+    gaussian_accumulated_albedo: bool = False,
+    gaussian_skip_tonemapping: bool = False,
 ) -> str:
     """Build a complete render product USD layer as a string.
 
@@ -304,11 +344,26 @@ def build_render_product_as_string(
             assigns the device automatically.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
+        render_mode: Optional OVRTX render-mode override.
+        enable_accumulation: Whether to enable RTX accumulation on the render product.
+        accumulation_limit: Optional RTX accumulation-iteration limit.
+        gaussian_accumulated_albedo: Whether RTPT accumulates Gaussian SH0 color into diffuse albedo.
+        gaussian_skip_tonemapping: Whether RTPT skips tonemapping for Gaussian pixels.
 
     Returns:
         Render product USD layer, including the USDA header and default prim metadata.
     """
-    camera_content = build_render_scope_usd(spec, render_data, device_id=device_id, enable_shadows=enable_shadows)
+    camera_content = build_render_scope_usd(
+        spec,
+        render_data,
+        device_id=device_id,
+        enable_shadows=enable_shadows,
+        render_mode=render_mode,
+        enable_accumulation=enable_accumulation,
+        accumulation_limit=accumulation_limit,
+        gaussian_accumulated_albedo=gaussian_accumulated_albedo,
+        gaussian_skip_tonemapping=gaussian_skip_tonemapping,
+    )
     return f'#usda 1.0\n(defaultPrim = "{render_data.render_scope_name}")\n' + camera_content
 
 

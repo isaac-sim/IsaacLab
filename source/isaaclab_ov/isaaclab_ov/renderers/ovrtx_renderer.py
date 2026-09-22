@@ -26,7 +26,7 @@ import os
 import re
 import sys
 import weakref
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -69,6 +69,7 @@ except ModuleNotFoundError as exc:
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.base_renderer import RendererSync
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -100,6 +101,7 @@ from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
     create_ovstage,
     points_tensor_from_warp,
+    vector_tensor_from_warp,
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
 )
@@ -363,6 +365,17 @@ class OVRTXCameraRenderData:
             self.ppisp_pipeline = None
 
 
+class _OVRTXRendererSync(RendererSync):
+    """Keep OVRTX async operations alive until their borrowed inputs are safe to reuse."""
+
+    def __init__(self, operations: Sequence[Any] = ()) -> None:
+        self._operations = tuple(operations)
+
+    def wait(self) -> None:
+        for operation in self._operations:
+            operation.wait()
+
+
 class OVRTXRenderer(BaseRenderer):
     """OVRTX Renderer implementation using the ovrtx library.
 
@@ -572,6 +585,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points_binding = None
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
         self._cable_point_slices: list[wp.array] = []
+        self._particle_field_bindings: dict[tuple[str, tuple[str, ...]], Any] = {}
 
     def _initialize_camera_render_data_from_spec_legacy(
         self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
@@ -602,6 +616,11 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_mode=self.cfg.render_mode,
+            enable_accumulation=self.cfg.enable_accumulation,
+            accumulation_limit=self.cfg.accumulation_limit,
+            gaussian_accumulated_albedo=self.cfg.gaussian_accumulated_albedo,
+            gaussian_skip_tonemapping=self.cfg.gaussian_skip_tonemapping,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -1010,6 +1029,11 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_mode=self.cfg.render_mode,
+            enable_accumulation=self.cfg.enable_accumulation,
+            accumulation_limit=self.cfg.accumulation_limit,
+            gaussian_accumulated_albedo=self.cfg.gaussian_accumulated_albedo,
+            gaussian_skip_tonemapping=self.cfg.gaussian_skip_tonemapping,
         )
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
@@ -1718,6 +1742,9 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_points_binding = None
         _safe_unbind(self._cable_points_binding, "cable points")
         self._cable_points_binding = None
+        for (attribute_name, _), binding in self._particle_field_bindings.items():
+            _safe_unbind(binding, f"particle-field {attribute_name}")
+        self._particle_field_bindings.clear()
 
         self._particle_workaround_applied = False
 
@@ -1817,6 +1844,103 @@ class OVRTXRenderer(BaseRenderer):
             self._update_geometries_ovstage()
         else:
             self._update_geometries_legacy()
+
+    def update_particle_field_transforms(self, prim_paths: list[str], local_transforms: wp.array) -> RendererSync:
+        """Update local transforms for populated particle-field prims.
+
+        The returned handle must be waited before ``local_transforms`` is reused or released.
+        """
+        if not self._initialized_scene or self.backend.renderer is None:
+            raise RuntimeError("OVRTX particle-field transforms can be updated only after the scene is initialized.")
+        if not isinstance(local_transforms, wp.array):
+            raise ValueError(f"local_transforms must be a warp array, received {type(local_transforms).__name__}.")
+        if not prim_paths:
+            return _OVRTXRendererSync()
+        if self._use_ovstage:
+            self._update_particle_field_transforms_ovstage(prim_paths, local_transforms)
+            return _OVRTXRendererSync()
+
+        binding = self._particle_field_binding(
+            ("omni:xform", tuple(prim_paths)),
+            lambda: self.backend.renderer.bind_attribute(
+                prim_paths=list(prim_paths),
+                attribute_name="omni:xform",
+                semantic=Semantic.XFORM_MAT4x4,
+                prim_mode=PrimMode.MUST_EXIST,
+                flags=BindingFlag.OPTIMIZE,
+            ),
+        )
+        return _OVRTXRendererSync(
+            (self._write_particle_field_binding_async(binding, cast(Any, local_transforms), local_transforms.device),)
+        )
+
+    def update_particle_field_particles(
+        self,
+        prim_paths: list[str],
+        positions: list[wp.array] | None = None,
+        orientations: list[wp.array] | None = None,
+        scales: list[wp.array] | None = None,
+    ) -> RendererSync:
+        """Update per-particle position, orientation, and scale columns.
+
+        The returned handle must be waited before any supplied array is reused or released.
+        """
+        if not self._initialized_scene or self.backend.renderer is None:
+            raise RuntimeError("OVRTX particle-field particles can be updated only after the scene is initialized.")
+        if not prim_paths:
+            return _OVRTXRendererSync()
+
+        operations = []
+        for attribute_name, values, components in (
+            ("positions", positions, 3),
+            ("orientations", orientations, 4),
+            ("scales", scales, 3),
+        ):
+            if values is None:
+                continue
+            if len(values) != len(prim_paths):
+                raise ValueError(
+                    f"{attribute_name} must have one array per prim path ({len(prim_paths)}), received {len(values)}."
+                )
+            if not all(isinstance(value, wp.array) for value in values):
+                raise ValueError(f"each {attribute_name} array must be a warp array.")
+            if len({str(value.device) for value in values}) != 1:
+                raise ValueError(f"all {attribute_name} arrays must share one device.")
+            if self._use_ovstage:
+                self._update_particle_field_particles_ovstage(prim_paths, attribute_name, values, components)
+            else:
+                binding = self._particle_field_binding(
+                    (attribute_name, tuple(prim_paths)),
+                    lambda: self.backend.renderer.bind_array_attribute(
+                        prim_paths=list(prim_paths),
+                        attribute_name=attribute_name,
+                        dtype=np.float32,
+                        shape=(components,),
+                        prim_mode=PrimMode.MUST_EXIST,
+                        flags=BindingFlag.OPTIMIZE,
+                    ),
+                )
+                operations.append(self._write_particle_field_binding_async(binding, cast(Any, values), values[0].device))
+        return _OVRTXRendererSync(operations)
+
+    def _particle_field_binding(self, key: tuple[str, tuple[str, ...]], create: Callable[[], Any]) -> Any:
+        """Return the persistent legacy binding for a particle-field column and path set."""
+        binding = self._particle_field_bindings.get(key)
+        if binding is None:
+            binding = create()
+            if binding is None:
+                raise RuntimeError(f"Failed to create the OVRTX particle-field {key[0]} binding.")
+            self._particle_field_bindings[key] = binding
+        return binding
+
+    @staticmethod
+    def _write_particle_field_binding_async(binding: Any, data: Any, device: wp.Device) -> Any:
+        """Issue an in-place async write and return its keepalive operation."""
+        return binding.write_async(
+            data,
+            data_access=DataAccess.ASYNC,
+            cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
+        )
 
     def update_camera(
         self,
@@ -1928,6 +2052,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_paths_list = None
         # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
         self._cable_point_tensors: list = []
+        self._particle_field_queries: dict[tuple[str, ...], tuple[Any, Any]] = {}
 
     def _initialize_camera_render_data_from_spec_ovstage(
         self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
@@ -1958,6 +2083,11 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_mode=self.cfg.render_mode,
+            enable_accumulation=self.cfg.enable_accumulation,
+            accumulation_limit=self.cfg.accumulation_limit,
+            gaussian_accumulated_albedo=self.cfg.gaussian_accumulated_albedo,
+            gaussian_skip_tonemapping=self.cfg.gaussian_skip_tonemapping,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -2435,6 +2565,53 @@ class OVRTXRenderer(BaseRenderer):
         if self._cable_points_query is not None:
             self._write_cable_points_ovstage()
 
+    def _particle_field_query_ovstage(self, prim_paths: list[str]) -> Any:
+        """Return the persistent ovstage query for one particle-field path set."""
+        key = tuple(prim_paths)
+        entry = self._particle_field_queries.get(key)
+        if entry is None:
+            paths = self.backend.paths.create_path_list_from_strings(prim_paths)
+            entry = (paths, self.backend.stage.query_from_path_list(paths))
+            self._particle_field_queries[key] = entry
+        return entry[1]
+
+    def _update_particle_field_transforms_ovstage(self, prim_paths: list[str], local_transforms: wp.array) -> None:
+        """Write particle-field local transforms through the path set's persistent ovstage query."""
+        device = local_transforms.device
+        self.backend.stage.write_attribute(
+            self._particle_field_query_ovstage(prim_paths),
+            "omni:xform",
+            ordinal=self._current_ordinal,
+            tensors=xform_tensor_from_warp(local_transforms),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+            cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
+        ).wait()
+
+    def _update_particle_field_particles_ovstage(
+        self, prim_paths: list[str], attribute_name: str, values: list[wp.array], components: int
+    ) -> None:
+        """Write one per-particle column through the path set's persistent ovstage query."""
+        tensors = (
+            [points_tensor_from_warp(value) for value in values]
+            if components == 3
+            else [vector_tensor_from_warp(value, components) for value in values]
+        )
+        device = values[0].device
+        self.backend.stage.write_attribute(
+            self._particle_field_query_ovstage(prim_paths),
+            attribute_name,
+            ordinal=self._current_ordinal,
+            tensors=tensors,
+            is_array=True,
+            semantic={
+                "positions": ovstage.AttributeSemantic.POINT,
+                "orientations": ovstage.AttributeSemantic.QUATERNION,
+                "scales": ovstage.AttributeSemantic.VECTOR,
+            }[attribute_name],
+            cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
+        ).wait()
+
     def _write_particle_q_slices_ovstage(
         self,
         query: Any,
@@ -2607,6 +2784,10 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points_query = None
         _safe_destroy_path_list(self._cable_paths_list, "cable paths")
         self._cable_paths_list = None
+        for paths_list, query in self._particle_field_queries.values():
+            _safe_release_query(query, "particle field")
+            _safe_destroy_path_list(paths_list, "particle-field paths")
+        self._particle_field_queries.clear()
 
         self._object_newton_indices = None
         self._object_scales = None
