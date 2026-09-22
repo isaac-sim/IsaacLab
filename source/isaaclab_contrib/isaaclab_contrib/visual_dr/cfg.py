@@ -197,6 +197,44 @@ class CosmosBackendCfg(DRBackendCfg):
 
 
 @configclass
+class RemoteCosmosBackendCfg(CosmosBackendCfg):
+    """Cosmos generation in worker processes on their own GPUs.
+
+    Two problems at once: the simulator stops competing with a diffusion model for
+    a GPU, and several workers generate the environments of one step in parallel --
+    the only parallelism available while Cosmos rejects batched transfer inference.
+
+    Same-node only. Image payloads move by CUDA IPC and peer copy, never through
+    host memory; crossing machines needs a real transport behind the same class.
+    """
+
+    devices: tuple[int, ...] = MISSING
+    """GPU indices to run workers on, one process each. These are indices into the
+    devices visible to this process, so ``CUDA_VISIBLE_DEVICES`` must cover the
+    union of the workers' GPUs and the simulator's rather than a single device."""
+
+    startup_timeout_s: float = 900.0
+    """Budget for a worker to import Cosmos and load the checkpoint, which is slow
+    the first time and involves a download."""
+
+    request_timeout_s: float = 300.0
+    """Budget for one generation. Exceeding it raises rather than hanging the
+    rollout, and ``VisualDRCfg.on_error`` decides whether that stops the run."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        if not self.devices:
+            raise ValueError("RemoteCosmosBackendCfg.devices must name at least one GPU")
+        if len(set(self.devices)) != len(self.devices):
+            raise ValueError(f"RemoteCosmosBackendCfg.devices must be distinct, got {self.devices}")
+        if self.max_batch > len(self.devices):
+            raise ValueError(
+                f"max_batch={self.max_batch} exceeds {len(self.devices)} workers; each worker takes one "
+                "frame per call, so the runtime must chunk to the worker count"
+            )
+
+
+@configclass
 class VisualDRCfg:
     """Runtime visual DR for one environment.
 

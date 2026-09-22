@@ -31,6 +31,11 @@ parser.add_argument(
 )
 parser.add_argument("--probability", type=float, default=None, help="Override the task config's restyle probability")
 parser.add_argument("--episode-length-s", type=float, default=0.5, help="Short, so resets happen mid-rollout")
+parser.add_argument(
+    "--workers",
+    default="",
+    help="Comma-separated GPU indices to run Cosmos workers on, e.g. 3,6. Empty keeps generation in this process.",
+)
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="passthrough")
 parser.add_argument("--offload-at", default="", help="Comma-separated steps at which to offload and re-activate")
 parser.add_argument(
@@ -61,7 +66,7 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_contrib.visual_dr import PassthroughBackend, VisualDRRuntime
+from isaaclab_contrib.visual_dr import PassthroughBackend, RemoteCosmosBackendCfg, VisualDRRuntime
 from isaaclab_contrib.visual_dr.demo import FrankaStackRuntimeDRCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -128,6 +133,30 @@ def main() -> None:
         cfg.visual_dr.probability = args.probability
     if args.decision_period is not None:
         cfg.visual_dr.decision_period = args.decision_period
+    worker_devices = tuple(int(d) for d in args.workers.split(",") if d.strip())
+    if worker_devices:
+        # Same settings, generated elsewhere: copy the configured backend across so
+        # the only difference from an in-process run is where the model lives.
+        from isaaclab_contrib.visual_dr.remote import RemoteCosmosBackend
+
+        source = cfg.visual_dr.backend
+        cfg.visual_dr.backend = RemoteCosmosBackendCfg(
+            class_type=RemoteCosmosBackend,
+            devices=worker_devices,
+            max_batch=len(worker_devices),
+            checkpoint=source.checkpoint,
+            control_kind=source.control_kind,
+            control_guidance=source.control_guidance,
+            control_weight=source.control_weight,
+            depth_range_m=source.depth_range_m,
+            num_steps=source.num_steps,
+            resolution=source.resolution,
+            aspect_ratio=source.aspect_ratio,
+            guidance=source.guidance,
+            compile=source.compile,
+            fp8=source.fp8,
+            prompts=source.prompts,
+        )
     if args.backend == "passthrough":
         cfg.visual_dr.backend.class_type = PassthroughBackend
 
