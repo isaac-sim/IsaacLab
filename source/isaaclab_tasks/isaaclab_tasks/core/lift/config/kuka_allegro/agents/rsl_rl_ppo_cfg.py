@@ -124,3 +124,10 @@ class KukaAllegroPPORunnerCfg(PresetCfg):
         critic=STATE_CRITIC_CFG,
         algorithm=CAMERA_ALGO_CFG,
     )
+
+
+@configclass
+class KukaAllegroCameraPPORunnerCfg(KukaAllegroPPORunnerCfg):
+    """Camera task presets with the single-camera actor selected by default."""
+
+    default = KukaAllegroPPORunnerCfg().single_camera

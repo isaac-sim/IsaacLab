@@ -70,6 +70,37 @@ def test_shared_preset_resolves_matching_environment_and_agent(
     assert _get(agent_cfg, agent_path) == agent_value
 
 
+@pytest.mark.parametrize("task", ["Isaac-Lift-KukaAllegro", "Isaac-Reorient-KukaAllegro"])
+@pytest.mark.parametrize(
+    "suffix,presets,image_groups",
+    [
+        ("", "cube", []),
+        ("-Camera", "cube", ["base_image"]),
+        ("-Camera", "single_camera,cube", ["base_image"]),
+        ("-Camera", "duo_camera,cube", ["base_image", "wrist_image"]),
+    ],
+)
+def test_kuka_agent_matches_camera_rig(task, suffix, presets, image_groups):
+    """Task defaults and explicit camera presets select matching actor inputs and models."""
+    overrides = ["physics=newton_mjwarp", f"presets={presets}"]
+    if image_groups:
+        overrides.append("renderer=newton_renderer")
+    env_cfg, agent_cfg = resolve_task_config(task + suffix, "rsl_rl_cfg_entry_point", overrides=overrides)
+
+    assert agent_cfg.obs_groups["actor"] == ["policy", "proprio", *(image_groups or ["perception"])]
+    assert agent_cfg.obs_groups["critic"] == ["policy", "proprio", "perception"]
+    assert agent_cfg.critic.class_name == "MLPModel"
+    if image_groups:
+        assert agent_cfg.actor.class_name.endswith(":SpatialSoftmaxCNNModel")
+        assert agent_cfg.algorithm.schedule == "fixed"
+    else:
+        assert agent_cfg.actor.class_name == "MLPModel"
+        assert agent_cfg.algorithm.schedule == "adaptive"
+    for image_group, camera in [("base_image", "base_camera"), ("wrist_image", "wrist_camera")]:
+        assert (getattr(env_cfg.observations, image_group, None) is not None) == (image_group in image_groups)
+        assert (getattr(env_cfg.scene, camera, None) is not None) == (image_group in image_groups)
+
+
 @pytest.mark.parametrize(
     ("task", "entry_point", "expected"),
     [
