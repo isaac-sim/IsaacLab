@@ -1400,12 +1400,24 @@ prior opinions when the final isolated panel closes. This is shared XR/SceneUI s
 independent per-panel visibility.
 
 Scene-partition isolation requires a Kit runtime containing XR scene-partition propagation and
-runtime-updated mesh bounds fixes. When enabled PiP is prepared, selected Isaac RTX cameras are
-configured with ``enable_scene_partitioning=False`` and
-``global_settings.show_all_partitions_by_default=False`` so the robot camera remains outside
-the UI partition. The latter changes a process-global renderer setting through the renderer's
-settings manager. Non-XR runs and disabled feeds retain their camera defaults. Other tasks also
-retain their existing behavior because ``use_scene_partition`` defaults to ``False``.
+runtime-updated mesh bounds fixes. A supported released-runtime minimum has not yet been
+established; validation currently requires a local Kit build containing both fixes. The Isaac Sim
+package version alone does not establish compatibility.
+
+Enabled PiP preparation temporarily sets selected Isaac RTX cameras' ``enable_scene_partitioning``
+to ``False`` and owns the process-global ``/rtx/scenePartitioning/showAllPartitionsByDefault=False``
+override. The final isolated session restores prior values on close, including initialization
+failure, unless another owner has changed them. Additional cameras must disable per-environment
+partitioning, and named or raw renderer settings must not override the visibility policy. PiP
+rejects conflicting configurations instead of hiding the environment or enabling recursion.
+Panels are hidden while tracking or the shared partition is unavailable, and shown again when
+both are ready. Non-XR runs and disabled feeds retain their camera defaults. Other tasks retain
+their existing behavior because ``use_scene_partition`` defaults to ``False``.
+
+Custom launchers must close a prepared :class:`~isaaclab_teleop.XrCameraFeedSession` even if
+environment construction fails, for example by wrapping preparation and environment creation in
+``contextlib.closing(XrCameraFeedSession.prepare(...))``. The teleoperation and recording scripts
+already arrange this cleanup.
 
 .. code-block:: bash
 
@@ -1415,7 +1427,8 @@ retain their existing behavior because ``use_scene_partition`` defaults to ``Fal
 
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
 startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
-unchanged.
+unchanged. For either G1 task, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP and retain
+the camera sensor and any configured camera observations.
 
 The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
 mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two

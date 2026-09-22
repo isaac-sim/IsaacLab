@@ -809,6 +809,12 @@ def run_simulation_loop(  # noqa: C901
 
 
 def main() -> None:
+    """Close prepared PiP resources even if environment construction fails."""
+    with contextlib.ExitStack() as cleanup:
+        _record_demos(cleanup)
+
+
+def _record_demos(cleanup: contextlib.ExitStack) -> None:
     """Collect demonstrations from the environment using teleop interfaces.
 
     Main function that orchestrates the entire process:
@@ -835,6 +841,7 @@ def main() -> None:
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,
     )
+    cleanup.callback(camera_feed_session.close)
     if camera_feed_session.requires_responsive_denoising:
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(

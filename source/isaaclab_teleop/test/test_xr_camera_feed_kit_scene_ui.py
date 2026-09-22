@@ -407,6 +407,7 @@ def scene_ui_module(monkeypatch):
     monkeypatch.setitem(sys.modules, module_name, loaded_module)
     spec.loader.exec_module(loaded_module)
     loaded_module.Usd = SimpleNamespace(EditContext=_EditContext)
+    monkeypatch.setattr(loaded_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: False))
     return loaded_module
 
 
@@ -522,7 +523,7 @@ def test_scene_partition_real_usd_teardown_restores_remaining_targets_after_fail
     assert session_layer.GetAttributeAtPath(ui_root.GetPath().AppendProperty("primvars:omni:scenePartition")) is None
     assert partition._authored == {}
     assert partition._current_stage is None
-    assert partition._registrations == set()
+    assert partition._registrations == {}
 
 
 def test_scene_partition_multiple_panels_share_owner_and_restore_prior_state(scene_ui_module):
@@ -581,7 +582,7 @@ def test_scene_partition_refuses_to_replace_nonempty_target_partition(
 
     assert stage.GetPrimAtPath(prim_path).GetAttribute(attribute_name).Get() == "existing_partition"
     assert stage.session_layer.attributes == {}
-    assert partition._registrations == set()
+    assert partition._registrations == {}
 
 
 def test_scene_partition_cleanup_preserves_external_changes(scene_ui_module):
@@ -595,6 +596,69 @@ def test_scene_partition_cleanup_preserves_external_changes(scene_ui_module):
 
     camera = stage.GetPrimAtPath(scene_ui_module._XR_CAMERA_PATH)
     assert camera.GetAttribute("omni:scenePartition").Get() == "external_partition"
+
+
+def test_late_partition_conflict_restores_camera_and_recovers(scene_ui_module, monkeypatch):
+    monkeypatch.setattr(scene_ui_module, "Usd", Usd)
+    stage = Usd.Stage.CreateInMemory()
+    camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
+    ui_root = stage.DefinePrim("/ui", "Xform")
+    partition = scene_ui_module._KitSceneUiScenePartition(stage_getter=lambda: stage)
+    visibility = []
+    token = partition.acquire(visibility.append)
+    try:
+        assert visibility == [False, True]
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            ui_root.GetAttribute("primvars:omni:scenePartition").Set("external")
+        with pytest.raises(RuntimeError, match="cannot replace"):
+            partition.refresh()
+        assert visibility == [False, True, False]
+        assert not camera.GetAttribute("omni:scenePartition").IsValid()
+        assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == "external"
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            ui_root.GetAttribute("primvars:omni:scenePartition").Set("")
+        partition.refresh()
+        assert visibility == [False, True, False, True]
+    finally:
+        partition.release(token)
+
+
+@pytest.mark.parametrize("conflict", ["global", "environment"])
+def test_partition_readiness_lost_on_late_renderer_override(scene_ui_module, monkeypatch, conflict):
+    monkeypatch.setattr(scene_ui_module, "Usd", Usd)
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
+    stage.DefinePrim("/ui", "Xform")
+    env_root = stage.DefinePrim("/World/envs/env_0", "Xform")
+    partition = scene_ui_module._KitSceneUiScenePartition(stage_getter=lambda: stage)
+    visibility = []
+    token = partition.acquire(visibility.append)
+    try:
+        if conflict == "global":
+            monkeypatch.setattr(scene_ui_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: True))
+        else:
+            env_root.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
+        with pytest.raises(RuntimeError, match="Isolated XR PiP"):
+            partition.refresh()
+        assert visibility == [False, True, False]
+        assert not stage.GetPrimAtPath("/ui").GetAttribute("primvars:omni:scenePartition").IsValid()
+    finally:
+        partition.release(token)
+
+
+def test_panel_requires_both_pose_and_partition_readiness(scene_ui_module):
+    panel = scene_ui_module.KitSceneUiCameraFeedPanel.__new__(scene_ui_module.KitSceneUiCameraFeedPanel)
+    panel._container = SimpleNamespace(show=Mock(), hide=Mock())
+    panel._pose_ready = False
+    panel._partition_ready = False
+    panel._on_head_locked_readiness_changed(True)
+    panel._container.show.assert_not_called()
+    panel._on_partition_readiness_changed(True)
+    panel._container.show.assert_called_once()
+    panel._container.show.reset_mock()
+    panel._on_partition_readiness_changed(False)
+    panel._on_head_locked_readiness_changed(True)
+    panel._container.show.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -657,6 +721,30 @@ def test_viewer_start_freezes_first_valid_pose_across_later_motion(scene_ui_modu
     np.testing.assert_allclose(_matrix_values(source.source), frozen_matrix)
     assert len(core.reorient_calls) == 1
     anchor.unregister(token)
+
+
+@pytest.mark.parametrize("lost_pose", [None, _pose(_PoseValidityFlags.POSITION_VALID)])
+def test_head_locked_hides_on_tracking_loss_and_recovers(scene_ui_module, lost_pose):
+    flags = _PoseValidityFlags.POSITION_VALID | _PoseValidityFlags.ORIENTATION_VALID
+    device = _InputDevice(_pose(flags))
+    core = _XrCore(input_device=device)
+    anchor = scene_ui_module.KitSceneUiHeadLockedAnchor(core)
+    source = _TransformSource(Gf.Matrix4d(1.0))
+    visibility = []
+    token = anchor.register(source, (0.0, 0.0), 0.8, visibility.append)
+    try:
+        core.message_bus.emit(_EventType.post_sync_update)
+        device.pose_desc = lost_pose
+        core.message_bus.emit(_EventType.post_sync_update)
+        core.message_bus.emit(_EventType.post_sync_update)
+        assert visibility == [False, True, False]
+        assert not anchor.captured
+        device.pose_desc = _pose(flags, (1.0, 2.0, 3.0))
+        core.message_bus.emit(_EventType.post_sync_update)
+        assert visibility == [False, True, False, True]
+        assert anchor.captured
+    finally:
+        anchor.unregister(token)
 
 
 def test_head_locked_follows_full_viewer_pose_in_pose_local_axes(scene_ui_module):

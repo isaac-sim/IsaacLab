@@ -22,8 +22,10 @@ from omni.kit.scene_view.xr_utils import SpatialSource, UiContainer, UpdatePolic
 from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
 from pxr import Gf, Sdf, Usd
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.array import convert_to_torch
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 logger = logging.getLogger(__name__)
 
@@ -61,21 +63,23 @@ class _KitSceneUiScenePartition:
         stage_getter: Callable[[], Any] | None = None,
     ):
         self._stage_getter = stage_getter or get_current_stage
-        self._registrations: set[int] = set()
+        self._registrations: dict[int, Callable[[bool], None] | None] = {}
         self._next_registration = 0
         self._current_stage = None
         self._ready_stage = None
+        self._ready = False
         self._authored: dict[Any, tuple[str, str, bool, Any]] = {}
 
-    def acquire(self) -> int:
+    def acquire(self, readiness_callback: Callable[[bool], None] | None = None) -> int:
         """Acquire one panel reference and start maintaining its scene partition."""
         token = self._next_registration
         self._next_registration += 1
-        self._registrations.add(token)
-        if len(self._registrations) > 1:
-            return token
+        self._registrations[token] = readiness_callback
         try:
-            self.refresh()
+            if readiness_callback is not None:
+                readiness_callback(self._ready)
+            if len(self._registrations) == 1:
+                self.refresh()
         except Exception:
             self.release(token)
             raise
@@ -83,7 +87,7 @@ class _KitSceneUiScenePartition:
 
     def release(self, token: int) -> None:
         """Release one panel reference and restore state after the final panel."""
-        self._registrations.discard(token)
+        self._registrations.pop(token, None)
         if self._registrations:
             return
         self._restore_stage()
@@ -98,14 +102,36 @@ class _KitSceneUiScenePartition:
             self._current_stage = stage
         if stage is None:
             return
-        target_ready = [self._author_target(stage, *target) for target in self._TARGETS]
+        try:
+            if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
+                raise RuntimeError("Isolated XR PiP requires showAllPartitionsByDefault=False.")
+            env_root = stage.GetPrimAtPath("/World/envs/env_0")
+            if env_root.IsValid():
+                partition = env_root.GetAttribute("primvars:omni:scenePartition")
+                if partition.IsValid() and partition.Get() not in (None, ""):
+                    raise RuntimeError(
+                        "Isolated XR PiP cannot display a partitioned environment; disable camera partitioning."
+                    )
+            target_ready = [self._author_target(stage, *target) for target in self._TARGETS]
+        except Exception:
+            self._restore_stage()
+            raise
         ready = all(target_ready)
+        self._set_ready(ready)
         if ready and self._ready_stage is not stage:
             logger.info(
                 "XR camera PiP scene partition %r is active on the XR camera and SceneUI root.",
                 _XR_CAMERA_PIP_PARTITION,
             )
             self._ready_stage = stage
+
+    def _set_ready(self, ready: bool) -> None:
+        if self._ready == ready:
+            return
+        self._ready = ready
+        for callback in tuple(self._registrations.values()):
+            if callback is not None:
+                callback(ready)
 
     def _author_target(self, stage: Any, prim_path: str, attribute_name: str) -> bool:
         prim = stage.GetPrimAtPath(prim_path)
@@ -141,6 +167,7 @@ class _KitSceneUiScenePartition:
         return True
 
     def _restore_stage(self) -> None:
+        self._set_ready(False)
         stage = self._current_stage
         if stage is None:
             self._authored.clear()
@@ -427,6 +454,8 @@ class KitSceneUiHeadLockedAnchor(KitSceneUiViewerStartAnchor):
             return False
         pose_desc = self._get_valid_pose_desc()
         if pose_desc is None:
+            if self._upright_pose is not None:
+                self._on_display_disabled(None)
             return False
 
         was_ready = self._upright_pose is not None
@@ -524,6 +553,8 @@ class KitSceneUiCameraFeedPanel:
         self._head_locked_registration = None
         self._scene_partition = scene_partition
         self._scene_partition_registration = None
+        self._pose_ready = descriptor.placement == "world"
+        self._partition_ready = scene_partition is None
 
         if descriptor.placement == "viewer_start":
             if viewer_start_anchor is None:
@@ -564,7 +595,7 @@ class KitSceneUiCameraFeedPanel:
             raise ValueError(f"Unknown XR camera-feed placement {descriptor.placement!r}.")
         try:
             if self._scene_partition is not None:
-                self._scene_partition_registration = self._scene_partition.acquire()
+                self._scene_partition_registration = self._scene_partition.acquire(self._on_partition_readiness_changed)
             self._provider = ui.ByteImageProvider()
             self._component = WidgetComponent(
                 _CameraImageWidget,
@@ -580,6 +611,7 @@ class KitSceneUiCameraFeedPanel:
                 self._component,
                 space_stack=space_stack,
             )
+            self._update_visibility()
             if descriptor.placement == "viewer_start":
                 self._container.hide()
                 self._viewer_start_registration = viewer_start_anchor.register(
@@ -604,17 +636,21 @@ class KitSceneUiCameraFeedPanel:
             raise
 
     def _on_viewer_start_readiness_changed(self, ready: bool) -> None:
-        if self._container is None:
-            return
-        if ready:
-            self._container.show()
-        else:
-            self._container.hide()
+        self._pose_ready = ready
+        self._update_visibility()
 
     def _on_head_locked_readiness_changed(self, ready: bool) -> None:
+        self._pose_ready = ready
+        self._update_visibility()
+
+    def _on_partition_readiness_changed(self, ready: bool) -> None:
+        self._partition_ready = ready
+        self._update_visibility()
+
+    def _update_visibility(self) -> None:
         if self._container is None:
             return
-        if ready:
+        if self._pose_ready and self._partition_ready:
             self._container.show()
         else:
             self._container.hide()

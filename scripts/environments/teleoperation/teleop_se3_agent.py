@@ -27,6 +27,7 @@ wp.config.enable_backward = False
 import argparse
 import sys
 from collections.abc import Callable
+from contextlib import ExitStack
 
 from isaaclab.app import AppLauncher
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -248,6 +249,12 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window:
 
 
 def main() -> None:  # noqa: C901
+    """Close prepared PiP resources even if environment construction fails."""
+    with ExitStack() as cleanup:
+        _run_teleoperation(cleanup)
+
+
+def _run_teleoperation(cleanup: ExitStack) -> None:  # noqa: C901
     """
     Run teleoperation with an Isaac Lab manipulation environment.
 
@@ -289,6 +296,7 @@ def main() -> None:  # noqa: C901
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,
     )
+    cleanup.callback(camera_feed_session.close)
 
     # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
     # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
