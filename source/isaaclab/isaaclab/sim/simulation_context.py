@@ -376,15 +376,24 @@ class SimulationContext:
         """Returns a monotonic counter for render() executions."""
         return self._render_generation
 
-    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
+    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> tuple[list, dict[str, str]]:
         """Create default visualizer configs for requested types.
 
         Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
         so dependencies for other backends are not imported.
+
+        Returns:
+            A tuple of the successfully created configs, and a mapping from each
+            requested type that could **not** be created to a short, specific reason
+            (unknown type, package not installed, or another import/construction
+            failure). Callers that need to report an actionable error for an
+            explicitly-requested type should surface this reason instead of a
+            generic "could not be configured" message.
         """
         import importlib
 
         default_configs = []
+        failure_reasons: dict[str, str] = {}
         cfg_class_names = {
             "kit": "KitVisualizerCfg",
             "newton_gl": "NewtonGLVisualizerCfg",
@@ -394,7 +403,8 @@ class SimulationContext:
         }
         # newton_gl and newton_rtx both live in the isaaclab_visualizers.newton package.
         module_overrides = {"newton_gl": "isaaclab_visualizers.newton", "newton_rtx": "isaaclab_visualizers.newton"}
-        for viz_type in requested_visualizers:
+        for requested_type in requested_visualizers:
+            viz_type = requested_type
             try:
                 # Resolve deprecated aliases before lookup.
                 if viz_type in _VISUALIZER_ALIASES:
@@ -412,6 +422,9 @@ class SimulationContext:
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
                     )
+                    failure_reasons[requested_type] = (
+                        f"unknown visualizer type. Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}."
+                    )
                     continue
                 mod = importlib.import_module(module_overrides.get(viz_type, f"isaaclab_visualizers.{viz_type}"))
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
@@ -426,15 +439,20 @@ class SimulationContext:
                         viz_type,
                         _get_visualizer_install_hint(viz_type),
                     )
+                    failure_reasons[requested_type] = (
+                        f"the 'isaaclab_visualizers' package is not installed. {_get_visualizer_install_hint(viz_type)}"
+                    )
                 else:
                     logger.error(
                         "[SimulationContext] Failed to create default config for visualizer '%s': %s",
                         viz_type,
                         exc,
                     )
+                    failure_reasons[requested_type] = f"failed to import: {exc}"
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
-        return default_configs
+                failure_reasons[requested_type] = f"failed to construct: {exc}"
+        return default_configs, failure_reasons
 
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
         """Apply shared default visualizer settings to a backend-specific config.
@@ -570,6 +588,11 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
+        # Populated with a specific reason (unknown type, missing package, other import/construction
+        # failure) for each explicitly-requested type that _create_default_visualizer_configs could
+        # not resolve, so the RuntimeError below can report *why* rather than just *that* it failed.
+        failure_reasons: dict[str, str] = {}
+
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
@@ -578,7 +601,10 @@ class SimulationContext:
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
             resolved = visualizer_cfgs
         elif not visualizer_cfgs:
-            resolved = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+            if cli_requested:
+                resolved, failure_reasons = self._create_default_visualizer_configs(cli_requested)
+            else:
+                resolved = []
             self._apply_visualizer_cli_overrides(resolved)
         else:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
@@ -588,8 +614,10 @@ class SimulationContext:
                 self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
-                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                    resolved.extend(self._create_default_visualizer_configs([viz_type]))
+                if viz_type not in existing_types:
+                    extra_configs, extra_failures = self._create_default_visualizer_configs([viz_type])
+                    resolved.extend(extra_configs)
+                    failure_reasons.update(extra_failures)
                     existing_types.add(viz_type)
             self._apply_visualizer_cli_overrides(resolved)
 
@@ -601,16 +629,14 @@ class SimulationContext:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             missing = [t for t in cli_requested if t not in resolved_types]
             if missing:
-                install_hints = " ".join(
-                    _get_visualizer_install_hint(visualizer_type)
+                # Report the specific reason recorded per type (unknown type, missing package, or
+                # another import/construction failure) rather than a single generic message, so the
+                # raised error alone is enough to tell those cases apart.
+                reasons = "; ".join(
+                    f"{visualizer_type!r}: {failure_reasons.get(visualizer_type, 'could not be configured')}"
                     for visualizer_type in missing
-                    if visualizer_type in _VISUALIZER_TYPES
                 )
-                raise RuntimeError(
-                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
-                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    f"{install_hints}"
-                )
+                raise RuntimeError(f"Explicitly requested visualizer(s) {missing} could not be configured. {reasons}")
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
         # Kit visualizer is already present.  The KitVisualizer pumps
