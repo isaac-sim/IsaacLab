@@ -90,8 +90,8 @@ def test_franka_rigid_tasks_select_gripper_only_colliders(cfg_type) -> None:
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
-def test_franka_reorient_alone_enables_goal_curriculum() -> None:
-    """Reorient should get an ADR-scaled foothold without changing the working Lift MDP."""
+def test_franka_tasks_use_distinct_lift_and_reorient_bootstraps() -> None:
+    """Lift should retain broad starts while Reorient starts from held objects."""
     reorient = FrankaReorientEnvCfg()
     lift = FrankaLiftEnvCfg()
 
@@ -106,11 +106,12 @@ def test_franka_reorient_alone_enables_goal_curriculum() -> None:
     assert reorient.actions.gripper_action.joint_names == ["panda_finger_joint1"]
     assert lift.commands.object_pose.difficulty_term is None
     assert lift.actions.action.joint_names == [".*"]
-    assert (
-        lift.events.conditional_reset.params["terms"]["reset_object_to_target"].func
-        == "isaaclab_tasks.core.lift.mdp.events:reset_to_target"
-    )
-    assert "object_robot_clearance" in lift.events.conditional_reset.params["valid_criteria"]
+    lift_reset = lift.events.conditional_reset.params
+    assert list(lift_reset["terms"])[-1] == "reset_object_to_target"
+    assert lift_reset["terms"]["reset_object_to_target"].func is mdp.reset_to_grasp
+    assert lift_reset["terms"]["reset_object_to_target"].params["probability"] == pytest.approx(0.25)
+    assert lift_reset["terms"]["reset_object_to_target"].params["gripper_joint_positions"][0] == pytest.approx(0.026)
+    assert "object_robot_clearance" in lift_reset["valid_criteria"]
 
 
 def test_pose_command_curriculum_preserves_full_difficulty_goal() -> None:

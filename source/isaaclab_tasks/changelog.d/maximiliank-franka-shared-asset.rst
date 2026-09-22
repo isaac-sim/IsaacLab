@@ -13,6 +13,8 @@ Fixed
   fine-grained position reward, while retaining position-and-orientation success metrics.
 * Restored symmetric point-cloud noise in the Lift and Reorient ADR curriculum.
 * Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training.
+* Made Lift's spawn-in-hand reset candidates collision-free aligned pre-grasps while retaining
+  the broad reset-state distribution used for policy qualification.
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.
 * Made Franka Reorient train from scratch by starting its ADR goal curriculum from stable, shape-aware
-  pre-grasps with a 1 mm contact preload; rigid Lift behavior was unchanged.
+  pre-grasps with a 1 mm contact preload.

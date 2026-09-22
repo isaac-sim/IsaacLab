@@ -499,6 +499,32 @@ def generate_articulation(
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_franka_newton_mimic_constraint_tracks_passive_finger(sim, device, gravity_enabled):
+    """Drive only the Franka leader finger and preserve mimic tracking in every clone."""
+    articulation, _ = generate_articulation(FRANKA_PANDA_CFG, 2, device)
+    sim.reset()
+
+    leader_id = articulation.find_joints("panda_finger_joint1")[0][0]
+    follower_id = articulation.find_joints("panda_finger_joint2")[0][0]
+    initial_leader_pos = articulation.data.joint_pos.torch[:, leader_id].clone()
+    leader_target = torch.full((articulation.num_instances, 1), 0.01, device=device)
+    articulation.actuators.target_command.set_position_index(value=leader_target, joint_ids=[leader_id])
+
+    for _ in range(120):
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        assert torch.isfinite(articulation.data.joint_pos.torch).all()
+        assert torch.isfinite(articulation.data.joint_vel.torch).all()
+
+    leader_pos = articulation.data.joint_pos.torch[:, leader_id]
+    follower_pos = articulation.data.joint_pos.torch[:, follower_id]
+    assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
+    torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
     """Run a Newton-native explicit actuator through the current OVPhysX state and effort binding."""
     stiffness, damping, actuator_effort_limit = 20.0, 1.0, 80.0
