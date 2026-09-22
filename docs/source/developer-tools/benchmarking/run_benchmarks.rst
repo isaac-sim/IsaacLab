@@ -83,8 +83,9 @@ the runtime measurement loop. The benchmark temporarily wraps the selected physi
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
 and restores it afterward. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps registered
 renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing only
-``render()`` and excluding scene updates and output readback. Both flags apply only
-to the runtime benchmark measurement loop. The render sweep enables both automatically. Device
+``render()`` and excluding scene updates and output readback. Render wrappers are installed
+after warmup and remain on those instances for the rest of the benchmark. The render sweep
+enables both flags automatically. Device
 synchronization changes execution overlap, so these profiled runs are diagnostics
 rather than throughput measurements.
 

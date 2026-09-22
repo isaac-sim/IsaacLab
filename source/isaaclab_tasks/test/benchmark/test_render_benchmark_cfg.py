@@ -11,6 +11,7 @@ No Kit/GPU required: these only load and resolve the config through the registry
 
 from functools import partial
 from types import SimpleNamespace
+from unittest.mock import Mock, PropertyMock
 
 import gymnasium as gym
 import pytest
@@ -72,116 +73,49 @@ def test_benchmark_mode_rejects_unknown_value(monkeypatch):
         render_benchmark_env_cfg._read_benchmark_mode()
 
 
-class _RecordingArticulation:
-    """Articulation stub that appends the drive calls it receives to a shared event log."""
-
-    def __init__(self, events: list[str]):
-        self._events = events
-        self.position_writes: list[torch.Tensor] = []
-        self.velocity_writes: list[torch.Tensor] = []
-        self.actuator_targets: list[torch.Tensor] = []
-        default_joint_pos = SimpleNamespace(torch=torch.zeros(1, 2))
-        soft_limits = SimpleNamespace(torch=torch.tensor([[[-1.0, 1.0], [-1.0, 1.0]]]))
-        self.data = SimpleNamespace(default_joint_pos=default_joint_pos, soft_joint_pos_limits=soft_limits)
-        self.actuators = SimpleNamespace(target_command=SimpleNamespace(set_position_index=self._set_target))
-
-    def _set_target(self, value):
-        self._events.append("target")
-        self.actuator_targets.append(value)
-
-    def write_joint_position_to_sim_index(self, position):
-        self._events.append("write_position")
-        self.position_writes.append(position)
-
-    def write_joint_velocity_to_sim_index(self, velocity):
-        self._events.append("write_velocity")
-        self.velocity_writes.append(velocity)
-
-
-class _RecordingCameraData:
-    """Camera data stub that records the lazy read which drives the render."""
-
-    def __init__(self, events: list[str]):
-        self._events = events
-
-    @property
-    def output(self) -> dict:
-        self._events.append("render")
-        return {}
-
-
-def _fake_env(mode: str, articulation, events: list[str]) -> SimpleNamespace:
-    """Build the minimum ``RenderBenchmarkEnv`` surface the animation and observation paths touch."""
+@pytest.mark.parametrize("mode", ["render", "physics_render"])
+def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
+    """Direct poses follow physics; actuator targets precede it, and both render last."""
+    events = Mock()
+    articulation = events.articulation
+    articulation.data.default_joint_pos.torch = torch.zeros(1, 2)
+    articulation.data.soft_joint_pos_limits.torch = torch.tensor([[[-1.0, 1.0], [-1.0, 1.0]]])
+    camera_data = Mock()
+    type(camera_data).output = PropertyMock(side_effect=lambda: events.render())
     env = SimpleNamespace(
-        cfg=SimpleNamespace(
-            benchmark_mode=mode,
-            joint_animation_amplitude=0.4,
-            joint_animation_freq_hz=0.35,
-            decimation=2,
-            write_image_to_file=False,
-            sim=SimpleNamespace(dt=1.0 / 120.0),
-        ),
-        sim=SimpleNamespace(
-            forward=lambda: events.append("forward"),
-            render_context=SimpleNamespace(reset_scene_state_cadence=lambda: events.append("invalidate_scene_state")),
-        ),
+        cfg=_load_cfg().replace(benchmark_mode=mode, write_image_to_file=False),
+        sim=events.sim,
         num_envs=1,
         device="cpu",
         _anim_time=0.0,
         _anim_phases={"robot": torch.zeros(1, 2)},
         scene=SimpleNamespace(articulations={"robot": articulation}),
-        _tiled_camera=SimpleNamespace(data=_RecordingCameraData(events)),
+        _tiled_camera=SimpleNamespace(data=camera_data),
     )
-    # The hooks under test call these on ``self``; bind the real implementations to the stub so
-    # the test exercises them rather than a mock of them.
     for name in ("_animation_targets", "_request_joint_targets", "_pose_joints_directly"):
         setattr(env, name, partial(getattr(RenderBenchmarkEnv, name), env))
-    return env
-
-
-def _run_one_step(mode: str) -> tuple[list[str], _RecordingArticulation]:
-    """Drive one environment step's animation hooks, with a marker where physics would run."""
-    events: list[str] = []
-    articulation = _RecordingArticulation(events)
-    env = _fake_env(mode, articulation, events)
 
     RenderBenchmarkEnv._pre_physics_step(env, actions=None)
-    events.append("physics")
+    events.physics()
     RenderBenchmarkEnv._get_observations(env)
 
-    return events, articulation
-
-
-def test_render_mode_poses_joints_after_physics_and_before_the_render():
-    """The pose must reach the renderer, or it is timed on the solver's output instead.
-
-    Two things can break that. Writing the pose before physics leaves the still-active drives,
-    gravity and joint limits free to move the joints off it during the step that follows. Writing
-    it after physics but leaving the renderer's once-per-step scene-state dedupe stamped makes the
-    render reuse the transforms captured before the write.
-    """
-    events, articulation = _run_one_step("render")
-
-    assert events == [
-        "physics",
-        "write_position",
-        "write_velocity",
-        "forward",
-        "invalidate_scene_state",
-        "render",
-    ]
-    # Nothing is asked to track a target, so the solver does no actuation work for this pose.
-    assert articulation.actuator_targets == []
-    assert torch.equal(articulation.velocity_writes[0], torch.zeros(1, 2))
-
-
-def test_physics_render_mode_requests_targets_before_physics():
-    """Actuated runs must hand the solver its target before the step, and not overwrite the result."""
-    events, articulation = _run_one_step("physics_render")
-
-    assert events == ["target", "physics", "render"]
-    assert articulation.position_writes == []
-    assert articulation.velocity_writes == []
+    if mode == "render":
+        assert [entry[0] for entry in events.mock_calls] == [
+            "physics",
+            "articulation.write_joint_position_to_sim_index",
+            "articulation.write_joint_velocity_to_sim_index",
+            "sim.forward",
+            "sim.render_context.reset_scene_state_cadence",
+            "render",
+        ]
+        velocity = articulation.write_joint_velocity_to_sim_index.call_args.kwargs["velocity"]
+        assert torch.equal(velocity, torch.zeros_like(velocity))
+    else:
+        assert [entry[0] for entry in events.mock_calls] == [
+            "articulation.actuators.target_command.set_position_index",
+            "physics",
+            "render",
+        ]
 
 
 @pytest.mark.parametrize(

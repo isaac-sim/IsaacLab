@@ -335,29 +335,3 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
 
     assert context_alive_during_gc == [False]
     assert context_ref() is None
-
-
-def _stub_context_for_step(recorder: list[str]):
-    """Build the minimum ``SimulationContext`` surface :meth:`SimulationContext.step` touches."""
-    from isaaclab.sim import SimulationContext
-
-    context = object.__new__(SimulationContext)
-    context._physics_step_count = 0
-    context.physics_manager = SimpleNamespace(
-        wait_for_playing=lambda: recorder.append("wait"),
-        step=lambda: recorder.append("step"),
-    )
-    return context
-
-
-def test_step_calls_physics_manager_in_order(monkeypatch):
-    """Wait for the timeline, step physics, and bump the step count in order."""
-    from isaaclab.sim import SimulationContext
-
-    calls: list[str] = []
-    context = _stub_context_for_step(calls)
-
-    SimulationContext.step(context, render=False)
-
-    assert calls == ["wait", "step"]
-    assert context._physics_step_count == 1

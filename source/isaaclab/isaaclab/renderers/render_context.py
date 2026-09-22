@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 @wp.kernel(enable_backward=False)
 def _write_material(
     values: wp.array(dtype=Any, ndim=2),

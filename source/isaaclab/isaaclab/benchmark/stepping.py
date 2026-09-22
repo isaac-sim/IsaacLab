@@ -34,46 +34,30 @@ RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
 """Scope name for benchmark render timings [ms], excluding scene updates and output readback."""
 
 
-@contextmanager
-def profile_renderers(render_context: RenderContext, *, active: bool = True) -> Iterator[None]:
-    """Temporarily profile the renderers currently registered with the simulation.
+def profile_renderers(render_context: RenderContext, *, active: bool = True) -> None:
+    """Install timing wrappers once on the benchmark's currently registered renderers.
 
+    Wrappers remain installed for the lifetime of these renderer instances.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
-    Original render methods are restored on exit, including on failure.
 
     Args:
         render_context: Simulation rendering context whose renderers will be timed.
         active: Whether to install the timing wrappers.
-
-    Yields:
-        None while the benchmark's timing wrappers are installed.
     """
     if not active:
-        yield
         return
 
     import warp as wp  # noqa: PLC0415
 
-    originals = []
-    try:
-        for _, renderer in render_context._renderer_entries:
-            original = vars(renderer).get("render")
-            render = renderer.render
+    for _, renderer in render_context._renderer_entries:
+        render = renderer.render
 
-            @wraps(render)
-            def timed_render(render_data: Any, _render=render) -> None:
-                with wp.ScopedTimer(RENDER_PROFILE_SCOPE, print=True, synchronize=True):
-                    return _render(render_data)
+        @wraps(render)
+        def timed_render(render_data: Any, _render=render) -> None:
+            with wp.ScopedTimer(RENDER_PROFILE_SCOPE, print=True, synchronize=True):
+                return _render(render_data)
 
-            renderer.render = timed_render
-            originals.append((renderer, original))
-        yield
-    finally:
-        for renderer, original in reversed(originals):
-            if original is None:
-                del renderer.render
-            else:
-                renderer.render = original
+        renderer.render = timed_render
 
 
 @contextmanager

@@ -35,17 +35,11 @@ def benchmark_renderer():
     return _load_module()
 
 
-def test_render_scope_matches_benchmark_wrapper(benchmark_renderer):
+def test_profile_scopes_match_benchmark_wrappers(benchmark_renderer):
     """The script's timer name must match the one the renderer prints, or nothing is parsed."""
-    from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE
+    from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
 
     assert benchmark_renderer.RENDER_SCOPE == RENDER_PROFILE_SCOPE
-
-
-def test_physics_scope_matches_benchmark_wrapper(benchmark_renderer):
-    """The script's physics timer name must match the one the benchmark wrapper prints."""
-    from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE
-
     assert benchmark_renderer.PHYSICS_SCOPE == PHYSICS_PROFILE_SCOPE
 
 
@@ -91,13 +85,6 @@ def _write_log(path: Path, timings_ms: list[float], physics_ms: float | None = N
 
     Interleaves unrelated lines to mimic real subprocess output (warp init banner, other timers),
     so the parser is exercised against noise rather than a file with only matching lines.
-
-    Args:
-        path: File to write.
-        timings_ms: One render time per frame [ms].
-        physics_ms: Time per physics step [ms], or ``None`` to omit physics lines entirely, as a
-            run captured without ``ISAACLAB_PHYSICS_PROFILE`` would.
-        steps: Physics steps logged before each render, mimicking the task's decimation.
     """
     lines = ["Warp 1.17.0 initialized:", "SomeOtherScope took 0.10 ms"]
     for value in timings_ms:
@@ -121,6 +108,8 @@ def test_parse_log_skips_padding_and_keeps_num_frames(benchmark_renderer, tmp_pa
     assert results["median"] == pytest.approx(2.0)
     assert results["min"] == pytest.approx(2.0)
     assert results["max"] == pytest.approx(2.0)
+    assert results["physics"]["median"] == pytest.approx(0.0)
+    assert results["total"]["median"] == pytest.approx(2.0)
 
 
 def test_parse_log_returns_none_without_matching_lines(benchmark_renderer, tmp_path):
@@ -147,17 +136,6 @@ def test_parse_log_sums_physics_steps_within_one_frame(benchmark_renderer, tmp_p
     assert results["median"] == pytest.approx(2.0)
     assert results["physics"]["median"] == pytest.approx(3.0)
     assert results["total"]["median"] == pytest.approx(2.0 + 3.0)
-
-
-def test_parse_log_reads_an_absent_scope_as_zero(benchmark_renderer, tmp_path):
-    """A run captured without ``ISAACLAB_PHYSICS_PROFILE`` still parses, with physics reading zero."""
-    log_path = tmp_path / "profile.log"
-    _write_log(log_path, [2.0] * (benchmark_renderer.FRAME_PADDING + 3))
-
-    results = benchmark_renderer.parse_log(str(log_path), num_frames=3)
-
-    assert results["physics"]["median"] == pytest.approx(0.0)
-    assert results["total"]["median"] == pytest.approx(2.0)
 
 
 def test_parse_log_takes_an_arbitrary_scope_mapping(benchmark_renderer, tmp_path):

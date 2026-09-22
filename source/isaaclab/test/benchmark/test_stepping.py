@@ -8,6 +8,7 @@
 import re
 import time
 from contextlib import nullcontext
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
@@ -72,55 +73,26 @@ def test_profile_physics_steps_times_once_and_restores_manager(monkeypatch, caps
     assert ("step" in vars(manager)) is not inherited
 
 
-@pytest.mark.parametrize("active", [False, True])
-@pytest.mark.parametrize("fail", [False, True])
-def test_profile_renderers_times_only_render_and_restores_methods(monkeypatch, capsys, active, fail):
-    """Each renderer is timed independently, excluding scene updates and readback."""
+def test_profile_renderers_wraps_each_renderer(monkeypatch):
+    """Multiple renderer wrappers keep their own targets and propagate failures."""
     import warp as wp
 
-    from isaaclab.renderers.render_context import RenderContext
-    from isaaclab.renderers.renderer_cfg import RendererCfg
-
-    calls = []
-
-    class Renderer:
-        def update_transforms(self):
-            calls.append("transforms")
-
-        def update_geometries(self):
-            calls.append("geometries")
-
-        def render(self, data):
-            calls.append((self, data))
-            if fail and self is second:
-                raise ValueError("render failed")
-
-        def read_output(self, data, camera):
-            calls.append("readback")
-
-    first, second = Renderer(), Renderer()
-    first.render = first.render
+    first, second = SimpleNamespace(render=Mock()), SimpleNamespace(render=Mock())
+    second.render.side_effect = ValueError("render failed")
     originals = [first.render, second.render]
-    context = RenderContext([(RendererCfg(), first), (RendererCfg(), second)])
-    monkeypatch.setattr(wp, "synchronize", lambda: calls.append("sync"))
-    data, camera = object(), object()
+    context = SimpleNamespace(_renderer_entries=[(None, first), (None, second)])
+    timer = Mock(return_value=nullcontext())
+    monkeypatch.setattr(wp, "ScopedTimer", timer)
 
-    with pytest.raises(ValueError, match="render failed") if fail else nullcontext():
-        with profile_renderers(context, active=active):
-            for renderer in (first, first, second):
-                context.render_into_camera(renderer, data, camera, physics_step_count=1)
+    profile_renderers(context)
+    first.render("first")
+    with pytest.raises(ValueError, match="render failed"):
+        second.render("second")
 
-    expected = ["transforms", "geometries", "transforms", "geometries"]
-    for renderer in (first, first, second):
-        expected.extend(["sync", (renderer, data), "sync"] if active else [(renderer, data)])
-        if not (fail and renderer is second):
-            expected.append("readback")
-    assert calls == expected
-    timing = rf"{re.escape(RENDER_PROFILE_SCOPE)} took [\d.]+ ms"
-    assert len(re.findall(timing, capsys.readouterr().out)) == (3 if active else 0)
-    assert [first.render, second.render] == originals
-    assert "render" in vars(first)
-    assert "render" not in vars(second)
+    originals[0].assert_called_once_with("first")
+    originals[1].assert_called_once_with("second")
+    assert timer.call_count == 2
+    timer.assert_called_with(RENDER_PROFILE_SCOPE, print=True, synchronize=True)
 
 
 class _Space:
