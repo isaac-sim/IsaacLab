@@ -75,6 +75,26 @@ NEGATIVE_PROMPT = (
 checkpoint has plenty of stylised imagery in its training distribution, and a
 positive prompt asking for realism competes with it rather than excluding it."""
 
+TIME_OF_DAY = (
+    "Shot in the early morning: pale dawn light through the tall windows, long soft "
+    "shadows across the floor, cool blue-grey tones, interior lights still off.",
+    "Shot in mid-morning: bright clear daylight through the windows, crisp shadows, neutral white balance.",
+    "Shot at midday: strong overhead sunlight through the windows, bright high-contrast light and short hard shadows.",
+    "Shot in the afternoon: warm golden sunlight angling through the windows, "
+    "long shadows stretching across the benches.",
+    "Shot at sunset: low orange sunlight through the windows, warm amber highlights "
+    "on the equipment, deep shadows elsewhere.",
+    "Shot at dusk during blue hour: dim blue twilight outside the windows, the "
+    "interior ceiling lights now on and dominant.",
+    "Shot at night: the windows are dark and reflective, lit only by cool "
+    "fluorescent ceiling lights, the room's reflection visible in the glass.",
+    "Shot at midnight: pitch black outside the windows, only overhead interior "
+    "lighting, strong mirror-like reflections on the dark glass.",
+)
+"""Walked once across the run so the lab's windows drift from dawn to midnight.
+Appended to whichever scene variant the episode selected, so the room stays the
+same room while its light changes."""
+
 DR_CAMERA = "table_cam"
 """Only the table view is randomized. The wrist camera sits centimetres from the
 table and barely sees the room, so restyling it costs a generation per frame and
@@ -167,7 +187,14 @@ class FrankaStackRuntimeDRCfg(FrankaCubeStackVisuomotorCosmosEnvCfg):
             },
             backend=CosmosBackendCfg(
                 class_type=CosmosBackend,
-                prompts=PromptBankCfg(variants=BACKGROUND_PROMPTS, negative_prompt=NEGATIVE_PROMPT),
+                prompts=PromptBankCfg(
+                    variants=BACKGROUND_PROMPTS,
+                    negative_prompt=NEGATIVE_PROMPT,
+                    progression=TIME_OF_DAY,
+                    # Matches the demo rollout length, so one run spans dawn to
+                    # midnight; a longer run simply holds at midnight.
+                    progression_steps=230,
+                ),
                 # Segmentation rather than depth: it names regions instead of
                 # pinning exact geometry, so the model keeps the scene's layout and
                 # perspective while staying free to fill the room with people.
