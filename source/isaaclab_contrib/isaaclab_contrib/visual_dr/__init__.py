@@ -3,8 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Experimental runtime visual DR. Cosmos and NIXL are imported only on demand."""
+"""Runtime visual domain randomization. Cosmos is imported only when configured."""
 
-from .runtime import ActionChunkSchedule, DRBackend, DRFrame, DRObservation, VisualDRRuntime
+from .backends import DRBackend, DRFrame, DRRequest, PassthroughBackend
+from .cfg import CameraDRCfg, CosmosBackendCfg, DRBackendCfg, PromptBankCfg, VisualDRCfg
+from .observations import image_runtime_dr, preserve_mask
+from .runtime import VisualDRRuntime
 
-__all__ = ["ActionChunkSchedule", "DRBackend", "DRFrame", "DRObservation", "VisualDRRuntime"]
+__all__ = [
+    "CameraDRCfg",
+    "CosmosBackendCfg",
+    "DRBackend",
+    "DRBackendCfg",
+    "DRFrame",
+    "DRRequest",
+    "PassthroughBackend",
+    "PromptBankCfg",
+    "VisualDRCfg",
+    "VisualDRRuntime",
+    "image_runtime_dr",
+    "preserve_mask",
+]
