@@ -186,9 +186,9 @@ class BaseRenderer(ABC):
         """Release resources owned by the renderer itself rather than by a render data.
 
         A renderer is shared by every camera whose configuration resolves to it (see
-        :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so state it owns
+        :meth:`~isaaclab.sim.SimulationContext.get_or_create_backend`), so state it owns
         outlives any single camera and cannot be released from :meth:`cleanup`.
-        :meth:`~isaaclab.renderers.render_context.RenderContext.close` calls this once at
+        :meth:`~isaaclab.sim.SimulationContext.clear_instance` calls this once at
         simulation teardown, while the stage and the underlying renderer backend are still alive.
 
         The default implementation is a no-op, for backends whose state lives entirely on the

@@ -460,12 +460,7 @@ class NewtonWarpRenderer(BaseRenderer):
         """Post-physics setup: read the built Newton model and construct the sensor."""
         self._newton_model = NewtonManager.get_model()
         if self._newton_model is None:
-            raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but the Newton manager has no model. "
-                "This usually means the Newton model failed to build from the USD stage "
-                "(e.g., unsupported PhysX schemas such as tendons). "
-                "Check the log for earlier Newton model build errors."
-            )
+            raise RuntimeError("NewtonWarpRenderer requires a clone-built model before initialization.")
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
             self._newton_model,
