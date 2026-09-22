@@ -1155,8 +1155,30 @@ def test_explicit_partial_valid_types_raises_for_invalid():
     }
     ctx = _make_context_with_settings(settings)
 
-    with pytest.raises(RuntimeError, match="bogus_viz"):
+    with pytest.raises(RuntimeError) as exc_info:
         ctx._create_visualizers()
+
+    message = str(exc_info.value)
+    assert "bogus_viz" in message
+    # The successfully-resolved deprecated alias must not also be reported as missing.
+    assert "'newton'" not in message
+
+
+def test_explicit_deprecated_alias_alone_does_not_raise():
+    """Requesting only the deprecated 'newton' alias resolves successfully and does not raise,
+    even though the resolved cfg carries the canonical 'newton_gl' type."""
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
+    with pytest.warns(DeprecationWarning, match="newton.*deprecated.*newton_gl"):
+        ctx._create_visualizers()
+
+    assert len(ctx._pending_visualizers) == 1
 
 
 def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():

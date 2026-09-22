@@ -6,3 +6,7 @@ Fixed
   failure. The error now includes the specific reason recorded per type (unknown visualizer type,
   ``isaaclab_visualizers`` not installed, or another import/construction failure), so the raised
   exception alone is enough to tell those cases apart instead of requiring a search through logs.
+* Fixed ``--visualizer newton`` (the deprecated alias for ``newton_gl``) always raising this same
+  ``RuntimeError`` even though it resolved successfully. :meth:`SimulationContext._resolve_visualizer_cfgs`
+  compared the raw, possibly-aliased CLI string against the resolved config's canonical
+  ``visualizer_type``, which never matched for an aliased request.

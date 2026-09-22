@@ -593,6 +593,12 @@ class SimulationContext:
         # not resolve, so the RuntimeError below can report *why* rather than just *that* it failed.
         failure_reasons: dict[str, str] = {}
 
+        # cli_requested holds the raw, possibly-deprecated-alias strings the user typed (e.g.
+        # "newton"), while resolved cfgs always carry their canonical visualizer_type (e.g.
+        # "newton_gl"). Comparing the two directly misreports a successfully-resolved alias as
+        # missing, so route every such comparison through the canonical name.
+        canonical_requested = [_VISUALIZER_ALIASES.get(t, t) for t in cli_requested]
+
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
@@ -608,17 +614,17 @@ class SimulationContext:
             self._apply_visualizer_cli_overrides(resolved)
         else:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
-            cli_requested_set = set(cli_requested)
+            cli_requested_set = set(canonical_requested)
             resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
             for cfg in resolved:
                 self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
-                if viz_type not in existing_types:
+                if _VISUALIZER_ALIASES.get(viz_type, viz_type) not in existing_types:
                     extra_configs, extra_failures = self._create_default_visualizer_configs([viz_type])
                     resolved.extend(extra_configs)
                     failure_reasons.update(extra_failures)
-                    existing_types.add(viz_type)
+                    existing_types.add(_VISUALIZER_ALIASES.get(viz_type, viz_type))
             self._apply_visualizer_cli_overrides(resolved)
 
         # When visualizers were explicitly requested via CLI, verify all
@@ -627,7 +633,11 @@ class SimulationContext:
         # skips.
         if cli_explicit and cli_requested:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
-            missing = [t for t in cli_requested if t not in resolved_types]
+            missing = [
+                t
+                for t, canonical in zip(cli_requested, canonical_requested, strict=True)
+                if canonical not in resolved_types
+            ]
             if missing:
                 # Report the specific reason recorded per type (unknown type, missing package, or
                 # another import/construction failure) rather than a single generic message, so the
