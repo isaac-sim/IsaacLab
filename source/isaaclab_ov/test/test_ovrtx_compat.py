@@ -25,18 +25,22 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
+    from isaaclab_ov.renderers import ovrtx_compat as ovrtx_compat_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_compat import (  # noqa: E402
         RENDER_VAR_FRAME_KEYS,
         build_render_var_frame_keys,
         detect_ovrtx_version,
+        resolve_render_var_key,
         uses_prim_path_render_vars,
     )
     from isaaclab_ov.renderers.ovrtx_usd import render_var_prim_paths_by_source  # noqa: E402
 else:
+    ovrtx_compat_module = None
     RENDER_VAR_FRAME_KEYS = None
     build_render_var_frame_keys = None
     detect_ovrtx_version = None
     render_var_prim_paths_by_source = None
+    resolve_render_var_key = None
     uses_prim_path_render_vars = None
 
 
@@ -106,3 +110,20 @@ def test_installed_frame_keys_match_the_installed_version():
 def test_published_frame_keys_are_read_only():
     with pytest.raises(TypeError):
         RENDER_VAR_FRAME_KEYS["LdrColor"] = "mutated"  # type: ignore[index]
+
+
+def test_resolve_render_var_key_ignores_scope_on_ovrtx_04(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(ovrtx_compat_module, "OVRTX_VERSION", None)
+    assert resolve_render_var_key("LdrColor", "RenderCamera_3") == "LdrColor"
+    assert resolve_render_var_key("LdrColor", None) == "LdrColor"
+
+
+def test_resolve_render_var_key_falls_back_to_the_unscoped_path_on_ovrtx_05(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(ovrtx_compat_module, "OVRTX_VERSION", Version("0.5"))
+    assert resolve_render_var_key("LdrColor", None) == "/Render/Vars/LdrColor"
+
+
+def test_resolve_render_var_key_rewrites_the_scope_prefix_on_ovrtx_05(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(ovrtx_compat_module, "OVRTX_VERSION", Version("0.5"))
+    assert resolve_render_var_key("LdrColor", "RenderCamera_3") == "/RenderCamera_3/Vars/LdrColor"
+    assert resolve_render_var_key("DiffuseAlbedoSD", "RenderCamera_3") == "/RenderCamera_3/Vars/albedo"

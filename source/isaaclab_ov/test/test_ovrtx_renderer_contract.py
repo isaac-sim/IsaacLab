@@ -33,7 +33,7 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS, resolve_render_var_key  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
         OVRTXBackend,
@@ -51,6 +51,7 @@ else:
     _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
     _gpu_side_render_var_sync_enabled = None
     RENDER_VAR_FRAME_KEYS = None
+    resolve_render_var_key = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -70,7 +71,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     )
 
 
-def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
+def _make_ovrtx_camera_render_data(render_scope_name: str | None = None) -> OVRTXCameraRenderData:
     rd = OVRTXCameraRenderData.__new__(OVRTXCameraRenderData)
     rd.render_product_path = None
     rd.camera_xform_binding = None
@@ -83,6 +84,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
     rd.intrinsic_bindings = []
     rd.renderer_info = {}
     rd.ppisp_pipeline = None
+    rd.render_scope_name = render_scope_name
     return rd
 
 
@@ -422,6 +424,35 @@ def test_ovrtx_process_frame_reads_only_the_installed_ldr_color_key(monkeypatch:
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._process_render_frame(_make_ovrtx_camera_render_data(), Frame(), {"rgba": object()})
     assert mapped == ["installed"]
+
+
+def test_ovrtx_process_frame_reads_the_camera_scoped_key(monkeypatch: pytest.MonkeyPatch):
+    """OVRTX 0.5+ authors each camera's render vars under its own scope; frame reads for a
+    camera with a known ``render_scope_name`` must use that camera's scoped key, not the
+    unscoped fallback -- otherwise every scene-camera frame silently reads nothing and stays
+    black (the bug this test guards against)."""
+    scope_name = "RenderCamera_7"
+    scoped_key = resolve_render_var_key("LdrColor", scope_name)
+    unscoped_key = resolve_render_var_key("LdrColor", None)
+
+    mapped = []
+
+    @contextlib.contextmanager
+    def fake_map(self, render_var):
+        mapped.append(render_var)
+        yield object()
+
+    monkeypatch.setattr(OVRTXRenderer, "_map_render_var_to_dlpack", fake_map)
+    monkeypatch.setattr(OVRTXRenderer, "_extract_rgba_tiles", lambda *args, **kwargs: None)
+
+    class Frame:
+        render_vars = {unscoped_key: "wrong-camera-or-no-camera", scoped_key: "this-camera"}
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    render_data = _make_ovrtx_camera_render_data(render_scope_name=scope_name)
+    renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
+
+    assert mapped == ["this-camera"]
 
 
 def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
