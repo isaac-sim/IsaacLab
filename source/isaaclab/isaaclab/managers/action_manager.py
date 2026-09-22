@@ -435,8 +435,8 @@ class ActionManager(ManagerBase):
 
     def _prepare_terms(self):
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._terms: dict[str, ActionTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, ActionTerm] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

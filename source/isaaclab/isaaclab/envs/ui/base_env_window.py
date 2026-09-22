@@ -80,7 +80,7 @@ class BaseEnvWindow:
 
         # keep a dictionary of stacks so that child environments can add their own UI elements
         # this can be done by using the `with` context manager
-        self.ui_window_elements = dict()
+        self.ui_window_elements = {}
         # create main frame
         self.ui_window_elements["main_frame"] = self.ui_window.frame
         with self.ui_window_elements["main_frame"]:
@@ -268,7 +268,6 @@ class BaseEnvWindow:
 
     def _build_vis_markers_frame(self):
         """Builds the Visualization Markers frame for scene element debug overlays.
-
         Creates a checkbox per scene element (terrain, rigid objects, articulations, sensors)
         that has a debug visualization implemented.
         """

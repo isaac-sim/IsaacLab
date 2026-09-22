@@ -247,7 +247,7 @@ class SubTaskConstraintConfig:
             - A "selected_src_demo_ind" and "transform" field are used to ensure the transforms used by
               both subtasks are the same.
         """
-        task_constraints_dict = dict()
+        task_constraints_dict = {}
         if self.constraint_type == SubTaskConstraintType.SEQUENTIAL:
             constrained_task_spec_key, constrained_subtask_ind = self.eef_subtask_constraint_tuple[1]
             assert isinstance(constrained_subtask_ind, int)

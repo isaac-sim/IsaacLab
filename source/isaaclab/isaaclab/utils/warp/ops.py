@@ -5,7 +5,6 @@
 
 """Wrapping around warp kernels for compatibility with torch tensors."""
 
-# needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np
@@ -114,19 +113,16 @@ def raycast_mesh(
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
     """
-    # extract device and shape information
     shape = ray_starts.shape
     device = ray_starts.device
     # device of the mesh
     torch_device = wp.device_to_torch(mesh.device)
-    # reshape the tensors
     ray_starts = ray_starts.to(torch_device).view(-1, 3).contiguous()
     ray_directions = ray_directions.to(torch_device).view(-1, 3).contiguous()
     num_rays = ray_starts.shape[0]
     # create output tensor for the ray hits
     ray_hits = torch.full((num_rays, 3), float("inf"), device=torch_device).contiguous()
 
-    # map the memory to warp arrays
     ray_starts_wp = wp.from_torch(ray_starts, dtype=wp.vec3)
     ray_directions_wp = wp.from_torch(ray_directions, dtype=wp.vec3)
     ray_hits_wp = wp.from_torch(ray_hits, dtype=wp.vec3)
@@ -152,7 +148,6 @@ def raycast_mesh(
         ray_face_id = None
         ray_face_id_wp = wp.empty((1,), dtype=wp.int32, device=torch_device)
 
-    # launch the warp kernel
     wp.launch(
         kernel=kernels.raycast_mesh_kernel,
         dim=num_rays,
@@ -286,7 +281,6 @@ def raycast_dynamic_meshes(
             Will only return if :attr:`return_mesh_id` is True else returns None.
             The returned tensor contains :obj:`-1` for missed hits.
     """
-    # extract device and shape information
     shape = ray_starts.shape
     device = ray_starts.device
 
@@ -347,12 +341,8 @@ def raycast_dynamic_meshes(
         ray_mesh_id = None
         ray_mesh_id_wp = wp.empty((1, 1), dtype=wp.int16, device=torch_device)
 
-    ##
-    # Call the warp kernels
-    ###
     if mesh_positions_w is None and mesh_orientations_w is None:
         # Static mesh case, no need to pass in positions and rotations.
-        # launch the warp kernel
         wp.launch(
             kernel=kernels.raycast_static_meshes_kernel,
             dim=[n_meshes, n_envs, n_rays_per_env],
@@ -373,7 +363,6 @@ def raycast_dynamic_meshes(
             device=torch_device,
         )
     else:
-        # dynamic mesh case
         if mesh_positions_w is None:
             mesh_positions_wp_w = wp.zeros((n_envs, n_meshes), dtype=wp.vec3, device=torch_device)
         else:
@@ -423,9 +412,6 @@ def raycast_dynamic_meshes(
             ],
             device=torch_device,
         )
-    ##
-    # Cleanup and convert back to torch tensors
-    ##
 
     # NOTE: Synchronize is not needed anymore, but we keep it for now. Check with @dhoeller.
     wp.synchronize()

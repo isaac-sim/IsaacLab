@@ -31,7 +31,6 @@ from .direct_rl_env_cfg import DirectRLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -157,8 +156,6 @@ class DirectRLEnv(gym.Env):
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
-
-            # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
@@ -192,20 +189,15 @@ class DirectRLEnv(gym.Env):
         # before the window is created so the UI can query manager_visualizers on init.
         self.setup_direct_visualizers()
 
-        # extend UI elements
-        # we need to do this here after all the managers are initialized
-        # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
-            # if no window, then we don't need to store the window
             self._window = None
 
         # allocate dictionary to store metrics
         self.extras = {}
 
         # initialize data and constants
-        # -- counter for simulation steps
         self._sim_step_counter = 0
         # -- controls camera/Kit rendering in step().
         # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
@@ -221,7 +213,6 @@ class DirectRLEnv(gym.Env):
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
-
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
 
@@ -237,7 +228,6 @@ class DirectRLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
-            # we print it here to make the logging consistent
             print("[INFO] Event Manager: ", self.event_manager)
 
             if "startup" in self.event_manager.available_modes:
@@ -261,7 +251,6 @@ class DirectRLEnv(gym.Env):
             if self.cfg.num_rerenders_on_reset == 0:
                 self.cfg.num_rerenders_on_reset = 1
 
-        # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
@@ -483,7 +472,6 @@ class DirectRLEnv(gym.Env):
         for recorder in self.video_recorders:
             recorder.step()
 
-        # update observations
         self.obs_buf = self._get_observations()
 
         # add observation noise
@@ -491,7 +479,6 @@ class DirectRLEnv(gym.Env):
         if self.cfg.observation_noise_model:
             self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
-        # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     @staticmethod
@@ -733,13 +720,11 @@ class DirectRLEnv(gym.Env):
                 env_step_count = self._sim_step_counter // self.cfg.decimation
                 self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
-        # reset noise models
         if self.cfg.action_noise_model:
             self._action_noise_model.reset(env_ids)
         if self.cfg.observation_noise_model:
             self._observation_noise_model.reset(env_ids)
 
-        # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
 
         self.sim.render_context.reset_scene_state_cadence()

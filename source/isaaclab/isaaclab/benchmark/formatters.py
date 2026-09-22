@@ -137,7 +137,6 @@ class JSONFileMetrics(MetricsFormatterInterface):
         # Append test name to measurement name as OVAT needs to uniquely identify
         for test_phase in self.data:
             test_name = test_phase.get_metadata_field("workflow_name")
-            # Store the test name
             if test_name != self.test_name:
                 if self.test_name:
                     logger.warning(
@@ -538,7 +537,6 @@ class OsmoKPIFile(MetricsFormatterInterface):
         """
         multi_phase = len(self._test_phases) > 1
         for test_phase in self._test_phases:
-            # Retrieve useful metadata from test_phase
             phase_name = test_phase.get_metadata_field("phase")
 
             osmo_kpis: dict[str, object] = {}

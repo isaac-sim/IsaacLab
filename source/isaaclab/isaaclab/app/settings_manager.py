@@ -38,7 +38,6 @@ class SettingsManager:
         """Singleton pattern - always return the same instance, stored in sys.modules to survive reloads."""
         # Check if instance exists in sys.modules (survives module reloads)
         instance = sys.modules.get(_SINGLETON_KEY)
-
         if instance is None:
             instance = super().__new__(cls)
             sys.modules[_SINGLETON_KEY] = instance
@@ -87,7 +86,6 @@ class SettingsManager:
             self._carb_settings = carb.settings.get_settings()
             self._use_carb = True
         except (ImportError, AttributeError):
-            # carb not available or SimulationApp not launched - use standalone mode
             self._use_carb = False
 
     def set(self, path: str, value: Any) -> None:

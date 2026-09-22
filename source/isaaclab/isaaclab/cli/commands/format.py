@@ -28,7 +28,6 @@ def command_format() -> None:
 
     if result.returncode == 0:
         pre_commit_module = True
-
     # If pre-commit is not installed, install it.
     if not pre_commit_module:
         print_info('Pre-commit not found. Installing "pre-commit" module...')
@@ -38,7 +37,6 @@ def command_format() -> None:
     print_info("Formatting the repository...")
 
     try:
-        # Run pre-commit as a module since we may have just installed it.
         _run_pre_commit()
 
     except SystemExit:

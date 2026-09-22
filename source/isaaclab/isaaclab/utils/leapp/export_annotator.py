@@ -482,7 +482,6 @@ class ExportPatcher:
             Args:
                 *args: Original positional arguments.
                 **kwargs: Original keyword arguments.
-
             Returns:
                 Result of the wrapped observation term.
             """

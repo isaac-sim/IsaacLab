@@ -84,7 +84,6 @@ class AssetBase(Asset, ABC):
 
         Args:
             cfg: The configuration class for the asset.
-
         """
         super().__init__(cfg)
         # Resolve shape-check flag once: True means checks are active.
@@ -94,19 +93,15 @@ class AssetBase(Asset, ABC):
             self._check_shapes = __debug__
         else:
             self._check_shapes = not self.cfg.disable_shape_checks
-        # flag for whether the asset is initialized
         self._is_initialized = False
-        # register various callback functions
         self._register_callbacks()
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear events handles
         self._clear_callbacks()
 
     """

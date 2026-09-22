@@ -146,7 +146,6 @@ class DifferentialIKController:
             # this is only needed for display purposes
             if ee_quat is None:
                 raise ValueError("End-effector orientation can not be None for `position_*` command type!")
-            # compute targets
             if self.cfg.use_relative_mode:
                 if ee_pos is None:
                     raise ValueError("End-effector position can not be None for `position_rel` command type!")

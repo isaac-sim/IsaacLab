@@ -23,7 +23,6 @@ from .ui_visualizer_base import UiVisualizerBase
 if TYPE_CHECKING:
     import omni.ui
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +62,6 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                 :meth:`~isaaclab.managers.manager_base.ManagerBase.get_active_iterable_terms` method.
             cfg: The configuration file used to select desired manager terms to be plotted.
         """
-
         self._manager = manager
         self.debug_vis = cfg.debug_vis
         self._env_idx: int = 0
@@ -172,7 +170,6 @@ class ManagerLiveVisualizer(UiVisualizerBase):
 
     def _debug_vis_callback(self, event):
         """Callback for the debug visualization event."""
-
         if not SimulationContext.instance().is_playing():
             # Visualizers have not been created yet.
             return
@@ -303,7 +300,7 @@ class EnvLiveVisualizer:
         self._prepare_terms()
 
     def _prepare_terms(self):
-        self._manager_visualizers: dict[str, ManagerLiveVisualizer] = dict()
+        self._manager_visualizers: dict[str, ManagerLiveVisualizer] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

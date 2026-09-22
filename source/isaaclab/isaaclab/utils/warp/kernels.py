@@ -59,7 +59,6 @@ def raycast_mesh_kernel(
         return_normal: Whether to return the ray hit normals. Defaults to False.
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
     """
-    # get the thread id
     tid = wp.tid()
 
     t = float(0.0)  # hit distance along ray
@@ -199,7 +198,6 @@ def raycast_static_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
 
     direction = ray_directions[tid_env, tid_ray]
@@ -294,7 +292,6 @@ def raycast_dynamic_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
     if not env_mask[tid_env]:
         return
@@ -358,7 +355,6 @@ def reshape_tiled_image(
         num_channels: The number of channels in the image.
         num_tiles_x: The number of tiles in x-direction.
     """
-    # get the thread id
     camera_id, height_id, width_id = wp.tid()
 
     # resolve the tile indices

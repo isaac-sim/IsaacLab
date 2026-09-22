@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
     from . import from_files_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -203,7 +202,6 @@ def spawn_ground_plane(
     Raises:
         ValueError: If the prim path already exists.
     """
-    # Obtain current stage
     stage = get_current_stage()
 
     # Spawn Ground-plane
@@ -261,7 +259,6 @@ def spawn_ground_plane(
     if cfg.color is not None:
         from pxr import Gf, Sdf  # noqa: PLC0415
 
-        # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
             value=Gf.Vec3f(*cfg.color),
@@ -290,8 +287,6 @@ def spawn_ground_plane(
 
     # Apply visibility
     set_prim_visibility(prim, cfg.visible)
-
-    # return the prim
     return prim
 
 
@@ -613,10 +608,7 @@ def _spawn_from_usd_file(
         )
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
-
-    # return the prim
     return stage.GetPrimAtPath(prim_path)
 
 
@@ -680,8 +672,6 @@ def spawn_from_usd_with_compliant_contact_material(
                 rigid_body_prim_path = path
 
             material_path = f"{rigid_body_prim_path}/compliant_material"
-
-            # spawn physics material
             material_cfg.func(material_path, material_cfg)
 
             bind_physics_material(

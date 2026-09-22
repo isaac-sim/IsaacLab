@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

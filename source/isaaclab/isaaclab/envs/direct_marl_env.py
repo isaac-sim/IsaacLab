@@ -30,7 +30,6 @@ from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -151,8 +150,6 @@ class DirectMARLEnv(gym.Env):
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
-
-            # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
@@ -182,20 +179,15 @@ class DirectMARLEnv(gym.Env):
         self.has_debug_vis_implementation = "NotImplementedError" not in source_code
         self._debug_vis_handle = None
 
-        # extend UI elements
-        # we need to do this here after all the managers are initialized
-        # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
-            # if no window, then we don't need to store the window
             self._window = None
 
         # allocate dictionary to store metrics
         self.extras = {agent: {} for agent in self.cfg.possible_agents}
 
         # initialize data and constants
-        # -- counter for simulation steps
         self._sim_step_counter = 0
         # -- controls camera/Kit rendering in step().
         # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
@@ -212,7 +204,6 @@ class DirectMARLEnv(gym.Env):
 
         # setup the observation, state and action spaces
         self._configure_env_spaces()
-
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: dict[AgentID, NoiseModel] = {
@@ -229,13 +220,12 @@ class DirectMARLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
-            # we print it here to make the logging consistent
             print("[INFO] Event Manager: ", self.event_manager)
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        # print the environment information
+
         print("[INFO]: Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
@@ -494,7 +484,6 @@ class DirectMARLEnv(gym.Env):
                 if agent in self._observation_noise_model:
                     self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
-        # return observations, rewards, resets and extras
         return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras
 
     def state(self) -> StateType | None:
@@ -629,7 +618,6 @@ class DirectMARLEnv(gym.Env):
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Toggles the environment debug visualization.
-
         Args:
             debug_vis: Whether to visualize the environment debug visualization.
 
@@ -716,7 +704,6 @@ class DirectMARLEnv(gym.Env):
                 env_step_count = self._sim_step_counter // self.cfg.decimation
                 self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
-        # reset noise models
         if self.cfg.action_noise_model:
             for noise_model in self._action_noise_model.values():
                 noise_model.reset(env_ids)
@@ -724,7 +711,6 @@ class DirectMARLEnv(gym.Env):
             for noise_model in self._observation_noise_model.values():
                 noise_model.reset(env_ids)
 
-        # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
 
         self.sim.render_context.reset_scene_state_cadence()

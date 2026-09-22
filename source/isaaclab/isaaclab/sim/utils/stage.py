@@ -19,7 +19,6 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdUtils  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
@@ -385,32 +384,24 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
     """
     from pxr import Sdf, Usd  # noqa: PLC0415
 
-    # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
 
-    # create new layer
     layer = Sdf.Layer.CreateNew(usd_path)
     if layer is None:
         raise RuntimeError(f"Failed to create new USD layer at path '{usd_path}'.")
 
-    # get root layer
     root_layer = get_current_stage().GetRootLayer()
-    # transfer content from root layer to new layer
     layer.TransferContent(root_layer)
 
     # resolve paths so asset references remain valid from the new location
     resolve_paths(root_layer.identifier, layer.identifier)
 
-    # save layer
     result = layer.Save()
     if not result:
         logger.error(f"Failed to save USD layer to path '{usd_path}'.")
-
-    # if requested, open the saved USD file in place
     if save_and_reload_in_place and result:
         open_stage(usd_path)
-
     return result
 
 
@@ -517,7 +508,6 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         # Custom predicate must also pass the deletable check
         return predicate(prim) and _is_prim_deletable(prim)
 
-    # get all prims to delete
     prims = get_all_matching_child_prims("/", _predicate_from_path)
     # convert prims to prim paths
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
@@ -546,7 +536,6 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
     """
     _sync_isaacsim_stage_context()
 
-    # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
     if stage is not None:
         if fabric:
@@ -574,7 +563,6 @@ def get_current_stage_id() -> int:
     """
     from pxr import UsdUtils  # noqa: PLC0415
 
-    # get current stage
     stage = get_current_stage()
     if stage is None:
         raise RuntimeError("No current stage available. Did you create a stage?")
@@ -582,13 +570,10 @@ def get_current_stage_id() -> int:
     # retrieve stage ID from stage cache
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
-    # if stage ID is not found, insert it into the stage cache
     if stage_id < 0:
-        # Ensure stage has a valid root layer before inserting
         if not stage.GetRootLayer():
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()
-    # return stage ID
     return stage_id
 
 

@@ -45,7 +45,6 @@ Root state.
 @generic_io_descriptor(units="m", axes=["Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root height in the simulation world frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.root_pos_w.torch[:, 2].unsqueeze(-1)
 
@@ -55,7 +54,6 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
 )
 def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root linear velocity in the asset's root frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_lin_vel_b.torch
 
@@ -65,7 +63,6 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
 )
 def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root angular velocity in the asset's root frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_ang_vel_b.torch
 
@@ -75,7 +72,6 @@ def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
 )
 def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Gravity projection on the asset's root frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.projected_gravity_b.torch
 
@@ -85,7 +81,6 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
 )
 def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root position in the environment frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w.torch - env.scene.env_origins
 
@@ -102,11 +97,8 @@ def root_quat_w(
     the quaternion has non-negative real component. This is because both ``q`` and ``-q`` represent
     the same orientation.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-
     quat = asset.data.root_quat_w.torch
-    # make the quaternion real-part positive if configured
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
 
@@ -115,7 +107,6 @@ def root_quat_w(
 )
 def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the environment frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_lin_vel_w.torch
 
@@ -125,7 +116,6 @@ def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
 )
 def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root angular velocity in the environment frame."""
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_ang_vel_w.torch
 
@@ -152,10 +142,7 @@ def body_pose_w(
         The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz].
         Output is stacked horizontally per body.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-
-    # access the body poses in world frame
     pose = asset.data.body_pose_w.torch[:, asset_cfg.body_ids, :7]
     if isinstance(asset_cfg.body_ids, (slice, int)):
         pose = pose.clone()  # if slice or int, make a copy to avoid modifying original data
@@ -180,9 +167,7 @@ def body_projected_gravity_b(
         The unit vector direction of gravity projected onto body_name's frame. Gravity projection vector order is
         [x,y,z]. Output is stacked horizontally per body.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-
     body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids]
     # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
     # backend) or scene-wide gravity (PhysX backend).
@@ -204,7 +189,6 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
 
@@ -219,7 +203,6 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return (
         asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
@@ -234,7 +217,6 @@ def joint_pos_limit_normalized(
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their normalized positions returned.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return math_utils.scale_transform(
         asset.data.joint_pos.torch[:, asset_cfg.joint_ids],
@@ -251,7 +233,6 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
 
@@ -266,7 +247,6 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return (
         asset.data.joint_vel.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
@@ -288,7 +268,6 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     Returns:
         The joint effort (N or N-m) for joint_names in asset_cfg, shape is [num_env,num_joints].
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]
 
@@ -303,9 +282,7 @@ def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float 
 
     The provided offset (Defaults to 0.5) is subtracted from the returned values.
     """
-    # extract the used quantities (to enable type-hinting)
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
-    # height scan: height = sensor_height - hit_point_z - offset
     return sensor.data.pos_w.torch[:, 2].unsqueeze(1) - sensor.data.ray_hits_w.torch[..., 2] - offset
 
 
@@ -314,7 +291,6 @@ def body_incoming_wrench(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> to
 
     This is the 6-D wrench (force followed by torque) applied to the body link by the incoming joint force.
     """
-    # extract the used quantities (to enable type-hinting)
     sensor: JointWrenchSensor = env.scene.sensors[sensor_cfg.name]
     sensor_data = sensor.data
     force_data = sensor_data.force
@@ -416,19 +392,13 @@ def image(
     Returns:
         The images produced at the last time-step
     """
-    # extract the used quantities (to enable type-hinting)
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
-
-    # obtain the input image
     images = sensor.data.output[data_type]
-
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
-
     if normalize:
         images = normalize_camera_image(images, data_type)
-
     if permute:
         images = images.permute(0, 3, 1, 2)
 
@@ -478,10 +448,8 @@ class image_features(ManagerTermBase):
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
-        # initialize the base class
         super().__init__(cfg, env)
 
-        # extract parameters from the configuration
         self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
         self.model_name: str = cfg.params.get("model_name", "resnet18")  # type: ignore
         self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
@@ -521,7 +489,6 @@ class image_features(ManagerTermBase):
         else:
             model_config = self.model_zoo_cfg[self.model_name]
 
-        # Retrieve the model, preprocess and inference functions
         self._model = model_config["model"]()
         self._reset_fn = model_config.get("reset")
         self._inference_fn = model_config["inference"]
@@ -556,7 +523,6 @@ class image_features(ManagerTermBase):
         image_device = image_data.device
         # forward the images through the model
         features = self._inference_fn(self._model, image_data, **(inference_kwargs or {}))
-
         # observation terms must be flat after the environment batch dimension
         return features.flatten(start_dim=1).detach().to(image_device)
 
@@ -632,7 +598,6 @@ class image_features(ManagerTermBase):
             features = model.backbone.model(pixel_values=image_proc, interpolate_pos_encoding=True)
             return features.last_hidden_state[:, 1:]
 
-        # return the model, preprocess and inference functions
         return {"model": _load_model, "inference": _inference}
 
     def _prepare_resnet_model(self, model_name: str, model_device: str) -> dict:

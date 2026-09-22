@@ -338,7 +338,6 @@ def _spawn_geom_from_prim_type(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
     # spawn geometry if it doesn't exist.
@@ -350,8 +349,6 @@ def _spawn_geom_from_prim_type(
     # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"
     mesh_prim_path = geom_prim_path + "/mesh"
-
-    # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
     if geometry_schema_func is not None:
         geometry_schema_func(mesh_prim_path, stage=stage)
@@ -376,9 +373,7 @@ def _spawn_geom_from_prim_type(
             material_path = cfg.visual_material_path
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
-    # apply physics material
     if cfg.physics_material is not None:
         if not cfg.physics_material_path.startswith("/"):
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
@@ -386,7 +381,6 @@ def _spawn_geom_from_prim_type(
             material_path = cfg.physics_material_path
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
     # note: we apply rigid properties in the end to later make the instanceable prim

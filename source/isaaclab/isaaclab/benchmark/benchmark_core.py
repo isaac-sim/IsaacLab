@@ -274,11 +274,8 @@ class BaseIsaacLabBenchmark:
                     "workflow_metadata provided, but missing expected 'metadata' entry. Metadata will not be read."
                 )
 
-        # Whether to use recorders to collect metrics.
         self._use_recorders = use_recorders
         self._use_frametime_recorders = frametime_recorders
-
-        # Initialize frametime recorders dict (always, even when not using recorders)
         self._frametime_recorders: dict[str, MeasurementDataRecorder] = {}
 
         if self._use_recorders:
@@ -472,18 +469,15 @@ class BaseIsaacLabBenchmark:
         if self._bundle is None and any(key == "schema" for key, _ in self._metrics):
             raise RuntimeError("The schema formatter requires an attached benchmark bundle.")
 
-        # Stop collecting frametime recorders.
         for recorder in self._frametime_recorders.values():
             recorder.stop_collecting()
 
-        # Add measurements and metadata from recorders to the phases.
         if self._use_recorders:
             for recorder_name, measurement_data in self._manual_recorders.items():
                 data = measurement_data.get_data()
                 # Add measurements to runtime phase if present
                 if data.measurements:
                     self.add_measurement("runtime", measurement=data.measurements)
-                # Add metadata to appropriate phase (even if no measurements)
                 if data.metadata:
                     if recorder_name == "VersionInfo":
                         self.add_measurement("version_info", metadata=data.metadata)

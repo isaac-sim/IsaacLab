@@ -52,7 +52,6 @@ from .interactive_scene_cfg import InteractiveSceneCfg
 if TYPE_CHECKING:
     from pxr import Sdf  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -124,29 +123,23 @@ class InteractiveScene:
         Args:
             cfg: The configuration class for the scene.
         """
-        # check that the config is valid
         cfg.validate()
-        # store inputs
         self.cfg = cfg
-        # initialize scene elements
         self._terrain = None
-        self._articulations = dict()
-        self._cable_objects = dict()
-        self._deformable_objects = dict()
-        self._rigid_objects = dict()
-        self._rigid_object_collections = dict()
-        self._sensors = dict()
-        self._surface_grippers = dict()
-        self._visual_materials = dict()
+        self._articulations = {}
+        self._cable_objects = {}
+        self._deformable_objects = {}
+        self._rigid_objects = {}
+        self._rigid_object_collections = {}
+        self._sensors = {}
+        self._surface_grippers = {}
+        self._visual_materials = {}
         self._extras: dict[str, Asset | VisualizationMarkers] = {}
-        # get stage handle
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
-        # physics scene path
         self._physics_scene_path = None
-        # prepare cloner for environment replication
         self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
         self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
         # the template is authoritative; the regex form is the same namespace spelled for matching
@@ -154,7 +147,7 @@ class InteractiveScene:
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
-        self._global_prim_paths = list()
+        self._global_prim_paths = []
         asset_cfgs, global_paths, valid_set = self._collect_asset_cfgs()
         scene_from_cfg = any(
             name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
@@ -663,11 +656,11 @@ class InteractiveScene:
         Returns:
             A dictionary of the state of the scene entities.
         """
-        state = dict()
+        state = {}
         # articulations
-        state["articulation"] = dict()
+        state["articulation"] = {}
         for asset_name, articulation in self._articulations.items():
-            asset_state = dict()
+            asset_state = {}
             asset_state["root_pose"] = articulation.data.root_pose_w.torch.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
@@ -676,34 +669,34 @@ class InteractiveScene:
             asset_state["joint_velocity"] = articulation.data.joint_vel.torch.clone()
             state["articulation"][asset_name] = asset_state
         # cable objects
-        state["cable_object"] = dict()
+        state["cable_object"] = {}
         for asset_name, cable_object in self._cable_objects.items():
-            asset_state = dict()
+            asset_state = {}
             asset_state["segment_pose"] = cable_object.data.segment_pose_w.torch.clone()
             if is_relative:
                 asset_state["segment_pose"][..., :3] -= self.env_origins[:, None, :]
             asset_state["segment_velocity"] = cable_object.data.segment_velocity_w.torch.clone()
             state["cable_object"][asset_name] = asset_state
         # deformable objects
-        state["deformable_object"] = dict()
+        state["deformable_object"] = {}
         for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = dict()
+            asset_state = {}
             asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.torch.clone()
             if is_relative:
                 asset_state["nodal_position"] -= self.env_origins[:, None, :]
             asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.torch.clone()
             state["deformable_object"][asset_name] = asset_state
         # rigid objects
-        state["rigid_object"] = dict()
+        state["rigid_object"] = {}
         for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = dict()
+            asset_state = {}
             asset_state["root_pose"] = rigid_object.data.root_pose_w.torch.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = rigid_object.data.root_vel_w.torch.clone()
             state["rigid_object"][asset_name] = asset_state
         # surface grippers
-        state["gripper"] = dict()
+        state["gripper"] = {}
         for asset_name, gripper in self._surface_grippers.items():
             state["gripper"][asset_name] = wp.to_torch(gripper.state).clone()
         return state
@@ -742,7 +735,6 @@ class InteractiveScene:
         Returns:
             The scene entity.
         """
-        # check if it is a terrain
         if key == "terrain":
             return self._terrain
 
@@ -842,7 +834,6 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                # add surface grippers to scene
                 self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer

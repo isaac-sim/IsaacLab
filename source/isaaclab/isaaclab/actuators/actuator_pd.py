@@ -28,7 +28,6 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
-# import logger
 logger = logging.getLogger(__name__)
 
 """
@@ -507,7 +506,6 @@ class DelayedPDActuator(IdealPDActuator):
         control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
         control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
         control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
         return super().compute(control_action, joint_pos, joint_vel)
 
 

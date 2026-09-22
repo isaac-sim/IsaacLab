@@ -18,7 +18,6 @@ import xml.etree.ElementTree as ET
 
 from isaaclab.sim.utils import enable_extension, get_extension_path
 
-# import logger
 logger = logging.getLogger(__name__)
 
 # NOTE: As of Isaac Sim 6.0, ``isaacsim.robot_motion.lula`` (and ``isaacsim.robot_motion.motion_generation``)
@@ -123,14 +122,11 @@ def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verb
 
     with open(urdf_path) as file:
         content = file.read()
-
-    # Find all revolute joints in the URDF
     revolute_joints = re.findall(r'<joint name="([^"]+)" type="revolute">', content)
 
     for joint in revolute_joints:
         # Check if this joint matches any of the fixed joint patterns
         should_fix = any(re.match(pattern, joint) for pattern in fixed_joints)
-
         if should_fix:
             old_str = f'<joint name="{joint}" type="revolute">'
             new_str = f'<joint name="{joint}" type="fixed">'

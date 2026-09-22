@@ -294,7 +294,6 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     if physics is None:
         physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
-
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
@@ -319,7 +318,6 @@ def capture_resources(bm: Any) -> Resources:
     cpu_data = _get_recorder_data(bm, "CPUInfo")
     mem_data = _get_recorder_data(bm, "MemoryInfo")
 
-    # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
     gpu_metadata = {m.name: m.data for m in gpu_data.metadata or []} if gpu_data is not None else {}
     # Without the recorder there is nothing to attribute to a device, so the per-device mapping
@@ -334,7 +332,6 @@ def capture_resources(bm: Any) -> Resources:
     }
     current = devices.get(str(current_device), _gpu_device_resources(gpu_meas, "GPU "))
 
-    # --- CPU ---
     cpu_meas = cpu_data.measurements if cpu_data is not None else []
 
     cpu_util_mean = _find_value(cpu_meas, "CPU Utilization")

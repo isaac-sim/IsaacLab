@@ -264,7 +264,6 @@ def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> list[str]:
             parts.append("".join(f"^{c}" if c in _CMD_METACHARACTERS else c for c in s))
         else:
             parts.append(s)
-
     return ["cmd.exe", "/c", " ".join(parts)]
 
 
@@ -397,7 +396,6 @@ def extract_python_exe() -> str:
 
     python_exe = None
 
-    # Try uv virtual environment python.
     venv_prefix = os.environ.get("VIRTUAL_ENV")
     if venv_prefix:
         print_debug(f"extract_python_exe(): Found VIRTUAL_ENV: {venv_prefix}")
@@ -409,14 +407,12 @@ def extract_python_exe() -> str:
                 python_exe = Path(venv_prefix) / "bin" / "python3"
     else:
         print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
-
     # Try conda python.
     if not python_exe or not Path(python_exe).exists():
         if python_exe:
             print_debug(
                 f'extract_python_exe(): Venv python "{python_exe}" does not exist, trying to find conda python...'
             )
-
         conda_prefix = os.environ.get("CONDA_PREFIX")
         if conda_prefix:
             print_debug(f"extract_python_exe(): Found CONDA_PREFIX: {conda_prefix}")
@@ -445,7 +441,6 @@ def extract_python_exe() -> str:
                 print_debug(f"extract_python_exe(): Found repo-local venv python: {candidate}")
                 python_exe = candidate
                 break
-
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
         print_debug("extract_python_exe(): Checking for Kit python...")
@@ -501,9 +496,7 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
         required: When ``True`` (default), exit the process if Isaac Sim
             cannot be found.  When ``False``, return ``None`` instead.
     """
-    # Use the sym-link path to Isaac Sim directory.
     isaacsim_path = DEFAULT_ISAAC_SIM_PATH
-
     # If above path is not available, try to find the path using python.
     if not isaacsim_path.exists():
         # Use the current interpreter to probe for isaacsim — avoids a recursive extract_python_exe call.
@@ -535,17 +528,14 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
         except Exception:
             pass
 
-    # Check if there is a path available.
     if not isaacsim_path.exists():
         if not required:
             return None
-        # Throw an error if no path is found.
         print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda environment is not activated.")
         print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Isaac Sim directory is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
-        # Exit.
         sys.exit(1)
 
     return isaacsim_path
@@ -584,7 +574,6 @@ def extract_isaacsim_exe() -> list[str]:
                 return ["isaacsim", "isaacsim.exp.full"]
         except Exception:
             pass
-
         print_error(f"No Isaac Sim executable found at path: {isaacsim_path}")
         sys.exit(1)
 
@@ -596,7 +585,6 @@ def determine_python_version() -> str:
 
     isaacsim_version = None
 
-    # 1. Version file (only if Isaac Sim is available)
     isaacsim_path = extract_isaacsim_path(required=False)
     if isaacsim_path is not None:
         version_file = isaacsim_path / "VERSION"
@@ -615,19 +603,16 @@ def determine_python_version() -> str:
         except Exception:
             pass
 
-    # No Isaac Sim found -- default to 3.12 (required by Isaac Sim 6.x).
     if isaacsim_version is None:
         python_version = "3.12"
         print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")
         return python_version
 
-    # We found some Isaac Sim
     if isaacsim_version.startswith("5."):
         python_version = "3.11"
     elif isaacsim_version.startswith("6."):
         python_version = "3.12"
     else:
-        # We don't recognize the IsaacSim version.
         print_error(f"Unsupported Isaac Sim version: {isaacsim_version}")
         raise RuntimeError(f"Unsupported Isaac Sim version: {isaacsim_version}")
 
@@ -637,7 +622,6 @@ def determine_python_version() -> str:
 
 def _aarch64_libgomp_env(env: dict[str, str] | None) -> dict[str, str] | None:
     """Preload the system OpenMP runtime for python subprocesses on Linux aarch64.
-
     The torch wheel bundles its own libgomp, which loads first and conflicts with the
     library Isaac Sim expects, so isaacsim refuses to start unless the system libgomp is
     preloaded. The pip installation docs tell users to export LD_PRELOAD by hand; doing it

@@ -308,7 +308,6 @@ def make_clone_plan(
         the flat prototype-to-env mapping, whose ``cfg_rows`` maps each replicated cfg
         to the rows it owns, and whose ``global_paths`` names shared scene assets.
     """
-
     cfgs = tuple(cfgs)
     global_paths = _minimal_roots(global_paths)
     sim = sim_utils.SimulationContext.instance()

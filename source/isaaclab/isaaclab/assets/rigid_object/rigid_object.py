@@ -24,7 +24,4 @@ class RigidObject(FactoryBase, BaseRigidObject):
 
     def __new__(cls, *args, **kwargs) -> BaseRigidObject | PhysXRigidObject:
         """Create a new instance of a rigid object based on the backend."""
-        # The `FactoryBase` __new__ method will handle the logic and return
-        # an instance of the correct backend-specific rigid object class,
-        # which is guaranteed to be a subclass of `BaseRigidObject` by convention.
         return super().__new__(cls, *args, **kwargs)
