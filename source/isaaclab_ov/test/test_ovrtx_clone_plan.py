@@ -476,7 +476,11 @@ def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_
     """_initialize_camera_render_data_from_spec writes the combined stage when temp_usd_dir is set."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
-    renderer._exported_usd_string = "#usda 1.0\n"
+    scene = _make_multi_env_stage(1)
+    scene.SetDefaultPrim(scene.GetPrimAtPath("/World"))
+    scene.SetMetadata("metersPerUnit", 1.0)
+    scene_usd = scene.GetRootLayer().ExportToString()
+    renderer._exported_usd_string = scene_usd
 
     open_calls: list[str] = []
     renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
@@ -486,16 +490,24 @@ def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_
     renderer.backend.renderer.write_attribute = lambda **kwargs: None
 
     spec = _make_camera_render_spec(num_envs=1)
-    renderer._initialize_camera_render_data_from_spec(spec, OVRTXCameraRenderData(spec, "cpu"))
+    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
+    renderer._initialize_camera_render_data_from_spec(spec, render_data)
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
-    assert combined_text.startswith("#usda 1.0")
-    assert 'def RenderProduct "RenderProduct"' in combined_text
-    assert open_calls == ["#usda 1.0\n"]
+    combined_layer = Sdf.Layer.CreateAnonymous("combined.usda")
+    assert combined_layer.ImportFromString(combined_text)
+    assert combined_layer.defaultPrim == "World"
+    assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
+    assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
+    assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
+    assert open_calls == [scene_usd]
     reference_text, reference_path = reference_calls[0]
     assert reference_path == "/RenderCamera_0"
-    assert reference_text == '#usda 1.0\n(defaultPrim = "RenderCamera_0")\n' + combined_text[len(open_calls[0]) + 2 :]
+    reference_layer = Sdf.Layer.CreateAnonymous("reference.usda")
+    assert reference_layer.ImportFromString(reference_text)
+    assert reference_layer.defaultPrim == render_data.render_scope_name
+    assert reference_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
     assert renderer._exported_usd_string is None
 
 
@@ -550,12 +562,13 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     renderer._setup_deformable_bindings_legacy = lambda _num_envs: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
-    renderer._initialize_camera_render_data_from_spec(spec, OVRTXCameraRenderData(spec, "cpu"))
+    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
+    renderer._initialize_camera_render_data_from_spec(spec, render_data)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
     assert write_array_calls == [
         (
-            [renderer._render_product_paths[0]],
+            [render_data.render_product_path],
             "camera",
             [[f"/World/envs/env_{env_id}/Camera" for env_id in range(num_envs)]],
         )
