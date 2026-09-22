@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+1.12.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Declared Newton-backed visualizer representations before cloning and initialized viewers afterward. Kit streaming
+  views acquired the renderer for a configured generated camera from the simulation backend registry before cloning.
+  Custom visualizers that pre-register camera renderers should use ``sim.get_or_create_backend(renderer_cfg)``.
+
+Fixed
+^^^^^
+
+* Fixed black or misplaced generated Kit streaming-camera images with Newton physics by removing
+  the redundant USD pose writes that reset the camera transform stack after its Fabric pose was updated.
+  Centered the cartpole golden-test reset pose to keep the tilted poles inside the camera frame.
+
+
 1.11.0 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~~
 

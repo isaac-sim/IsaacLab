@@ -34,6 +34,8 @@ def test_shared_contract_does_not_depend_on_backend_packages() -> None:
     imported_roots = {module.split(".", 1)[0] for module in _imported_modules(tree)}
 
     assert imported_roots.isdisjoint(forbidden_roots), imported_roots & forbidden_roots
+    assert "subprocess" not in imported_roots
+    assert not (_REPO_ROOT / "source/isaaclab/test/sensors/test_camera_runtime_intrinsics.py").exists()
 
 
 def test_backend_adapters_do_not_duplicate_scene_ownership() -> None:

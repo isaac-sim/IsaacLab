@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+3.3.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated the optional OV dependencies to ``ovrtx==0.5.0.377615``,
+  ``ovstage==0.2.0.377349``, ``ovphysx==0.6.3``, and ``omniverseclient==2.74.0``. Upgrade
+  them together with ``uv sync --inexact --extra ov``.
+* **Breaking:** OvPhysX CPU-backed property writes require CPU-resident ``values``,
+  ``indices``, and ``mask`` arrays.
+* Declared OVRTX's Newton geometry adapter before cloning so it used the shared clone plan.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX ``FrameTransformer`` reusing the last offset when distinct bodies
+  share the same implicit frame name.
+* Fixed OVRTX cameras sharing a renderer to use separate tiled render products and pose bindings,
+  preserving each sensor's resolution, output types, and camera poses across environment copies.
+  Released each camera's render product during cleanup.
+* Applied runtime camera calibration through bulk device writes in both OVRTX binding and ovstage
+  paths. Previously camera updates only synchronized poses, leaving calibration changes unapplied
+  in the renderer-owned scene. Native tiled-projection restrictions were unchanged.
+* Scoped calibration bindings and queries to each camera's render data so cameras sharing a renderer
+  no longer overwrote each other's calibration. Accessed native resources through the shared backend
+  for calibration binding, updates, and cleanup.
+
+
 3.2.0 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from isaaclab.sim.simulation_cfg import BackendCfg
 from isaaclab.utils import configclass
 
 from .output_contract import RenderBufferKind, RenderBufferSpec
@@ -18,13 +19,16 @@ if TYPE_CHECKING:
 
 
 @configclass
-class RendererCfg:
+class RendererCfg(BackendCfg):
     """Configuration for a renderer."""
 
     class_type: type[BaseRenderer] | str | None = None
     """Renderer implementation class. Concrete configs must set this field."""
 
     renderer_type: str = "default"
+
+    cloning_contexts: tuple[type | str, ...] = ()
+    """Clone contexts that build this renderer's scene representation from the asset plan."""
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec] | None:
         """Return the camera output layouts supported by this renderer configuration.

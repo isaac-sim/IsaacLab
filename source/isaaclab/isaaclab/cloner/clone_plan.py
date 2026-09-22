@@ -29,6 +29,7 @@ from typing import Any
 import numpy as np
 
 import isaaclab.sim as sim_utils
+from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
@@ -229,9 +230,22 @@ def _context_rows(
     physics_context = sim.physics_manager.clone_context_type
     if physics_context is not None and not isinstance(physics_context, type):
         raise TypeError("PhysicsManager.clone_context_type must be a context class.")
-    rows_by_context: dict[type[object], set[int]] = (
-        {} if physics_context is None or not global_paths else {physics_context: set()}
-    )
+    render_contexts = {
+        string_to_callable(context) if isinstance(context, str) else context
+        for context in sim.render_context.clone_contexts
+    }
+    for context_type in render_contexts:
+        if context_type not in sim.clone_contexts:
+            sim.clone_contexts[context_type] = context_type(sim)
+    spawn_contexts = render_contexts - {physics_context}
+    if has_kit():
+        spawn_contexts.add(UsdReplicateContext)
+    scene_contexts = {
+        context for context in (physics_context, *render_contexts) if context is not None and global_paths
+    }
+    if not populated_rows:
+        scene_contexts.update(render_contexts)
+    rows_by_context: dict[type[object], set[int]] = {context: set() for context in scene_contexts}
 
     for cfg in cfgs:
         rows = cfg_rows[id(cfg)]
@@ -241,8 +255,8 @@ def _context_rows(
             contexts = () if physics_context is None else (physics_context,)
         else:
             contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
-        if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg) and has_kit():
-            contexts = tuple(dict.fromkeys((*contexts, UsdReplicateContext)))
+        if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg):
+            contexts += tuple(spawn_contexts)
         for context_type in contexts:
             if not isinstance(context_type, type):
                 raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
@@ -253,7 +267,7 @@ def _context_rows(
     return {
         context_type: tuple(sorted(rows & populated_rows))
         for context_type, rows in rows_by_context.items()
-        if rows & populated_rows or context_type is physics_context and bool(global_paths)
+        if rows & populated_rows or context_type in scene_contexts
     }
 
 
@@ -297,10 +311,13 @@ def make_clone_plan(
 
     cfgs = tuple(cfgs)
     global_paths = _minimal_roots(global_paths)
+    sim = sim_utils.SimulationContext.instance()
 
     # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
     groups: list[tuple[Any, Any, str, int]] = []
     for cfg in cfgs:
+        if isinstance(cfg, CameraCfg) and sim is not None:
+            sim.get_or_create_backend(cfg.renderer_cfg)
         matched = match(cfg.prim_path, env_template)
         count = num_spawn_variants(cfg.spawn)
         if count <= 0:
@@ -454,6 +471,8 @@ def clone_plan_from_env_0(
 
     records = []
     for cfg in asset_cfgs:
+        if isinstance(cfg, CameraCfg):
+            sim.get_or_create_backend(cfg.renderer_cfg)
         prim_path = expand_env_regex_ns(cfg.prim_path, clone_cfg.clone_template)
         matched = match(prim_path, clone_cfg.clone_template)
         spawn = getattr(cfg, "spawn", None)
