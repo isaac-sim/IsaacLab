@@ -17,11 +17,10 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
-from isaaclab.sim import SimulationContext
-from isaaclab.utils.buffers import TimestampedBufferWarp
-from isaaclab.utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
-from isaaclab.utils.warp import ProxyArray
-
+from ...sim import SimulationContext
+from ...utils.buffers import TimestampedBufferWarp
+from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
+from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
 from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
