@@ -1341,6 +1341,8 @@ XR device's view.
    feeds.
 
 
+.. _isaac-teleop-xr-camera-feedback:
+
 XR Camera Feedback
 ------------------
 
@@ -1358,6 +1360,19 @@ vertical, and grid layouts. The following registered tasks enable PiP by default
 Both G1 tasks present the calibrated head camera in a ``head_locked`` panel that follows headset
 position and orientation. Locomanipulation retains the camera as a recorded policy observation;
 fixed-base G1 uses it only for PiP and keeps its policy observation schema unchanged.
+
+To run fixed-base G1 upper-body teleoperation with its default head-locked PiP:
+
+.. code-block:: bash
+
+   uv run --extra teleop,isaacsim isaaclab teleop run \
+       --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+       --num_envs 1 --xr --device cpu
+
+This task uses motion controllers for the arms and TriHand fingers while the robot root remains
+fixed. The panel follows the headset, but its image comes from the robot's head camera, not the
+headset view. ``--device cpu`` selects CPU simulation; camera rendering and CloudXR encoding still
+use the GPU. The scene-partition runtime requirements below apply to both G1 tasks.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
