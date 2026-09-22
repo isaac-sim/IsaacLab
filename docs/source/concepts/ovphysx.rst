@@ -117,11 +117,20 @@ cloner.
 Installation
 ------------
 
+.. warning::
+
+    DO NOT MERGE: this forward-integration branch requires a matching OVPhysX
+    development wheel exposing ``Task`` and ``PhysX.wait_task()``. The released
+    0.6.3 wheel installed by the frozen dependency set does not provide this API.
+    Install the matching development OVStage and OVPhysX wheels after preparing
+    the environment, then use ``uv run --no-sync`` to preserve them. Drop this
+    integration-only guidance when a supported release provides the task API.
+
 The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
 
 .. code-block:: bash
 
-    uv sync --inexact --extra ovphysx
+    uv sync --inexact --extra ovphysx --extra test
 
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
@@ -162,7 +171,7 @@ First check that the Python package and runtime wheel import correctly:
 
       .. code-block:: bash
 
-          uv run --extra ovphysx --extra test python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+          uv run --no-sync python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
 Then run a small backend smoke test:
 
@@ -172,7 +181,7 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
+          uv run --no-sync python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
@@ -183,7 +192,7 @@ syntax as the other backends:
 
       .. code-block:: bash
 
-          uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
+          uv run --no-sync isaaclab zero_agent --task Isaac-Cartpole-Direct \
               --num_envs 128 --max_steps 64 physics=ovphysx
 
 This command runs a 64-step headless zero-action rollout and then exits.
