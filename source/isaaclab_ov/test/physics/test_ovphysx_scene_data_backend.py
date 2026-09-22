@@ -376,7 +376,7 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     OvPhysxManager.reset()
 
     assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
-    assert OvPhysxManager._scene_data_backend.transform_publication.dirty
+    assert OvPhysxManager._scene_data_backend.transforms_dirty
     assert OvPhysxManager._kinematics_dirty
 
 
@@ -435,7 +435,7 @@ def test_manager_supports_pinned_runtime_api(
     OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
     monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0)
-    OvPhysxManager._scene_data_backend.transform_publication.dirty = False
+    OvPhysxManager._scene_data_backend.transforms_dirty = False
     OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
@@ -445,11 +445,11 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
     assert PhysicsManager._sim_time == 0.02
-    assert OvPhysxManager._scene_data_backend.transform_publication.dirty
+    assert OvPhysxManager._scene_data_backend.transforms_dirty
     assert not OvPhysxManager._kinematics_dirty
 
 
-def test_publication_finishes_dirty_kinematics_before_native_reads(monkeypatch):
+def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     """Direct SDP consumers refresh pending FK once, before reading native poses."""
     import warp as wp
     from isaaclab_ov.physics import OvPhysxManager
@@ -459,11 +459,9 @@ def test_publication_finishes_dirty_kinematics_before_native_reads(monkeypatch):
     calls = []
     OvPhysxManager.backend.physx = SimpleNamespace(update_articulations_kinematic=lambda: calls.append("fk"))
     backend = OvPhysxManager._scene_data_backend
-    publication = backend._transform_publication
-    publication.data.transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
-    backend._rigid_bindings = [
-        (SimpleNamespace(read_into=lambda *args: calls.append("read")), publication.data.transforms)
-    ]
+    poses = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    backend._transforms.transforms = poses
+    backend._rigid_bindings = [(SimpleNamespace(read_into=lambda *args: calls.append("read")), poses)]
     sdp = SceneDataProvider(backend)
     monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", True)
     sdp.request_transforms(SceneDataFormat.Transform)
@@ -472,7 +470,7 @@ def test_publication_finishes_dirty_kinematics_before_native_reads(monkeypatch):
     assert not OvPhysxManager._kinematics_dirty
 
     OvPhysxManager.forward()
-    assert publication.dirty
+    assert backend.transforms_dirty
     sdp.request_transforms(SceneDataFormat.Transform)
     sdp.request_transforms(SceneDataFormat.Transform)
     assert calls == ["fk", "read", "fk", "read"]
@@ -875,7 +873,7 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     assert SimulationContext.instance() is None
 
 
-def test_transform_publication_reads_native_slices_only_when_dirty(monkeypatch):
+def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     """Native bindings fill one shared pose buffer directly and skip clean publications."""
     import isaaclab_ov.physics.ovphysx_manager as module
     import numpy as np
@@ -920,18 +918,18 @@ def test_transform_publication_reads_native_slices_only_when_dirty(monkeypatch):
     assert len(reads) == 2
 
     expected[:, 0] += 10
-    backend.transform_publication.dirty = True
+    backend.transforms_dirty = True
     assert sdp.request_transforms(SceneDataFormat.Transform).transforms is native.transforms
     assert len(reads) == 4
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
 
 
-def test_transform_publication_is_empty_before_setup():
+def test_transforms_are_empty_before_setup():
     """An unwired backend publishes no poses or paths."""
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
     backend = OvPhysxSceneDataBackend()
-    assert backend.transform_publication.data.transforms is None
+    assert backend.transforms.transforms is None
     assert backend.transform_count == 0
     assert backend.transform_paths == []
 
@@ -978,7 +976,7 @@ def test_setup_propagates_failed_rigid_binding(monkeypatch):
         backend.setup(FailingPhysX(), stage, "cpu")
 
 
-def test_failed_rigid_read_keeps_publication_dirty():
+def test_failed_rigid_read_keeps_transforms_dirty():
     """A read failure propagates rather than caching a partial or stale publication."""
     import warp as wp
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
@@ -989,13 +987,13 @@ def test_failed_rigid_read_keeps_publication_dirty():
         raise RuntimeError("simulated read failure")
 
     backend = OvPhysxSceneDataBackend()
-    backend._transform_publication.data.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
-    backend._rigid_bindings = [(SimpleNamespace(read_into=fail_read), backend._transform_publication.data.transforms)]
+    backend._transforms.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
+    backend._rigid_bindings = [(SimpleNamespace(read_into=fail_read), backend._transforms.transforms)]
     sdp = SceneDataProvider(backend)
 
     with pytest.raises(RuntimeError, match="simulated read failure"):
         sdp.request_transforms(SceneDataFormat.Transform)
-    assert backend._transform_publication.dirty
+    assert backend.transforms_dirty
 
 
 def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):

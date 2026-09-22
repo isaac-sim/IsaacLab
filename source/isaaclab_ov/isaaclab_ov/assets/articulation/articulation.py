@@ -530,7 +530,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -570,7 +570,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose()
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -614,7 +614,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -655,7 +655,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
 
     def write_root_velocity_to_sim_index(
         self,
@@ -971,7 +971,7 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_index(
@@ -1022,7 +1022,7 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1074,7 +1074,7 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1245,7 +1245,7 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend._transform_publication.dirty = True
+        OvPhysxManager._kinematics_dirty = OvPhysxManager._scene_data_backend.transforms_dirty = True
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     """

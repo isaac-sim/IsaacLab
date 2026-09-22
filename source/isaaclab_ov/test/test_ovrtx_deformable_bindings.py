@@ -596,7 +596,7 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch, use_ovstage):
     """Both OVRTX paths bind published bodies and consume SDP's scaled, transposed matrices."""
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider, SceneDataPublication
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     def reject_newton_access(*args, **kwargs):
         raise AssertionError("Rigid transform transport must not read Newton state")
@@ -607,11 +607,10 @@ def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch
     renderer, _ = _make_renderer_without_backend()
     paths = ["/World/Shared", "/World/envs/env_1/Object"]
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=np.float32)
-    publication = SceneDataPublication(SceneDataFormat.Transform())
-    publication.data.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
-    renderer._sdp = SceneDataProvider(
-        SimpleNamespace(transform_publication=publication, transform_count=2, transform_paths=paths)
-    )
+    transforms = SceneDataFormat.Transform()
+    transforms.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
+    backend = SimpleNamespace(transforms=transforms, transforms_dirty=True, transform_count=2, transform_paths=paths)
+    renderer._sdp = SceneDataProvider(backend)
     renderer._transform_generation = -1
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
@@ -650,7 +649,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch
     else:
         assert writes[0][2]["data_access"] is DataAccess.ASYNC
 
-    publication.dirty = True
+    backend.transforms_dirty = True
     renderer.update_transforms()
     assert len(writes) == 2
     updated = writes[1][2]["tensors"] if use_ovstage else writes[1][1]

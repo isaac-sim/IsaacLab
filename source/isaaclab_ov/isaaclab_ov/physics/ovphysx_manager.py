@@ -27,7 +27,7 @@ import warp as wp
 from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataPublication
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
@@ -96,7 +96,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
-        self._transform_publication = SceneDataPublication(SceneDataFormat.Transform(), dirty=True)
+        self._transforms = SceneDataFormat.Transform()
+        self.transforms_dirty = True
         self._points_data = SceneDataFormat.Points()
         self._deformable_bindings: list[dict[str, Any]] = []
         self._geometry_paths: list[str] = []
@@ -106,7 +107,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def transform_count(self) -> int:
         """Number of poses in the native publication."""
-        poses = self._transform_publication.data.transforms
+        poses = self._transforms.transforms
         return 0 if poses is None else len(poses)
 
     @property
@@ -125,8 +126,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
         self._rigid_bindings = []
-        self._transform_publication.data.transforms = None
-        self._transform_publication.dirty = True
+        self._transforms.transforms = None
+        self.transforms_dirty = True
         self._deformable_bindings = []
         self._geometry_paths = []
         self._geometry_counts = []
@@ -153,7 +154,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         if views:
             poses = wp.empty(sum(view.count for view in views), dtype=wp.transformf, device=device)
-            self._transform_publication.data.transforms = poses
+            self._transforms.transforms = poses
             offset = 0
             for view in views:
                 buffer = wp.array(
@@ -307,13 +308,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         return self._geometry_counts
 
     @property
-    def transform_publication(self) -> SceneDataPublication:
-        """Publish native rigid-body poses [m, xyzw] and their dirty latch."""
-        if self._transform_publication.dirty:
+    def transforms(self) -> SceneDataFormat.Transform:
+        """Publish native rigid-body poses [m, xyzw]."""
+        if self.transforms_dirty:
             OvPhysxManager.pre_render()
             for view, buffer in self._rigid_bindings:
                 view.read_into("rigid_body_pose", buffer)
-        return self._transform_publication
+        return self._transforms
 
 
 class OvPhysxBackend:
@@ -572,7 +573,7 @@ class OvPhysxManager(PhysicsManager):
                     cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
-        cls._kinematics_dirty = cls._scene_data_backend._transform_publication.dirty = True
+        cls._kinematics_dirty = cls._scene_data_backend.transforms_dirty = True
 
     @classmethod
     def forward(cls) -> None:
@@ -580,7 +581,7 @@ class OvPhysxManager(PhysicsManager):
         if cls.backend is not None and cls.backend.physx is not None:
             cls.backend.physx.update_articulations_kinematic()
             cls._kinematics_dirty = False
-        cls._scene_data_backend._transform_publication.dirty = True
+        cls._scene_data_backend.transforms_dirty = True
 
     @classmethod
     def pre_render(cls) -> None:
@@ -598,7 +599,7 @@ class OvPhysxManager(PhysicsManager):
         cls.backend.physx.step_sync(dt=dt)
         cls.backend.physx.update_articulations_kinematic()
         cls._kinematics_dirty = False
-        cls._scene_data_backend._transform_publication.dirty = True
+        cls._scene_data_backend.transforms_dirty = True
         PhysicsManager._sim_time += dt
 
     @staticmethod

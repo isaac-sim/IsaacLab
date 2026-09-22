@@ -34,7 +34,7 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataPublication
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
@@ -187,8 +187,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
     """Borrowed native resource; its lifetime belongs to the simulation registry."""
 
     def __init__(self):
-        self._transform_publication = SceneDataPublication(SceneDataFormat.Transform())
-        self._fabric_publication = SceneDataPublication(PhysxManager._fabric)
+        self._transforms = SceneDataFormat.Transform()
+        self._fabric = PhysxManager._fabric
         self._points_data = SceneDataFormat.Points()
         self.clear()
 
@@ -198,8 +198,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
         self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
-        self._transform_publication.data.transforms = None
-        self._transform_publication.dirty = self._fabric_publication.dirty = True
+        self._transforms.transforms = None
+        self.transforms_dirty = self.fabric_dirty = True
         self._points_data.points = None
         self._geometry_paths: list[str] = []
         self._geometry_counts: list[int] = []
@@ -361,18 +361,18 @@ class PhysxSceneDataBackend(SceneDataBackend):
         return self._geometry_counts
 
     @property
-    def fabric_publication(self) -> SceneDataPublication | None:
+    def fabric(self) -> Any | None:
         """Borrow PhysX's native Fabric interface without copying its transforms."""
         PhysxManager.pre_render()
-        return self._fabric_publication if self._fabric_publication.data is not None else None
+        return self._fabric
 
     @property
-    def transform_publication(self) -> SceneDataPublication:
-        """Publish native rigid-body poses [m, xyzw] and their dirty latch."""
+    def transforms(self) -> SceneDataFormat.Transform:
+        """Publish native rigid-body poses [m, xyzw]."""
         PhysxManager.pre_render()
-        if self._transform_publication.dirty and (view := self.get_rigid_body_view()):
-            self._transform_publication.data.transforms = view.get_transforms().view(wp.transformf)
-        return self._transform_publication
+        if self.transforms_dirty and (view := self.get_rigid_body_view()):
+            self._transforms.transforms = view.get_transforms().view(wp.transformf)
+        return self._transforms
 
     @property
     def transform_count(self) -> int:
@@ -531,7 +531,7 @@ class PhysxManager(PhysicsManager):
         """Invalidate both native pose representations after writes; defer FK when needed."""
         cls._kinematics_dirty |= kinematics
         backend = cls._scene_data_backend
-        backend._transform_publication.dirty = backend._fabric_publication.dirty = True
+        backend.transforms_dirty = backend.fabric_dirty = True
 
     @classmethod
     def pre_render(cls) -> None:

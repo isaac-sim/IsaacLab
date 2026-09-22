@@ -15,7 +15,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 
-from .scene_data_backend import SceneDataBackend, SceneDataFormat, SceneDataPublication
+from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +99,11 @@ class SceneDataProvider:
         if fabric:
             if mapping is not None or count is not None or scales is not None:
                 raise ValueError("Fabric destinations already specify native ordering, count, and authored scale.")
-            publication = self.backend.fabric_publication
-            if publication is not None:
-                if publication.dirty:
-                    publication.data.force_update(0.0, 0.0)
-                    publication.dirty = False
+            native_fabric = self.backend.fabric
+            if native_fabric is not None:
+                if self.backend.fabric_dirty:
+                    native_fabric.force_update(0.0, 0.0)
+                    self.backend.fabric_dirty = False
                 return self._prepare_fabric_output()
             # PrepareForReuse dirties writable attributes even when the layout has not changed.
             if self._fabric_update_options is not None:
@@ -111,10 +111,10 @@ class SceneDataProvider:
                 self._fabric_hierarchy.track_local_xform_changes(False)
         try:
             fabric_output = self._prepare_fabric_output() if fabric else None
-            publication = self.backend.transform_publication
-            if publication.dirty:
+            source = self.backend.transforms
+            if self.backend.transforms_dirty:
                 self._transform_generation += 1
-                publication.dirty = False
+                self.backend.transforms_dirty = False
             native_count = self.transform_count
             if native_count == 0:
                 return None
@@ -123,7 +123,6 @@ class SceneDataProvider:
                 raise ValueError("A different destination count requires an explicit transform mapping.")
             if scales is not None and output_format is not SceneDataFormat.TransposedMatrix44d:
                 raise ValueError("Static scales are supported only for TransposedMatrix44d destinations.")
-            source = publication.data
             if source._cls is output_format and mapping is None and scales is None:
                 return source
             key = (output_format, mapping, count, scales)
@@ -170,7 +169,7 @@ class SceneDataProvider:
 
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         self._fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-        native = self.backend.fabric_publication is not None
+        native = self.backend.fabric is not None
         if not native:
             self._fabric_stage.SynchronizeToFabric()
             self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
@@ -198,7 +197,7 @@ class SceneDataProvider:
         changed = self._fabric_selection.PrepareForReuse()
         if changed or self._fabric_output.matrices is None:
             matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-            if self.backend.fabric_publication is not None:
+            if self.backend.fabric is not None:
                 self._fabric_output = SceneDataFormat.FabricMatrix44(matrices=matrices)
                 return self._fabric_output
             slots = {str(path): index for index, path in enumerate(self._fabric_selection.GetPaths())}
@@ -928,17 +927,17 @@ if __name__ == "__main__":
 
     class ExampleSceneDataBackend(SceneDataBackend):
         def __init__(self):
-            transforms = SceneDataFormat.Transform()
-            transforms.transforms = wp.array([[x, 0, 0, 0, 0, 0, 1] for x in range(10)], dtype=wp.transformf)
-            self._publication = SceneDataPublication(transforms)
+            self._transforms = SceneDataFormat.Transform()
+            self._transforms.transforms = wp.array([[x, 0, 0, 0, 0, 0, 1] for x in range(10)], dtype=wp.transformf)
+            self.transforms_dirty = True
 
         @property
-        def transform_publication(self) -> SceneDataPublication:
-            return self._publication
+        def transforms(self) -> SceneDataFormat.Transform:
+            return self._transforms
 
         @property
         def transform_count(self) -> int:
-            return len(self._publication.data.transforms)
+            return len(self._transforms.transforms)
 
         @property
         def transform_paths(self) -> list[str]:

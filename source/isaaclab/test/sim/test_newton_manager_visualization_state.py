@@ -245,7 +245,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     from pxr import Usd, UsdGeom
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider, SceneDataPublication
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.sim import SimulationContext
 
     class ForeignPhysicsManager(PhysicsManager):
@@ -268,11 +268,15 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     sim.physics_manager = ForeignPhysicsManager
     sim._backend_registry = []
     body_paths = [f"/Scene/Body_{index}" for index in range(body_count)]
-    publication = SceneDataPublication(SceneDataFormat.Transform())
-    publication.data.transforms = wp.zeros(body_count, dtype=wp.transformf, device="cpu")
+    transforms = SceneDataFormat.Transform()
+    transforms.transforms = wp.zeros(body_count, dtype=wp.transformf, device="cpu")
     sim._scene_data_provider = SceneDataProvider(
         SimpleNamespace(
-            transform_publication=publication, transform_paths=body_paths, transform_count=body_count, point_count=0
+            transforms=transforms,
+            transforms_dirty=True,
+            transform_paths=body_paths,
+            transform_count=body_count,
+            point_count=0,
         )
     )
     monkeypatch.setattr(SimulationContext, "_instance", sim)
@@ -304,7 +308,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
 
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
     if body_count:
-        assert NewtonManager.get_state_0().body_q is publication.data.transforms
+        assert NewtonManager.get_state_0().body_q is transforms.transforms
     first_model = NewtonManager.get_model()
     first_state = NewtonManager.get_state()
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -357,20 +361,20 @@ def test_scene_data_publishes_native_pointer_and_invalidates_writes_and_swaps(mo
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     monkeypatch.setattr(NewtonManager, "get_state", Mock(side_effect=AssertionError("consumer recursion")))
 
-    publication = backend.transform_publication
-    assert publication.data.transforms is body_q
-    assert publication.dirty
-    publication.dirty = False
-    assert backend.transform_publication is publication
-    assert not publication.dirty
+    transforms = backend.transforms
+    assert transforms.transforms is body_q
+    assert backend.transforms_dirty
+    backend.transforms_dirty = False
+    assert backend.transforms is transforms
+    assert not backend.transforms_dirty
 
     getattr(NewtonXPBDManager, invalidate)()
-    assert publication.dirty
-    publication.dirty = False
+    assert backend.transforms_dirty
+    backend.transforms_dirty = False
     replacement = wp.zeros_like(body_q)
     NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
     assert backend.transforms.transforms is replacement
-    assert publication.dirty
+    assert backend.transforms_dirty
 
 
 def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkeypatch):
@@ -391,7 +395,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkey
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", wp.zeros(1, dtype=wp.bool, device="cpu"))
     # Fabric may bind between native allocation and the solver's FK-hook initialization.
-    assert backend.transform_publication.data.transforms is state.body_q
+    assert backend.transforms.transforms is state.body_q
     monkeypatch.setattr(NewtonManager, "_eval_fk", Mock())
     monkeypatch.setattr(NewtonManager, "_reset_solver_internals_delegate", Mock())
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
@@ -449,7 +453,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
     import warp as wp
     from isaaclab_newton.physics import NewtonManager
 
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider, SceneDataPublication
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, provider=None: False))
@@ -471,11 +475,10 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
     )
     source_data = SceneDataFormat.Transform()
     source_data.transforms = source_transforms
-    publication = SceneDataPublication(source_data)
     provider = SceneDataProvider(
         SimpleNamespace(
-            transform_publication=publication,
             transforms=source_data,
+            transforms_dirty=True,
             transform_paths=body_paths,
             transform_count=len(body_paths),
             point_count=0,
@@ -514,7 +517,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
     assert provider.create_mapping.call_count == 1
 
     source_data.transforms = wp.array(source_transforms.numpy() + 1.0, dtype=wp.transformf, device="cpu")
-    publication.dirty = True
+    provider.backend.transforms_dirty = True
     sensor_graph = NewtonManager._sensor_graph = object()
     NewtonManager.update_visualization_state(provider)
     assert provider.transform_generation == generation + 1

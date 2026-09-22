@@ -31,17 +31,17 @@ The system has three layers:
 1. :class:`~isaaclab.scene_data.SceneDataBackend`: a small interface implemented by each physics
    manager. It exposes the backend's transform array directly as one of the
    :class:`~isaaclab.scene_data.SceneDataFormat` Warp structs, plus the per-transform prim paths
-   and total count. Producers mark the publication dirty after native state writes or buffer swaps.
+   and total count. Producers set ``transforms_dirty`` after native state writes or buffer swaps;
+   SDP reads ``transforms`` before consuming the flag, since resolving the pointer can itself detect a swap.
 
-   - :attr:`SceneDataBackend.transform_publication`: a :class:`~isaaclab.scene_data.SceneDataPublication`
-     containing the current native-format pointer and dirty flag.
-   - :attr:`SceneDataBackend.transforms`: the publication's data as a Warp struct (one of
+   - :attr:`SceneDataBackend.transforms`: the native data as a Warp struct (one of
      :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
+   - :attr:`SceneDataBackend.transforms_dirty`: whether SDP needs to refresh its converted outputs.
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
-   - :attr:`SceneDataBackend.fabric_publication`: optional engine-owned Fabric interface and
-     dirty flag. Native PhysX uses this path without fetching a packed pose array.
+   - :attr:`SceneDataBackend.fabric`: optional engine-owned Fabric interface, with an independent
+     ``fabric_dirty`` flag. Native PhysX uses this path without fetching a packed pose array.
    - :attr:`SceneDataBackend.points`: flattened deformable nodal positions as
      :class:`SceneDataFormat.Points` (optional; rigid-only backends return an empty buffer).
    - :attr:`SceneDataBackend.point_count`: total number of geometry points.

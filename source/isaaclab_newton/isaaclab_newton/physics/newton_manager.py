@@ -79,7 +79,7 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 from pxr import Usd, UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider, SceneDataPublication
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.scene_data.deformable_vis_remap import (
     VolumeVisRemap,
     launch_batch_particle_slice_copy,
@@ -304,16 +304,17 @@ class NewtonSceneDataBackend(SceneDataBackend):
     """
 
     def __init__(self):
-        self._transform_publication = SceneDataPublication(SceneDataFormat.Transform())
+        self._transforms = SceneDataFormat.Transform()
+        self.transforms_dirty = True
 
     @property
-    def transform_publication(self) -> SceneDataPublication:
+    def transforms(self) -> SceneDataFormat.Transform:
         """Publish the authoritative native pointer, including solver state-buffer swaps."""
         transforms = self.state.body_q
-        if self._transform_publication.data.transforms is not transforms:
-            self._transform_publication.data.transforms = transforms
-            self._transform_publication.dirty = True
-        return self._transform_publication
+        if self._transforms.transforms is not transforms:
+            self._transforms.transforms = transforms
+            self.transforms_dirty = True
+        return self._transforms
 
     @property
     def transform_count(self) -> int:
@@ -335,13 +336,10 @@ class NewtonSceneDataBackend(SceneDataBackend):
     def state(self) -> State:
         """Return native physics state without entering the rendering consumer path."""
         state = NewtonManager.get_state_0()
+        if self._transforms.transforms is not state.body_q or NewtonManager._transforms_may_change_on_graph_replay:
+            self.transforms_dirty = True
         if (
-            self._transform_publication.data.transforms is not state.body_q
-            or NewtonManager._transforms_may_change_on_graph_replay
-        ):
-            self._transform_publication.dirty = True
-        if (
-            self._transform_publication.dirty
+            self.transforms_dirty
             and NewtonManager._fk_reset_mask is not None
             and NewtonManager._eval_fk is not _eval_fk_unbound
         ):
@@ -801,7 +799,7 @@ class NewtonManager(PhysicsManager):
     def _mark_transforms_dirty(cls) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
         if NewtonManager._scene_data_backend is not None:
-            NewtonManager._scene_data_backend._transform_publication.dirty = True
+            NewtonManager._scene_data_backend.transforms_dirty = True
         NewtonManager._cables_dirty = True
         device = PhysicsManager._device
         if device is not None:

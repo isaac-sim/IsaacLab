@@ -100,28 +100,17 @@ class SceneDataFormat:
         """World-space positions [m], shape [point_count]."""
 
 
-@dataclass(slots=True)
-class SceneDataPublication:
-    """A producer-owned native-format pointer and its dirty latch.
-
-    Producers mark the publication dirty after state writes or pointer swaps. SDP consumes the
-    latch and owns format conversions; consumers must not modify the published arrays.
-    """
-
-    data: Any
-    dirty: bool = True
-
-
 class SceneDataBackend:
-    @property
-    def fabric_publication(self) -> SceneDataPublication | None:
-        """Return an engine-owned Fabric interface and dirty latch, or None for SDP conversion."""
-        return None
+    transforms_dirty: bool
+    """Set by producers after native writes or buffer swaps; cleared by SDP after reading ``transforms``."""
+
+    fabric_dirty: bool
+    """Independent dirty flag for native Fabric, when available; cleared by SDP after refreshing it."""
 
     @property
-    def transform_publication(self) -> SceneDataPublication:
-        """Return current native transforms and their dirty latch."""
-        raise NotImplementedError
+    def fabric(self) -> Any:
+        """Return an engine-owned Fabric interface, or None for SDP conversion."""
+        return None
 
     @property
     def transforms(
@@ -129,8 +118,8 @@ class SceneDataBackend:
     ) -> (
         SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33
     ):
-        """Return the native transform publication without copying its arrays."""
-        return self.transform_publication.data
+        """Return native transforms without copying; pointer changes must set ``transforms_dirty``."""
+        raise NotImplementedError
 
     @property
     def transform_count(self) -> int:

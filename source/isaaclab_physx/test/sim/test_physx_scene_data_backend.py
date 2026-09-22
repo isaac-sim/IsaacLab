@@ -43,13 +43,13 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     provider._fabric_output = SceneDataFormat.FabricMatrix44(matrices=object())
     provider._fabric_selection = Mock(PrepareForReuse=Mock(return_value=False))
     monkeypatch.setattr(PhysicsManager._sim, "get_scene_data_provider", lambda: provider, raising=False)
-    assert backend.fabric_publication.data is fabric
+    assert backend.fabric is fabric
     provider._prepare_fabric(object(), "cpu")
     provider.request_transforms(SceneDataFormat.FabricMatrix44)
     provider.request_transforms(SceneDataFormat.FabricMatrix44)
     fabric.force_update.assert_called_once_with(0.0, 0.0)
     view.get_transforms.assert_not_called()
-    assert backend._transform_publication.dirty
+    assert backend.transforms_dirty
     assert provider.request_transforms(SceneDataFormat.Transform).transforms.ptr == transforms.ptr
     matrices = provider.request_transforms(SceneDataFormat.Matrix44)
     view.get_transforms.assert_called_once_with()
@@ -67,15 +67,15 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     assert fabric.force_update.call_count == 2
 
     manager.invalidate_transforms(kinematics=True)
-    assert backend._transform_publication.dirty and backend._fabric_publication.dirty
+    assert backend.transforms_dirty and backend.fabric_dirty
     provider.request_transforms(SceneDataFormat.FabricMatrix44)
     provider.request_transforms(SceneDataFormat.FabricMatrix44)
     assert sim_view.update_articulations_kinematic.call_count == 1 + int(operation == "forward")
     assert fabric.force_update.call_count == 3
-    assert backend._transform_publication.dirty and not backend._fabric_publication.dirty
+    assert backend.transforms_dirty and not backend.fabric_dirty
     provider.request_transforms(SceneDataFormat.Transform)
     assert view.get_transforms.call_count == 3
-    assert not backend._transform_publication.dirty
+    assert not backend.transforms_dirty
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])

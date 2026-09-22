@@ -17,8 +17,9 @@ import warp as wp
 
 from pxr import UsdUtils
 
+import isaaclab.scene_data as scene_data
 from isaaclab.cloner.usd import UsdReplicateContext
-from isaaclab.scene_data.scene_data_backend import SceneDataFormat, SceneDataPublication
+from isaaclab.scene_data.scene_data_backend import SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 
 
@@ -54,10 +55,11 @@ def test_get_transforms_matches_backend_device_when_warp_default_is_cuda():
 
 def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypatch):
     """Clean requests share one conversion; writes and native buffer swaps invalidate it."""
+    assert not hasattr(scene_data, "SceneDataPublication")
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    publication = SceneDataPublication(data)
-    provider = SceneDataProvider(SimpleNamespace(transform_publication=publication, transform_count=1))
+    backend = SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=1)
+    provider = SceneDataProvider(backend)
     with pytest.raises(ValueError, match="destination count"):
         provider.request_transforms(SceneDataFormat.Transform, count=2)
     launch = Mock(wraps=wp.launch)
@@ -70,13 +72,13 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     np.testing.assert_array_equal(converted.positions.numpy(), [[1, 2, 3]])
 
     data.transforms.assign([[4, 5, 6, 0, 0, 0, 1]])
-    publication.dirty = True
+    backend.transforms_dirty = True
     assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
     assert launch.call_count == 2
     np.testing.assert_array_equal(converted.positions.numpy(), [[4, 5, 6]])
 
     data.transforms = wp.array([[7, 8, 9, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    publication.dirty = True
+    backend.transforms_dirty = True
     assert provider.request_transforms(SceneDataFormat.Transform).transforms is data.transforms
     assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
     assert launch.call_count == 3
@@ -104,7 +106,7 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
             dtype=wp.quatf if format_name == "Vec3_Quat" else wp.mat33f,
             device="cpu",
         )
-    provider = SceneDataProvider(SimpleNamespace(transform_publication=SceneDataPublication(data), transform_count=2))
+    provider = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=2))
     mapping = wp.array([1, 0], dtype=wp.int32, device="cpu")
     scales = wp.array([[2, 3, 4], [5, 6, 7]], dtype=wp.vec3f, device="cpu") if scaled else None
     output = provider.request_transforms(SceneDataFormat.TransposedMatrix44d, mapping, scales=scales)
@@ -129,17 +131,14 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         paths.insert(1, "/World/cable_edge_body_0")
     data = SceneDataFormat.Transform()
     data.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
-    native = SceneDataProvider(
-        SimpleNamespace(transform_publication=SceneDataPublication(data), transform_count=len(poses))
-    )
-    publication = SceneDataPublication(native.request_transforms(getattr(SceneDataFormat, format_name)))
+    native = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=len(poses)))
     provider = SceneDataProvider(
         SimpleNamespace(
-            transform_publication=publication,
-            transforms=publication.data,
+            transforms=native.request_transforms(getattr(SceneDataFormat, format_name)),
+            transforms_dirty=True,
             transform_count=len(poses),
             transform_paths=paths,
-            fabric_publication=None,
+            fabric=None,
         )
     )
     provider._fabric_device = "cpu"
@@ -197,7 +196,7 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         for rotation in rotations:
             poses[:, 3:] = rotation
             data.transforms.assign(poses)
-            publication.dirty = True
+            provider.backend.transforms_dirty = True
             provider.request_transforms(SceneDataFormat.FabricMatrix44)
         np.testing.assert_allclose(
             np.linalg.norm(matrices.numpy()[:, :3, :3], axis=-1),
@@ -234,8 +233,8 @@ def test_fabric_hierarchy_uses_available_sdk_path(gpu_options, native, monkeypat
     monkeypatch.setitem(sys.modules, "usdrt", usdrt)
     monkeypatch.setitem(sys.modules, "usdrt.hierarchy", fabric_hierarchy)
     monkeypatch.setattr(UsdUtils, "StageCache", SimpleNamespace(Get=lambda: Mock()))
-    publication = SceneDataPublication(Mock()) if native else None
-    provider = SceneDataProvider(SimpleNamespace(fabric_publication=publication))
+    backend = SimpleNamespace(fabric=Mock() if native else None, fabric_dirty=True)
+    provider = SceneDataProvider(backend)
     stage = object()
     provider._prepare_fabric(stage, "cpu")
     provider._prepare_fabric(stage, "cpu")
@@ -252,10 +251,10 @@ def test_fabric_hierarchy_uses_available_sdk_path(gpu_options, native, monkeypat
         provider._fabric_selection.PrepareForReuse.return_value = False
         assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
         assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
-        publication.data.force_update.assert_called_once_with(0.0, 0.0)
-        publication.dirty = True
+        backend.fabric.force_update.assert_called_once_with(0.0, 0.0)
+        backend.fabric_dirty = True
         provider.request_transforms(SceneDataFormat.FabricMatrix44)
-        assert publication.data.force_update.call_count == 2
+        assert backend.fabric.force_update.call_count == 2
     else:
         fabric_stage.SynchronizeToFabric.assert_called_once()
         assert calls == ["cpu"]
