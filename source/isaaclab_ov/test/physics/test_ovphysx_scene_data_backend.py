@@ -390,10 +390,10 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     ("device", "expected_cpu_mode", "expected_active_cuda_gpus"),
     [("cpu", True, None), ("cuda:2", False, "2")],
 )
-def test_manager_supports_pinned_runtime_api(
+def test_manager_uses_supported_runtime_api(
     monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus
 ):
-    """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
+    """The manager uses the supported constructor, synchronous step, and task-based reset."""
     import isaaclab_ov.physics.ovphysx_manager as module
     from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
 
@@ -402,7 +402,7 @@ def test_manager_supports_pinned_runtime_api(
     cache_dir = str(tmp_path / "cooked_colliders")
     task = object()
 
-    class PinnedPhysX:
+    class SupportedPhysX:
         cpu_mode = None
 
         @classmethod
@@ -426,15 +426,15 @@ def test_manager_supports_pinned_runtime_api(
         def wait_task(self, operation):
             self.calls.append(("wait_task", operation))
 
-    # Strict signature: a keyword the real wheel would reject fails here.
-    def pinned_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
+    # The supported signature rejects unexpected constructor keywords.
+    def supported_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
         return SimpleNamespace(
             num_threads=num_threads,
             cooked_collider_cache_dir=cooked_collider_cache_dir,
             carbonite_overrides=carbonite_overrides,
         )
 
-    runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
+    runtime = SimpleNamespace(PhysX=SupportedPhysX, PhysXConfig=supported_config, bootstrap=lambda: None)
     monkeypatch.setattr(module, "import_ovphysx", lambda: runtime)
 
     backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
@@ -445,7 +445,7 @@ def test_manager_supports_pinned_runtime_api(
     OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
-    assert PinnedPhysX.cpu_mode is expected_cpu_mode
+    assert SupportedPhysX.cpu_mode is expected_cpu_mode
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
@@ -605,12 +605,13 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
     calls = []
+    task = object()
     physx = SimpleNamespace(
         warmup=lambda: calls.append("warmup"),
         warmup_gpu=lambda: calls.append("warmup_gpu"),
         destroy=lambda: calls.append("destroy"),
         release=lambda: calls.append("release"),
-        reset_stage=lambda: None,
+        reset_stage=lambda: task,
         wait_task=lambda op: None,
     )
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
@@ -629,12 +630,13 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+    task = object()
     entry_point = _CURRENT_LIFECYCLE_ENTRY_POINTS[operation]
     with pytest.raises(AttributeError, match=rf"selected {entry_point}\(\) lifecycle entry point"):
         if operation == "warmup":
             OvPhysxManager._warmup_physx(SimpleNamespace())
         else:
-            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_task=lambda op: None)
+            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: task, wait_task=lambda op: None)
             OvPhysxManager.backend.close()
 
 
@@ -655,6 +657,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     from isaaclab.sim import SimulationContext
 
     events = []
+    task = object()
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
     class FakePhysX:
@@ -669,7 +672,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
 
         def reset_stage(self):
             events.append("reset")
-            return 23
+            return task
 
         def wait_task(self, operation):
             events.append(("wait", operation))
@@ -710,7 +713,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     assert backend.physx is (physx if retryable else None)
     assert backend.stage is (stage if retryable else None)
 
-    teardown = ["close_views", "reset", ("wait", 23), entry_points["destroy"]]
+    teardown = ["close_views", "reset", ("wait", task), entry_points["destroy"]]
     assert events == teardown + ([] if retryable else ["destroy_stage"])
 
     physx.fail_destroy = False

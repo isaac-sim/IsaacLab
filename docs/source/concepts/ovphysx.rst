@@ -114,8 +114,9 @@ A receipt records admission; execution failures are raised when the task is
 collected, even when the operation executes inline. Collect each task once.
 
 Simulation stepping continues to use ``PhysX.step_sync()``. The Python
-``update_articulations_kinematic()``, ``read()``, and ``write()`` convenience
-methods also wait internally and report task failures before returning.
+``PhysX.update_articulations_kinematic()``, ``PhysX.read()``, and
+``PhysX.write()`` convenience methods also wait internally and report task
+failures before returning.
 
 Testing the Installation
 ------------------------
