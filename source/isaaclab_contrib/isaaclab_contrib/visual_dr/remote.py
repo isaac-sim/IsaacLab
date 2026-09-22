@@ -22,6 +22,7 @@ candidate -- and that fits behind this same class without the runtime noticing.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -195,10 +196,10 @@ class RemoteCosmosBackend:
         self._active = False
         for worker in self._workers:
             if worker.process.is_alive():
-                try:
+                # A worker that is already wedged still gets terminated below, and
+                # shutdown must not mask whatever failure brought us here.
+                with contextlib.suppress(Exception):
                     worker.call({"kind": "close"}, self.cfg.request_timeout_s)
-                except Exception:  # noqa: BLE001 - shutdown must not mask the original failure
-                    pass
         for worker in self._workers:
             worker.process.join(timeout=30)
             if worker.process.is_alive():
