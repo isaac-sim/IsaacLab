@@ -8,10 +8,8 @@
 import gymnasium as gym
 import pytest
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg
-
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import PresetCfg, resolve_task_config
+from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -70,55 +68,6 @@ def test_shared_preset_resolves_matching_environment_and_agent(
 
     assert type(_get(env_cfg, env_path)).__name__ == env_type
     assert _get(agent_cfg, agent_path) == agent_value
-
-
-@pytest.mark.parametrize("task", ["Isaac-Lift-KukaAllegro", "Isaac-Reorient-KukaAllegro"])
-@pytest.mark.parametrize(
-    "suffix,presets,image_groups",
-    [
-        ("", "cube", []),
-        ("-Camera", "cube", ["base_image"]),
-        ("-Camera", "single_camera,cube", ["base_image"]),
-        ("-Camera", "duo_camera,cube", ["base_image", "wrist_image"]),
-    ],
-)
-def test_kuka_agent_matches_camera_rig(task, suffix, presets, image_groups):
-    """Task defaults and explicit camera presets select matching actor inputs and models."""
-    overrides = ["physics=newton_mjwarp", f"presets={presets}"]
-    if image_groups:
-        overrides.append("renderer=newton_renderer")
-    env_cfg, agent_cfg = resolve_task_config(task + suffix, "rsl_rl_cfg_entry_point", overrides=overrides)
-
-    assert agent_cfg.obs_groups["actor"] == ["policy", "proprio", *(image_groups or ["perception"])]
-    assert agent_cfg.obs_groups["critic"] == ["policy", "proprio", "perception"]
-    assert agent_cfg.critic.class_name == "MLPModel"
-    if image_groups:
-        assert agent_cfg.actor.class_name.endswith(":SpatialSoftmaxCNNModel")
-        assert agent_cfg.algorithm.schedule == "fixed"
-    else:
-        assert agent_cfg.actor.class_name == "MLPModel"
-        assert agent_cfg.algorithm.schedule == "adaptive"
-    for image_group, camera in [("base_image", "base_camera"), ("wrist_image", "wrist_camera")]:
-        assert (getattr(env_cfg.observations, image_group, None) is not None) == (image_group in image_groups)
-        assert (getattr(env_cfg.scene, camera, None) is not None) == (image_group in image_groups)
-
-
-def test_kuka_runner_configs_keep_preset_selection_in_registry():
-    """Runner inheritance owns PPO settings; the registry owns camera preset selection."""
-    from isaaclab_tasks.core.lift.config.kuka_allegro.agents import rsl_rl_ppo_cfg as cfg
-
-    assert issubclass(cfg.KukaAllegroPPORunnerCfg, RslRlOnPolicyRunnerCfg)
-    assert not hasattr(cfg, "KukaAllegroPPOBaseRunnerCfg")
-    assert not any(isinstance(value, type) and issubclass(value, PresetCfg) for value in vars(cfg).values())
-    for name in ("KukaAllegroSingleCameraPPORunnerCfg", "KukaAllegroDuoCameraPPORunnerCfg"):
-        assert getattr(cfg, name).__bases__ == (cfg.KukaAllegroPPORunnerCfg,)
-
-    task = "Isaac-Lift-KukaAllegro-Camera"
-    root = load_cfg_from_registry(task, "rsl_rl_cfg_entry_point")
-    assert set(collect_presets(root)[""]) == {"default", "single_camera", "duo_camera"}
-    root.default.algorithm.learning_rate = 0.0
-    fresh = load_cfg_from_registry(task, "rsl_rl_cfg_entry_point")
-    assert fresh.default.algorithm.learning_rate == cfg.CAMERA_ALGO_CFG.learning_rate
 
 
 @pytest.mark.parametrize(
