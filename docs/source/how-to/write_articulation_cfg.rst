@@ -101,7 +101,7 @@ The last two parameters are optional. If not specified, they are kept at their d
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :lines: 8,10-11,17-34,49
+   :lines: 8-9,11,13-14,20-42,57
    :dedent:
 
 To import articulation from a URDF file instead of a USD file, you can replace the
@@ -129,7 +129,7 @@ Meanwhile, the joint positions and velocities are set to 0.0.
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :lines: 10,17,35-37,49
+   :lines: 13,20,43-45,57
    :dedent:
 
 Defining the actuator configuration
@@ -151,7 +151,7 @@ to combine them into a single actuator model.
 
    .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
       :language: python
-      :lines: 9-10,17,38-49
+      :lines: 12-13,20,46-57
       :dedent:
 
 
@@ -327,7 +327,7 @@ Both fields must be specified, even when using these USD defaults:
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
    :language: python
-   :lines: 27-28,30,32,34-37
+   :lines: 27-28,30,32,37-40
 
 Dofbot additionally sets initial joint positions, groups joints by name, and specifies
 actuator gains and limits. Its solver iterations and maximum depenetration velocity are
@@ -340,7 +340,7 @@ be matched with regular expressions; for example, ``.*`` selects all joints.
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
       :language: python
-      :lines: 27-28,30,32,39-82
+      :lines: 24-25,27-28,30,32,42-88
 
 The example adds both configurations to an ``InteractiveSceneCfg``, assigns each robot a
 path under every environment, and constructs the scene. Its loop resets root and joint
