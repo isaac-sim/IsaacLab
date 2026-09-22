@@ -107,3 +107,10 @@ Fixed
   and rendered looks, which a positive prompt asking for realism competes with
   rather than excludes. The demo's prompts also describe photographic capture
   (camera, lens, lighting, grain) rather than just naming the scene.
+
+* Added ``PromptBankCfg.progression`` and ``progression_steps``, a phrase sequence
+  walked once across a run and appended to whichever variant the episode selected.
+  It suits conditions that should drift rather than be drawn independently: the
+  demo uses it to take the laboratory's windows from dawn to midnight over a
+  rollout. The walk clamps at the final phrase rather than wrapping, so a longer
+  run ends at midnight instead of snapping back to dawn.

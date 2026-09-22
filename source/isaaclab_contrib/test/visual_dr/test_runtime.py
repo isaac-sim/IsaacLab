@@ -251,3 +251,46 @@ def test_frame_indexing_carries_segmentation():
     narrowed = frame.index(torch.tensor([2]))
     assert narrowed.segmentation is not None
     assert int(narrowed.segmentation.flatten()[0]) == 2
+
+
+def _bank(**kwargs):
+    from isaaclab_contrib.visual_dr.cfg import PromptBankCfg
+
+    return PromptBankCfg(variants=("a room.", "another room."), **kwargs)
+
+
+def make_progression_runtime(**bank_kwargs):
+    cfg = make_cfg()
+    cfg.backend.prompts = _bank(**bank_kwargs)
+    return VisualDRRuntime(cfg, num_envs=1, device="cpu")
+
+
+def test_prompt_progression_walks_once_across_the_configured_span():
+    phrases = ("dawn.", "noon.", "dusk.", "midnight.")
+    runtime = make_progression_runtime(progression=phrases, progression_steps=40)
+    seen = []
+    for step in range(1, 41):
+        runtime._observation_index = step
+        seen.append(runtime._prompt_for(0).rsplit(" ", 1)[-1])
+    # Each phrase holds for a quarter of the span, in order.
+    assert seen[0] == "dawn." and seen[-1] == "midnight."
+    assert [seen[i] for i in (0, 10, 20, 30)] == list(phrases)
+
+
+def test_prompt_progression_clamps_past_the_span_instead_of_wrapping():
+    runtime = make_progression_runtime(progression=("dawn.", "midnight."), progression_steps=10)
+    runtime._observation_index = 500
+    assert runtime._prompt_for(0).endswith("midnight.")
+
+
+def test_prompt_progression_keeps_the_episode_variant():
+    runtime = make_progression_runtime(progression=("dusk.",), progression_steps=10)
+    runtime._observation_index = 1
+    assert runtime._prompt_for(0).startswith("a room.")
+    assert runtime._prompt_for(1).startswith("another room.")
+
+
+def test_prompts_are_untouched_without_a_progression():
+    runtime = make_progression_runtime()
+    runtime._observation_index = 7
+    assert runtime._prompt_for(0) == "a room."

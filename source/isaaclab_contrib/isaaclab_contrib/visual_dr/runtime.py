@@ -70,7 +70,10 @@ class VisualDRRuntime:
         self.device = torch.device(device)
         self.num_envs = num_envs
         self.backend: DRBackend = cfg.backend.class_type(cfg.backend)
-        self.prompts = load_prompt_bank(getattr(cfg.backend, "prompts", None))
+        bank = getattr(cfg.backend, "prompts", None)
+        self.prompts = load_prompt_bank(bank)
+        self._progression: tuple[str, ...] = tuple(getattr(bank, "progression", ()) or ())
+        self._progression_steps = int(getattr(bank, "progression_steps", 0) or 0)
 
         zeros = torch.zeros(num_envs, dtype=torch.long, device=self.device)
         self._episode_ids = zeros.clone()
@@ -179,6 +182,22 @@ class VisualDRRuntime:
         self._cache[camera] = output
         return output
 
+    def _prompt_for(self, seed: int) -> str:
+        """Pick the seed's variant, then append how far through the run it is.
+
+        The variant follows the episode so a style holds, while the progression
+        follows wall-clock steps so a condition like time of day drifts across the
+        whole run rather than resetting with each episode.
+        """
+        prompt = self.prompts[seed % len(self.prompts)]
+        if not self._progression:
+            return prompt
+        if self._progression_steps <= 0:
+            return f"{prompt} {self._progression[0]}"
+        fraction = (self._observation_index - 1) / self._progression_steps
+        index = min(int(fraction * len(self._progression)), len(self._progression) - 1)
+        return f"{prompt} {self._progression[max(index, 0)]}"
+
     @torch.no_grad()
     def _generate(self, camera: str, frame: DRFrame, selected: torch.Tensor) -> torch.Tensor:
         output = frame.rgb.clone()
@@ -186,7 +205,7 @@ class VisualDRRuntime:
         for start in range(0, selected.numel(), self.cfg.backend.max_batch):
             chunk = selected[start : start + self.cfg.backend.max_batch]
             chunk_seeds = seeds[start : start + self.cfg.backend.max_batch]
-            prompts = tuple(self.prompts[int(s) % len(self.prompts)] for s in chunk_seeds.tolist())
+            prompts = tuple(self._prompt_for(int(s)) for s in chunk_seeds.tolist())
             sub = frame.index(chunk)
             try:
                 generated = self.backend.generate(sub, DRRequest(chunk_seeds, prompts, camera))

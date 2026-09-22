@@ -45,10 +45,22 @@ class PromptBankCfg:
     negative_prompt: str | None = None
     """Applied to every variant; ``None`` uses the checkpoint's own default."""
 
+    progression: tuple[str, ...] = ()
+    """Phrases appended to the chosen variant in order as a run proceeds, for
+    conditions that should drift rather than be drawn independently -- time of day
+    being the obvious one. Empty leaves prompts untouched."""
+
+    progression_steps: int = 0
+    """Environment steps taken to walk ``progression`` once. Zero holds the first
+    phrase. The walk is clamped rather than wrapped, so a run longer than this ends
+    on the last phrase instead of snapping back to the first."""
+
     def __post_init__(self):
         sources = [bool(self.variants), self.path is not None, self.ref is not None]
         if sum(sources) != 1:
             raise ValueError("Set exactly one of PromptBankCfg.variants, .path or .ref")
+        if self.progression_steps < 0:
+            raise ValueError("PromptBankCfg.progression_steps cannot be negative")
 
 
 @configclass
