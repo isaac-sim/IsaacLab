@@ -3,247 +3,251 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kitless contract tests; CPU tensors exercise control and masks, not CUDA transport."""
+"""Kitless contract tests: scheduling, masks and compositing on CPU tensors.
 
-from contextlib import nullcontext
+These do not cover CUDA transport, rendering or model output; the CUDA guard is
+bypassed where it would otherwise be the only thing under test.
+"""
+
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import torch
 
-from isaaclab_contrib.visual_dr import ActionChunkSchedule, DRFrame, DRObservation, VisualDRRuntime
-from isaaclab_contrib.visual_dr.cosmos import CosmosDRCfg, CosmosInput, create_cosmos_backend
-from isaaclab_contrib.visual_dr.observations import image_runtime_dr, preserve_mask
+from isaaclab_contrib.visual_dr import CameraDRCfg, DRFrame, PassthroughBackend, VisualDRRuntime
+from isaaclab_contrib.visual_dr.cfg import DRBackendCfg, VisualDRCfg
+from isaaclab_contrib.visual_dr.observations import preserve_mask, semantic_id
+
+
+def make_cfg(num_cameras: int = 1, **kwargs) -> VisualDRCfg:
+    cameras = {f"cam_{i}": CameraDRCfg(preserve_classes=("robot",)) for i in range(num_cameras)}
+    defaults = {"enabled": True, "probability": 1.0, "cameras": cameras}
+    defaults.update(kwargs)
+    return VisualDRCfg(backend=DRBackendCfg(class_type=PassthroughBackend), **defaults)
+
+
+def make_env(num_envs: int, episode_lengths: list[int], step: int) -> SimpleNamespace:
+    return SimpleNamespace(
+        common_step_counter=step,
+        episode_length_buf=torch.tensor(episode_lengths, dtype=torch.long),
+        num_envs=num_envs,
+    )
+
+
+def make_frame(num_envs: int = 2, preserve: bool = True) -> DRFrame:
+    return DRFrame(
+        torch.full((num_envs, 1, 2, 3), 10, dtype=torch.uint8),
+        torch.ones(num_envs, 1, 2, 1),
+        torch.full((num_envs, 1, 2, 1), preserve, dtype=torch.bool),
+    )
 
 
 @pytest.fixture
-def frame():
-    return DRFrame(
-        torch.tensor([[[[10, 20, 30], [40, 50, 60]]]], dtype=torch.uint8),
-        torch.ones(1, 1, 2, 1),
-        torch.tensor([[[[True], [False]]]]),
-    )
-
-
-def test_skipped_reads_and_lifecycle(frame):
-    backend = Mock()
-    runtime = VisualDRRuntime(backend)
-    runtime.begin(DRObservation(0, 0, 42, consumed=False))
-    assert torch.equal(runtime.process("table", frame), frame.rgb)
-    backend.generate.assert_not_called()
-    runtime.begin(DRObservation(1, 0, 42))
-    with pytest.raises(RuntimeError, match="Activate"):
-        runtime.process("table", frame)
-    runtime.activate()
-    runtime.offload()
-    runtime.activate()
-    with pytest.raises(RuntimeError, match="begin"):
-        runtime.process("table", frame)
-    runtime.close()
-    runtime.close()
-    backend.close.assert_called_once()
-    with pytest.raises(RuntimeError, match="closed"):
-        runtime.activate()
-
-
-def test_cache_reset_identity_and_foreground(frame, monkeypatch):
-    # Bypass ONLY the CUDA boundary to test scheduling/compositing on this CPU host.
+def cpu_frames(monkeypatch):
+    """Bypass only the CUDA device check, so the rest of the path runs on CPU."""
     monkeypatch.setattr(DRFrame, "validate", lambda self: None)
-    backend = Mock()
 
-    def generate(owned, observation, camera):
-        owned.rgb.zero_()
-        owned.preserve.zero_()
-        return torch.full_like(owned.rgb, 99)
 
-    backend.generate.side_effect = generate
-    runtime = VisualDRRuntime(backend)
+def test_partial_reset_advances_only_the_reset_environments(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(), num_envs=3, device="cpu")
+    runtime.sync(make_env(3, [4, 5, 6], step=1))
+    before = runtime._episode_ids.clone()
+    # Only environment 1 was reset by the previous step.
+    runtime.sync(make_env(3, [5, 0, 7], step=2))
+    assert torch.equal(runtime._episode_ids - before, torch.tensor([0, 1, 0]))
+
+
+def test_action_chunk_gating_consumes_one_frame_per_chunk(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(decision_period=4), num_envs=1, device="cpu")
+    consumed = []
+    for step in range(1, 10):
+        # episode_length_buf 0 on the first step marks the start of an episode.
+        runtime.sync(make_env(1, [0 if step == 1 else step - 1], step=step))
+        consumed.append(bool(runtime._consumed[0]))
+    # The episode's first frame, then one every four actions.
+    assert consumed == [True, False, False, False, True, False, False, False, True]
+
+
+def test_style_is_stable_within_an_episode_and_changes_across_them(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(style="per_episode"), num_envs=2, device="cpu")
+    runtime.sync(make_env(2, [0, 0], step=1))
+    first = runtime._style_seeds.clone()
+    runtime.sync(make_env(2, [1, 1], step=2))
+    assert torch.equal(runtime._style_seeds, first)
+    runtime.sync(make_env(2, [2, 0], step=3))
+    assert runtime._style_seeds[0] == first[0]
+    assert runtime._style_seeds[1] != first[1]
+
+
+def test_probability_zero_never_generates(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(probability=0.0), num_envs=4, device="cpu")
     runtime.activate()
-    context = DRObservation(0, 0, 42)
-    runtime.begin(context)
-    result = runtime.process("table", frame)
-    assert result.tolist() == [[[[10, 20, 30], [99, 99, 99]]]]
-    result.zero_()
-    runtime.begin(context)
-    assert runtime.process("table", frame)[0, 0, 1].tolist() == [99, 99, 99]
-    make_frame = Mock(side_effect=AssertionError("Cached reads must not fetch camera signals"))
-    assert runtime.read("table", frame.rgb, make_frame)[0, 0, 1].tolist() == [99, 99, 99]
-    make_frame.assert_not_called()
-    backend.generate.assert_called_once()
-    assert frame.rgb[0, 0, 1].tolist() == [40, 50, 60]
-    with pytest.raises(ValueError, match="sequence"):
-        runtime.begin(DRObservation(0, 1, 42))
-    runtime.begin(DRObservation(1, 1, 42))
-    runtime.process("table", frame)
-    assert backend.generate.call_count == 2
-    runtime.process("wrist", frame)
-    assert backend.generate.call_count == 3
-    runtime.begin(DRObservation(2, 1, 42))
-    backend.generate.return_value = None
-    backend.generate.side_effect = lambda *args: torch.zeros(1)
-    with pytest.raises(ValueError, match="Backend changed"):
-        runtime.process("table", frame)
-
-
-def test_no_cpu_payload_or_implicit_file_backend(frame):
-    with pytest.raises(ValueError, match="CUDA"):
-        frame.validate()
-    with pytest.raises(NotImplementedError, match="tensor-native"):
-        create_cosmos_backend(CosmosDRCfg("checkpoint", "background"))
-
-
-def test_semantics_preserve_unknown_and_foreground():
-    segmentation = torch.tensor([[[[8], [3], [99]]]], dtype=torch.int32)
-    labels = {"8": {"class": "robot"}, "3": {"class": "ground"}}
-    assert preserve_mask(segmentation, labels, ("ground",)).flatten().tolist() == [True, False, True]
-    for invalid, mapping in ((segmentation, {}), (segmentation.to(torch.uint8), labels)):
-        with pytest.raises(ValueError, match="semantic"):
-            preserve_mask(invalid, mapping, ("ground",))
-
-
-def test_observation_probe_and_attached_runtime(frame):
-    output = {
-        name: SimpleNamespace(torch=value)
-        for name, value in {
-            "rgb": frame.rgb,
-            "distance_to_image_plane": frame.depth,
-            "semantic_segmentation": torch.tensor([[[[8], [3]]]], dtype=torch.int32),
-        }.items()
-    }
-    labels = {"8": {"class": "robot"}, "3": {"class": "ground"}}
-    data = SimpleNamespace(output=output, info={"semantic_segmentation": {"idToLabels": labels}})
-    env = SimpleNamespace(scene=SimpleNamespace(sensors={"table": SimpleNamespace(data=data)}))
-    assert torch.equal(image_runtime_dr(env, "table"), frame.rgb)
-    runtime = env.visual_dr_runtime = Mock()
-    image_runtime_dr(env, "table")
-    camera, rgb, make_frame = runtime.read.call_args.args
-    request = make_frame()
-    assert camera == "table"
-    assert request.rgb is frame.rgb  # extraction uses the tensor view, not a CPU conversion
-    assert torch.equal(request.preserve, frame.preserve)
-
-
-def test_nixl_is_optional_and_linux_only(monkeypatch):
-    from isaaclab_contrib.visual_dr import nixl
-
-    monkeypatch.setattr(nixl.sys, "platform", "win32")
-    with pytest.raises(RuntimeError, match="Windows"):
-        nixl.create_nixl_agent("test")
-    monkeypatch.setattr(nixl.sys, "platform", "linux")
-    monkeypatch.setitem(nixl.sys.modules, "nixl", None)
-    with pytest.raises(ImportError, match=r"isaaclab_contrib\[nixl\]"):
-        nixl.create_nixl_agent("test")
-
-
-def test_chunk_schedule_short_chunks_bootstrap_and_reset():
-    schedule = ActionChunkSchedule(4, seed=42)
-    with pytest.raises(RuntimeError, match="reset"):
-        schedule.after_action()
-    initial = schedule.reset()
-    assert initial == DRObservation(0, 0, 42)
-    assert [schedule.after_action().consumed for _ in range(4)] == [False, False, False, True]
-    assert not schedule.after_action().consumed
-    assert schedule.after_action(end_chunk=True).consumed
-    assert schedule.after_action(bootstrap=True).consumed
-    assert [schedule.after_action().consumed for _ in range(3)] == [False, False, True]
-    reset = schedule.reset()
-    assert reset.episode == 1 and reset.sequence == 11 and reset.consumed
-    with pytest.raises(ValueError):
-        ActionChunkSchedule(0)
-
-
-def test_skipped_signals_and_faulted_cleanup(frame):
-    backend = Mock()
-    runtime = VisualDRRuntime(backend)
-    runtime.begin(DRObservation(0, 0, 42, consumed=False))
-    data = SimpleNamespace(output={"rgb": SimpleNamespace(torch=frame.rgb)})
-    env = SimpleNamespace(
-        scene=SimpleNamespace(sensors={"table": SimpleNamespace(data=data)}), visual_dr_runtime=runtime
-    )
-    assert torch.equal(image_runtime_dr(env, "table"), frame.rgb)  # no auxiliary buffers or labels required
+    runtime.sync(make_env(4, [0, 0, 0, 0], step=1))
+    backend = Mock(wraps=runtime.backend)
+    runtime.backend = backend
+    frame = make_frame(4)
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), frame.rgb)
     backend.generate.assert_not_called()
+
+
+def test_foreground_is_preserved_exactly_and_repeat_reads_match(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(), num_envs=2, device="cpu")
+    runtime.backend = Mock()
+    runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
     runtime.activate()
-    backend.offload.side_effect = RuntimeError("drain failed")
-    with pytest.raises(RuntimeError, match="drain"):
-        runtime.offload()
-    with pytest.raises(RuntimeError, match="faulted"):
-        runtime.activate()
-    backend.close.side_effect = [RuntimeError("retry cleanup"), None]
-    with pytest.raises(RuntimeError, match="retry"):
-        runtime.close()
-    runtime.close()
-    assert backend.close.call_count == 2
+    runtime.sync(make_env(2, [0, 0], step=1))
+
+    frame = make_frame(2, preserve=True)
+    first = runtime.read("cam_0", frame.rgb, lambda: frame)
+    assert torch.equal(first, frame.rgb), "preserved pixels must survive generation"
+
+    # A second read of the same observation is served from cache, not regenerated.
+    second = runtime.read("cam_0", frame.rgb, lambda: frame)
+    assert torch.equal(first, second)
+    assert runtime.backend.generate.call_count == 1
 
 
-def test_cosmos_tensor_formats_seed_and_output_validation(frame):
-    cfg = CosmosDRCfg("checkpoint", "background")
-    frame.depth[0, 0, 0, 0] = float("nan")
-    frame.depth[0, 0, 1, 0] = -1
-    observation = DRObservation(3, 2, 42)
-    request = CosmosInput.prepare(frame, observation, "table", cfg)
-    assert request.rgb.shape == (1, 3, 1, 1, 2)
-    assert request.depth.flatten().tolist() == pytest.approx([2.0, 0.1])
-    assert request.preserve.flatten().tolist() == [True, False]
-    assert torch.equal(request.decode(request.rgb), frame.rgb)
-    assert request.seed == CosmosInput.prepare(frame, observation, "table", cfg).seed
-    assert request.seed != CosmosInput.prepare(frame, observation, "wrist", cfg).seed
-    for output in (request.rgb.to(torch.uint8), torch.zeros(1), torch.full_like(request.rgb, float("nan"))):
-        with pytest.raises(ValueError):
-            request.decode(output)
+def test_background_is_replaced_where_nothing_is_preserved(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(), num_envs=1, device="cpu")
+    runtime.backend = Mock()
+    runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
+    runtime.activate()
+    runtime.sync(make_env(1, [0], step=1))
+    frame = make_frame(1, preserve=False)
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), torch.full_like(frame.rgb, 99))
 
 
-def test_cosmos_model_residency_and_compile_once(frame, monkeypatch):
-    # Exercise lifecycle calls with a real CPU module; CUDA movement/synchronization are test doubles.
-    model = torch.nn.Linear(1, 1)
-    move = Mock(return_value=model)
-    monkeypatch.setattr(model, "to", move)
-    synchronize = Mock()
-    monkeypatch.setattr(torch.cuda, "synchronize", synchronize)
-    monkeypatch.setattr(torch.cuda, "device", lambda device: nullcontext())
-    monkeypatch.setattr(torch.cuda, "empty_cache", Mock())
-    compile_model = Mock(return_value=model)
-    monkeypatch.setattr(torch, "compile", compile_model)
-    factory = Mock(return_value=model)
-    backend = create_cosmos_backend(CosmosDRCfg("checkpoint", "background", compile=True), model_factory=factory)
-    factory.assert_not_called()
-    with pytest.raises(RuntimeError, match="Activate"):
-        backend.generate(frame, DRObservation(0, 0, 42), "table")
-    backend.activate()
-    backend.activate()
-    assert not model.training and not model.weight.requires_grad
-    backend.offload()
-    move.assert_called_with("cpu")
-    backend.activate()
-    factory.assert_called_once()
-    compile_model.assert_called_once_with(model, dynamic=False)
-    backend.close()
-    backend.close()
-    assert synchronize.call_count == 2
-    with pytest.raises(RuntimeError, match="closed"):
-        backend.activate()
-    with pytest.raises(NotImplementedError, match="FP8"):
-        create_cosmos_backend(CosmosDRCfg("checkpoint", "background", fp8=True), model_factory=factory)
+def test_generation_failure_can_pass_through_with_a_recorded_reason(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(on_error="passthrough"), num_envs=1, device="cpu")
+    runtime.backend = Mock()
+    runtime.backend.generate.side_effect = RuntimeError("model exploded")
+    runtime.activate()
+    runtime.sync(make_env(1, [0], step=1))
+    frame = make_frame(1)
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), frame.rgb)
+    assert runtime.errors and "model exploded" in runtime.errors[0]
 
 
-def test_preserved_boundary_padding():
-    segmentation = torch.zeros(1, 5, 5, 1, dtype=torch.int32)
-    segmentation[0, 2, 2, 0] = 1
-    labels = {"0": {"class": "ground"}, "1": {"class": "robot"}}
-    mask = preserve_mask(segmentation, labels, ("ground",), boundary_px=1)
-    assert mask[0, 1:4, 1:4].all() and mask.sum() == 9
+def test_generation_failure_raises_by_default(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(), num_envs=1, device="cpu")
+    runtime.backend = Mock()
+    runtime.backend.generate.side_effect = RuntimeError("model exploded")
+    runtime.activate()
+    runtime.sync(make_env(1, [0], step=1))
+    frame = make_frame(1)
+    with pytest.raises(RuntimeError, match="model exploded"):
+        runtime.read("cam_0", frame.rgb, lambda: frame)
 
 
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"device": "cpu"},
-        {"device": "cuda"},
-        {"num_inference_steps": 0},
-        {"depth_range_m": (2.0, 0.1)},
-        {"depth_range_m": (0.1, float("inf"))},
-    ],
-)
-def test_cosmos_configuration_bounds(kwargs):
-    with pytest.raises(ValueError):
-        CosmosDRCfg("checkpoint", "background", **kwargs)
+def test_offloaded_runtime_returns_raw_frames(cpu_frames):
+    runtime = VisualDRRuntime(make_cfg(), num_envs=1, device="cpu")
+    runtime.activate()
+    runtime.sync(make_env(1, [0], step=1))
+    runtime.offload()
+    backend = Mock(wraps=runtime.backend)
+    runtime.backend = backend
+    frame = make_frame(1)
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), frame.rgb)
+    backend.generate.assert_not_called()
+
+
+def test_preserve_mask_keeps_named_classes_and_unknown_ids():
+    segmentation = torch.tensor([[[[1], [2]], [[3], [1]]]], dtype=torch.int32)
+    labels = {"1": {"class": "robot"}, "2": {"class": "ground"}}
+    cfg = CameraDRCfg(preserve_classes=("robot",))
+    mask = preserve_mask(segmentation, labels, cfg)
+    # 1 is named, 2 is background, 3 is untagged and therefore protected.
+    assert mask.flatten().tolist() == [True, False, True, True]
+
+
+def test_preserve_mask_can_randomize_unknown_ids():
+    segmentation = torch.tensor([[[[1], [3]]]], dtype=torch.int32)
+    labels = {"1": {"class": "robot"}}
+    cfg = CameraDRCfg(preserve_classes=("robot",), unknown_policy="randomize")
+    assert preserve_mask(segmentation, labels, cfg).flatten().tolist() == [True, False]
+
+
+def test_preserve_mask_rejects_configurations_that_would_erase_everything():
+    segmentation = torch.tensor([[[[2]]]], dtype=torch.int32)
+    labels = {"2": {"class": "ground"}}
+    with pytest.raises(ValueError, match="would be regenerated"):
+        preserve_mask(segmentation, labels, CameraDRCfg(preserve_classes=("robot",)))
+
+
+def test_preserve_mask_rejects_colorized_segmentation():
+    with pytest.raises(ValueError, match="uncolored"):
+        preserve_mask(
+            torch.zeros(1, 1, 1, 1, dtype=torch.uint8),
+            {"1": {"class": "robot"}},
+            CameraDRCfg(preserve_classes=("robot",)),
+        )
+
+
+def test_boundary_dilation_grows_the_preserved_region():
+    segmentation = torch.tensor([[[[1], [2], [2]]]], dtype=torch.int32)
+    labels = {"1": {"class": "robot"}, "2": {"class": "ground"}}
+    tight = preserve_mask(segmentation, labels, CameraDRCfg(preserve_classes=("robot",)))
+    grown = preserve_mask(segmentation, labels, CameraDRCfg(preserve_classes=("robot",), boundary_px=1))
+    assert tight.flatten().tolist() == [True, False, False]
+    assert grown.flatten().tolist() == [True, True, False]
+
+
+def test_semantic_ids_decode_rgba_keys_the_renderer_reports():
+    # Observed from the RTX renderer with colorize disabled: the buffer holds
+    # uncolored signed int32 IDs while idToLabels keys stay RGBA strings.
+    assert semantic_id("(33, 243, 3, 255)") == -16518367
+    assert semantic_id("(240, 4, 111, 255)") == -9501456
+    assert semantic_id("(0, 0, 0, 0)") == 0
+    assert semantic_id("7") == 7
+
+
+def test_preserve_mask_accepts_rgba_label_keys():
+    segmentation = torch.tensor([[[[-16518367], [0]]]], dtype=torch.int32)
+    labels = {"(33, 243, 3, 255)": {"class": "cube_2"}, "(0, 0, 0, 0)": {"class": "BACKGROUND"}}
+    mask = preserve_mask(segmentation, labels, CameraDRCfg(preserve_classes=("cube_2",)))
+    assert mask.flatten().tolist() == [True, False]
+
+
+def test_segmentation_control_map_recovers_the_renderer_palette():
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+
+    cfg = CosmosBackendCfg(class_type=CosmosBackend, control_kind="seg", prompts=PromptBankCfg(variants=("a lab",)))
+    backend = CosmosBackend.__new__(CosmosBackend)
+    backend.cfg = cfg
+    # (33, 243, 3, 255) packs little-endian to this signed id; the map must hand
+    # back those very channels rather than an arbitrary hashed colour.
+    frame = DRFrame(
+        torch.zeros(1, 1, 1, 3, dtype=torch.uint8),
+        torch.zeros(1, 1, 1, 1),
+        torch.zeros(1, 1, 1, 1, dtype=torch.bool),
+        torch.full((1, 1, 1, 1), -16518367, dtype=torch.int32),
+    )
+    control = backend._control_map(frame)
+    assert control.shape == (1, 3, 1, 1)
+    assert [round(float(c) * 255) for c in control.flatten()] == [33, 243, 3]
+
+
+def test_segmentation_control_map_requires_the_buffer():
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+
+    backend = CosmosBackend.__new__(CosmosBackend)
+    backend.cfg = CosmosBackendCfg(
+        class_type=CosmosBackend, control_kind="seg", prompts=PromptBankCfg(variants=("a lab",))
+    )
+    with pytest.raises(ValueError, match="needs the segmentation buffer"):
+        backend._control_map(make_frame(1))
+
+
+def test_frame_indexing_carries_segmentation():
+    frame = DRFrame(
+        torch.zeros(3, 1, 1, 3, dtype=torch.uint8),
+        torch.zeros(3, 1, 1, 1),
+        torch.zeros(3, 1, 1, 1, dtype=torch.bool),
+        torch.arange(3, dtype=torch.int32).reshape(3, 1, 1, 1),
+    )
+    narrowed = frame.index(torch.tensor([2]))
+    assert narrowed.segmentation is not None
+    assert int(narrowed.segmentation.flatten()[0]) == 2
