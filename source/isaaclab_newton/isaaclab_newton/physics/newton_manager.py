@@ -522,7 +522,7 @@ class NewtonManager(PhysicsManager):
     # Cached after the first fabric sync that probes IFabricHierarchy GPU APIs.
     _use_fabric_gpu_hierarchy: bool | None = None
 
-    # Set to True after sync_transforms_to_usd() successfully writes body positions for
+    # Set to True after sync_transforms_to_fabric() successfully writes body positions for
     # the first time in each simulation session.  Reset to False in clear().  Polled by
     # test drain helpers to know when the GPU has propagated the newton:index Fabric
     # attribute and body_q values are valid.
@@ -696,13 +696,16 @@ class NewtonManager(PhysicsManager):
             cls.forward()
             if NewtonManager._transforms_may_change_on_graph_replay:
                 cls._mark_transforms_dirty()
-        cls.sync_transforms_to_usd()
+        cls.sync_transforms_to_fabric()
         cls.sync_cables_to_usd()
         cls.sync_particles_to_usd()
 
     @classmethod
-    def sync_transforms_to_usd(cls) -> None:
-        """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
+    def sync_transforms_to_fabric(cls) -> None:
+        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
+
+        The write lands in Fabric only. Authored USD attributes are left untouched, so the
+        poses are visible to the RTX renderer but absent from a stage export or save.
 
         No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active)
         or when transforms have not changed since the last sync.
@@ -823,7 +826,21 @@ class NewtonManager(PhysicsManager):
                     fabric_hierarchy.track_world_xform_changes(True)
                     fabric_hierarchy.track_local_xform_changes(True)
         except Exception:
-            logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
+            logger.exception("[NewtonManager] sync_transforms_to_fabric FAILED")
+
+    @classmethod
+    def sync_transforms_to_usd(cls) -> None:
+        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
+
+        .. deprecated:: v6.3.0
+            Renamed to :meth:`sync_transforms_to_fabric`, which describes where the write
+            actually lands. This alias will be removed in a future release.
+        """
+        logger.warning(
+            "The method 'NewtonManager.sync_transforms_to_usd' is deprecated because it writes Fabric, not the USD"
+            " stage. Please use 'NewtonManager.sync_transforms_to_fabric' instead."
+        )
+        cls.sync_transforms_to_fabric()
 
     @classmethod
     def sync_cables_to_usd(cls) -> None:
@@ -947,7 +964,7 @@ class NewtonManager(PhysicsManager):
     def _mark_transforms_dirty(cls) -> None:
         """Flag that rigid-body transforms have changed and Fabric needs re-sync.
 
-        The actual sync is deferred to :meth:`sync_transforms_to_usd`,
+        The actual sync is deferred to :meth:`sync_transforms_to_fabric`,
         which runs at render cadence via :meth:`pre_render`.
         """
         NewtonManager._transforms_dirty = True
@@ -1698,7 +1715,7 @@ class NewtonManager(PhysicsManager):
             )
 
             cls._mark_state_dirty()
-            cls.sync_transforms_to_usd()
+            cls.sync_transforms_to_fabric()
             cls.sync_cables_to_usd()
             cls.sync_particles_to_usd()
 
@@ -2495,7 +2512,7 @@ class NewtonManager(PhysicsManager):
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
         Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
+        capture.  ``sync_transforms_to_fabric`` (which calls ``wp.synchronize_device``) is
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
         When ``capture_target`` is provided it is captured instead of the physics simulate

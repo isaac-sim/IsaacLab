@@ -371,8 +371,8 @@ def run_visualizer_golden_cartpole(
         visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
-        buffer_steps: Physics steps to run before capture (default 0 — capture the reset pose
-            so the pole remains at its initial 45° angle and is clearly attached to the cart).
+        buffer_steps: Physics steps to run before capture (default 0 — capture the centered
+            cart with the pole at its initial 45° angle and clearly attached to the cart).
         all_envs_perspective: Whether to frame four environments in one Kit perspective-camera image.
     """
     if all_envs_perspective and (visualizer_type != "kit" or mode != "viewport"):
@@ -409,15 +409,14 @@ def run_visualizer_golden_cartpole(
         )
         _viz_utils._configure_sim_for_visualizer_test(env)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        # Pin the initial pole angle to a fixed value so the golden image shows a clearly
-        # visible displaced pole regardless of physics backend or random seed.  A uniform
-        # range [lo, hi] with lo == hi collapses to a single deterministic angle.
+        # Center the cart so the tilted pole stays inside the camera frame in every tile.
+        # Fix the pole angle so the reset pose is independent of the backend and random seed.
         import math
 
+        env.cfg.initial_cart_position_range = (0.0, 0.0)
         env.cfg.initial_pole_angle_range = (math.pi / 4, math.pi / 4)  # exactly 45°
-        # Reseed immediately before reset so other stochastic env parameters (cart pos,
-        # velocity noise) remain reproducible regardless of how many CUDA RNG samples
-        # prior tests consumed.
+        # Reseed immediately before reset so velocity noise remains reproducible regardless
+        # of how many CUDA RNG samples prior tests consumed.
         from isaaclab.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)

@@ -120,7 +120,6 @@ class KitVisualizer(BaseVisualizer):
         self._last_streaming_composite: np.ndarray | None = None
         self._generated_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
         self._generated_camera_pose_cache: dict[str, tuple[float, ...]] = {}
-        self._generated_camera_poses_dirty = False
         self._camera_image_provider = None
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
@@ -250,7 +249,6 @@ class KitVisualizer(BaseVisualizer):
         self._camera_sensor = None
         self._generated_camera_xform_ops.clear()
         self._generated_camera_pose_cache.clear()
-        self._generated_camera_poses_dirty = False
         self._camera_image_provider = None
         self._camera_image_window = None
         self._simulation_app = None
@@ -822,10 +820,9 @@ class KitVisualizer(BaseVisualizer):
             self._camera_env_indices,
             scene=self._scene_data_provider.get_interactive_scene(),
         )
-        eyes, targets = apply_camera_target_positions(
+        apply_camera_target_positions(
             self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, self._camera_env_indices
         )
-        self._set_generated_usd_camera_poses(eyes, targets)
 
     def _update_camera_image_panel(self, dt: float) -> None:
         """Refresh the streaming image panel with composited multi-GT output."""
@@ -842,9 +839,6 @@ class KitVisualizer(BaseVisualizer):
 
         if self._camera_is_owned:
             self._update_owned_camera_poses()
-            if self._generated_camera_poses_dirty:
-                self._sync_camera_pose_updates_to_kit()
-                self._generated_camera_poses_dirty = False
             self._camera_sensor.update(dt=dt, force_recompute=True)
 
         gt_types = list(self.cfg.streaming_gt_types)
@@ -900,23 +894,6 @@ class KitVisualizer(BaseVisualizer):
             image = np.concatenate((image, alpha), axis=2)
         image = np.ascontiguousarray(image)
         self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
-
-    def _sync_camera_pose_updates_to_kit(self) -> None:
-        """Flush generated camera pose writes before camera RGB is sampled."""
-        try:
-            import omni.kit.app
-
-            app = omni.kit.app.get_app()
-            if app is None or not app.is_running():
-                return
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set_bool("/app/player/playSimulations", False)
-            app.update()
-            if play_flag is not None:
-                settings.set_bool("/app/player/playSimulations", bool(play_flag))
-        except Exception as exc:
-            logger.debug("[KitVisualizer] Camera pose Kit sync skipped: %s", exc)
 
     def _refresh_controlled_camera_path(self) -> None:
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
@@ -1030,21 +1007,6 @@ class KitVisualizer(BaseVisualizer):
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
-
-    def _set_generated_usd_camera_poses(self, eyes: torch.Tensor, targets: torch.Tensor) -> None:
-        """Author generated camera poses directly on USD camera prims for Kit/Fabric visibility."""
-        # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        for local_idx, env_id in enumerate(self._camera_env_indices):
-            if local_idx >= eyes.shape[0]:
-                break
-            camera_path = (
-                self._generated_camera_prim_paths[env_id]
-                if 0 <= env_id < len(self._generated_camera_prim_paths)
-                else f"/World/envs/env_{env_id}/VisualizerCamera"
-            )
-            self._generated_camera_poses_dirty |= self._set_usd_camera_pose(
-                camera_path, eyes[local_idx], targets[local_idx]
-            )
 
     def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
         """Apply eye/target camera pose directly to a USD camera prim.
