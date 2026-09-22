@@ -17,20 +17,6 @@ _NUM_ROBOTS = 4
 _NUM_DOF = 7
 
 
-def _make_cfg(mode: str, command_type: str, inertial: bool, gravity: bool) -> JointImpedanceControllerCfg:
-    cfg = JointImpedanceControllerCfg(
-        use_newton=True,
-    )
-    cfg.impedance_mode = mode
-    cfg.command_type = command_type
-    cfg.inertial_compensation = inertial
-    cfg.gravity_compensation = gravity
-    cfg.stiffness = 50.0
-    cfg.damping_ratio = 1.0
-    cfg.dof_pos_offset = [0.1] * _NUM_DOF
-    return cfg
-
-
 def _reference_torques(
     cfg: JointImpedanceControllerCfg,
     p_gains: torch.Tensor,
@@ -71,8 +57,16 @@ def test_backend_matches_previous_impedance_law(
     """Both backends reproduce the original Torch impedance law."""
     device = "cpu"
     generator = torch.Generator(device=device).manual_seed(0)
-    cfg = _make_cfg(mode, command_type, inertial, gravity)
-    cfg.use_newton = use_newton
+    cfg = JointImpedanceControllerCfg(
+        use_newton=use_newton,
+        impedance_mode=mode,
+        command_type=command_type,
+        inertial_compensation=inertial,
+        gravity_compensation=gravity,
+        stiffness=50.0,
+        damping_ratio=1.0,
+        dof_pos_offset=[0.1] * _NUM_DOF,
+    )
     limits = torch.stack(
         [
             -3.0 * torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device),

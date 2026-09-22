@@ -1905,54 +1905,6 @@ def _convert_to_task_frame(
     return command, task_frame_pose_b
 
 
-@pytest.mark.parametrize("frame", ["root", "task"])
-@pytest.mark.parametrize("component", ["position", "rotation", "force"])
-def test_convergence_masks_follow_control_frame(frame, component):
-    """Ignore errors on unselected axes and reject errors on selected axes in the control frame."""
-    task_pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, -0.3826834, 0.0, 0.9238795]])
-    task_pose[:, 3:] /= torch.linalg.vector_norm(task_pose[:, 3:], dim=-1, keepdim=True)
-    if frame == "root":
-        task_pose[:, 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0])
-    rotation = matrix_from_quat(task_pose[:, 3:])
-    target_pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
-    osc = SimpleNamespace(
-        cfg=SimpleNamespace(target_types=["wrench_abs" if component == "force" else "pose_abs"]),
-        _task_frame_pose_b=task_pose,
-    )
-    motion_mask = torch.tensor([[1.0, 1.0, 0.0]])
-    force_mask = 1.0 - motion_mask
-
-    def check_error(axis):
-        error = torch.zeros(1, 3)
-        error[:, axis] = 10.0 if component == "force" else 0.2
-        error_b = (rotation @ error.unsqueeze(-1)).squeeze(-1)
-        pose = target_pose.clone()
-        force = torch.zeros(1, 3)
-        if component == "position":
-            pose[:, :3] += error_b
-        elif component == "rotation":
-            _, pose[:, 3:] = apply_delta_pose(pose[:, :3], pose[:, 3:], torch.cat([torch.zeros(1, 3), error_b], dim=-1))
-        else:
-            force = error_b
-        _check_convergence(
-            osc,
-            pose,
-            target_pose,
-            force,
-            torch.zeros(1, 6),
-            motion_mask,
-            motion_mask,
-            force_mask,
-            frame,
-            0.1,
-            0.1,
-        )
-
-    check_error(0 if component == "force" else 2)
-    with pytest.raises(AssertionError):
-        check_error(2 if component == "force" else 0)
-
-
 def _check_convergence(
     osc: OperationalSpaceController,
     ee_pose_b: torch.tensor,

@@ -193,12 +193,12 @@ _SCENARIOS = {
 }
 
 
-def _build(scenario: dict) -> tuple[OperationalSpaceController, bool]:
+def _build(scenario: dict, use_newton: bool = True) -> tuple[OperationalSpaceController, bool]:
     """Instantiate a controller from a scenario, returning it with its task-frame flag."""
     scenario = dict(scenario)
     task_frame = scenario.pop("task_frame", False)
     cfg = OperationalSpaceControllerCfg(
-        use_newton=True,
+        use_newton=use_newton,
         motion_stiffness_task=(120.0, 130.0, 140.0, 15.0, 16.0, 17.0),
         motion_damping_ratio_task=(1.0, 1.1, 0.9, 1.0, 1.2, 0.8),
         **scenario,
@@ -211,8 +211,7 @@ def _build(scenario: dict) -> tuple[OperationalSpaceController, bool]:
 def test_backend_matches_operational_space_law(scenario_name: str, use_newton: bool) -> None:
     """The Newton-backed controller matches an independent operational-space reference."""
     generator = torch.Generator(device=_DEVICE).manual_seed(0)
-    controller, task_frame = _build(_SCENARIOS[scenario_name])
-    controller.cfg.use_newton = use_newton
+    controller, task_frame = _build(_SCENARIOS[scenario_name], use_newton)
 
     ee_pose_b = torch.cat([0.4 * torch.randn(_NUM_ENVS, 3, generator=generator), _random_quat(generator)], dim=-1)
     ee_vel_b = 0.2 * torch.randn(_NUM_ENVS, 6, generator=generator)

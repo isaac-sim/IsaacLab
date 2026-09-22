@@ -164,29 +164,24 @@ class DifferentialIKController:
                     raise ValueError(
                         "Neither end-effector position nor orientation can be None for `pose_rel` command type!"
                     )
-                ee_pos_des, ee_quat_des = apply_delta_pose(ee_pos, ee_quat, self._command)
+                self.ee_pos_des[:], self.ee_quat_des[:] = apply_delta_pose(ee_pos, ee_quat, self._command)
             else:
-                ee_pos_des = self._command[:, 0:3]
+                self.ee_pos_des[:] = self._command[:, 0:3]
                 # normalize valid quaternions and use the fallback for non-finite results
                 quat = self._command[:, 3:7]
                 normalized_quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
                 is_valid = torch.isfinite(normalized_quat).all(dim=-1, keepdim=True)
                 fallback_quat = self._identity_quat if ee_quat is None else ee_quat
-                ee_quat_des = torch.where(is_valid, normalized_quat, fallback_quat)
-            if self.cfg.use_newton:
-                self.ee_pos_des[:] = ee_pos_des
-                self.ee_quat_des[:] = ee_quat_des
-            else:
-                self.ee_pos_des, self.ee_quat_des = ee_pos_des, ee_quat_des
+                self.ee_quat_des[:] = torch.where(is_valid, normalized_quat, fallback_quat)
 
     def set_joint_pos_limits(self, lower: torch.Tensor, upper: torch.Tensor) -> None:
         """Provide the controlled joints' position limits for null-space joint-limit avoidance.
 
         Only used when
         :attr:`~isaaclab.controllers.differential_ik_cfg.DifferentialIKControllerCfg.joint_limit_avoidance_gain`
-        is positive. With Newton, supply limits before the first compute call; this setter
-        initializes the backend from the limit count if needed. Later updates retain its buffers.
-        The Lab backend also permits supplying limits after computing has started.
+        is positive. The IK action term injects these automatically on its first step; call this
+        manually only when using the controller standalone. With ``use_newton=True``, the limits
+        must be set before the first :meth:`compute` call.
 
         Args:
             lower: Lower joint-position limits [m or rad, depending on joint type] in shape (num_joints,).
@@ -403,8 +398,7 @@ class DifferentialIKController:
         # -- solve and return
         # A unit time step preserves q_target = q + delta_q.
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=1.0)
-        output_dtype = joint_pos.dtype if joint_pos.is_floating_point() else torch.float32
-        return self._joint_pos_des.to(dtype=output_dtype, copy=True)
+        return self._joint_pos_des.to(dtype=joint_pos.dtype, copy=True)
 
     def _initialize_newton(self) -> None:
         """Construct Newton and allocate its input and output ports."""
@@ -422,8 +416,6 @@ class DifferentialIKController:
             "adaptive_dls": DifferentialIKMethod.ADAPTIVE_DAMPING,
         }
         params = self.cfg.ik_params
-        if params is None:
-            raise RuntimeError(f"Inverse-kinematics parameters for method '{self.cfg.ik_method}' are not defined!")
         axis_weight = [1.0] * 6
         if self.cfg.command_type == "position":
             axis_weight[3:] = [0.0] * 3

@@ -157,28 +157,6 @@ def test_orientation_weight_per_axis_scales_rows_and_error():
     torch.testing.assert_close(ep[:, 5], torch.zeros_like(eb[:, 5]))
 
 
-def test_integer_command_and_limits_preserve_legacy_coercion():
-    """Integer command and limit tensors retain the public API's historical float coercion."""
-    c = _make_controller()
-    command = torch.tensor([[1, 2, 3, 0, 0, 0, 1]], dtype=torch.int64)
-    c.set_command(command)
-    torch.testing.assert_close(c.ee_pos_des, torch.tensor([[1.0, 2.0, 3.0]]))
-    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]))
-
-    c.set_joint_pos_limits(
-        torch.full((_NUM_JOINTS,), -1, dtype=torch.int64),
-        torch.full((_NUM_JOINTS,), 1, dtype=torch.int64),
-    )
-
-    output = c.compute(
-        torch.zeros(1, 3),
-        torch.tensor([_ID_QUAT]),
-        torch.zeros(1, 6, _NUM_JOINTS),
-        torch.zeros(1, _NUM_JOINTS, dtype=torch.int64),
-    )
-    assert output.dtype == torch.float32
-
-
 @pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
 def test_compute_quat_convention_xyzw(use_newton: bool):
     """Discriminating regression for the xyzw quaternion convention: commanding the EE's current

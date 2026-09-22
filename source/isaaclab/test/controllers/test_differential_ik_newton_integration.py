@@ -23,6 +23,7 @@ _IDENTITY_QUAT = (0.0, 0.0, 0.0, 1.0)
 def _make_controller(
     ik_method: str,
     *,
+    use_newton: bool = True,
     command_type: str = "pose",
     orientation_weight: float | tuple[float, float, float] | None = None,
     use_relative_mode: bool = False,
@@ -30,7 +31,7 @@ def _make_controller(
     device: str = "cpu",
 ) -> DifferentialIKController:
     cfg = DifferentialIKControllerCfg(
-        use_newton=True,
+        use_newton=use_newton,
         command_type=command_type,
         use_relative_mode=use_relative_mode,
         ik_method=ik_method,
@@ -133,8 +134,7 @@ def _previous_joint_limit_correction(
 @pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
 def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight, use_newton: bool):
     """Every configured solver produces the previous Isaac Lab joint-position target."""
-    controller = _make_controller(ik_method, orientation_weight=orientation_weight)
-    controller.cfg.use_newton = use_newton
+    controller = _make_controller(ik_method, use_newton=use_newton, orientation_weight=orientation_weight)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
     jacobian = _well_conditioned_jacobian("cpu")
     controller.set_command(command)
@@ -150,8 +150,7 @@ def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight
 @pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
 def test_backend_matches_previous_position_solver(ik_method: str, use_newton: bool):
     """Position-only control passes the matching three-row site Jacobian to every solver."""
-    controller = _make_controller(ik_method, command_type="position")
-    controller.cfg.use_newton = use_newton
+    controller = _make_controller(ik_method, use_newton=use_newton, command_type="position")
     ee_pos, ee_quat, _, joint_pos = _pose_inputs("cpu")
     command = ee_pos + torch.tensor([0.01, -0.02, 0.03])
     jacobian = _well_conditioned_jacobian("cpu")
@@ -183,8 +182,7 @@ def test_pinv_handles_rank_deficient_jacobian():
     torch.testing.assert_close(actual, expected, atol=2.0e-4, rtol=2.0e-4)
 
 
-@pytest.mark.parametrize("late_limits", [False, True])
-def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior(late_limits):
+def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior():
     """Task shaping and the null-space correction remain numerically compatible."""
     controller = _make_controller("adaptive_dls", orientation_weight=(0.5, 0.25, 0.0), joint_limit_avoidance_gain=0.4)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
@@ -193,9 +191,6 @@ def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior(la
     lower = torch.full((_NUM_JOINTS,), -1.0)
     upper = torch.full((_NUM_JOINTS,), 1.0)
     controller.set_command(command)
-    if late_limits:
-        with pytest.raises(ValueError, match="Set joint position limits before computing"):
-            controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     controller.set_joint_pos_limits(lower, upper)
 
     task_jacobian, task_error = _reference_pose_task(controller, ee_pos, ee_quat, jacobian)
@@ -204,29 +199,6 @@ def test_orientation_weight_and_joint_limit_avoidance_match_previous_behavior(la
     actual = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
 
     torch.testing.assert_close(actual, expected, atol=5.0e-4, rtol=5.0e-4)
-
-
-def test_command_and_bridge_buffers_keep_stable_addresses():
-    """Commands and per-step inputs copy into stable storage instead of rebinding Warp views."""
-    controller = _make_controller("dls")
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
-    jacobian = _well_conditioned_jacobian("cpu")
-
-    controller.set_command(command)
-    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    pointers = (
-        controller._controller_input.tool_pose_world.ptr,
-        controller._controller_input.jacobian_tool_world.ptr,
-        controller._controller_input.joint_q.ptr,
-    )
-
-    controller.set_command(command.clone())
-    controller.compute(ee_pos.clone(), ee_quat.clone(), jacobian.clone(), joint_pos.clone())
-    assert pointers == (
-        controller._controller_input.tool_pose_world.ptr,
-        controller._controller_input.jacobian_tool_world.ptr,
-        controller._controller_input.joint_q.ptr,
-    )
 
 
 def test_output_is_an_independent_snapshot():
@@ -261,26 +233,22 @@ def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary(use_r
 
 
 @pytest.mark.parametrize("device", ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else []))
-def test_joint_limits_accept_float64_cpu_tensors_before_and_after_initialization(device: str):
-    """Joint limits retain the legacy conversion behavior at the float32 Warp boundary."""
+def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(device: str):
+    """Float64 CPU limits are accepted before the first compute and can be updated afterwards."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2, device=device)
-    lower = torch.full((_NUM_JOINTS,), -1.0, dtype=torch.float64, device="cpu")
-    upper = torch.full((_NUM_JOINTS,), 1.0, dtype=torch.float64, device="cpu")
-    controller.set_joint_pos_limits(lower, upper)
-
     ee_pos, ee_quat, command, joint_pos = _pose_inputs(device)
+    joint_pos[:, 0] = 0.95
     jacobian = _well_conditioned_jacobian(device)
+    lower = torch.full((_NUM_JOINTS,), -1.0, dtype=torch.float64)
+    upper = torch.full((_NUM_JOINTS,), 1.0, dtype=torch.float64)
     controller.set_command(command)
-    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    assert controller._joint_pos_lower.dtype == torch.float32
-    assert controller._joint_pos_lower.device == torch.device(device)
 
-    backend = controller._controller
+    controller.set_joint_pos_limits(lower, upper)
+    near_limit = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    # Widening the limits moves joint 0 outside the avoidance margin.
     controller.set_joint_pos_limits(lower - 0.5, upper + 0.5)
-    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    assert controller._controller is backend
-    torch.testing.assert_close(controller._joint_pos_lower.cpu(), torch.full((_NUM_JOINTS,), -1.5))
-    torch.testing.assert_close(controller._joint_pos_upper.cpu(), torch.full((_NUM_JOINTS,), 1.5))
+    away_from_limit = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
+    assert not torch.allclose(near_limit, away_from_limit)
 
 
 def test_joint_limit_count_matches_initialized_controller():

@@ -108,9 +108,6 @@ class OperationalSpaceController:
                 raise ValueError(f"Invalid control command: {command_type}.")
         self.target_dim = sum(self.target_list)
 
-        self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
-        self._task_frame_pose_b[:, 6] = 1.0
-
         # create buffers
         # -- selection matrices, which might be defined in the task reference frame different from the root frame
         self._selection_matrix_motion_task = torch.diag_embed(
@@ -128,6 +125,8 @@ class OperationalSpaceController:
         self._selection_matrix_force_b = torch.zeros_like(self._selection_matrix_force_task)
         # -- commands
         self._task_space_target_task = torch.zeros(self.num_envs, self.target_dim, device=self._device)
+        self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
+        self._task_frame_pose_b[:, 6] = 1.0
         # -- Placeholders for motion/force control
         self.desired_ee_pose_task = None
         self.desired_ee_pose_b = None
@@ -357,7 +356,7 @@ class OperationalSpaceController:
             else:
                 raise ValueError(f"Invalid control command: {command_type}.")
 
-            if not self.cfg.use_newton or self.desired_ee_pose_task is None:
+            if self.desired_ee_pose_task is None:
                 self.desired_ee_pose_task = desired_ee_pose_task
             else:
                 self.desired_ee_pose_task.copy_(desired_ee_pose_task)
@@ -410,7 +409,7 @@ class OperationalSpaceController:
 
         # Transform desired wrenches to root frame
         if self.desired_ee_wrench_task is not None:
-            if not self.cfg.use_newton or self.desired_ee_wrench_b is None:
+            if self.desired_ee_wrench_b is None:
                 self.desired_ee_wrench_b = torch.zeros_like(self.desired_ee_wrench_task)
             self.desired_ee_wrench_b[:, :3] = (R_task_b @ self.desired_ee_wrench_task[:, :3].unsqueeze(-1)).squeeze(-1)
             self.desired_ee_wrench_b[:, 3:] = (R_task_b @ self.desired_ee_wrench_task[:, 3:].unsqueeze(-1)).squeeze(

@@ -207,9 +207,7 @@ class JointImpedanceController:
 
         # -- solve and return an independent snapshot (dt is unused)
         self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
-        return self._joint_f.to(
-            dtype=torch.promote_types(torch.float32, torch.promote_types(dof_pos.dtype, dof_vel.dtype)), copy=True
-        )
+        return self._joint_f.to(dtype=dof_pos.dtype, copy=True)
 
     def _initialize_newton(self) -> None:
         """Construct Newton ports and expose their arrays as Torch views."""
