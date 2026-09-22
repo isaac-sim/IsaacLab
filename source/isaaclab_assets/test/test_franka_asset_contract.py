@@ -89,11 +89,10 @@ def test_franka_flat_asset_collider_and_visual_contract() -> None:
         assert set(finger_joints) == {"panda_finger_joint1", "panda_finger_joint2"}
         leader_schemas = set(finger_joints["panda_finger_joint1"].GetAppliedSchemas())
         follower_schemas = set(finger_joints["panda_finger_joint2"].GetAppliedSchemas())
-        if physics_variant == "physx":
-            assert "PhysxMimicJointAPI:linear" in follower_schemas
-        else:
+        assert "NewtonMimicAPI" in leader_schemas
+        assert not any(schema.startswith("PhysxMimicJointAPI:") for schema in follower_schemas)
+        if physics_variant == "mujoco":
             assert "MjcEqualityJointAPI" in leader_schemas
-            assert "PhysxMimicJointAPI:linear" not in follower_schemas
         for collider_variant, expected in expected_colliders.items():
             variants.SetSelection("Colliders", collider_variant)
             assert _enabled_colliders(stage) == expected
