@@ -1,5 +1,5 @@
 Changed
-~~~~~~~
+^^^^^^^
 
 * Shared Newton rigid-body transforms through SceneDataProvider publications, including solver state-buffer
   swaps, and moved rigid-body Fabric transport into the provider. Newton render-only states under foreign

@@ -226,7 +226,9 @@ def test_fabric_hierarchy_uses_available_sdk_path(gpu_options, native, monkeypat
     if gpu_options is not None:
         fabric_hierarchy.FabricHierarchyGpuUpdateOptions = SimpleNamespace(RIGID_BODY=1, FORCE_UPDATE=2)
     usdrt = SimpleNamespace(
-        Usd=SimpleNamespace(Stage=SimpleNamespace(Attach=attach), Access=SimpleNamespace(Read=object(), ReadWrite=object())),
+        Usd=SimpleNamespace(
+            Stage=SimpleNamespace(Attach=attach), Access=SimpleNamespace(Read=object(), ReadWrite=object())
+        ),
         Sdf=SimpleNamespace(ValueTypeNames=SimpleNamespace(Matrix4d=object())),
         hierarchy=fabric_hierarchy,
     )
