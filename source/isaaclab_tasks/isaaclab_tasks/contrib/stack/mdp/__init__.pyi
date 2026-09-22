@@ -7,18 +7,22 @@ __all__ = [
     "cube_orientations_in_world_frame",
     "cube_poses_in_base_frame",
     "cube_positions_in_world_frame",
+    "cubes_stacked",
     "ee_frame_pos",
     "ee_frame_pose_in_base_frame",
     "ee_frame_quat",
+    "ee_object_distance",
     "gripper_pos",
     "instance_randomize_cube_orientations_in_world_frame",
     "instance_randomize_cube_positions_in_world_frame",
     "instance_randomize_object_obs",
     "object_abs_obs_in_base_frame",
     "object_grasped",
+    "object_is_grasped",
+    "object_is_stacked",
     "object_obs",
     "object_stacked",
-    "cubes_stacked",
+    "stacking_success",
 ]
 
 from .observations import (
@@ -37,5 +41,6 @@ from .observations import (
     object_obs,
     object_stacked,
 )
+from .rewards import ee_object_distance, object_is_grasped, object_is_stacked, stacking_success
 from .terminations import cubes_stacked
 from isaaclab.envs.mdp import *
