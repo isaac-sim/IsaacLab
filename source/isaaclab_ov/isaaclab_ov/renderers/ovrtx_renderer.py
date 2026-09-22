@@ -104,6 +104,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
+    from ovrtx import AttributeBinding
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -114,6 +115,13 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 # ``frame.render_vars`` keys of the render vars read below. Baked at import from the installed
 # OVRTX version, which decides whether frames are keyed by source name or RenderVar prim path.
 _LDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["LdrColor"]
+_CAMERA_INTRINSIC_ATTRIBUTES = (
+    "focalLength",
+    "horizontalAperture",
+    "verticalAperture",
+    "horizontalApertureOffset",
+    "verticalApertureOffset",
+)
 _HDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["HdrColor"]
 _ALBEDO_VAR = RENDER_VAR_FRAME_KEYS["DiffuseAlbedoSD"]
 _NORMALS_VAR = RENDER_VAR_FRAME_KEYS["NormalSD"]
@@ -306,6 +314,7 @@ class OVRTXCameraRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        self.intrinsic_bindings: list[AttributeBinding] = []
         # Per-output metadata collected during render() and copied into CameraData.info by read_output().
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
@@ -332,6 +341,7 @@ class OVRTXCameraRenderData:
         finally:
             self.camera_xform_binding = None
             self.camera_xform_query = None
+            self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
             self.renderer_info.clear()
             self.ppisp_pipeline = None
@@ -615,7 +625,6 @@ class OVRTXRenderer(BaseRenderer):
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.EXISTING_ONLY,
         )
-
         # OVRTX requires omni:resetXformStack on cameras for correct world transform binding
         self.backend.renderer.write_attribute(
             prim_paths=camera_paths,
@@ -961,6 +970,17 @@ class OVRTXRenderer(BaseRenderer):
                     render_data.resources.callback(render_data.camera_xform_binding.unbind)
             else:
                 self._register_camera(spec, render_data)
+            if not self._use_ovstage:
+                for name in _CAMERA_INTRINSIC_ATTRIBUTES:
+                    binding = self.backend.renderer.bind_attribute(
+                        prim_paths=list(spec.camera_prim_paths),
+                        attribute_name=name,
+                        dtype="float32",
+                        prim_mode=PrimMode.EXISTING_ONLY,
+                        flags=BindingFlag.OPTIMIZE,
+                    )
+                    render_data.resources.callback(binding.unbind)
+                    render_data.intrinsic_bindings.append(binding)
         except Exception:
             render_data.cleanup()
             raise
@@ -1808,6 +1828,29 @@ class OVRTXRenderer(BaseRenderer):
             self._update_camera_ovstage(render_data, positions, orientations, intrinsics)
         else:
             self._update_camera_legacy(render_data, positions, orientations, intrinsics)
+
+    def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
+        """Publish calibration columns from GPU memory into the renderer-owned scene."""
+        stream = wp.get_stream(parameters.device).cuda_stream
+        if self._use_ovstage:
+            self.backend.stage.write_attributes(
+                render_data.camera_xform_query,
+                [
+                    ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
+                    for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)
+                ],
+                ordinal=self._current_ordinal,
+            ).wait()
+        else:
+            operations = []
+            try:
+                for row, binding in enumerate(render_data.intrinsic_bindings):
+                    operations.append(
+                        binding.write_async(parameters[row], data_access=DataAccess.ASYNC, cuda_stream=stream)
+                    )
+            finally:
+                for operation in operations:
+                    operation.wait()
 
     def render(self, render_data: OVRTXCameraRenderData) -> None:
         """Render the scene into the provided RenderData."""

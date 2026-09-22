@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     import torch
+    import warp as wp
 
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
@@ -140,7 +141,10 @@ class BaseRenderer(ABC):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ) -> None:
-        """Update camera poses and intrinsics for the next render.
+        """Update camera poses and supply initial calibration for the next render.
+
+        Backends may use ``intrinsics`` to initialize projection state. Runtime calibration changes
+        are submitted separately through :meth:`update_camera_intrinsics`.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -152,6 +156,23 @@ class BaseRenderer(ABC):
                 Use ``.torch`` for a ``(N, 3, 3)`` tensor view.
         """
         pass
+
+    def update_camera_intrinsics(self, render_data: Any, intrinsics: wp.array, parameters: wp.array) -> None:
+        """Apply a proposed runtime calibration without accessing the authored USD stage.
+
+        Called only for calibration changes, independently of pose updates. The camera commits its
+        public buffers after this succeeds. Backends validate restrictions before modifying runtime
+        state, and consume the arrays before returning or order their reads on the producing Warp
+        stream; the camera reuses their storage on the next call.
+
+        Args:
+            render_data: The camera's renderer-owned state.
+            intrinsics: Complete proposed calibration, shape (N,), dtype ``wp.mat33f``.
+            parameters: Complete physical projection parameters, shape (5, N), dtype ``wp.float32``.
+                Rows are focal length, horizontal/vertical aperture, and horizontal/vertical aperture
+                offsets, in the scene's camera length units. Unselected cameras retain their values.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support runtime camera calibration.")
 
     @abstractmethod
     def render(self, render_data: Any) -> None:
