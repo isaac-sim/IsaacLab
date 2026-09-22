@@ -316,9 +316,12 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
         OvPhysxManager._pending_clones = previous
 
 
-def test_manager_replays_pending_runtime_clones_without_full_stage_requirement():
-    """The default replay path forwards final world transforms to the runtime."""
+@pytest.mark.parametrize("clone_fails", [False, True])
+def test_manager_replays_pending_runtime_clones_without_full_stage_requirement(clone_fails):
+    """Clone replay collects the returned receipt and reports accepted execution failures."""
     from isaaclab_ov.physics import OvPhysxManager
+
+    task = object()
 
     class FakePhysX:
         def __init__(self):
@@ -326,19 +329,26 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
 
         def clone(self, source, targets, transforms):
             self.calls.append(("clone", source, targets, transforms))
-            return 19
+            return task
 
-        def wait_op(self, operation):
-            self.calls.append(("wait_op", operation))
+        def wait_task(self, receipt):
+            assert receipt is task
+            self.calls.append(("wait_task", receipt))
+            if clone_fails:
+                raise RuntimeError("clone task failed")
 
     fake = FakePhysX()
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
-        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
+        if clone_fails:
+            with pytest.raises(RuntimeError, match="clone task failed"):
+                OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
+        else:
+            OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
         assert fake.calls == [
             ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
-            ("wait_op", 19),
+            ("wait_task", task),
         ]
         assert OvPhysxManager._pending_clones == []
     finally:
@@ -390,6 +400,7 @@ def test_manager_supports_pinned_runtime_api(
     from isaaclab.physics import PhysicsManager
 
     cache_dir = str(tmp_path / "cooked_colliders")
+    task = object()
 
     class PinnedPhysX:
         cpu_mode = None
@@ -410,10 +421,10 @@ def test_manager_supports_pinned_runtime_api(
 
         def reset_stage(self):
             self.calls.append(("reset_stage",))
-            return 23
+            return task
 
-        def wait_op(self, operation):
-            self.calls.append(("wait_op", operation))
+        def wait_task(self, operation):
+            self.calls.append(("wait_task", operation))
 
     # Strict signature: a keyword the real wheel would reject fails here.
     def pinned_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
@@ -438,7 +449,12 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
-    assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
+    assert physx.calls == [
+        ("step_sync", 0.02),
+        ("update_articulations_kinematic",),
+        ("reset_stage",),
+        ("wait_task", task),
+    ]
     assert PhysicsManager._sim_time == 0.02
 
 
@@ -489,12 +505,14 @@ def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
     assert "no cloned environments to strip — serialized stage as-is" in caplog.text
 
 
-def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
+@pytest.mark.parametrize("reset_fails", [False, True])
+def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, reset_fails):
     """The registered resource releases the attached OVStage once, after PhysX."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
     from isaaclab_ov.physics import OvPhysxManager
 
     events = []
+    task = object()
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
 
     class FakeWriteFloorOp:
@@ -520,10 +538,13 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
         def reset_stage(self):
             events.append(("reset",))
-            return 17
+            return task
 
-        def wait_op(self, op):
-            events.append(("wait", op))
+        def wait_task(self, receipt):
+            assert receipt is task
+            events.append(("wait", receipt))
+            if reset_fails:
+                raise RuntimeError("reset task failed")
 
         def release(self):
             events.append(("release",))
@@ -549,7 +570,11 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     )
     OvPhysxManager._attach_ovstage("#usda 1.0")
     stage = OvPhysxManager.backend.stage
-    OvPhysxManager.backend.close()
+    if reset_fails:
+        with pytest.raises(RuntimeError, match="reset task failed"):
+            OvPhysxManager.backend.close()
+    else:
+        OvPhysxManager.backend.close()
     OvPhysxManager.backend.close()
 
     # The seal must land between population and attach: ovphysx reads sealed data
@@ -561,7 +586,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         ("attach", stage, 1),
         ("close_views", physx),
         ("reset",),
-        ("wait", 17),
+        ("wait", task),
         ("release",),
         ("destroy",),
     ]
@@ -586,7 +611,7 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
         destroy=lambda: calls.append("destroy"),
         release=lambda: calls.append("release"),
         reset_stage=lambda: None,
-        wait_op=lambda op: None,
+        wait_task=lambda op: None,
     )
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
@@ -609,7 +634,7 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
         if operation == "warmup":
             OvPhysxManager._warmup_physx(SimpleNamespace())
         else:
-            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_op=lambda op: None)
+            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_task=lambda op: None)
             OvPhysxManager.backend.close()
 
 
@@ -646,7 +671,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
             events.append("reset")
             return 23
 
-        def wait_op(self, operation):
+        def wait_task(self, operation):
             events.append(("wait", operation))
 
         def destroy(self):

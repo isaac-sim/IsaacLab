@@ -103,6 +103,20 @@ discovery helper. Registering both with OVStage preserves authored
 optional for scenes without those attributes; scenes that author them need
 the ``newton-usd-schemas`` package installed.
 
+Task completion
+---------------
+
+The backend requires the OVPhysX task API. ``PhysX.clone()`` and
+``PhysX.reset_stage()`` return ``Task`` receipts, which the backend passes to
+``PhysX.wait_task()`` before continuing. Custom Python callers must pass the
+whole receipt to ``wait_task()`` instead of passing an integer to ``wait_op()``.
+A receipt records admission; execution failures are raised when the task is
+collected, even when the operation executes inline. Collect each task once.
+
+Simulation stepping continues to use ``PhysX.step_sync()``. The Python
+``update_articulations_kinematic()``, ``read()``, and ``write()`` convenience
+methods also wait internally and report task failures before returning.
+
 Testing the Installation
 ------------------------
 

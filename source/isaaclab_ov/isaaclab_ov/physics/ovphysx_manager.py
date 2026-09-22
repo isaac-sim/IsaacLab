@@ -435,7 +435,7 @@ class OvPhysxBackend:
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
-                    physx.wait_op(physx.reset_stage())
+                    physx.wait_task(physx.reset_stage())
                 finally:
                     try:
                         destroy = getattr(physx, destroy_entry_point, None)
@@ -736,7 +736,7 @@ class OvPhysxManager(PhysicsManager):
         if physx is None:
             return
         OvPhysxView._close_all_for(physx)
-        physx.wait_op(physx.reset_stage())
+        physx.wait_task(physx.reset_stage())
         if cls.backend.stage is not None:
             cls.backend.stage.destroy()
             cls.backend.stage = None
@@ -967,8 +967,8 @@ class OvPhysxManager(PhysicsManager):
                 targets[-1],
             )
             transforms = target_transforms or None
-            op_idx = physx.clone(source, targets, transforms)
-            physx.wait_op(op_idx)
+            task = physx.clone(source, targets, transforms)
+            physx.wait_task(task)
 
     @classmethod
     def _warmup_and_load(cls) -> None:

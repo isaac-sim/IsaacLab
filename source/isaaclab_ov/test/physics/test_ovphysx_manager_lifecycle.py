@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Regression tests for OVPhysX 0.5.9 bootstrap and shutdown."""
+"""Regression tests for OVPhysX bootstrap and shutdown."""
 
 from __future__ import annotations
 
@@ -297,33 +297,40 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
     assert "Failed to close OVPhysX during process exit." in caplog.text
 
 
-def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
+@pytest.mark.parametrize("reset_fails", [False, True])
+def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, reset_fails):
     manager = manager_module.OvPhysxManager
     events = []
+    task = object()
 
     class FakePhysX:
         def reset_stage(self):
             events.append("reset")
-            return 9
+            return task
 
-        def wait_op(self, operation):
-            events.append(("wait", operation))
+        def wait_task(self, receipt):
+            assert receipt is task
+            events.append(("wait", receipt))
+            if reset_fails:
+                raise RuntimeError("reset task failed")
 
     physx = FakePhysX()
     manager.backend.physx = physx
     monkeypatch.setattr(
         manager_module.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value))
     )
-    manager.backend.stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
+    stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
+    manager.backend.stage = stage
 
-    manager._prepare_physx_for_stage_reuse()
+    with pytest.raises(RuntimeError, match="reset task failed") if reset_fails else nullcontext():
+        manager._prepare_physx_for_stage_reuse()
 
     assert events == [
         ("close_views", physx),
         "reset",
-        ("wait", 9),
-        "destroy_stage",
-    ]
+        ("wait", task),
+    ] + ([] if reset_fails else ["destroy_stage"])
+    assert manager.backend.stage is (stage if reset_fails else None)
 
 
 @pytest.mark.parametrize("failure", [None, "query", "write"])
